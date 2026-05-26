@@ -1,45 +1,53 @@
 #include <App.h>
+
 #include <iostream>
-#include <string>
-#include <chrono>
 #include <thread>
+#include <chrono>
+
+#include "../streamgenerator/datasource/synthetic_source.hpp"
+#include "../streamgenerator/protocol/serializer.hpp"
 
 struct PerSocketData {};
 
 int main() {
     uWS::App app;
 
-    int tick = 0;
+    SyntheticSource source;
+    Serializer serializer;
 
+    // ---------------------------
+    // WebSocket setup
+    // ---------------------------
     app.ws<PerSocketData>("/*", {
         .open = [](auto *ws) {
             std::cout << "client connected\n";
             ws->subscribe("ticks");
         },
-
-        .close = [](auto *ws, int code, std::string_view message) {
+        .close = [](auto *ws, int, std::string_view) {
             std::cout << "client disconnected\n";
         }
     });
 
-    // Run a background thread to generate data
+    // ---------------------------
+    // Stream producer
+    // ---------------------------
     std::thread producer([&]() {
         while (true) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-            std::string msg = "{\"type\":\"tick\",\"value\":" + std::to_string(tick++) + "}";
+            auto event = source.next();
+            auto msg = serializer.to_json(event);
 
             app.publish("ticks", msg, uWS::OpCode::TEXT);
 
-            std::cout << "sent: " << msg << std::endl;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     });
 
-    app.listen(9002, [](auto *listen_socket) {
-        if (listen_socket) {
-            std::cout << "listening on port 9002\n";
-        } else {
-            std::cout << "failed to listen\n";
+    // ---------------------------
+    // Start server
+    // ---------------------------
+    app.listen(9002, [](auto *token) {
+        if (token) {
+            std::cout << "listening on 9002\n";
         }
     });
 
