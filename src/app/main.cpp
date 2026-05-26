@@ -1,57 +1,68 @@
 #include <App.h>
 
 #include <iostream>
+#include <memory>
 #include <thread>
-#include <chrono>
 
 #include "../streamgenerator/datasource/synthetic_source.hpp"
+#include "../streamgenerator/buffer/ring_buffer.hpp"
+#include "../streamgenerator/runtime/producer.hpp"
+#include "../streamgenerator/runtime/consumer_state.hpp"
 #include "../streamgenerator/protocol/serializer.hpp"
+#include "../streamgenerator/timing/delay_strategies.hpp"
 
-struct PerSocketData {};
+struct PerSocketData {
+    std::shared_ptr<ConsumerState> consumer;
+};
 
 int main() {
     uWS::App app;
 
-    SyntheticSource source;
+    auto buffer = std::make_shared<RingBuffer>(1024);
+    auto source = std::make_shared<SyntheticSource>();
     Serializer serializer;
+    Producer producer(source, poisson_delay(10.0));
 
-    // ---------------------------
-    // WebSocket setup
-    // ---------------------------
+    // -------------------------
+    // WebSocket
+    // -------------------------
     app.ws<PerSocketData>("/*", {
-        .open = [](auto *ws) {
-            std::cout << "client connected\n";
+
+        .open = [&](auto *ws) {
             ws->subscribe("ticks");
+
+            ws->getUserData()->consumer =
+                std::make_shared<ConsumerState>(buffer);
+
+            std::cout << "client connected\n";
         },
-        .close = [](auto *ws, int, std::string_view) {
+
+        .close = [&](auto *, int, std::string_view) {
             std::cout << "client disconnected\n";
         }
     });
 
-    // ---------------------------
-    // Stream producer
-    // ---------------------------
-    std::thread producer([&]() {
-        while (true) {
-            auto event = source.next();
-            auto msg = serializer.to_json(event);
+    // -------------------------
+    // Producer thread
+    // -------------------------
+    std::thread producer_thread([&]() {
+        producer.run([&](const MarketEvent& event) {
+            buffer->push(event);
+
+            std::string msg = serializer.to_json(event);
 
             app.publish("ticks", msg, uWS::OpCode::TEXT);
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        }
+            // std::cout << msg << std::endl; // 👈 DEBUG
+        });
     });
 
-    // ---------------------------
-    // Start server
-    // ---------------------------
     app.listen(9002, [](auto *token) {
-        if (token) {
-            std::cout << "listening on 9002\n";
-        }
+        if (token)
+            std::cout << "server running on 9002\n";
     });
 
     app.run();
 
-    producer.join();
+    producer_thread.join();
 }
