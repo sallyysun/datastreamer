@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<body>
+<h1>WebSocket Stream</h1>
+<pre id="out"></pre>
+
+<script>
+const out = document.getElementById("out");
+
+const ws = new WebSocket("ws://localhost:9002");
+
+ws.onmessage = (e) => {
+    out.textContent += e.data + "\n";
+};
+</script>
+
+</body>
+</html>

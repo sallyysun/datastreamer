@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <title>WebSocket Test</title>
+</head>
+<body>
+  <h2>WebSocket Feed</h2>
+  <pre id="out"></pre>
+
+  <script>
+    const out = document.getElementById("out");
+
+    const ws = new WebSocket("ws://localhost:9002");
+
+    ws.onopen = () => {
+      out.textContent += "connected\n";
+    };
+
+    ws.onmessage = (event) => {
+      out.textContent += event.data + "\n";
+    };
+
+    ws.onclose = () => {
+      out.textContent += "disconnected\n";
+    };
+  </script>
+</body>
+</html>
