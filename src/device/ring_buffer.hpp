@@ -1,10 +1,10 @@
 #pragma once
 
-#include <vector>
 #include <atomic>
 #include <mutex>
+#include <vector>
 
-#include "../event/market_event.hpp"
+#include "../streamgenerator/event/market_event.hpp"
 
 class RingBuffer {
 public:
@@ -13,11 +13,10 @@ public:
           data_(capacity),
           head_(0) {}
 
-    // Producer writes latest event
     void push(const MarketEvent& event) {
         std::lock_guard<std::mutex> lock(write_mutex_);
 
-        size_t idx = head_ % capacity_;
+        const size_t idx = head_ % capacity_;
         data_[idx] = event;
 
         head_.fetch_add(1, std::memory_order_release);
@@ -27,13 +26,23 @@ public:
         return head_.load(std::memory_order_acquire);
     }
 
-    MarketEvent get(size_t index) const {
-        size_t idx = index % capacity_;
-        return data_[idx];
-    }
-
     size_t capacity() const {
         return capacity_;
+    }
+
+    // oldest still valid index
+    size_t oldest_available() const {
+        const size_t h = head();
+
+        if (h <= capacity_) {
+            return 0;
+        }
+
+        return h - capacity_;
+    }
+
+    MarketEvent get(size_t index) const {
+        return data_[index % capacity_];
     }
 
 private:
