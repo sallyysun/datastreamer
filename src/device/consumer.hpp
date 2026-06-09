@@ -42,7 +42,7 @@ public:
         buffer_->push(event);
         process_available();
     }
-hah
+
     // Drain everything newly available, applying the lag policy, and fold each
     // event into the running state.
     void process_available() {
