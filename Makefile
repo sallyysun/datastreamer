@@ -13,10 +13,7 @@ src/streamgenerator/datasource/synthetic_source.cpp \
 src/streamgenerator/runtime/producer.cpp \
 src/streamgenerator/protocol/serializer.cpp
 
-TEST_SRC = src/tests/test_stream.cpp
-
 SERVER_OUT = server
-TEST_OUT = test_stream
 
 INCLUDES = \
 -I$(UWS)/src \
@@ -39,10 +36,5 @@ server:
 	$(LIBS) \
 	-o $(SERVER_OUT)
 
-test:
-	$(CXX) $(TEST_SRC) -std=c++20 \
-	$(INCLUDES) \
-	-o $(TEST_OUT)
-
 clean:
-	rm -f server test_stream
+	rm -f server

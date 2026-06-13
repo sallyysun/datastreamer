@@ -10,7 +10,8 @@
   <script>
     const out = document.getElementById("out");
 
-    const ws = new WebSocket("ws://localhost:9002");
+    // IMPORTANT: uses same host (works with ngrok automatically)
+    const ws = new WebSocket(`wss://${window.location.host}`);
 
     ws.onopen = () => {
       out.textContent += "connected\n";
