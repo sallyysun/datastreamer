@@ -26,38 +26,71 @@ static ConsumerPolicy next_policy(int n) {
     }
 }
 
+// -------------------------
+// MIME TYPE HELPER
+// -------------------------
+static std::string mime_type(const std::string &path) {
+    if (path.ends_with(".html")) return "text/html";
+    if (path.ends_with(".js")) return "application/javascript";
+    if (path.ends_with(".css")) return "text/css";
+    if (path.ends_with(".json")) return "application/json";
+    if (path.ends_with(".svg")) return "image/svg+xml";
+    return "text/plain";
+}
+
 int main() {
     uWS::App app;
 
     auto bus = std::make_shared<EventBus>();
     auto source = std::make_shared<SyntheticSource>();
     Serializer serializer;
-    Producer producer(source, poisson_delay(10.0));
+
+    Producer producer(source, fixed_delay(0.5)); // adjust speed here
 
     int connection_count = 0;
 
-    // =========================
-    // SERVE FRONTEND (IMPORTANT)
-    // =========================
-    app.get("/", [](auto *res, auto *req) {
-        std::ifstream file("client.html");
+    // =========================================================
+    // SERVE REACT (VITE BUILD) - IMPORTANT FIX
+    // =========================================================
+    app.get("/*", [](auto *res, auto *req) {
+        std::string path = std::string(req->getUrl());
 
+        // SPA fallback
+        if (path == "/") {
+            path = "/index.html";
+        }
+
+        std::string filePath = "client/dist" + path;
+
+        std::ifstream file(filePath, std::ios::binary);
+
+        // fallback for React Router (important)
         if (!file.is_open()) {
-            res->writeStatus("500 Internal Server Error");
-            res->end("client.html not found (check working directory)");
+            std::ifstream fallback("client/dist/index.html");
+            if (!fallback.is_open()) {
+                res->writeStatus("500 Internal Server Error");
+                res->end("frontend not built (client/dist missing)");
+                return;
+            }
+
+            std::stringstream buffer;
+            buffer << fallback.rdbuf();
+
+            res->writeHeader("Content-Type", "text/html");
+            res->end(buffer.str());
             return;
         }
 
         std::stringstream buffer;
         buffer << file.rdbuf();
 
-        res->writeHeader("Content-Type", "text/html");
+        res->writeHeader("Content-Type", mime_type(filePath));
         res->end(buffer.str());
     });
 
-    // =========================
+    // =========================================================
     // WEBSOCKET STREAM
-    // =========================
+    // =========================================================
     app.ws<PerSocketData>("/*", {
 
         .open = [&](auto *ws) {
@@ -93,9 +126,9 @@ int main() {
         }
     });
 
-    // =========================
+    // =========================================================
     // PRODUCER THREAD
-    // =========================
+    // =========================================================
     std::thread producer_thread([&]() {
         std::size_t n = 0;
 
@@ -103,10 +136,9 @@ int main() {
             bus->publish(event);
 
             std::string msg = serializer.to_json(event);
-
             app.publish("ticks", msg, uWS::OpCode::TEXT);
 
-            if (++n % 100 == 0) {
+            if (++n % 20 == 0) {
                 std::cout << "[producer] events=" << n
                           << " subscribers=" << bus->subscriber_count()
                           << "\n";
@@ -114,9 +146,9 @@ int main() {
         });
     });
 
-    // =========================
+    // =========================================================
     // START SERVER
-    // =========================
+    // =========================================================
     app.listen(9002, [](auto *token) {
         if (token) {
             std::cout << "server running on http://localhost:9002\n";
@@ -126,6 +158,5 @@ int main() {
     });
 
     app.run();
-
     producer_thread.join();
 }

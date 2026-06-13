@@ -1,28 +1,151 @@
 <!doctype html>
 <html>
 <head>
-  <title>WebSocket Test</title>
+  <meta charset="utf-8" />
+  <title>Live Feed Table</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto;
+      background: #0b0f17;
+      color: #e6e6e6;
+    }
+
+    header {
+      padding: 14px 18px;
+      background: #111827;
+      border-bottom: 1px solid #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #444;
+    }
+
+    .status.connected { background: #16a34a; }
+    .status.disconnected { background: #dc2626; }
+
+    .container {
+      padding: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 13px;
+    }
+
+    thead {
+      background: #111827;
+      position: sticky;
+      top: 0;
+    }
+
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #222;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    tbody tr:hover {
+      background: #111827;
+    }
+
+    .ts {
+      color: #888;
+      font-size: 11px;
+    }
+  </style>
 </head>
+
 <body>
-  <h2>WebSocket Feed</h2>
-  <pre id="out"></pre>
+  <header>
+    <h3>📡 Live Market Stream</h3>
+    <div id="status" class="status disconnected">disconnected</div>
+  </header>
+
+  <div class="container">
+    <table>
+      <thead>
+        <tr id="headerRow"></tr>
+      </thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
 
   <script>
-    const out = document.getElementById("out");
+    const status = document.getElementById("status");
+    const body = document.getElementById("body");
+    const headerRow = document.getElementById("headerRow");
 
-    // IMPORTANT: uses same host (works with ngrok automatically)
+    const MAX_ROWS = 50;
+    let headersSet = false;
+
+    function setStatus(s) {
+      status.textContent = s;
+      status.className = "status " + s;
+    }
+
+    function ensureHeaders(keys) {
+      if (headersSet) return;
+
+      headerRow.innerHTML = `
+        <th>time</th>
+        ${keys.map(k => `<th>${k}</th>`).join("")}
+      `;
+
+      headersSet = true;
+    }
+
+    function addRow(obj) {
+      const time = new Date().toLocaleTimeString();
+
+      const keys = Object.keys(obj);
+      ensureHeaders(keys);
+
+      const tr = document.createElement("tr");
+
+      let html = `<td class="ts">${time}</td>`;
+
+      for (const k of keys) {
+        html += `<td>${obj[k]}</td>`;
+      }
+
+      tr.innerHTML = html;
+
+      body.prepend(tr);
+
+      // keep table bounded (VERY IMPORTANT for performance)
+      while (body.children.length > MAX_ROWS) {
+        body.removeChild(body.lastChild);
+      }
+    }
+
     const ws = new WebSocket(`wss://${window.location.host}`);
 
     ws.onopen = () => {
-      out.textContent += "connected\n";
+      setStatus("connected");
     };
 
     ws.onmessage = (event) => {
-      out.textContent += event.data + "\n";
+      try {
+        const data = JSON.parse(event.data);
+        addRow(data);
+      } catch {
+        addRow({ message: event.data });
+      }
     };
 
     ws.onclose = () => {
-      out.textContent += "disconnected\n";
+      setStatus("disconnected");
     };
   </script>
 </body>

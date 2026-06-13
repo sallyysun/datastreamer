@@ -3,6 +3,10 @@ server side: `./server`
 
 `source .venv/bin/activate`
 
-client side: `python3 -m http.server 8000`
 
-open: http://localhost:8000/src/app/client.html 
+in `client/env` 
+
+- `VITE_WS_URL=ws://localhost:9002` for dev
+- `VITE_WS_URL=wss://thesaurus-process-jazz.ngrok-free.dev/` for prod
+
+`ngrok http 9002`
