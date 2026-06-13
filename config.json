@@ -1,0 +1,9 @@
+{
+  "server": {
+    "port": 9002
+  },
+  "ws": {
+    "dev": "ws://localhost:9002",
+    "prod": "wss://thesaurus-process-jazz.ngrok-free.dev"
+  }
+}

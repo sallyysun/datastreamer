@@ -19,34 +19,74 @@ type MarketEvent = {
   return_x?: number;
   return_y?: number;
   timestamp: number;
-  type?: string;
 };
 
 export default function App() {
   const [status, setStatus] = useState("disconnected");
+  const [error, setError] = useState<string | null>(null);
 
   const [data, setData] = useState<
     { time: number; price_x: number; price_y: number }[]
   >([]);
 
   useEffect(() => {
-    const ws = new WebSocket(import.meta.env.VITE_WS_URL);
+    // =====================================================
+    // SAFE WS URL RESOLUTION (THIS FIXES YOUR ISSUE)
+    // =====================================================
 
-    ws.onopen = () => setStatus("connected");
-    ws.onclose = () => setStatus("disconnected");
+    const envUrl = import.meta.env.VITE_WS_URL;
+
+    const fallbackUrl =
+      window.location.hostname === "localhost"
+        ? "ws://localhost:9002"
+        : `wss://${window.location.host}`;
+
+    const wsUrl = (envUrl && typeof envUrl === "string")
+      ? envUrl
+      : fallbackUrl;
+
+    console.log("🔌 WebSocket connecting to:", wsUrl);
+
+    let ws: WebSocket;
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e: any) {
+      setError("WebSocket init failed");
+      return;
+    }
+
+    ws.onopen = () => {
+      setStatus("connected");
+      setError(null);
+    };
+
+    ws.onclose = () => {
+      setStatus("disconnected");
+    };
+
+    ws.onerror = (e) => {
+      console.error("WebSocket error:", e);
+      setError("WebSocket connection error");
+    };
 
     ws.onmessage = (event) => {
       try {
         const msg: MarketEvent = JSON.parse(event.data);
 
-        const point = {
-          time: msg.timestamp ?? Date.now(),
-          price_x: msg.price_x,
-          price_y: msg.price_y,
-        };
+        setData((prev) => {
+          const next = [
+            ...prev,
+            {
+              time: msg.timestamp ?? Date.now(),
+              price_x: msg.price_x,
+              price_y: msg.price_y,
+            },
+          ];
 
-        setData((prev) => [...prev, point].slice(-300));
-      } catch {
+          return next.slice(-300);
+        });
+      } catch (err) {
         console.log("bad event");
       }
     };
@@ -59,7 +99,11 @@ export default function App() {
       {/* HEADER */}
       <div className="header">
         <div>MARKET TERMINAL // LIVE STREAM</div>
-        <div className={status}>{status}</div>
+
+        <div>
+          <span className={status}>{status}</span>
+          {error && <span style={{ color: "red", marginLeft: 10 }}>{error}</span>}
+        </div>
       </div>
 
       {/* CHART */}
@@ -70,11 +114,10 @@ export default function App() {
               dataKey="time"
               tickFormatter={(t) => new Date(t).toLocaleTimeString()}
             />
-            <YAxis domain={["auto", "auto"]} />
-            <Tooltip
-              labelFormatter={(t) => new Date(t).toLocaleTimeString()}
-            />
 
+            <YAxis domain={["auto", "auto"]} />
+
+            <Tooltip labelFormatter={(t) => new Date(t).toLocaleTimeString()} />
             <Legend />
 
             <Line
@@ -96,7 +139,7 @@ export default function App() {
         </ResponsiveContainer>
       </div>
 
-      {/* RAW FEED TABLE */}
+      {/* TABLE */}
       <div className="panel" style={{ marginTop: 10 }}>
         <table>
           <thead>
@@ -117,10 +160,10 @@ export default function App() {
                 <td>{new Date(d.time).toLocaleTimeString()}</td>
                 <td style={{ color: "#00ff88" }}>{d.price_x}</td>
                 <td style={{ color: "#4da3ff" }}>{d.price_y}</td>
-                <td>{(d as any).volume_x ?? "-"}</td>
-                <td>{(d as any).volume_y ?? "-"}</td>
-                <td>{(d as any).return_x ?? "-"}</td>
-                <td>{(d as any).return_y ?? "-"}</td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
               </tr>
             ))}
           </tbody>

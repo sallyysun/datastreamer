@@ -6,6 +6,8 @@
 #include <sstream>
 #include <thread>
 
+#include <nlohmann/json.hpp>
+
 #include "../streamgenerator/datasource/synthetic_source.hpp"
 #include "../streamgenerator/runtime/producer.hpp"
 #include "../streamgenerator/runtime/event_bus.hpp"
@@ -14,6 +16,42 @@
 
 #include "../device/consumer.hpp"
 
+using json = nlohmann::json;
+
+// =========================================================
+// CONFIG LOADER
+// =========================================================
+struct Config {
+    int port = 9002;
+};
+
+static Config load_config() {
+    std::ifstream f("config.json");
+    if (!f.is_open()) return {};
+
+    json j;
+    f >> j;
+
+    return {
+        .port = j["server"]["port"]
+    };
+}
+
+// =========================================================
+// MIME TYPE HELPER (PUT HERE)
+// =========================================================
+static std::string mime_type(const std::string &path) {
+    if (path.ends_with(".html")) return "text/html";
+    if (path.ends_with(".js")) return "application/javascript";
+    if (path.ends_with(".css")) return "text/css";
+    if (path.ends_with(".json")) return "application/json";
+    if (path.ends_with(".svg")) return "image/svg+xml";
+    return "text/plain";
+}
+
+// =========================================================
+// SOCKET STATE
+// =========================================================
 struct PerSocketData {
     std::shared_ptr<Consumer> consumer;
 };
@@ -26,53 +64,33 @@ static ConsumerPolicy next_policy(int n) {
     }
 }
 
-// -------------------------
-// MIME TYPE HELPER
-// -------------------------
-static std::string mime_type(const std::string &path) {
-    if (path.ends_with(".html")) return "text/html";
-    if (path.ends_with(".js")) return "application/javascript";
-    if (path.ends_with(".css")) return "text/css";
-    if (path.ends_with(".json")) return "application/json";
-    if (path.ends_with(".svg")) return "image/svg+xml";
-    return "text/plain";
-}
-
 int main() {
+    Config cfg = load_config();
+
     uWS::App app;
 
     auto bus = std::make_shared<EventBus>();
     auto source = std::make_shared<SyntheticSource>();
     Serializer serializer;
 
-    Producer producer(source, fixed_delay(0.5)); // adjust speed here
+    Producer producer(source, fixed_delay(0.5));
 
     int connection_count = 0;
 
     // =========================================================
-    // SERVE REACT (VITE BUILD) - IMPORTANT FIX
+    // SERVE REACT BUILD
     // =========================================================
     app.get("/*", [](auto *res, auto *req) {
         std::string path = std::string(req->getUrl());
 
-        // SPA fallback
-        if (path == "/") {
-            path = "/index.html";
-        }
+        if (path == "/") path = "/index.html";
 
         std::string filePath = "client/dist" + path;
 
         std::ifstream file(filePath, std::ios::binary);
 
-        // fallback for React Router (important)
         if (!file.is_open()) {
             std::ifstream fallback("client/dist/index.html");
-            if (!fallback.is_open()) {
-                res->writeStatus("500 Internal Server Error");
-                res->end("frontend not built (client/dist missing)");
-                return;
-            }
-
             std::stringstream buffer;
             buffer << fallback.rdbuf();
 
@@ -96,17 +114,12 @@ int main() {
         .open = [&](auto *ws) {
             ws->subscribe("ticks");
 
-            const ConsumerPolicy policy = next_policy(connection_count++);
-            auto consumer = std::make_shared<Consumer>(1024, policy);
+            auto consumer = std::make_shared<Consumer>(1024, next_policy(connection_count++));
 
             EventBus::SubId id = bus->subscribe(
                 EventType::All,
-                [consumer](const MarketEvent& event) {
-                    try {
-                        consumer->on_event(event);
-                    } catch (const ConsumerLagException& e) {
-                        std::cerr << "consumer lag: " << e.what() << "\n";
-                    }
+                [consumer](const MarketEvent &event) {
+                    consumer->on_event(event);
                 }
             );
 
@@ -117,12 +130,8 @@ int main() {
         },
 
         .close = [&](auto *ws, int, std::string_view) {
-            auto &consumer = ws->getUserData()->consumer;
-            if (consumer) {
-                bus->unsubscribe(consumer->subscription());
-            }
-
-            std::cout << "client disconnected\n";
+            auto &c = ws->getUserData()->consumer;
+            if (c) bus->unsubscribe(c->subscription());
         }
     });
 
@@ -132,14 +141,14 @@ int main() {
     std::thread producer_thread([&]() {
         std::size_t n = 0;
 
-        producer.run([&](const MarketEvent& event) {
+        producer.run([&](const MarketEvent &event) {
             bus->publish(event);
 
             std::string msg = serializer.to_json(event);
             app.publish("ticks", msg, uWS::OpCode::TEXT);
 
             if (++n % 20 == 0) {
-                std::cout << "[producer] events=" << n
+                std::cout << "events=" << n
                           << " subscribers=" << bus->subscriber_count()
                           << "\n";
             }
@@ -149,12 +158,11 @@ int main() {
     // =========================================================
     // START SERVER
     // =========================================================
-    app.listen(9002, [](auto *token) {
-        if (token) {
-            std::cout << "server running on http://localhost:9002\n";
-        } else {
-            std::cout << "failed to bind port 9002\n";
-        }
+    app.listen(cfg.port, [&](auto *token) {
+        if (token)
+            std::cout << "server running on port " << cfg.port << "\n";
+        else
+            std::cout << "failed to bind port\n";
     });
 
     app.run();
