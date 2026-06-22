@@ -34,6 +34,10 @@ datastreamer/
 │   └── src/
 │       ├── App.tsx                   # WS client, Recharts line chart + data table
 │       └── main.tsx                  # React entry
+├── R/                                # R streaming analytics client
+│   ├── stream_client.R               # WS client, CSV logger, estimator harness
+│   ├── ring_buffer.R                 # O(1) circular buffer (matrix-backed)
+│   └── online_npcorr.R              # Port of onlineNPCORR (cutpoint-matrix Spearman/Kendall)
 ├── external/
 │   └── uWebSockets/                  # Git submodule (HTTP + WS server)
 ├── config.json                       # Server port, WS URLs
