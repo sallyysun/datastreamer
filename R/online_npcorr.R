@@ -53,29 +53,48 @@ spearmanr_from_matrix <- function(M, miplus, mplusj, n) {
   sum(diag(rd_row / d1) %*% M %*% diag(rd_col / d2))
 }
 
-kendalltau_from_matrix <- function(M, miplus, mplusj, n) {
-  m1 <- nrow(M)
-  m2 <- ncol(M)
+# ── online Pearson (running sufficient statistics) ───────────────────────
+# From Xiao's online_corr: maintains Sxy, Sxx, Syy, Sx, Sy.
+# O(1) per update, O(1) memory.
 
-  N <- matrix(0, m1, m2)
-  for (i in 2:m1) {
-    N[i, 2:m2] <- cumsum(M[i - 1, 1:(m2 - 1)])
-  }
-  for (i in 2:m1) {
-    N[i, ] <- N[i, ] + N[i - 1, ]
-  }
-  P <- sum(M * N)
+new_online_pearson <- function() {
+  env <- new.env(parent = emptyenv())
+  env$Sxy <- 0
+  env$Sxx <- 0
+  env$Syy <- 0
+  env$Sx  <- 0
+  env$Sy  <- 0
+  env$n   <- 0L
+  env
+}
 
-  Ti <- 0
-  for (i in seq_len(m1)) Ti <- Ti + (miplus[i]^2 - sum(M[i, ]^2)) / 2
-  Uj <- 0
-  for (j in seq_len(m2)) Uj <- Uj + (mplusj[j]^2 - sum(M[, j]^2)) / 2
+pearson_update <- function(est, x, y) {
+  est$Sxy <- est$Sxy + x * y
+  est$Sxx <- est$Sxx + x^2
+  est$Syy <- est$Syy + y^2
+  est$Sx  <- est$Sx + x
+  est$Sy  <- est$Sy + y
+  est$n   <- est$n + 1L
+  invisible(est)
+}
 
-  NC   <- sum(M * (M - 1)) / 2
-  Q    <- n * (n - 1) / 2 - P - Ti - Uj - NC
-  denom <- sqrt((P + Q + Ti) * (P + Q + Uj))
-  if (denom == 0) return(0)
-  (P - Q) / denom
+pearson_remove <- function(est, x, y) {
+  est$Sxy <- est$Sxy - x * y
+  est$Sxx <- est$Sxx - x^2
+  est$Syy <- est$Syy - y^2
+  est$Sx  <- est$Sx - x
+  est$Sy  <- est$Sy - y
+  est$n   <- est$n - 1L
+  invisible(est)
+}
+
+pearson_value <- function(est) {
+  if (est$n < 3L) return(NA_real_)
+  n  <- est$n
+  Vx <- est$Sxx - (est$Sx^2) / n
+  Vy <- est$Syy - (est$Sy^2) / n
+  if (Vx <= 0 || Vy <= 0) return(NA_real_)
+  (est$Sxy - est$Sx * est$Sy / n) / sqrt(Vx) / sqrt(Vy)
 }
 
 # ── estimator object ─────────────────────────────────────────────────────
@@ -117,6 +136,5 @@ npcorr_remove <- function(est, x, y) {
 
 npcorr_value <- function(est) {
   if (est$n < 3L) return(NA_real_)
-  fn <- if (est$method == "kendalltau") kendalltau_from_matrix else spearmanr_from_matrix
-  fn(est$M, est$miplus, est$mplusj, est$n)
+  spearmanr_from_matrix(est$M, est$miplus, est$mplusj, est$n)
 }
