@@ -6,13 +6,13 @@
 #
 # Outputs:
 #   1. Live plot in RStudio Plots pane (updates every REPORT_EVERY obs)
-#   2. Console table of current estimates
+#   2. Status table on stderr (keeps console free)
 #   3. CSV + PDF in simulated-data/
 #
-# Usage (source in RStudio or run via Rscript):
-#   source("R/simulate.R")
-#   Rscript R/simulate.R --N 2000 --rho 0.8
-#   Rscript R/simulate.R --nonstationary
+# Usage:
+#   source("R/simulate.R")                        # interactive
+#   rstudioapi::jobRunScript("R/simulate.R")       # background job (frees console)
+#   Rscript R/simulate.R --N 2000 --rho 0.8       # terminal
 
 library(hermiter)
 
@@ -128,15 +128,19 @@ chart_title <- if (NONSTATIONARY) {
   sprintf("Stationary: Convergence to Grade Correlation (rho = %.2f)", RHO)
 }
 
+LOG <- stderr()
+
+log_msg <- function(...) cat(..., file = LOG)
+
 print_status <- function(i, rho) {
   na_fmt <- function(x) if (is.na(x)) sprintf("%10s", "NA") else sprintf("%10.6f", x)
-  cat(sprintf("── Observation %d / %d  (rho = %.2f) ──\n", i, N, rho))
-  cat(sprintf("  %-28s %s\n", "grade corr Cor(F(X),G(Y))", na_fmt(v_gc[i])))
-  cat(sprintf("  %-28s %s\n", "batch Spearman",             na_fmt(v_batch[i])))
-  cat(sprintf("  %-28s %s\n", "npcorr (online)",            na_fmt(v_ns[i])))
-  cat(sprintf("  %-28s %s\n", "hermiter (stationary)",      na_fmt(v_hs[i])))
-  cat(sprintf("  %-28s %s\n", "hermiter (exp-weighted)",    na_fmt(v_hse[i])))
-  cat(sprintf("  csv: %s\n", basename(CSV_PATH)))
+  log_msg(sprintf("── Observation %d / %d  (rho = %.2f) ──\n", i, N, rho))
+  log_msg(sprintf("  %-28s %s\n", "grade corr Cor(F(X),G(Y))", na_fmt(v_gc[i])))
+  log_msg(sprintf("  %-28s %s\n", "batch Spearman",             na_fmt(v_batch[i])))
+  log_msg(sprintf("  %-28s %s\n", "npcorr (online)",            na_fmt(v_ns[i])))
+  log_msg(sprintf("  %-28s %s\n", "hermiter (stationary)",      na_fmt(v_hs[i])))
+  log_msg(sprintf("  %-28s %s\n", "hermiter (exp-weighted)",    na_fmt(v_hse[i])))
+  log_msg(sprintf("  csv: %s\n", basename(CSV_PATH)))
 }
 
 # ── live plot helper ────────────────────────────────────────────────────
@@ -164,8 +168,8 @@ draw_plot <- function(up_to) {
 
 set.seed(as.integer(Sys.time()))
 
-cat(sprintf("Mode: %s  |  N: %d  |  rho: %.2f\n", mode_str, N, RHO))
-cat(sprintf("CSV:  %s\n\n", CSV_PATH))
+log_msg(sprintf("Mode: %s  |  N: %d  |  rho: %.2f\n", mode_str, N, RHO))
+log_msg(sprintf("CSV:  %s\n\n", CSV_PATH))
 
 for (i in seq_len(N)) {
   rho_now <- rho_at(i)
@@ -199,7 +203,7 @@ for (i in seq_len(N)) {
   csv_append(i, rho_now, v_gc[i], v_batch[i], v_ns[i], v_hs[i], v_hse[i])
 
   # ── live plot + console (every REPORT_EVERY obs) ──
-  if (i %% REPORT_EVERY == 0) {
+  if (i %% REPORT_EVERY == 20) {
     draw_plot(i)
     print_status(i, rho_now)
   }
@@ -211,7 +215,7 @@ for (i in seq_len(N)) {
 draw_plot(N)
 print_status(N, rho_at(N))
 
-cat(sprintf("\nDone. %d observations written to %s\n", N, CSV_PATH))
+log_msg(sprintf("\nDone. %d observations written to %s\n", N, CSV_PATH))
 
 # ── save PDF ────────────────────────────────────────────────────────────
 
@@ -219,4 +223,4 @@ pdf_path <- sub("\\.csv$", ".pdf", CSV_PATH)
 pdf(pdf_path, width = 10, height = 6)
 draw_plot(N)
 dev.off()
-cat(sprintf("Plot saved to %s\n", pdf_path))
+log_msg(sprintf("Plot saved to %s\n", pdf_path))
