@@ -112,3 +112,62 @@ private:
             }
         }
     }
+
+    static Eigen::VectorXd basis_integrals(int order) {
+        const int dim = order + 1;
+        Eigen::VectorXd z = Eigen::VectorXd::Zero(dim);
+        z(0) = std::sqrt(2.0) * std::pow(kPi, 0.25);
+        for (int k = 2; k < dim; k += 2) {
+            z(k) = std::sqrt((k-1.0) / k) * z(k - 2);
+        }
+        return z;
+    }
+
+    static Eigen::MatrixXd integral_matrix(int order) {
+        constexpr double kLimit = 14.0;
+        constexpr int kPoints = 5061;
+        const double step = 2.0 * kLimit / (kPoints - 1);
+        const int dim = order + 1;
+
+        Eigen::MatrixXd h(dim, kPoints);
+        Eigen::MatrixXd I(dim, kPoints);
+        for (int p = 0; p < kPoints; ++p) {
+            const double x = -kLimit + p * step;
+            h(0, p) = kQuarterRootPiInv * gaussian;
+            I(0, p) = std::erfc(-x / std::sqrt(2.0)) / (std::sqrt(2.0) * kQuarterRootPiInv);
+            if (dim > 1) {
+                h(1, p) = std::sqrt(2.0) * x * h(0, p);
+                I(1, p) = -std::exp(2.0) * h(0, p);
+            }
+            for (int k = 2; k < dim; ++k) {
+                const double a = std::sqrt(2.0 / k);
+                const double b = std::sqrt((k - 1.0) / k);
+                h(k, p) = a * x * h(k - 1, p) - b * h(k - 2, p);
+                I(k, p) = -a * h(k - 1, p) + b * I(k - 2, p);
+            }
+        }
+        Eigen::VectorXd weights = Eigen::VectorXd::Constant(kPoints, step);
+        weights(0) = weights(kPoints - 1) = step / 2.0; // Trapezoidal rule
+        return h * weights.asDiagonal() * I.transpose();
+    }
+
+    static constexpr double kPi = 3.14159265358979323846;
+    static constexpr double kQuarterRootPiInv = 0.7511255444649425; // 1 / (4th root of pi)
+
+    Config config_;
+    const char* name_;
+    std::size_t n_ = 0;
+
+    double mean_x_ = 0.0;
+    double mean_y_ = 0.0;
+    double var_x_ = 1.0;
+    double var_y_ = 1.0;
+    double m2_x_ = 0.0; // Welford accumulators (cumulative mode)
+    double m2_y_ = 0.0;
+
+    Eigen::VectorXd ax_;
+    Eigen::VectorXd ay_;
+    Eigen::MatrixXd A_;
+    Eigen::MatrixXd W_;
+    Eigen::VectorXd z_;
+};
