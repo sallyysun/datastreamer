@@ -1,0 +1,42 @@
+#!/bin/bash
+#PBS -N mae_stationary
+#PBS -l select=1:ncpus=16:mem=32gb
+#PBS -l walltime=08:00:00
+#PBS -M your.name.here@unsw.edu.au
+#PBS -m ae
+#PBS -j oe
+
+# Submit from the repository root:  qsub R/katana/run_mae_study.pbs
+# ($PBS_O_WORKDIR is wherever `qsub` was run from, not where this file
+# lives, so submitting from anywhere else will cd to the wrong place below.)
+#
+# One node, multi-core, runs the full paper-scale study (n=1e4,5e4,1e5, all
+# 6 rho values, both transforms, m=1000) as a single Rscript call. Measured
+# ~4.5h locally on a 10-core laptop with 9 parallel workers; 16 cores here
+# should comfortably clear it within the 8h walltime above, but this has NOT
+# been measured on Katana itself -- treat your first submission as a
+# calibration run, check `qstat -f $PBS_JOBID` afterward (resources_used.walltime),
+# and adjust the #PBS -l line and NCPUS below together if you change core count.
+#
+# Before first use:
+#   1. Confirm the R module name/version:  module avail r
+#   2. Install packages once (see R/katana/install_packages.R)
+#   3. Fill in your email above, or delete -M/-m for no notifications
+#
+# If n=1e5 alone dominates runtime too much for one job's walltime, use
+# run_mae_study_array.pbs instead to split n_values across separate tasks.
+
+NCPUS=16
+
+cd "$PBS_O_WORKDIR"
+
+module purge
+module load r/VERSION_TO_CONFIRM   # replace with the exact name from `module avail r`
+
+Rscript R/mae_simulation_stationary.R \
+  --n 10000,50000,100000 \
+  --m 1000 \
+  --workers "$NCPUS" \
+  --run_tag katana_full
+
+echo "Done. Outputs in R/mae_results/*_katana_full.csv"

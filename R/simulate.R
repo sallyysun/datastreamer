@@ -324,8 +324,13 @@ simulate <- function(mode = c("stationary", "nonstationary"), ...) {
 }
 
 # ── CLI entry point ─────────────────────────────────────────────────────
+# Only auto-runs when launched directly as `Rscript simulate.R`
+# (detected via the --file= flag Rscript sets). Unlike a plain !interactive()
+# check, this correctly stays quiet when the file is source()'d from another
+# non-interactive script (e.g. `Rscript -e 'source(...); simulate(...)'`),
+# which would otherwise trigger an unwanted default run before your own call.
 
-if (!interactive() || length(commandArgs(trailingOnly = TRUE)) > 0) {
+if (any(grepl("^--file=", commandArgs(trailingOnly = FALSE)))) {
   args <- commandArgs(trailingOnly = TRUE)
   flag <- function(name, default) {
     idx <- match(name, args)
@@ -351,10 +356,3 @@ if (!interactive() || length(commandArgs(trailingOnly = TRUE)) > 0) {
     )
   }
 }
-
-# ═══════════════════════════════════════════════════════════════════════
-# Testing out
-# ═══════════════════════════════════════════════════════════════════════
-
-simulate("stationary", N = 2000, rho = 0.6)
-simulate("nonstationary", N = 2000)

@@ -35,6 +35,12 @@ datastreamer/
 │       ├── App.tsx                   # WS client, Recharts line chart + data table
 │       └── main.tsx                  # React entry
 ├── R/                                # R streaming analytics client
+│   ├── simulate.R                    # Live convergence dashboard (stationary + non-stationary)
+│   ├── mae_simulation_stationary.R   # Monte Carlo MAE study replicating Stephanou & Varughese (2021) §6.1
+│   ├── mae_results/                  # Summary CSVs from mae_simulation_stationary.R (one per paper table)
+│   ├── katana/                       # PBS job scripts to run the MAE study on UNSW's Katana HPC cluster
+│   ├── test_npcorr.R                 # Unit tests for onlineNPCORR port
+│   ├── test_hermiter.R               # Unit tests for hermiter estimator
 │   ├── stream_client.R               # WS client, CSV logger, estimator harness
 │   ├── ring_buffer.R                 # O(1) circular buffer (matrix-backed)
 │   └── online_npcorr.R              # Port of onlineNPCORR (cutpoint-matrix Spearman/Kendall)

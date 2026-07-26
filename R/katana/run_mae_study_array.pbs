@@ -1,0 +1,46 @@
+#!/bin/bash
+#PBS -N mae_stationary_array
+#PBS -J 1-3
+#PBS -l select=1:ncpus=16:mem=16gb
+#PBS -l walltime=03:00:00
+#PBS -M your.name.here@unsw.edu.au
+#PBS -m ae
+#PBS -j oe
+
+# Submit from the repository root:  qsub R/katana/run_mae_study_array.pbs
+# ($PBS_O_WORKDIR is wherever `qsub` was run from, not where this file
+# lives, so submitting from anywhere else will cd to the wrong place below.)
+#
+# Splits the paper-scale study across 3 array tasks, one per n value, so
+# each task needs a much shorter walltime than run_mae_study.pbs's single
+# job does for all three n values combined -- and tasks can run concurrently
+# if the scheduler has capacity. The 3h walltime above is extrapolated from
+# a 10-core laptop benchmark of the n=1e5 case (worst of the three, ~2.2h
+# with 9 workers there), NOT measured on Katana -- treat your first
+# submission as a calibration run and adjust if needed.
+#
+# Each task's run_tag includes its n value, so the three tasks' output files
+# never collide -- see the merge snippet in R/katana/README.md to combine
+# them into one table per paper table afterward.
+#
+# Before first use:
+#   1. Confirm the R module name/version:  module avail r
+#   2. Install packages once (see R/katana/install_packages.R)
+#   3. Fill in your email above, or delete -M/-m for no notifications
+
+NCPUS=16
+N_VALUES=(10000 50000 100000)
+N=${N_VALUES[$((PBS_ARRAY_INDEX - 1))]}
+
+cd "$PBS_O_WORKDIR"
+
+module purge
+module load r/VERSION_TO_CONFIRM   # replace with the exact name from `module avail r`
+
+Rscript R/mae_simulation_stationary.R \
+  --n "$N" \
+  --m 1000 \
+  --workers "$NCPUS" \
+  --run_tag "katana_n${N}"
+
+echo "Done. Outputs in R/mae_results/*_katana_n${N}.csv"
