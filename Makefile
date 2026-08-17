@@ -36,5 +36,16 @@ server:
 	$(LIBS) \
 	-o $(SERVER_OUT)
 
+# Offline estimator evaluation harness. Only needs Eigen (for Hermite);
+# no uWebSockets / OpenSSL / JSON.
+EXPERIMENT_OUT = experiment
+
+experiment:
+	$(CXX) src/experiments/main.cpp -std=c++20 -O2 \
+	-I$(EIGEN)/include/eigen3 \
+	-o $(EXPERIMENT_OUT)
+
 clean:
-	rm -f server
+	rm -f server experiment
+
+.PHONY: all server experiment clean
