@@ -43,18 +43,33 @@ public:
 
     double estimate() const override {
         if (n_ < config_.burn_in + 1) return 0.0; // Not enough data to estimate
+        // Spearman's rho = 12 * E[(F_X - 1/2)(F_Y - 1/2)], expanded in the
+        // Hermite basis. u = int F_X h dx, v = int F_Y h dy, z = int h dx, so
+        // (u - z/2) and (v - z/2) are the centred marginal CDF projections and
+        // rho = 12 (u - z/2)^T A (v - z/2).
         const Eigen::VectorXd u = W_ * ax_;
         const Eigen::VectorXd v = W_ * ay_;
         const Eigen::VectorXd Av = A_ * v;
         const Eigen::VectorXd Az = A_ * z_;
-        const double rho = 12.0 * u.dot(Av) - 12.0 * u.dot(Av) - 6.0 * u.dot(Az) - 6.0 * z_.dot(Av) + 3.0 * z_.dot(Az);
-        return std::clamp(val:rho, lo:-1.0, hi:1.0);
+        const double rho = 12.0 * u.dot(Av) - 6.0 * u.dot(Az)
+                         - 6.0 * z_.dot(Av) + 3.0 * z_.dot(Az);
+        return std::clamp(rho, -1.0, 1.0);
+    }
+
+    void reset() override {
+        n_ = 0;
+        mean_x_ = mean_y_ = 0.0;
+        var_x_ = var_y_ = 1.0;
+        m2_x_ = m2_y_ = 0.0;
+        ax_.setZero();
+        ay_.setZero();
+        A_.setZero();
     }
 
     double kendall() const {
         if (n_ < config_.burn_in) return 0.0;
-        const double tau = 4.0 * (W_transpose() * A_.transpose() * W_).trace() - 1.0;
-        return std::clamp(val:tau, lo:-1.0, hi:1.0);
+        const double tau = 4.0 * (W_.transpose() * A_.transpose() * W_).trace() - 1.0;
+        return std::clamp(tau, -1.0, 1.0);
     }
 
     std::size_t store_bytes() const override {
@@ -133,11 +148,11 @@ private:
         Eigen::MatrixXd I(dim, kPoints);
         for (int p = 0; p < kPoints; ++p) {
             const double x = -kLimit + p * step;
-            h(0, p) = kQuarterRootPiInv * gaussian;
+            h(0, p) = kQuarterRootPiInv * std::exp(-0.5 * x * x);
             I(0, p) = std::erfc(-x / std::sqrt(2.0)) / (std::sqrt(2.0) * kQuarterRootPiInv);
             if (dim > 1) {
                 h(1, p) = std::sqrt(2.0) * x * h(0, p);
-                I(1, p) = -std::exp(2.0) * h(0, p);
+                I(1, p) = -std::sqrt(2.0) * h(0, p);
             }
             for (int k = 2; k < dim; ++k) {
                 const double a = std::sqrt(2.0 / k);
