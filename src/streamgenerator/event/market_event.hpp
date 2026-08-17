@@ -25,4 +25,9 @@ struct MarketEvent {
 
     // kept last so existing positional aggregate-init keeps working
     EventType type = EventType::Trade;
+
+    // True Spearman's rho of the data-generating process at this event, when the
+    // source knows it (synthetic DGP). 0 for real/file sources. Set by member
+    // assignment, never positionally, so it stays out of the aggregate-init list.
+    double true_rho_s = 0.0;
 };

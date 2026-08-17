@@ -12,7 +12,8 @@ static json base_json(const MarketEvent& event) {
         {"volume_y", event.volume_y},
         {"return_x", event.return_x},
         {"return_y", event.return_y},
-        {"timestamp", event.timestamp}
+        {"timestamp", event.timestamp},
+        {"true_rho_s", event.true_rho_s}
     };
 }
 

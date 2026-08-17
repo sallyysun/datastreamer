@@ -20,6 +20,7 @@ type MarketEvent = {
   return_y?: number;
   timestamp: number;
   dependence?: Record<string, number>;
+  true_rho_s?: number;
 };
 
 // Online dependence estimators streamed from the server, with the colours used
@@ -106,6 +107,9 @@ export default function App() {
             time: msg.timestamp ?? Date.now(),
             ...msg.dependence,
           };
+          if (typeof msg.true_rho_s === "number") {
+            point.true_rho_s = msg.true_rho_s;
+          }
           setDepData((prev) => [...prev, point].slice(-300));
         }
       } catch (err) {
@@ -166,6 +170,12 @@ export default function App() {
         <div style={{ marginBottom: 8 }}>
           ONLINE DEPENDENCE // SPEARMAN rho
           <span style={{ marginLeft: 16 }}>
+            <span style={{ color: "#ffffff", marginRight: 14 }}>
+              true:{" "}
+              {latestDep && typeof latestDep.true_rho_s === "number"
+                ? latestDep.true_rho_s.toFixed(3)
+                : "--"}
+            </span>
             {ESTIMATORS.map((e) => (
               <span key={e.key} style={{ color: e.color, marginRight: 14 }}>
                 {e.key}:{" "}
@@ -187,6 +197,15 @@ export default function App() {
               <YAxis domain={[-1, 1]} />
               <Tooltip labelFormatter={(t) => new Date(t).toLocaleTimeString()} />
               <Legend />
+              <Line
+                type="monotone"
+                dataKey="true_rho_s"
+                name="true"
+                stroke="#ffffff"
+                dot={false}
+                strokeWidth={2.5}
+                isAnimationActive={false}
+              />
               {ESTIMATORS.map((e) => (
                 <Line
                   key={e.key}

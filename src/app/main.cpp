@@ -71,7 +71,13 @@ int main() {
     uWS::App app;
 
     auto bus = std::make_shared<EventBus>();
-    auto source = std::make_shared<SyntheticSource>();
+
+    // Drive the live stream with a time-varying dependence so the online
+    // estimators visibly track a moving target. Oscillates rho_S in roughly
+    // (-0.6, 0.6) with a period of ~400 events; swap in Jump/Drift/Stochastic
+    // (see schedule.hpp) to demo other regimes.
+    auto source = std::make_shared<SyntheticSource>(
+        std::make_unique<OscillatingSchedule>(0.6, 400.0, 0.0));
     Serializer serializer;
 
     // Server-side online dependence estimators over the shared stream. Updated
