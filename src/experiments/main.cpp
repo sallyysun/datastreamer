@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "../estimators/registry.hpp"
+#include "../streamgenerator/datasource/schedule.hpp"
 #include "copula_source.hpp"
-#include "schedule.hpp"
 
 namespace {
 
@@ -31,6 +31,7 @@ std::unique_ptr<Schedule> make_schedule(const std::string& scenario, std::size_t
     if (scenario == "drift") return std::make_unique<DriftSchedule>(-0.5, 0.8, N);
     if (scenario == "jump") return std::make_unique<JumpSchedule>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticSchedule>(0.01, 0.6, seed + 1);
+    if (scenario == "oscillate") return std::make_unique<OscillatingSchedule>(0.6, 1000.0, 0.0);
     return nullptr;
 }
 
@@ -45,7 +46,8 @@ int main(int argc, char** argv) {
 
     auto schedule = make_schedule(scenario, N, seed);
     if (!schedule) {
-        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|jump|stochastic)\n",
+        std::fprintf(stderr,
+                     "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate)\n",
                      scenario.c_str());
         return 1;
     }

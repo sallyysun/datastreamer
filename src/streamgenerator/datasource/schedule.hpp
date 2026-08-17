@@ -26,6 +26,26 @@ private:
     double rho_;
 };
 
+// rho_t = offset + amplitude * sin(2*pi*t / period). A perpetually moving
+// target, handy for an infinite live stream where a one-off jump would settle
+// and stop being interesting.
+class OscillatingSchedule : public Schedule {
+public:
+    OscillatingSchedule(double amplitude, double period, double offset = 0.0)
+        : amplitude_(amplitude), period_(period), offset_(offset) {}
+    double next() override {
+        const double rho = offset_ + amplitude_ * std::sin(2.0 * kPi * static_cast<double>(t_) / period_);
+        ++t_;
+        return rho;
+    }
+    const char* name() const override { return "oscillate"; }
+
+private:
+    static constexpr double kPi = 3.14159265358979323846;
+    double amplitude_, period_, offset_;
+    std::size_t t_ = 0;
+};
+
 // Linear ramp from r0 to r1 over T steps, then held at r1.
 class DriftSchedule : public Schedule {
 public:
