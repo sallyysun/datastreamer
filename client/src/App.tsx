@@ -19,7 +19,17 @@ type MarketEvent = {
   return_x?: number;
   return_y?: number;
   timestamp: number;
+  dependence?: Record<string, number>;
 };
+
+// Online dependence estimators streamed from the server, with the colours used
+// to plot each one.
+const ESTIMATORS: { key: string; color: string }[] = [
+  { key: "xiao", color: "#ffb800" },
+  { key: "xiao_ew", color: "#ff5555" },
+  { key: "hermite", color: "#22d3ee" },
+  { key: "hermite_ew", color: "#a78bfa" },
+];
 
 export default function App() {
   const [status, setStatus] = useState("disconnected");
@@ -28,6 +38,10 @@ export default function App() {
   const [data, setData] = useState<
     { time: number; price_x: number; price_y: number }[]
   >([]);
+
+  // History of the streamed dependence estimates ({ time, <estimator>: rho }).
+  const [depData, setDepData] = useState<Record<string, number>[]>([]);
+  const latestDep = depData.length ? depData[depData.length - 1] : null;
 
   useEffect(() => {
     // =====================================================
@@ -86,6 +100,14 @@ export default function App() {
 
           return next.slice(-300);
         });
+
+        if (msg.dependence) {
+          const point: Record<string, number> = {
+            time: msg.timestamp ?? Date.now(),
+            ...msg.dependence,
+          };
+          setDepData((prev) => [...prev, point].slice(-300));
+        }
       } catch (err) {
         console.log("bad event");
       }
@@ -137,6 +159,48 @@ export default function App() {
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* DEPENDENCE ESTIMATORS (LIVE) */}
+      <div className="panel" style={{ marginTop: 10 }}>
+        <div style={{ marginBottom: 8 }}>
+          ONLINE DEPENDENCE // SPEARMAN rho
+          <span style={{ marginLeft: 16 }}>
+            {ESTIMATORS.map((e) => (
+              <span key={e.key} style={{ color: e.color, marginRight: 14 }}>
+                {e.key}:{" "}
+                {latestDep && typeof latestDep[e.key] === "number"
+                  ? latestDep[e.key].toFixed(3)
+                  : "--"}
+              </span>
+            ))}
+          </span>
+        </div>
+
+        <div style={{ height: 260 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={depData}>
+              <XAxis
+                dataKey="time"
+                tickFormatter={(t) => new Date(t).toLocaleTimeString()}
+              />
+              <YAxis domain={[-1, 1]} />
+              <Tooltip labelFormatter={(t) => new Date(t).toLocaleTimeString()} />
+              <Legend />
+              {ESTIMATORS.map((e) => (
+                <Line
+                  key={e.key}
+                  type="monotone"
+                  dataKey={e.key}
+                  stroke={e.color}
+                  dot={false}
+                  strokeWidth={1.5}
+                  isAnimationActive={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* TABLE */}

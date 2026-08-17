@@ -15,6 +15,7 @@
 #include "../streamgenerator/timing/delay_strategies.hpp"
 
 #include "../device/consumer.hpp"
+#include "../device/dependence_monitor.hpp"
 
 using json = nlohmann::json;
 
@@ -73,7 +74,11 @@ int main() {
     auto source = std::make_shared<SyntheticSource>();
     Serializer serializer;
 
-    Producer producer(source, fixed_delay(0.5));
+    // Server-side online dependence estimators over the shared stream. Updated
+    // once per event in the producer thread, so no locking is required.
+    DependenceMonitor monitor;
+
+    Producer producer(source, fixed_delay(10.0));
 
     int connection_count = 0;
 
@@ -144,7 +149,11 @@ int main() {
         producer.run([&](const MarketEvent &event) {
             bus->publish(event);
 
-            std::string msg = serializer.to_json(event);
+            // Fold the event into the live estimators, then ship the tick with
+            // the current dependence estimates attached.
+            monitor.update(event);
+
+            std::string msg = serializer.to_json(event, monitor.snapshot());
             app.publish("ticks", msg, uWS::OpCode::TEXT);
 
             if (++n % 20 == 0) {
