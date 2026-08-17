@@ -4,3 +4,4 @@
 /server
 /experiment
 /experiment_*.csv
+__pycache__/
