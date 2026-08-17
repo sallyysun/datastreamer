@@ -1,2 +1,6 @@
 .venv/
 .claude/
+# build artifacts
+/server
+/experiment
+/experiment_*.csv
