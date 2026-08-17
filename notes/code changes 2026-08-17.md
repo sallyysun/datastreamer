@@ -143,6 +143,36 @@ implementations cross-checking).
 - Run: `.venv/bin/python src/experiments/live_probe.py [--url ... --window 200 --interval 20 --csv live.csv]`.
   `--csv` logs `tick,true_rho_s,<estimators>` (same shape as the offline CSVs, loadable in the notebook).
 
+**`src/experiments/plot_live.py`** (new) + `analysis.ipynb` "Live probe capture" cell
+- Plot a `live.csv` capture (handles the `tick` index and reuses the estimator colours):
+  `python3 src/experiments/plot_live.py live.csv` (writes `live.png`), or the notebook's
+  `plot_live('live.csv')` cell. `estimator_cols()` now also ignores `tick` so it serves both
+  offline and live CSVs.
+
+### Live capture — first results (`live.csv`, ~1.6k ticks, OscillatingSchedule)
+Note: the live `DependenceMonitor` runs four estimators (`xiao`, `xiao_ew`, `hermite`,
+`hermite_ew`) — no `windowed_rank`. True rho_S swept +-0.58 (the sine). After warm-up:
+
+| estimator | RMSE | corr w/ truth | own movement (std) | lag |
+|---|---|---|---|---|
+| `hermite` (cumulative)  | 0.42 | -0.09 | 0.04 | n/a |
+| `xiao` (cumulative)     | 0.42 | -0.10 | 0.04 | n/a |
+| `hermite_ew` (forgetting) | 0.35 | +0.57 | 0.26 | ~58 |
+| `xiao_ew` (forgetting)    | 0.35 | +0.53 | 0.24 | ~60 |
+
+- **Cumulative estimators don't track** a zero-mean oscillation: they sit ~flat near 0 (movement
+  std ~0.04, corr ~0). Correct behaviour — they pool all history.
+- **Forgetting estimators track but lag + attenuate**: corr ~0.55, but trail truth by ~60 ticks
+  (~6 s) and under-shoot amplitude (0.25 vs 0.41). Cause: their effective window (ESS ~100-200)
+  is a large fraction of the 400-tick oscillation period -> low-pass phase lag + amplitude loss.
+  Bias is tiny (+-0.05), so error is timing, not offset.
+- Xiao and Hermite agree tightly within each regime -> the two implementations are consistent.
+- Live UI colours (for reference): price panel green `#00ff88` = `price_x`, blue = `price_y`;
+  dependence panel white = true rho_S, amber = `xiao`, red = `xiao_ew`, cyan = `hermite`,
+  violet = `hermite_ew`.
+- To tighten live tracking: raise the schedule period (slower sine) or forget more aggressively
+  (`xiao_ew` lambda 0.99->0.95, `hermite_ew` lambda 0.01->0.03), trading lag for variance.
+
 ---
 
 ## How to run (nothing here was auto-run)
@@ -175,6 +205,8 @@ Note: the offline `experiment` binary has **no inter-event delay** (unlike the l
 7. `feat: time-varying dependence in the live server with truth overlay`
 8. `docs: add experiment analysis Jupyter notebook`
 9. `feat: add live online-test probe + notebook path fix + session notes`
+10. `chore: ignore __pycache__`
+11. `feat: add live-capture plotting + first live-result analysis`
 
 ## Still missing (next steps)
 - Parametric online MLE / Fisher scoring branch; CUSUM change-detection + restart (the `reset()`
