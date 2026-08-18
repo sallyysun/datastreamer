@@ -23,6 +23,9 @@
 // harness uses for statistical accuracy.
 class DependenceMonitor {
 public:
+    // NOTE: these configs are kept IDENTICAL to the offline registry
+    // (src/estimators/registry.hpp make_estimator) so live and offline results
+    // are directly comparable. Change both together.
     DependenceMonitor() {
         estimators_.emplace_back(std::make_unique<XiaoSpearmanEstimator>(
             XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.0, .calibration = 100},

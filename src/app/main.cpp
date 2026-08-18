@@ -1,9 +1,11 @@
 #include <App.h>
 
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <thread>
 
 #include <nlohmann/json.hpp>
@@ -57,6 +59,27 @@ struct PerSocketData {
     std::shared_ptr<Consumer> consumer;
 };
 
+// Pick the live dependence schedule from the SCHEDULE env var so the same
+// binary can demo any regime without recompiling:
+//   SCHEDULE=constant    ./server   # rho_S fixed (~0.41); cumulative should win
+//   SCHEDULE=drift       ./server   # ramp -0.5 -> 0.8 over 1500 events, then hold
+//   SCHEDULE=jump        ./server   # step 0.2 -> 0.8 at event 1000
+//   SCHEDULE=oscillate   ./server   # sine +-0.6, period 400 (default)
+//   SCHEDULE=stochastic  ./server   # random-walk latent rho
+static std::unique_ptr<Schedule> make_live_schedule() {
+    const char* env = std::getenv("SCHEDULE");
+    const std::string name = env ? env : "oscillate";
+
+    if (name == "constant")   return std::make_unique<ConstantSchedule>(0.6);
+    if (name == "drift")      return std::make_unique<DriftSchedule>(-0.5, 0.8, 1500);
+    if (name == "jump")       return std::make_unique<JumpSchedule>(0.2, 0.8, 1000);
+    if (name == "stochastic") return std::make_unique<StochasticSchedule>(0.01, 0.6, 12345);
+    if (name != "oscillate") {
+        std::cout << "unknown SCHEDULE='" << name << "', using oscillate\n";
+    }
+    return std::make_unique<OscillatingSchedule>(0.6, 400.0, 0.0);
+}
+
 static ConsumerPolicy next_policy(int n) {
     switch (n % 3) {
         case 0: return ConsumerPolicy::ProcessAll;
@@ -72,12 +95,11 @@ int main() {
 
     auto bus = std::make_shared<EventBus>();
 
-    // Drive the live stream with a time-varying dependence so the online
-    // estimators visibly track a moving target. Oscillates rho_S in roughly
-    // (-0.6, 0.6) with a period of ~400 events; swap in Jump/Drift/Stochastic
-    // (see schedule.hpp) to demo other regimes.
-    auto source = std::make_shared<SyntheticSource>(
-        std::make_unique<OscillatingSchedule>(0.6, 400.0, 0.0));
+    // Drive the live stream with a dependence schedule chosen at launch via the
+    // SCHEDULE env var (see make_live_schedule); defaults to the oscillator.
+    auto schedule = make_live_schedule();
+    std::cout << "live schedule: " << schedule->name() << "\n";
+    auto source = std::make_shared<SyntheticSource>(std::move(schedule));
     Serializer serializer;
 
     // Server-side online dependence estimators over the shared stream. Updated
