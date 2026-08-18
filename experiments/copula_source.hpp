@@ -4,7 +4,7 @@
 #include <cmath>
 #include <random>
 
-#include "../streamgenerator/datasource/schedule.hpp"
+#include "../src/streamgenerator/datasource/schedule.hpp"
 
 // Bivariate Gaussian-copula source with time-varying dependence. Each draw uses
 // the current rho_t from the Schedule to correlate two standard normals, which

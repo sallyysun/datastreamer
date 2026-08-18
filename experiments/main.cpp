@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "../estimators/registry.hpp"
-#include "../streamgenerator/datasource/schedule.hpp"
+#include "../src/estimators/registry.hpp"
+#include "../src/streamgenerator/datasource/schedule.hpp"
 #include "copula_source.hpp"
 
 namespace {
@@ -31,7 +31,9 @@ std::unique_ptr<Schedule> make_schedule(const std::string& scenario, std::size_t
     if (scenario == "drift") return std::make_unique<DriftSchedule>(-0.5, 0.8, N);
     if (scenario == "jump") return std::make_unique<JumpSchedule>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticSchedule>(0.01, 0.6, seed + 1);
-    if (scenario == "oscillate") return std::make_unique<OscillatingSchedule>(0.6, 1000.0, 0.0);
+    // period 400 matches the live server (app/main.cpp) so offline vs online
+    // oscillate RMSE is directly comparable.
+    if (scenario == "oscillate") return std::make_unique<OscillatingSchedule>(0.6, 400.0, 0.0);
     return nullptr;
 }
 
@@ -78,7 +80,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    const std::string path = "experiment_" + scenario + ".csv";
+    // Written relative to the repo root (where the binary is run from).
+    const std::string path = "experiments/results/experiment_" + scenario + ".csv";
     std::ofstream out(path);
     out << "t,true_rho_s";
     for (const auto& k : keys) out << "," << k;

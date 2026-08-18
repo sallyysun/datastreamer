@@ -19,10 +19,10 @@ Prereq: a WebSocket client library, and the server running. See the header of
 
     .venv/bin/pip install websocket-client
     make server && ./server          # in another terminal
-    .venv/bin/python src/experiments/live_probe.py
+    .venv/bin/python experiments/live_probe.py
 
 Usage:
-    python src/experiments/live_probe.py [--url ws://localhost:9002]
+    python experiments/live_probe.py [--url ws://localhost:9002]
                                          [--window 200] [--interval 20]
                                          [--maxlag 60] [--csv out.csv]
 """

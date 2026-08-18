@@ -4,15 +4,17 @@
 The live CSV has columns: tick, true_rho_s, <estimator columns...>.
 
 Usage (use a Python that has pandas + matplotlib -- your system python3 does):
-    python3 src/experiments/plot_live.py [live.csv]
+    python3 experiments/plot_live.py [live.csv]
 
-Writes <csv>.png next to the CSV and also opens a window if a display is available.
+A bare filename is resolved against experiments/results/. Writes <csv>.png next to the CSV.
 """
 import sys
 import os
 
 import pandas as pd
 import matplotlib.pyplot as plt
+
+RESULTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 
 COLORS = {
     "xiao": "#ffb800",
@@ -23,6 +25,8 @@ COLORS = {
 }
 
 path = sys.argv[1] if len(sys.argv) > 1 else "live.csv"
+if not os.path.isabs(path) and not os.path.exists(path):
+    path = os.path.join(RESULTS, path)
 df = pd.read_csv(path)
 
 x = "tick" if "tick" in df.columns else "t"
