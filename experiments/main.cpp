@@ -56,7 +56,8 @@ int main(int argc, char** argv) {
 
     CopulaSource source(*dependence, seed);
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew", "windowed_rank"};
+    const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
+                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);
@@ -80,8 +81,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Written relative to the repo root (where the binary is run from).
-    const std::string path = "experiments/results/experiment_" + scenario + ".csv";
+    // Written relative to this directory (run the harness from experiments/).
+    const std::string path = "results/experiment_" + scenario + ".csv";
     std::ofstream out(path);
     out << "t,true_rho_s";
     for (const auto& k : keys) out << "," << k;

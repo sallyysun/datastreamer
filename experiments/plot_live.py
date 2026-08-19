@@ -22,6 +22,8 @@ COLORS = {
     "hermite": "#22d3ee",
     "hermite_ew": "#a78bfa",
     "windowed_rank": "#888888",
+    "gaussian_mle": "#2e7d32",
+    "gaussian_mle_ew": "#00e676",
 }
 
 path = sys.argv[1] if len(sys.argv) > 1 else "live.csv"
