@@ -7,10 +7,9 @@
 #include <utility>
 #include <vector>
 
-#include "../streamgenerator/event/market_event.hpp"
-#include "dependence_monitor.hpp"
+#include "../protocol/market_event.hpp"
+#include "device_state.hpp"
 #include "ring_buffer.hpp"
-#include "state_manager.hpp"
 
 class ConsumerLagException : public std::runtime_error {
 public:
@@ -60,8 +59,7 @@ public:
                 continue;
             }
             const MarketEvent e = buffer_->get(cursor_);
-            state_.update(e);
-            monitor_.update(e);   // per-device inference layer (thesis: inference on device state)
+            state_.update(e);   // folds moments + inference (thesis: Psi on device state)
             ++cursor_;
         }
     }
@@ -71,15 +69,15 @@ public:
     // Current dependence estimate (Spearman rho) from each estimator this device
     // runs. Each device owns its own estimators, independent of every other.
     std::vector<std::pair<std::string, double>> dependence() const {
-        return monitor_.snapshot();
+        return state_.dependence();
     }
 
     // ----------- statistics -----------
 
-    StateManager::Snapshot stats() const { return state_.snapshot(); }
+    DeviceState::Moments moments() const { return state_.moments(); }
 
     double rolling_correlation(std::size_t window) const {
-        return StateManager::rolling_correlation(*buffer_, window);
+        return DeviceState::rolling_correlation(*buffer_, window);
     }
 
     // ----------- introspection -----------
@@ -129,6 +127,5 @@ private:
     std::shared_ptr<RingBuffer> buffer_;
     size_t cursor_;
     ConsumerPolicy policy_;
-    StateManager state_;
-    DependenceMonitor monitor_;   // this device's inference layer
+    DeviceState state_;   // Z: moments + inference (folds state_manager + monitor)
 };

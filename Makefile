@@ -8,10 +8,10 @@ EIGEN = /opt/homebrew/opt/eigen
 JSON = /opt/homebrew/opt/nlohmann-json
 
 SERVER_SRC = \
-src/app/main.cpp \
+src/streamgenerator/main.cpp \
 src/streamgenerator/datasource/synthetic_source.cpp \
 src/streamgenerator/runtime/producer.cpp \
-src/streamgenerator/protocol/serializer.cpp
+src/protocol/serializer.cpp
 
 SERVER_OUT = server
 
@@ -41,7 +41,7 @@ server:
 CONSUMER_OUT = consumer
 
 consumer:
-	$(CXX) src/consumer/main.cpp src/streamgenerator/protocol/serializer.cpp -std=c++20 -O2 \
+	$(CXX) src/consumer/main.cpp src/protocol/serializer.cpp -std=c++20 -O2 \
 	-I$(EIGEN)/include/eigen3 -I$(JSON)/include \
 	-o $(CONSUMER_OUT)
 

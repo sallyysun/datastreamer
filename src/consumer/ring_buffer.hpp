@@ -4,7 +4,7 @@
 #include <mutex>
 #include <vector>
 
-#include "../streamgenerator/event/market_event.hpp"
+#include "../protocol/market_event.hpp"
 
 class RingBuffer {
 public:

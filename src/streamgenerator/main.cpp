@@ -10,11 +10,11 @@
 
 #include <nlohmann/json.hpp>
 
-#include "../streamgenerator/datasource/synthetic_source.hpp"
-#include "../streamgenerator/runtime/producer.hpp"
-#include "../streamgenerator/runtime/broker.hpp"
-#include "../streamgenerator/protocol/serializer.hpp"
-#include "../streamgenerator/runtime/delay_strategies.hpp"
+#include "datasource/synthetic_source.hpp"
+#include "runtime/producer.hpp"
+#include "runtime/broker.hpp"
+#include "../protocol/serializer.hpp"
+#include "runtime/delay_strategies.hpp"
 
 using json = nlohmann::json;
 

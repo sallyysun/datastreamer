@@ -19,8 +19,8 @@
 #include <cstring>
 #include <string>
 
-#include "../device/consumer.hpp"
-#include "../streamgenerator/protocol/serializer.hpp"
+#include "consumer.hpp"
+#include "../protocol/serializer.hpp"
 
 namespace {
 

@@ -4,7 +4,7 @@
 #include <memory>
 
 #include "../datasource/datasource.hpp"
-#include "../event/market_event.hpp"
+#include "../../protocol/market_event.hpp"
 #include "delay_strategies.hpp"
 
 class Producer {
