@@ -2,8 +2,8 @@
 
 #include <chrono>
 
-// Different kinds of events can flow through the same stream. The EventBus
-// dispatches on this; `All` is a wildcard used by subscribers, not a real
+// Different kinds of events can flow through the same stream. The broker routes
+// on this (via its topic); `All` is a wildcard used by subscribers, not a real
 // event payload type.
 enum class EventType {
     Trade,

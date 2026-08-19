@@ -2,6 +2,6 @@
 .claude/
 # build artifacts
 /server
-/experiment
-/experiment_*.csv
+/consumer
+/experiments/experiment
 __pycache__/

@@ -15,4 +15,8 @@ public:
     static std::string to_json(
         const MarketEvent& event,
         const std::vector<std::pair<std::string, double>>& dependence);
+
+    // Inverse of to_json: parse one JSON tick back into a MarketEvent. Used by
+    // C++ consumers reading the raw event stream off the broker.
+    static MarketEvent from_json(const std::string& text);
 };

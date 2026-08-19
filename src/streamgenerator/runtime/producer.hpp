@@ -5,7 +5,7 @@
 
 #include "../datasource/datasource.hpp"
 #include "../event/market_event.hpp"
-#include "../timing/delay_strategies.hpp"
+#include "delay_strategies.hpp"
 
 class Producer {
 public:

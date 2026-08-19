@@ -34,3 +34,18 @@ std::string Serializer::to_json(
 
     return j.dump();
 }
+
+MarketEvent Serializer::from_json(const std::string& text) {
+    json j = json::parse(text);
+    MarketEvent event{
+        j.at("price_x").get<double>(),
+        j.at("price_y").get<double>(),
+        j.at("volume_x").get<double>(),
+        j.at("volume_y").get<double>(),
+        j.at("return_x").get<double>(),
+        j.at("return_y").get<double>(),
+        j.at("timestamp").get<long long>()
+    };
+    if (j.contains("true_rho_s")) event.true_rho_s = j["true_rho_s"].get<double>();
+    return event;
+}

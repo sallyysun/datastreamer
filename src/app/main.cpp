@@ -12,12 +12,9 @@
 
 #include "../streamgenerator/datasource/synthetic_source.hpp"
 #include "../streamgenerator/runtime/producer.hpp"
-#include "../streamgenerator/runtime/event_bus.hpp"
+#include "../streamgenerator/runtime/broker.hpp"
 #include "../streamgenerator/protocol/serializer.hpp"
-#include "../streamgenerator/timing/delay_strategies.hpp"
-
-#include "../device/consumer.hpp"
-#include "../device/dependence_monitor.hpp"
+#include "../streamgenerator/runtime/delay_strategies.hpp"
 
 using json = nlohmann::json;
 
@@ -25,23 +22,23 @@ using json = nlohmann::json;
 // CONFIG LOADER
 // =========================================================
 struct Config {
-    int port = 9002;
+    int port = 9002;        // uWS HTTP/WebSocket (browser display)
+    int broker_port = 9003; // raw-TCP broker (C++ consumers)
 };
 
 static Config load_config() {
     std::ifstream f("config.json");
     if (!f.is_open()) return {};
-
     json j;
     f >> j;
-
-    return {
-        .port = j["server"]["port"]
-    };
+    Config c;
+    c.port = j["server"]["port"];
+    if (j["server"].contains("broker_port")) c.broker_port = j["server"]["broker_port"];
+    return c;
 }
 
 // =========================================================
-// MIME TYPE HELPER (PUT HERE)
+// MIME + topic helpers
 // =========================================================
 static std::string mime_type(const std::string &path) {
     if (path.ends_with(".html")) return "text/html";
@@ -52,156 +49,95 @@ static std::string mime_type(const std::string &path) {
     return "text/plain";
 }
 
-// =========================================================
-// SOCKET STATE
-// =========================================================
-struct PerSocketData {
-    std::shared_ptr<Consumer> consumer;
-};
+// Topic a MarketEvent is published on (consumers subscribe by topic).
+static const char* topic_for(const MarketEvent &event) {
+    return event.type == EventType::Quote ? "quotes" : "trades";
+}
 
-// Pick the live dependence regime from the DEPENDENCE env var so the same
-// binary can demo any regime without recompiling:
-//   DEPENDENCE=constant    ./server   # rho_S fixed (~0.41); cumulative should win
-//   DEPENDENCE=drift       ./server   # ramp -0.5 -> 0.8 over 1500 events, then hold
-//   DEPENDENCE=jump        ./server   # step 0.2 -> 0.8 at event 1000
-//   DEPENDENCE=oscillate   ./server   # sine +-0.6, period 400 (default)
-//   DEPENDENCE=stochastic  ./server   # random-walk latent rho
+// Pick the live dependence regime from the DEPENDENCE env var (see
+// make_live_dependence below). Same binary demos any regime without recompiling.
 static std::unique_ptr<Dependence> make_live_dependence() {
     const char* env = std::getenv("DEPENDENCE");
     const std::string name = env ? env : "oscillate";
-
     if (name == "constant")   return std::make_unique<ConstantDependence>(0.6);
     if (name == "drift")      return std::make_unique<DriftDependence>(-0.5, 0.8, 1500);
     if (name == "jump")       return std::make_unique<JumpDependence>(0.2, 0.8, 1000);
     if (name == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, 12345);
-    if (name != "oscillate") {
-        std::cout << "unknown DEPENDENCE='" << name << "', using oscillate\n";
-    }
+    if (name != "oscillate") std::cout << "unknown DEPENDENCE='" << name << "', using oscillate\n";
     return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
 }
 
-static ConsumerPolicy next_policy(int n) {
-    switch (n % 3) {
-        case 0: return ConsumerPolicy::ProcessAll;
-        case 1: return ConsumerPolicy::Snapshot;
-        default: return ConsumerPolicy::SkipToLatest;
-    }
-}
-
+// =========================================================
+// SERVER = stream generator (producer) + broker.
+// The server does NOT estimate: it publishes raw events. Estimation lives in
+// each consumer's device (see src/consumer). The browser is a display client.
+// =========================================================
 int main() {
     Config cfg = load_config();
 
     uWS::App app;
+    Serializer serializer;
 
-    auto bus = std::make_shared<EventBus>();
-
-    // Drive the live stream with a dependence regime chosen at launch via the
-    // DEPENDENCE env var (see make_live_dependence); defaults to the oscillator.
     auto dependence = make_live_dependence();
     std::cout << "live dependence: " << dependence->name() << "\n";
     auto source = std::make_shared<SyntheticSource>(std::move(dependence));
-    Serializer serializer;
 
-    // Server-side online dependence estimators over the shared stream. Updated
-    // once per event in the producer thread, so no locking is required.
-    DependenceMonitor monitor;
+    // Raw-TCP broker for C++ consumers.
+    Broker broker(cfg.broker_port);
+    if (broker.start()) {
+        std::cout << "broker listening on tcp/" << cfg.broker_port << "\n";
+    } else {
+        std::cout << "failed to start broker on tcp/" << cfg.broker_port << "\n";
+    }
 
     Producer producer(source, fixed_delay(10.0));
 
-    int connection_count = 0;
-
-    // =========================================================
-    // SERVE REACT BUILD
-    // =========================================================
+    // Serve the React build (display client).
     app.get("/*", [](auto *res, auto *req) {
         std::string path = std::string(req->getUrl());
-
         if (path == "/") path = "/index.html";
-
         std::string filePath = "client/dist" + path;
-
         std::ifstream file(filePath, std::ios::binary);
-
         if (!file.is_open()) {
             std::ifstream fallback("client/dist/index.html");
             std::stringstream buffer;
             buffer << fallback.rdbuf();
-
             res->writeHeader("Content-Type", "text/html");
             res->end(buffer.str());
             return;
         }
-
         std::stringstream buffer;
         buffer << file.rdbuf();
-
         res->writeHeader("Content-Type", mime_type(filePath));
         res->end(buffer.str());
     });
 
-    // =========================================================
-    // WEBSOCKET STREAM
-    // =========================================================
-    app.ws<PerSocketData>("/*", {
-
-        .open = [&](auto *ws) {
-            ws->subscribe("ticks");
-
-            auto consumer = std::make_shared<Consumer>(1024, next_policy(connection_count++));
-
-            EventBus::SubId id = bus->subscribe(
-                EventType::All,
-                [consumer](const MarketEvent &event) {
-                    consumer->on_event(event);
-                }
-            );
-
-            consumer->set_subscription(id);
-            ws->getUserData()->consumer = consumer;
-
-            std::cout << "client connected\n";
-        },
-
-        .close = [&](auto *ws, int, std::string_view) {
-            auto &c = ws->getUserData()->consumer;
-            if (c) bus->unsubscribe(c->subscription());
-        }
+    // Browser display: raw event stream over WebSocket (no server-side estimates).
+    app.ws<int>("/*", {
+        .open = [](auto *ws) { ws->subscribe("ticks"); }
     });
 
-    // =========================================================
-    // PRODUCER THREAD
-    // =========================================================
+    // Producer thread: pull events, publish RAW to the broker (per topic) and to
+    // the browser display topic. No estimation here.
     std::thread producer_thread([&]() {
         std::size_t n = 0;
-
         producer.run([&](const MarketEvent &event) {
-            bus->publish(event);
-
-            // Fold the event into the live estimators, then ship the tick with
-            // the current dependence estimates attached.
-            monitor.update(event);
-
-            std::string msg = serializer.to_json(event, monitor.snapshot());
+            const std::string msg = serializer.to_json(event);
+            broker.publish(topic_for(event), msg);
             app.publish("ticks", msg, uWS::OpCode::TEXT);
-
             if (++n % 20 == 0) {
                 std::cout << "events=" << n
-                          << " subscribers=" << bus->subscriber_count()
-                          << "\n";
+                          << " tcp_consumers=" << broker.subscriber_count() << "\n";
             }
         });
     });
 
-    // =========================================================
-    // START SERVER
-    // =========================================================
     app.listen(cfg.port, [&](auto *token) {
-        if (token)
-            std::cout << "server running on port " << cfg.port << "\n";
-        else
-            std::cout << "failed to bind port\n";
+        std::cout << (token ? "server running on port " : "failed to bind port ")
+                  << cfg.port << "\n";
     });
 
     app.run();
     producer_thread.join();
+    broker.stop();
 }
