@@ -4,6 +4,7 @@
 #include <string>
 
 #include "dependence/estimator.hpp"
+#include "dependence/gaussian_mle.hpp"
 #include "dependence/hermiter.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
@@ -48,6 +49,14 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     }
     if (key == "windowed_rank") {
         return std::make_unique<WindowedRankEstimator>(500);
+    }
+    if (key == "gaussian_mle") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.0, .burn_in = 50}, "gaussian_mle");
+    }
+    if (key == "gaussian_mle_ew") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50}, "gaussian_mle_ew");
     }
     return nullptr;
 }

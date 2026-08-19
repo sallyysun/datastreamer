@@ -1,14 +1,36 @@
 #pragma once
 
-// Placeholder for the parametric branch (roadmap: online MLE / Fisher scoring).
+#include <cmath>
+
+// Bivariate Gaussian-copula objective for the parametric branch (online MLE /
+// Fisher scoring). Works in normal scores z_x = Phi^{-1}(u), z_y = Phi^{-1}(v);
+// for Gaussian marginals these are just the standardized observations.
 //
-// Intended home for the bivariate copula log-likelihood and its derivatives,
-// shared by the parametric online MLE, the exponential-forgetting (RLS) variant,
-// and later the Bayesian update:
+// `rho` is the copula correlation. Derivatives are w.r.t. rho:
+//   log_likelihood  l(z_x, z_y; rho)
+//   score           s = dl/drho              (unbiased: E[s] = 0 at the true rho)
+//   fisher          I(rho) = -E[d2l/drho2]
+//                          = (1 + rho^2) / (1 - rho^2)^2   (closed form)
 //
-//   double log_likelihood(double u, double v, double theta);   // copula density
-//   double score(double u, double v, double theta);            // s_t(theta) = d/dtheta log c
-//   double fisher_information(double theta);                   // I(theta)
-//
-// Empty until the parametric branch is implemented; kept as a stub so the
-// intended interface is discoverable. Not yet referenced anywhere.
+// Log-density of the Gaussian copula in normal scores:
+//   l = -1/2 log(1-rho^2) - ( rho^2 (z_x^2 + z_y^2) - 2 rho z_x z_y ) / (2(1-rho^2)).
+struct GaussianCopulaObjective {
+    static double log_likelihood(double zx, double zy, double rho) {
+        const double d = 1.0 - rho * rho;
+        const double q = rho * rho * (zx * zx + zy * zy) - 2.0 * rho * zx * zy;
+        return -0.5 * std::log(d) - q / (2.0 * d);
+    }
+
+    // dl/drho = [ rho(1-rho^2) - rho(z_x^2+z_y^2) + z_x z_y (1+rho^2) ] / (1-rho^2)^2.
+    static double score(double zx, double zy, double rho) {
+        const double d = 1.0 - rho * rho;
+        const double a = zx * zx + zy * zy;
+        const double b = zx * zy;
+        return (rho * d - rho * a + b * (1.0 + rho * rho)) / (d * d);
+    }
+
+    static double fisher(double rho) {
+        const double d = 1.0 - rho * rho;
+        return (1.0 + rho * rho) / (d * d);
+    }
+};
