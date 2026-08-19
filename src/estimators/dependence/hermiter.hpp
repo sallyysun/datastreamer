@@ -7,6 +7,18 @@
 
 #include "estimator.hpp"
 
+// Online Hermite-series estimator of Spearman's rho.
+//
+// C++ port of the method of Stephanou & Varughese (2021), "Sequential estimation
+// of Spearman rank correlation using Hermite series estimators"; reference
+// implementation (R/Rcpp): external/hermiter. The orthonormal Hermite-function,
+// integral, full-domain-integral, and online-standardization recurrences match
+// that package exactly.
+//
+// NOTE: unlike the reference, the Spearman coupling matrix W here is built by
+// numerical (trapezoidal) quadrature rather than the closed form. The reference
+// evaluates the same coupling analytically -- porting that would remove the only
+// numerical-approximation step (see integral_matrix). See notes/roadmap.md.
 class HermiteEstimator : public DependenceEstimator {
 public:
     struct Config {
@@ -138,32 +150,40 @@ private:
         return z;
     }
 
+    // Spearman coupling matrix W(k,j) = int h_k(x) I_j(x) dx, computed in CLOSED
+    // FORM (no quadrature). Two exact facts:
+    //   * integration by parts: W(k,j) + W(j,k) = z_k z_j   (z = full-domain integrals)
+    //   * I_j = -sqrt(2/j) h_{j-1} + sqrt((j-1)/j) I_{j-2}, with int h_k h_{j-1} = delta,
+    //     giving the column recurrence W(k,j) = -sqrt(2/j)[k==j-1] + sqrt((j-1)/j) W(k,j-2).
+    // Bases: W(0,0)=z0^2/2, W(0,1)=-sqrt2, W(k,1)=-sqrt2 [k==0], W(k,0)=z_k z_0 - W(0,k).
     static Eigen::MatrixXd integral_matrix(int order) {
-        constexpr double kLimit = 14.0;
-        constexpr int kPoints = 5061;
-        const double step = 2.0 * kLimit / (kPoints - 1);
         const int dim = order + 1;
+        const Eigen::VectorXd z = basis_integrals(order);
+        const double sqrt2 = std::sqrt(2.0);
 
-        Eigen::MatrixXd h(dim, kPoints);
-        Eigen::MatrixXd I(dim, kPoints);
-        for (int p = 0; p < kPoints; ++p) {
-            const double x = -kLimit + p * step;
-            h(0, p) = kQuarterRootPiInv * std::exp(-0.5 * x * x);
-            I(0, p) = std::erfc(-x / std::sqrt(2.0)) / (std::sqrt(2.0) * kQuarterRootPiInv);
-            if (dim > 1) {
-                h(1, p) = std::sqrt(2.0) * x * h(0, p);
-                I(1, p) = -std::sqrt(2.0) * h(0, p);
-            }
-            for (int k = 2; k < dim; ++k) {
-                const double a = std::sqrt(2.0 / k);
-                const double b = std::sqrt((k - 1.0) / k);
-                h(k, p) = a * x * h(k - 1, p) - b * h(k - 2, p);
-                I(k, p) = -a * h(k - 1, p) + b * I(k - 2, p);
+        // Row 0 across all columns: W(0,j).
+        Eigen::VectorXd row0(dim);
+        row0(0) = z(0) * z(0) / 2.0;
+        if (dim > 1) row0(1) = -sqrt2;
+        for (int j = 2; j < dim; ++j) {
+            row0(j) = std::sqrt((j - 1.0) / j) * row0(j - 2);
+        }
+
+        Eigen::MatrixXd W(dim, dim);
+        // Column bases j = 0 (IBP symmetry) and j = 1 (orthonormality).
+        for (int k = 0; k < dim; ++k) {
+            W(k, 0) = z(k) * z(0) - row0(k);
+            if (dim > 1) W(k, 1) = (k == 0) ? -sqrt2 : 0.0;
+        }
+        // Columns j >= 2 via the recurrence.
+        for (int j = 2; j < dim; ++j) {
+            const double aj = std::sqrt(2.0 / j);
+            const double bj = std::sqrt((j - 1.0) / j);
+            for (int k = 0; k < dim; ++k) {
+                W(k, j) = bj * W(k, j - 2) - (k == j - 1 ? aj : 0.0);
             }
         }
-        Eigen::VectorXd weights = Eigen::VectorXd::Constant(kPoints, step);
-        weights(0) = weights(kPoints - 1) = step / 2.0; // Trapezoidal rule
-        return h * weights.asDiagonal() * I.transpose();
+        return W;
     }
 
     static constexpr double kPi = 3.14159265358979323846;

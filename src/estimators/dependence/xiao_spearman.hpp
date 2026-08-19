@@ -12,6 +12,13 @@
 
 // Streaming empirical-copula estimator of Spearman's rho (the "Xiao" branch).
 //
+// C++ port of Xiao (2019), "Novel Online Algorithms for Nonparametric
+// Correlations with Application to Analyze Sensor Data" (IEEE Big Data),
+// reference implementation: external/onlineNPCORR (corr.py online_corr /
+// utility.py spearmanr_by_matrix, get_index). This estimate() reproduces
+// spearmanr_by_matrix exactly; we add two extensions beyond the paper:
+// auto-calibrated cutpoints (below) and exponential forgetting (lambda).
+//
 // Marginals are discretised into `bins` equiprobable cells whose cutpoints are
 // fixed from an initial calibration window. A bins x bins count grid then
 // approximates the joint distribution, and Spearman's rho is read off as a
