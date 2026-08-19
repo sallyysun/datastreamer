@@ -8,7 +8,7 @@ namespace {
 constexpr double kPi = 3.14159265358979323846;
 }
 
-SyntheticSource::SyntheticSource(std::unique_ptr<Schedule> schedule)
+SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence)
     : price_x_(100.0),
       price_y_(100.0),
       volume_x_(1000.0),
@@ -17,7 +17,7 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Schedule> schedule)
       drift_y_(0.0001),
       vol_x_(0.01),
       vol_y_(0.01),
-      schedule_(std::move(schedule)),
+      dependence_(std::move(dependence)),
       rng_(std::random_device{}()),
       normal_(0.0, 1.0)
 {
@@ -26,7 +26,7 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Schedule> schedule)
 MarketEvent SyntheticSource::next() {
     // Current true dependence for this step (clamped away from +-1 so the
     // Gaussian-copula construction stays well defined).
-    double rho = schedule_->next();
+    double rho = dependence_->next();
     if (rho > 0.999) rho = 0.999;
     if (rho < -0.999) rho = -0.999;
 

@@ -4,10 +4,10 @@
 #include <cmath>
 #include <random>
 
-#include "../src/streamgenerator/datasource/schedule.hpp"
+#include "../src/streamgenerator/datasource/dependence.hpp"
 
 // Bivariate Gaussian-copula source with time-varying dependence. Each draw uses
-// the current rho_t from the Schedule to correlate two standard normals, which
+// the current rho_t from the Dependence to correlate two standard normals, which
 // double as standardised "returns" fed to the estimators. Because the DGP is a
 // Gaussian copula, the true Spearman rho is known in closed form
 // (rho_S = (6/pi) * asin(rho/2)), giving estimators a ground truth to track.
@@ -20,11 +20,11 @@ public:
         double rho_s;  // true Spearman's rho at this step
     };
 
-    CopulaSource(Schedule& schedule, unsigned seed)
-        : schedule_(schedule), rng_(seed), normal_(0.0, 1.0) {}
+    CopulaSource(Dependence& dependence, unsigned seed)
+        : dependence_(dependence), rng_(seed), normal_(0.0, 1.0) {}
 
     Sample next() {
-        const double rho = std::clamp(schedule_.next(), -0.999, 0.999);
+        const double rho = std::clamp(dependence_.next(), -0.999, 0.999);
         const double z1 = normal_(rng_);
         const double z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng_);
         const double rho_s = 6.0 / kPi * std::asin(rho / 2.0);
@@ -33,7 +33,7 @@ public:
 
 private:
     static constexpr double kPi = 3.14159265358979323846;
-    Schedule& schedule_;
+    Dependence& dependence_;
     std::mt19937 rng_;
     std::normal_distribution<double> normal_;
 };

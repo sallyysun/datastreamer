@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "../src/estimators/registry.hpp"
-#include "../src/streamgenerator/datasource/schedule.hpp"
+#include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
 
 namespace {
@@ -26,14 +26,14 @@ struct Series {
     std::vector<double> est;
 };
 
-std::unique_ptr<Schedule> make_schedule(const std::string& scenario, std::size_t N, unsigned seed) {
-    if (scenario == "constant") return std::make_unique<ConstantSchedule>(0.6);
-    if (scenario == "drift") return std::make_unique<DriftSchedule>(-0.5, 0.8, N);
-    if (scenario == "jump") return std::make_unique<JumpSchedule>(0.2, 0.8, N / 2);
-    if (scenario == "stochastic") return std::make_unique<StochasticSchedule>(0.01, 0.6, seed + 1);
+std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::size_t N, unsigned seed) {
+    if (scenario == "constant") return std::make_unique<ConstantDependence>(0.6);
+    if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, N);
+    if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
+    if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
     // period 400 matches the live server (app/main.cpp) so offline vs online
     // oscillate RMSE is directly comparable.
-    if (scenario == "oscillate") return std::make_unique<OscillatingSchedule>(0.6, 400.0, 0.0);
+    if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
     return nullptr;
 }
 
@@ -46,15 +46,15 @@ int main(int argc, char** argv) {
 
     const std::string scenario = (argc > 1) ? argv[1] : "jump";
 
-    auto schedule = make_schedule(scenario, N, seed);
-    if (!schedule) {
+    auto dependence = make_dependence(scenario, N, seed);
+    if (!dependence) {
         std::fprintf(stderr,
                      "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate)\n",
                      scenario.c_str());
         return 1;
     }
 
-    CopulaSource source(*schedule, seed);
+    CopulaSource source(*dependence, seed);
 
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew", "windowed_rank"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;

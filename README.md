@@ -24,17 +24,17 @@ Client WebSocket URL (in `client/.env`):
 - `VITE_WS_URL=ws://localhost:9002` for dev
 - `VITE_WS_URL=wss://<your-ngrok-host>/` for prod (`ngrok http 9002`)
 
-### Live dependence schedule
+### Live dependence regime
 
-The server drives the synthetic stream with a dependence `Schedule` chosen at launch via the
-`SCHEDULE` env var (default `oscillate`):
+The server drives the synthetic stream with a `Dependence` regime chosen at launch via the
+`DEPENDENCE` env var (default `oscillate`):
 
 ```bash
-SCHEDULE=constant ./server     # fixed rho
-SCHEDULE=drift    ./server     # linear ramp
-SCHEDULE=jump     ./server     # abrupt step
-SCHEDULE=oscillate ./server    # sine (default)
-SCHEDULE=stochastic ./server   # latent random walk
+DEPENDENCE=constant ./server     # fixed rho
+DEPENDENCE=drift    ./server     # linear ramp
+DEPENDENCE=jump     ./server     # abrupt step
+DEPENDENCE=oscillate ./server    # sine (default)
+DEPENDENCE=stochastic ./server   # latent random walk
 ```
 
 ## Experiments (offline evaluation)

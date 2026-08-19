@@ -10,7 +10,7 @@ Code + outputs: `experiments/` (harness `main.cpp`, `analysis.ipynb`, `results/`
 
 ## Setup
 
-- **DGP:** bivariate Gaussian copula whose linear correlation rho_t is driven by a `Schedule`;
+- **DGP:** bivariate Gaussian copula whose linear correlation rho_t is driven by a `Dependence`;
   true Spearman rho_S = (6/pi)*asin(rho/2) is emitted per step as ground truth.
 - **Scenarios:** constant, drift (ramp), jump (step), stochastic (latent random walk),
   oscillate (sine, period 400).
