@@ -52,7 +52,7 @@ public:
         const std::size_t n = xs_.size();
         if (n < 2) return 0.0;
 
-        std::size_t concordant = 0, discordant = 0;
+        std::size_t concordant = 0, discordant = 0, ties_x = 0, ties_y = 0;
         for (std::size_t i = 0; i < n - 1; ++i) {
             for (std::size_t j = i + 1; j < n; ++j) {
                 const double dx = xs_[i] - xs_[j];
@@ -69,7 +69,13 @@ public:
         return (denom > 0.0) ? (static_cast<double>(concordant - discordant) / denom) : 0.0;
     }
 
-    std::size_t state_bytes() const override {
+    void reset() override {
+        xs_.clear();
+        ys_.clear();
+        next_ = 0;
+    }
+
+    std::size_t store_bytes() const override {
         return 2 * capacity_ * sizeof(double);
     }
 
@@ -82,7 +88,7 @@ private:
         const std::size_t n = v.size();
         std::vector<std::size_t> order(n);
         std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&v](std::size_t a, size_t b) -> bool { return v[a] < v[b]; });
+        std::sort(order.begin(), order.end(), [&v](std::size_t a, std::size_t b) -> bool { return v[a] < v[b]; });
 
         std::vector<double> ranks(n);
         std::size_t i = 0;
@@ -90,7 +96,7 @@ private:
             std::size_t j = i;
             while (j + 1 < n && v[order[j + 1]] == v[order[i]]) ++j;
             const double avg = (static_cast<double>(i) + static_cast<double>(j)) / 2.0 + 1.0;
-            for (std:size_t k = i; k <= j; ++k) ranks[order[k]] = avg;
+            for (std::size_t k = i; k <= j; ++k) ranks[order[k]] = avg;
             i = j + 1;
         }
         return ranks;

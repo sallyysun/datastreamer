@@ -1,2 +1,8 @@
 .venv/
 .claude/
+# build artifacts
+/server
+/consumer
+/experiments/experiment
+__pycache__/
+/experiments/results/

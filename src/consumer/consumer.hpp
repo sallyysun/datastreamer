@@ -3,10 +3,13 @@
 #include <cstdint>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "../streamgenerator/event/market_event.hpp"
+#include "../protocol/market_event.hpp"
+#include "device_state.hpp"
 #include "ring_buffer.hpp"
-#include "state_manager.hpp"
 
 class ConsumerLagException : public std::runtime_error {
 public:
@@ -24,9 +27,10 @@ enum class ConsumerPolicy {
 // policy, and its own StateManager, so clients are fully independent: a slow
 // client lagging or skipping events doesn't affect anyone else.
 //
-// on_event() is invoked by the EventBus on the producer thread. It appends to
-// this consumer's buffer and folds the newly-available events into the running
-// state, honouring the lag policy.
+// on_event() is invoked for each event the device receives (from the broker /
+// consumer read loop). It appends to this consumer's buffer and folds the
+// newly-available events into the running state and inference, honouring the lag
+// policy.
 class Consumer {
 public:
     explicit Consumer(
@@ -36,7 +40,7 @@ public:
           cursor_(0),
           policy_(policy) {}
 
-    // ----------- ingestion (called by the EventBus) -----------
+    // ----------- ingestion (called per received event) -----------
 
     void on_event(const MarketEvent& event) {
         buffer_->push(event);
@@ -44,7 +48,7 @@ public:
     }
 
     // Drain everything newly available, applying the lag policy, and fold each
-    // event into the running state.
+    // event into the running state and this device's inference layer.
     void process_available() {
         handle_policy();
 
@@ -54,17 +58,26 @@ public:
                 handle_policy();
                 continue;
             }
-            state_.update(buffer_->get(cursor_));
+            const MarketEvent e = buffer_->get(cursor_);
+            state_.update(e);   // folds moments + inference (thesis: Psi on device state)
             ++cursor_;
         }
     }
 
+    // ----------- inference layer (the device's statistical objective) -----------
+
+    // Current dependence estimate (Spearman rho) from each estimator this device
+    // runs. Each device owns its own estimators, independent of every other.
+    std::vector<std::pair<std::string, double>> dependence() const {
+        return state_.dependence();
+    }
+
     // ----------- statistics -----------
 
-    StateManager::Snapshot stats() const { return state_.snapshot(); }
+    DeviceState::Moments moments() const { return state_.moments(); }
 
     double rolling_correlation(std::size_t window) const {
-        return StateManager::rolling_correlation(*buffer_, window);
+        return DeviceState::rolling_correlation(*buffer_, window);
     }
 
     // ----------- introspection -----------
@@ -79,11 +92,6 @@ public:
 
     void seek_to_beginning() { cursor_ = buffer_->oldest_available(); }
     void seek_latest() { cursor_ = buffer_->head(); }
-
-    // ----------- bus subscription bookkeeping -----------
-
-    void set_subscription(std::uint64_t id) { sub_id_ = id; }
-    std::uint64_t subscription() const { return sub_id_; }
 
 private:
     // Reconcile the cursor with the buffer according to the lag policy.
@@ -119,6 +127,5 @@ private:
     std::shared_ptr<RingBuffer> buffer_;
     size_t cursor_;
     ConsumerPolicy policy_;
-    StateManager state_;
-    std::uint64_t sub_id_ = 0;
+    DeviceState state_;   // Z: moments + inference (folds state_manager + monitor)
 };
