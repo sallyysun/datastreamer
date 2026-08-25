@@ -1,0 +1,279 @@
+<title>Quant Terminal</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* Single visual world: a dark quant terminal. Every colour painted explicitly. */
+  :root {
+    --bg: #070a0f;
+    --bg-2: #05070b;
+    --panel: #0c1219;
+    --panel-2: #0f1723;
+    --panel-glass: rgba(12, 18, 25, 0.72);
+    --border: #1a2534;
+    --border-soft: #131c28;
+    --ink: #e8eef5;
+    --ink-2: #b7c2d0;
+    --muted: #7a8798;
+    --faint: #4c5768;
+
+    --x: #22d3ee;      /* asset X / cyan  */
+    --y: #a78bfa;      /* asset Y / violet */
+    --pos: #34d399;    /* up / estimator good */
+    --neg: #fb7185;    /* down */
+    --amber: #fbbf24;
+    --grad: linear-gradient(135deg, #22d3ee, #a78bfa);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background:
+      radial-gradient(1200px 640px at 84% -14%, rgba(34,211,238,0.10), transparent 56%),
+      radial-gradient(1000px 560px at -8% 112%, rgba(167,139,250,0.10), transparent 56%),
+      linear-gradient(180deg, var(--bg), var(--bg-2));
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  .app { max-width: 1180px; margin: 0 auto; padding: 22px 20px 60px; }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 18px; }
+  .brand { display: flex; align-items: baseline; gap: 11px; }
+  .logo { width: 13px; height: 13px; border-radius: 4px; background: var(--grad);
+    box-shadow: 0 0 18px rgba(34,211,238,0.5); transform: translateY(2px); }
+  .brand-name {
+    font-family: ui-monospace, Menlo, monospace; font-size: 19px; font-weight: 700; letter-spacing: 0.3px;
+    background: linear-gradient(90deg, #eafaff, #d6ccff); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand-sub { color: var(--muted); font-size: 11px; letter-spacing: 2.6px; text-transform: uppercase; }
+  .top-right { display: flex; align-items: center; gap: 10px; }
+  .chip-live {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 1.4px;
+    text-transform: uppercase; color: var(--pos); border: 1px solid rgba(52,211,153,0.32);
+    background: rgba(52,211,153,0.06); padding: 6px 13px; border-radius: 999px;
+  }
+  .chip-live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pos); box-shadow: 0 0 10px var(--pos); animation: pulse 1.7s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .4; transform: scale(.8);} }
+  .clock { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); border: 1px solid var(--border); padding: 6px 12px; border-radius: 999px; }
+
+  /* ---------- control bar ---------- */
+  .controls {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 9px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; margin-bottom: 16px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+  .ctl-label { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 7px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: #0d141d; color: var(--ink-2); transition: transform .12s ease;
+  }
+  .chip:hover { transform: translateY(-1px); }
+  .chip .cd { width: 8px; height: 8px; border-radius: 50%; background: #39424f; }
+  .chip.on { color: var(--ink); background: #101a24; }
+  .chip.on.cyan { border-color: var(--x); }   .chip.on.cyan .cd { background: var(--x); box-shadow: 0 0 8px var(--x); }
+  .chip.on.violet { border-color: var(--y); } .chip.on.violet .cd { background: var(--y); box-shadow: 0 0 8px var(--y); }
+
+  .throttle { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding-left: 12px; }
+  .throttle .t-label { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+  .slider { position: relative; width: 132px; height: 5px; border-radius: 999px; background: #1b2634; }
+  .slider .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 6%; border-radius: 999px; background: var(--grad); }
+  .slider .knob { position: absolute; left: 6%; top: 50%; width: 15px; height: 15px; border-radius: 50%; transform: translate(-50%,-50%);
+    background: #0b1017; border: 2px solid var(--x); box-shadow: 0 0 8px rgba(34,211,238,0.6); }
+  .t-num { width: 50px; text-align: right; background: #0d141d; border: 1px solid var(--border); border-radius: 8px; color: var(--ink);
+    font-family: ui-monospace, Menlo, monospace; font-size: 13px; padding: 5px 8px; }
+  .t-unit { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); }
+
+  /* ---------- stat tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .tile { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--border); border-radius: 13px; padding: 13px 15px; position: relative; overflow: hidden; }
+  .tile::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+  .tile.cyan::after { background: var(--x); }  .tile.violet::after { background: var(--y); }
+  .tile.green::after { background: var(--pos); } .tile.muted::after { background: #2b3646; }
+  .tile-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px; color: var(--muted); }
+  .tile-v { font-family: ui-monospace, Menlo, monospace; font-size: 25px; font-weight: 700; margin-top: 6px; line-height: 1; }
+  .tile-v.cyan { color: var(--x); } .tile-v.violet { color: var(--y); } .tile-v.green { color: var(--pos); }
+  .tile-f { font-size: 11px; color: var(--muted); margin-top: 8px; display: flex; gap: 6px; align-items: center; }
+  .delta.up { color: var(--pos); } .delta.down { color: var(--neg); }
+
+  /* ---------- panels ---------- */
+  .panel { background: var(--panel-glass); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+    backdrop-filter: blur(8px); box-shadow: 0 14px 36px rgba(0,0,0,0.3); margin-bottom: 16px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 17px; border-bottom: 1px solid var(--border-soft);
+    font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    background: linear-gradient(180deg, rgba(255,255,255,0.018), transparent); }
+  .legend { display: inline-flex; gap: 16px; letter-spacing: 0; text-transform: none; font-size: 12.5px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  .chart-wrap { padding: 8px 6px 4px; }
+  .chart-wrap svg { display: block; width: 100%; height: auto; }
+
+  .grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+  @media (max-width: 780px) { .grid2 { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(2,1fr);} }
+
+  /* dependence placeholder */
+  .dep { position: relative; }
+  .dep .ghost { padding: 8px 6px 4px; opacity: 0.42; filter: saturate(0.7); }
+  .dep-overlay { position: absolute; inset: 42px 14px 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 10px; border: 1px dashed #2b3a4d; border-radius: 12px;
+    background: repeating-linear-gradient(-45deg, rgba(167,139,250,0.04) 0 10px, transparent 10px 20px); }
+  .badge { font-family: ui-monospace, Menlo, monospace; font-size: 11px; letter-spacing: 0.5px; color: #cbb7ff;
+    background: rgba(167,139,250,0.14); border: 1px solid rgba(167,139,250,0.4); padding: 3px 10px; border-radius: 999px; }
+  .dep-overlay p { margin: 0; max-width: 34ch; font-size: 13px; color: var(--ink-2); line-height: 1.55; }
+  .dep-overlay code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; color: var(--y); background: rgba(167,139,250,0.08); padding: 1px 5px; border-radius: 4px; }
+
+  /* tape */
+  .tape-wrap { max-height: 288px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
+  thead th { position: sticky; top: 0; background: var(--panel-2); text-align: right; padding: 10px 15px; color: var(--muted);
+    font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--border); }
+  thead th:first-child, thead th:nth-child(2) { text-align: left; }
+  tbody td { padding: 8px 15px; text-align: right; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+  tbody td:first-child, tbody td:nth-child(2) { text-align: left; }
+  tbody tr:first-child { animation: flash .8s ease; }
+  @keyframes flash { from { background: rgba(34,211,238,0.14);} to { background: transparent; } }
+  .cyan { color: var(--x); } .violet { color: var(--y); }
+
+  .note { color: var(--faint); font-size: 12px; margin-top: 22px; text-align: center; }
+  ::-webkit-scrollbar { width: 9px; height: 9px; } ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 5px; }
+</style>
+
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <span class="logo"></span>
+      <span class="brand-name">datastreamer</span>
+      <span class="brand-sub">subscription viewer</span>
+    </div>
+    <div class="top-right">
+      <span class="clock mono">14:32:07</span>
+      <span class="chip-live"><span class="dot"></span> connected</span>
+    </div>
+  </div>
+
+  <!-- CONTROL BAR -->
+  <div class="controls">
+    <span class="ctl-label">subscribe</span>
+    <span class="chip on cyan"><span class="cd"></span>AAPL</span>
+    <span class="chip on violet"><span class="cd"></span>MSFT</span>
+    <span class="chip"><span class="cd"></span>GOOG</span>
+    <span class="chip"><span class="cd"></span>NVDA</span>
+    <span class="chip"><span class="cd"></span>TSLA</span>
+    <div class="throttle">
+      <span class="t-label">show every</span>
+      <div class="slider"><span class="fill"></span><span class="knob"></span></div>
+      <span class="t-num mono">1</span>
+      <span class="t-unit">s · max</span>
+    </div>
+  </div>
+
+  <!-- STAT TILES -->
+  <div class="tiles">
+    <div class="tile cyan">
+      <div class="tile-k">AAPL · last</div>
+      <div class="tile-v cyan tnum">191.24</div>
+      <div class="tile-f"><span class="delta up">▲ 0.18%</span> · vol 1,000</div>
+    </div>
+    <div class="tile violet">
+      <div class="tile-k">MSFT · last</div>
+      <div class="tile-v violet tnum">402.68</div>
+      <div class="tile-f"><span class="delta down">▼ 0.06%</span> · vol 1,000</div>
+    </div>
+    <div class="tile green">
+      <div class="tile-k">price ratio</div>
+      <div class="tile-v green tnum">0.475</div>
+      <div class="tile-f">AAPL / MSFT</div>
+    </div>
+    <div class="tile muted">
+      <div class="tile-k">ticks</div>
+      <div class="tile-v tnum">1,284</div>
+      <div class="tile-f">2 streams · 1s refresh</div>
+    </div>
+  </div>
+
+  <!-- PRICE CHART -->
+  <div class="panel">
+    <div class="panel-head">
+      <span>Prices</span>
+      <span class="legend">
+        <span><i class="sw" style="background:var(--x)"></i> AAPL</span>
+        <span><i class="sw" style="background:var(--y)"></i> MSFT</span>
+      </span>
+    </div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 900 260" role="img" aria-label="Two overlaid price lines, AAPL in cyan and MSFT in violet, drifting upward over time with an emphasised latest point on each.">
+        <defs>
+          <linearGradient id="gx" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22d3ee" stop-opacity="0.28"/><stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/></linearGradient>
+          <linearGradient id="gy" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a78bfa" stop-opacity="0.24"/><stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/></linearGradient>
+        </defs>
+        <!-- gridlines -->
+        <g stroke="#152030" stroke-width="1">
+          <line x1="0" y1="52" x2="900" y2="52"/><line x1="0" y1="104" x2="900" y2="104"/>
+          <line x1="0" y1="156" x2="900" y2="156"/><line x1="0" y1="208" x2="900" y2="208"/>
+        </g>
+        <!-- AAPL area + line -->
+        <path d="M0,196 L60,188 L120,192 L180,168 L240,174 L300,150 L360,158 L420,132 L480,140 L540,116 L600,122 L660,98 L720,104 L780,82 L840,90 L900,70 L900,260 L0,260 Z" fill="url(#gx)"/>
+        <polyline points="0,196 60,188 120,192 180,168 240,174 300,150 360,158 420,132 480,140 540,116 600,122 660,98 720,104 780,82 840,90 900,70" fill="none" stroke="#22d3ee" stroke-width="2.4"/>
+        <circle cx="900" cy="70" r="4.5" fill="#22d3ee"/><circle cx="900" cy="70" r="9" fill="#22d3ee" opacity="0.18"/>
+        <!-- MSFT area + line -->
+        <path d="M0,168 L60,164 L120,150 L180,156 L240,140 L300,146 L360,126 L420,132 L480,112 L540,120 L600,100 L660,108 L720,90 L780,96 L840,80 L900,86 L900,260 L0,260 Z" fill="url(#gy)"/>
+        <polyline points="0,168 60,164 120,150 180,156 240,140 300,146 360,126 420,132 480,112 540,120 600,100 660,108 720,90 780,96 840,80 900,86" fill="none" stroke="#a78bfa" stroke-width="2.4"/>
+        <circle cx="900" cy="86" r="4.5" fill="#a78bfa"/><circle cx="900" cy="86" r="9" fill="#a78bfa" opacity="0.18"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- DEPENDENCE + TAPE -->
+  <div class="grid2">
+    <!-- dependence placeholder -->
+    <div class="panel dep">
+      <div class="panel-head"><span>Dependence ρ̂</span><span class="legend" style="color:var(--muted)">online estimators</span></div>
+      <div class="ghost">
+        <svg viewBox="0 0 420 200" role="img" aria-label="Ghosted preview of the dependence panel: estimator rho curves rising to meet a dashed true-rho line near 0.58.">
+          <g stroke="#152030" stroke-width="1"><line x1="0" y1="50" x2="420" y2="50"/><line x1="0" y1="100" x2="420" y2="100"/><line x1="0" y1="150" x2="420" y2="150"/></g>
+          <line x1="0" y1="74" x2="420" y2="74" stroke="#7a8798" stroke-width="1.4" stroke-dasharray="5 5"/>
+          <text x="8" y="66" font-family="ui-monospace,Menlo,monospace" font-size="11" fill="#7a8798">true ρ 0.58</text>
+          <polyline points="0,182 40,150 80,124 120,106 160,94 200,86 240,82 280,79 320,77 360,76 420,75" fill="none" stroke="#34d399" stroke-width="2.4"/>
+          <polyline points="0,188 40,158 80,132 120,116 160,104 200,96 240,90 280,86 320,83 360,81 420,80" fill="none" stroke="#22d3ee" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="dep-overlay">
+        <span class="badge">Phase 3</span>
+        <p>Online ρ̂ (Xiao · Hermite · Gaussian-MLE) runs in a C++ consumer device. This panel lights up once a consumer republishes to <code>estimates.equity.&lt;PAIR&gt;</code>.</p>
+      </div>
+    </div>
+
+    <!-- tape -->
+    <div class="panel">
+      <div class="panel-head"><span>Tape</span><span class="legend" style="color:var(--muted)">last ticks</span></div>
+      <div class="tape-wrap">
+        <table>
+          <thead><tr><th>time</th><th>symbol</th><th>price</th><th>volume</th></tr></thead>
+          <tbody class="tnum">
+            <tr><td style="color:var(--muted)">14:32:07</td><td class="cyan">AAPL</td><td>191.24</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:07</td><td class="violet">MSFT</td><td>402.68</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:06</td><td class="cyan">AAPL</td><td>190.90</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:06</td><td class="violet">MSFT</td><td>402.92</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:05</td><td class="cyan">AAPL</td><td>191.05</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:05</td><td class="violet">MSFT</td><td>403.15</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:04</td><td class="cyan">AAPL</td><td>190.71</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:04</td><td class="violet">MSFT</td><td>402.80</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:03</td><td class="cyan">AAPL</td><td>190.88</td><td style="color:var(--muted)">1,000</td></tr>
+            <tr><td style="color:var(--muted)">14:32:03</td><td class="violet">MSFT</td><td>403.40</td><td style="color:var(--muted)">1,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">Static mockup · datastreamer subscription viewer (Phases 1–2). Prices &amp; tape are live; the dependence panel unlocks in Phase 3.</p>
+</div>

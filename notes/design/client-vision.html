@@ -1,0 +1,522 @@
+<title>Subscription Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ---------- theme tokens: light is the base, dark redefines ---------- */
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --surface-2: #eceff4;
+    --border: #d6dce5;
+    --border-strong: #c1c9d6;
+    --ink: #10151c;
+    --ink-soft: #46515f;
+    --muted: #6a7686;
+    --accent: #0e7490;      /* cyan  — asset X / phase 1 additions */
+    --accent-2: #6d28d9;    /* violet — asset Y / phase 2 additions */
+    --pos: #047857;
+    --neg: #c0362c;
+    --code-bg: #f2f4f8;
+    --shadow: 0 1px 2px rgba(16,21,28,.06), 0 6px 24px rgba(16,21,28,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0a0e13;
+      --surface: #11161d;
+      --surface-2: #161d27;
+      --border: #232c38;
+      --border-strong: #303b4a;
+      --ink: #e6edf3;
+      --ink-soft: #aeb9c7;
+      --muted: #7d8a9a;
+      --accent: #22d3ee;
+      --accent-2: #a78bfa;
+      --pos: #34d399;
+      --neg: #f87171;
+      --code-bg: #0d1117;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a0e13;
+    --surface: #11161d;
+    --surface-2: #161d27;
+    --border: #232c38;
+    --border-strong: #303b4a;
+    --ink: #e6edf3;
+    --ink-soft: #aeb9c7;
+    --muted: #7d8a9a;
+    --accent: #22d3ee;
+    --accent-2: #a78bfa;
+    --pos: #34d399;
+    --neg: #f87171;
+    --code-bg: #0d1117;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .mono {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  .wrap { max-width: 820px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- masthead ---------- */
+  header.top {
+    max-width: 820px; margin: 0 auto; padding: 56px 24px 28px;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 44px); line-height: 1.08; margin: 0 0 16px;
+    letter-spacing: -.02em; text-wrap: balance; font-weight: 680;
+  }
+  .lede { font-size: 18px; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+  .lede strong { color: var(--ink); font-weight: 620; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px;
+  }
+  .pill {
+    font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border-strong); color: var(--ink-soft);
+    background: var(--surface);
+  }
+  .pill b { color: var(--accent); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 52px; }
+  h2 {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); font-family: ui-monospace, Menlo, monospace;
+    margin: 0 0 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+  h3 { font-size: 20px; margin: 32px 0 8px; letter-spacing: -.01em; }
+  p { margin: 0 0 16px; }
+  p.tight { margin-bottom: 8px; }
+  a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+  a:hover { border-bottom-color: currentColor; }
+  strong { font-weight: 640; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .88em;
+    background: var(--code-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 5px; color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* ---------- figure / diagram ---------- */
+  figure { margin: 0; }
+  .figcard {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 26px 22px 14px; box-shadow: var(--shadow);
+    overflow-x: auto;
+  }
+  .figcard svg { display: block; width: 100%; height: auto; min-width: 640px; color: var(--ink); }
+  figcaption { color: var(--muted); font-size: 13.5px; margin-top: 14px; text-align: center; }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 18px; justify-content: center;
+    margin-top: 4px; font-size: 12.5px; color: var(--ink-soft);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .lz { width: 22px; height: 0; border-top: 2px solid var(--muted); }
+  .lz.p1 { border-top-color: var(--accent); }
+  .lz.p2 { border-top: 2px dashed var(--accent-2); }
+
+  /* ---------- workstream cards ---------- */
+  .cards { display: grid; gap: 14px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: 12px;
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .card.two { border-left-color: var(--accent-2); }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card .who {
+    font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  }
+  .card p { margin: 8px 0 0; color: var(--ink-soft); font-size: 15px; }
+
+  /* ---------- code block ---------- */
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; line-height: 1.6; margin: 0 0 14px; color: var(--ink);
+  }
+  pre .c { color: var(--muted); }
+  pre .k { color: var(--accent); }
+  pre .k2 { color: var(--accent-2); }
+  .codelabel {
+    font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+    margin: 18px 0 8px;
+  }
+
+  /* ---------- UI mockup ---------- */
+  .mock {
+    background: var(--surface-2); border: 1px solid var(--border-strong);
+    border-radius: 14px; padding: 0; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .mock-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .mock-bar .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pos); }
+  .mock-bar .url {
+    margin-left: auto; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
+    color: var(--ink-soft); background: var(--surface-2); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 6px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 62%;
+  }
+  .mock-body { padding: 16px; display: grid; gap: 14px; }
+  .subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .subbar .lbl { font-size: 12px; color: var(--muted); margin-right: 4px; }
+  .chip {
+    font-family: ui-monospace, Menlo, monospace; font-size: 12.5px;
+    padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border-strong);
+    color: var(--ink-soft); background: var(--surface); cursor: default;
+  }
+  .chip.on { background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+    border-color: var(--accent); color: var(--ink); }
+  .chip.on.y { background: color-mix(in srgb, var(--accent-2) 16%, var(--surface));
+    border-color: var(--accent-2); }
+  .chip .k { color: var(--accent); }
+  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 620px) { .panels { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; min-height: 132px;
+    display: flex; flex-direction: column;
+  }
+  .panel .ptitle {
+    font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .panel .ptitle .tag { color: var(--accent-2); }
+  .spark { flex: 1; margin-top: 10px; }
+  .rho-row { display: flex; gap: 14px; margin-top: 8px; font-size: 12px; flex-wrap: wrap; }
+  .rho-row b { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+
+  /* ---------- phase timeline ---------- */
+  ol.phases { list-style: none; counter-reset: p; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ol.phases li {
+    counter-increment: p; position: relative; padding: 16px 18px 16px 58px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  }
+  ol.phases li::before {
+    content: counter(p); position: absolute; left: 16px; top: 15px;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--accent); color: var(--bg);
+    display: grid; place-items: center; font-weight: 700; font-size: 14px;
+    font-family: ui-monospace, Menlo, monospace;
+  }
+  ol.phases li.p2::before { background: var(--accent-2); }
+  ol.phases li h3 { margin: 0 0 4px; font-size: 16px; }
+  ol.phases li p { margin: 0; font-size: 14.5px; color: var(--ink-soft); }
+  .tagline { font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+
+  /* ---------- decision callout ---------- */
+  .decide {
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: 14px; padding: 22px 24px;
+  }
+  .decide h2 { border: 0; color: var(--accent); margin-bottom: 12px; }
+  .decide ul { margin: 0; padding-left: 20px; }
+  .decide li { margin: 8px 0; color: var(--ink-soft); }
+  .decide li b { color: var(--ink); }
+
+  .foot { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 13px; }
+</style>
+
+<header class="top">
+  <p class="eyebrow">datastreamer · client design</p>
+  <h1>A thin viewer that subscribes, then shows what it's told</h1>
+  <p class="lede">One page anyone opens. Each connection <strong>subscribes to the symbols it wants</strong>;
+  the layout adapts to that subscription. The browser stays a <strong>strict viewer</strong> — it renders
+  what arrives and runs no estimators. Those live in the C++ consumer devices.</p>
+  <div class="meta">
+    <span class="pill">transport · <b>WebSocket</b></span>
+    <span class="pill">topics · <b>trades.equity.&lt;SYM&gt;</b></span>
+    <span class="pill">state · <b>URL-encoded</b></span>
+    <span class="pill">stack · <b>React + uWS</b></span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <h2>The idea</h2>
+    <p>The TCP broker and the browser's WebSocket are just <strong>two transports carrying the same
+    topic pub/sub</strong>. We already made the C++ consumer a topic subscriber that pairs two symbols.
+    This design makes the <em>browser</em> the second subscriber on that same model — it picks symbols,
+    the server routes only those topics to it, and the panels rearrange around the choice.</p>
+    <p>Today the WS side is dumb: every browser is auto-subscribed to one firehose <code>ticks</code>
+    topic and computes a rolling correlation locally. Three things change that: give the WS
+    per-connection subscriptions, drive them from a picker in the UI, and delete the client-side math.</p>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+    <figure>
+      <div class="figcard">
+        <svg viewBox="0 0 900 430" role="img" aria-label="Data flow: the producer publishes per-symbol ticks to both the TCP broker and the uWS server; the C++ consumer subscribes over TCP and the browser subscribes over WebSocket; in phase 2 the consumer republishes its estimates back through the broker and the server bridges them to the browser.">
+          <defs>
+            <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+            <marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+            </marker>
+            <marker id="av" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent-2)"/>
+            </marker>
+          </defs>
+
+          <!-- boxes -->
+          <g font-family="ui-monospace, Menlo, monospace">
+            <!-- Producer -->
+            <rect x="24" y="150" width="150" height="130" rx="10" fill="var(--surface-2)" stroke="var(--border-strong)"/>
+            <text x="99" y="200" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">Producer</text>
+            <text x="99" y="222" text-anchor="middle" font-size="11" fill="var(--muted)">DGP → 2 legs</text>
+            <text x="99" y="240" text-anchor="middle" font-size="11" fill="var(--muted)">per step</text>
+
+            <!-- TCP broker -->
+            <rect x="330" y="60" width="180" height="86" rx="10" fill="var(--surface)" stroke="var(--border-strong)"/>
+            <text x="420" y="97" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">TCP Broker</text>
+            <text x="420" y="118" text-anchor="middle" font-size="11" fill="var(--muted)">dot-prefix topics</text>
+
+            <!-- uWS -->
+            <rect x="330" y="284" width="180" height="86" rx="10" fill="var(--surface)" stroke="var(--accent)"/>
+            <text x="420" y="321" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">uWS Server</text>
+            <text x="420" y="342" text-anchor="middle" font-size="11" fill="var(--muted)">WS pub/sub + bridge</text>
+
+            <!-- C++ consumer -->
+            <rect x="686" y="60" width="190" height="86" rx="10" fill="var(--surface)" stroke="var(--border-strong)"/>
+            <text x="781" y="92" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">C++ Consumer</text>
+            <text x="781" y="112" text-anchor="middle" font-size="11" fill="var(--muted)">device · pairs · ρ̂</text>
+            <text x="781" y="128" text-anchor="middle" font-size="11" fill="var(--muted)">Xiao / Hermite / MLE</text>
+
+            <!-- Browser -->
+            <rect x="686" y="284" width="190" height="86" rx="10" fill="var(--surface)" stroke="var(--accent)"/>
+            <text x="781" y="321" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">Browser</text>
+            <text x="781" y="342" text-anchor="middle" font-size="11" fill="var(--muted)">React · strict viewer</text>
+          </g>
+
+          <!-- edges: producer -> broker / uWS (existing) -->
+          <g fill="none" stroke="currentColor" stroke-width="1.7">
+            <path d="M174,190 C250,150 270,120 328,108" marker-end="url(#a)"/>
+            <path d="M174,240 C250,290 270,315 328,322" marker-end="url(#a)"/>
+          </g>
+          <g font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--ink-soft)">
+            <text x="242" y="138" text-anchor="middle">publish</text>
+            <text x="250" y="150" text-anchor="middle">trades.equity.*</text>
+            <text x="243" y="300" text-anchor="middle">same ticks</text>
+          </g>
+
+          <!-- broker -> consumer (existing) -->
+          <line x1="510" y1="103" x2="684" y2="103" stroke="currentColor" stroke-width="1.7" marker-end="url(#a)"/>
+          <text x="597" y="93" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--ink-soft)">SUBSCRIBE AAPL,MSFT</text>
+
+          <!-- uWS -> browser (phase1 new, accent) -->
+          <line x1="510" y1="320" x2="684" y2="320" stroke="var(--accent)" stroke-width="1.9" marker-end="url(#ac)"/>
+          <text x="597" y="310" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--accent)">matched topics only</text>
+
+          <!-- browser -> uWS control (phase1 new, accent) -->
+          <path d="M684,344 C600,372 560,372 512,352" fill="none" stroke="var(--accent)" stroke-width="1.9" marker-end="url(#ac)"/>
+          <text x="598" y="386" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--accent)">{ subscribe: […] }</text>
+
+          <!-- consumer -> broker republish (phase2 dashed violet) -->
+          <path d="M684,78 C600,44 596,44 512,72" fill="none" stroke="var(--accent-2)" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#av)"/>
+          <text x="598" y="34" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--accent-2)">PUBLISH estimates.*</text>
+
+          <!-- broker -> uWS bridge (phase2 dashed violet) -->
+          <line x1="420" y1="146" x2="420" y2="284" stroke="var(--accent-2)" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#av)"/>
+          <text x="428" y="219" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--accent-2)">bridge</text>
+          <text x="428" y="233" font-family="ui-monospace, Menlo, monospace" font-size="10.5" fill="var(--accent-2)">estimates.*</text>
+        </svg>
+      </div>
+      <figcaption>The browser mirrors the C++ consumer: a topic subscriber on a different transport.</figcaption>
+      <div class="legend">
+        <span><span class="lz"></span> exists today</span>
+        <span><span class="lz p1"></span> Phase 1 — subscription plumbing</span>
+        <span><span class="lz p2"></span> Phase 2 — live estimates loop</span>
+      </div>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What changes — three workstreams</h2>
+    <div class="cards">
+      <div class="card">
+        <span class="who">server · uWS</span>
+        <h3>Topic-aware WebSocket</h3>
+        <p>Drop the auto-subscribe to <code>ticks</code>. On open, send a <strong>catalog</strong> of
+        available symbols. Accept a control message and call <code>ws-&gt;subscribe(topic)</code> per
+        symbol. The producer already builds per-symbol ticks — also <code>app.publish()</code> each to
+        its <code>trades.equity.&lt;SYM&gt;</code> topic, so a connection receives only what it asked for.</p>
+      </div>
+      <div class="card">
+        <span class="who">client · React</span>
+        <h3>Subscription picker + adaptive panels</h3>
+        <p>A row of symbol chips (from the catalog). Toggling one sends a subscribe/unsubscribe and
+        adds/removes its price line. The panels are driven by the subscription: prices for the chosen
+        symbols, a tape of recent ticks, and — once two are selected — a dependence panel. The
+        subscription is encoded in the URL so a link reopens the same view.</p>
+      </div>
+      <div class="card">
+        <span class="who">client · React</span>
+        <h3>Strict viewer</h3>
+        <p>Delete <code>rollingCorr()</code> and the client-side correlation chart. The browser computes
+        nothing; every number on screen arrived over the wire. Dependence shown in the UI comes only
+        from a real estimator — which means it comes from Phase&nbsp;2.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The wire protocol</h2>
+    <p class="tight">Small and symmetric with the TCP broker's <code>SUBSCRIBE</code> line — just JSON
+    framed over WS instead of newline text.</p>
+    <div class="codelabel">client → server</div>
+<pre><span class="c">// toggle what this connection receives</span>
+{ <span class="k">"action"</span>: <span class="k">"subscribe"</span>,   <span class="k">"topics"</span>: [<span class="k2">"trades.equity.AAPL"</span>, <span class="k2">"trades.equity.MSFT"</span>] }
+{ <span class="k">"action"</span>: <span class="k">"unsubscribe"</span>, <span class="k">"topics"</span>: [<span class="k2">"trades.equity.MSFT"</span>] }</pre>
+    <div class="codelabel">server → client</div>
+<pre><span class="c">// on connect: what's available to subscribe to</span>
+{ <span class="k">"type"</span>: <span class="k">"catalog"</span>, <span class="k">"symbols"</span>: [<span class="k2">"AAPL"</span>,<span class="k2">"MSFT"</span>], <span class="k">"estimates"</span>: [<span class="k2">"estimates.equity.AAPL_MSFT"</span>] }
+
+<span class="c">// data frames — routed by their own field, rendered as-is</span>
+{ <span class="k">"symbol"</span>:<span class="k2">"AAPL"</span>, <span class="k">"price"</span>:191.2, <span class="k">"return"</span>:0.0004, <span class="k">"timestamp"</span>:…, <span class="k">"true_rho_s"</span>:0.58 }
+<span class="c">// phase 2, from a consumer device:</span>
+{ <span class="k">"pair"</span>:<span class="k2">"AAPL_MSFT"</span>, <span class="k">"n"</span>:512, <span class="k">"true_rho_s"</span>:0.58, <span class="k">"rho"</span>:{ <span class="k2">"xiao"</span>:0.61, <span class="k2">"hermite"</span>:0.60 } }</pre>
+  </section>
+
+  <section>
+    <h2>The viewer</h2>
+    <p class="tight">Two symbols selected → prices for each, a live dependence panel, and the tape.
+    Selecting one symbol collapses to a single price line and hides the dependence panel.</p>
+    <div class="mock" role="img" aria-label="Mockup of the viewer: a URL bar showing the encoded subscription, a row of symbol chips with AAPL and MSFT selected, a prices panel, a dependence panel plotting estimator rho against the true rho, and a tape.">
+      <div class="mock-bar">
+        <span class="dot"></span> connected
+        <span class="url mono">/?symbols=AAPL,MSFT</span>
+      </div>
+      <div class="mock-body">
+        <div class="subbar">
+          <span class="lbl mono">SUBSCRIBE</span>
+          <span class="chip on mono"><span class="k">✓</span> AAPL</span>
+          <span class="chip on y mono"><span class="k">✓</span> MSFT</span>
+          <span class="chip mono">GOOG</span>
+          <span class="chip mono">NVDA</span>
+          <span class="chip mono">+ pair</span>
+        </div>
+        <div class="panels">
+          <div class="panel">
+            <div class="ptitle"><span>Prices</span><span>2 series</span></div>
+            <svg class="spark" viewBox="0 0 260 90" preserveAspectRatio="none" aria-hidden="true">
+              <polyline fill="none" stroke="var(--accent)" stroke-width="2"
+                points="0,70 20,64 40,66 60,52 80,55 100,44 120,48 140,36 160,40 180,30 200,33 220,24 240,26 260,18"/>
+              <polyline fill="none" stroke="var(--accent-2)" stroke-width="2"
+                points="0,60 20,58 40,50 60,54 80,46 100,50 120,40 140,44 160,34 180,38 200,30 220,34 240,26 260,28"/>
+            </svg>
+            <div class="rho-row">
+              <span><span class="swatch" style="background:var(--accent)"></span>AAPL <b>191.2</b></span>
+              <span><span class="swatch" style="background:var(--accent-2)"></span>MSFT <b>402.7</b></span>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="ptitle"><span>Dependence ρ̂ₜ</span><span class="tag">phase 2</span></div>
+            <svg class="spark" viewBox="0 0 260 90" preserveAspectRatio="none" aria-hidden="true">
+              <line x1="0" y1="30" x2="260" y2="30" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4"/>
+              <polyline fill="none" stroke="var(--pos)" stroke-width="2"
+                points="0,80 24,66 48,52 72,44 96,40 120,34 144,33 168,31 192,32 216,30 240,31 260,30"/>
+            </svg>
+            <div class="rho-row">
+              <span><span class="swatch" style="background:var(--muted)"></span>true ρ <b>0.58</b></span>
+              <span><span class="swatch" style="background:var(--pos)"></span>hermite <b>0.60</b></span>
+            </div>
+          </div>
+        </div>
+        <div class="panel" style="min-height:auto">
+          <div class="ptitle"><span>Tape</span><span>last ticks</span></div>
+          <div class="rho-row mono" style="gap:22px">
+            <span style="color:var(--accent)">AAPL 191.2 <span style="color:var(--pos)">▲</span></span>
+            <span style="color:var(--accent-2)">MSFT 402.7 <span style="color:var(--neg)">▼</span></span>
+            <span style="color:var(--accent)">AAPL 191.3 <span style="color:var(--pos)">▲</span></span>
+            <span style="color:var(--muted)">…</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <figcaption style="text-align:left">The dependence panel is the thesis payoff — real online ρ̂ tracking the true ρ — and it only appears once a consumer is feeding estimates (Phase&nbsp;2).</figcaption>
+  </section>
+
+  <section>
+    <h2>Build order</h2>
+    <ol class="phases">
+      <li>
+        <span class="tagline">server + client</span>
+        <h3>Topic-aware WS &amp; picker</h3>
+        <p>Per-connection subscribe, catalog on connect, per-symbol WS publish. Picker chips, adaptive
+        price panels, URL state. Ship a working raw-data viewer.</p>
+      </li>
+      <li>
+        <span class="tagline">client</span>
+        <h3>Strict viewer cleanup</h3>
+        <p>Remove <code>rollingCorr</code> and the local correlation chart. Nothing on screen is
+        computed in the browser.</p>
+      </li>
+      <li class="p2">
+        <span class="tagline">broker + consumer + server</span>
+        <h3>Live estimates loop</h3>
+        <p>Broker accepts <code>PUBLISH</code> from consumers; the consumer republishes its ρ̂ to
+        <code>estimates.equity.&lt;PAIR&gt;</code>; the server bridges that topic to WS. The dependence
+        panel lights up with real estimator output vs the true ρ.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="decide">
+      <h2>Decisions I need from you</h2>
+      <ul>
+        <li><b>Scope for this pass.</b> Phases 1–2 only (raw viewer, strict), or push straight through
+        Phase 3 so the demo shows live dependence? Phase 3 is where the thesis story lands, but it
+        touches the broker (bidirectional) and the consumer.</li>
+        <li><b>Estimate source, if we do Phase 3.</b> Consumer republishes through the broker and the
+        server bridges it (my recommendation — keeps estimation on devices, matches the thesis
+        architecture). The alternative — the server runs an in-process estimator — is simpler but
+        reintroduces server-side estimation we deliberately removed.</li>
+        <li><b>Symbol catalog.</b> Fixed to the two the DGP emits for now, or do you want me to also
+        build the multi-symbol DGP first so the picker has real choices?</li>
+        <li><b>WS wildcards.</b> Keep the browser subscribing to explicit per-symbol topics (simplest),
+        or teach the uWS side the same dot-prefix matching as the TCP broker so <code>trades</code>
+        gets everything?</li>
+      </ul>
+    </div>
+  </section>
+
+  <p class="foot">Design only — no code written yet. Grounded in the current
+  <span class="mono">streamgenerator/main.cpp</span> WS path, the per-symbol broker, and
+  <span class="mono">client/src/App.tsx</span>.</p>
+
+</div>

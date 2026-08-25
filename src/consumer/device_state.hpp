@@ -11,8 +11,7 @@
 #include "../estimators/dependence/estimator.hpp"
 #include "../estimators/dependence/hermiter.hpp"
 #include "../estimators/dependence/xiao_spearman.hpp"
-#include "../protocol/market_event.hpp"
-#include "ring_buffer.hpp"
+#include "../protocol/symbol_tick.hpp"
 
 // DeviceState is the recursively-updated state Z of a consumer device
 // (thesis D = (Z, Psi, Z_0)). update() is the one-pass update map Psi applied
@@ -42,14 +41,24 @@ public:
             HermiteEstimator::Config{.order = 10, .lambda = 0.01, .burn_in = 50}, "hermite_ew"));
     }
 
-    // Psi: fold one event into the device state (moments + inference).
-    void update(const MarketEvent& event) {
+    // Psi: fold one event into the device state (moments + inference). The wire
+    // carries prices; the return is derived here as the log-price increment
+    // (return = ln(price_t / price_{t-1})), so the first event only seeds the
+    // previous price and produces no return.
+    void update(const TickPair& event) {
         std::lock_guard<std::mutex> lock(mutex_);
-        return_x_.add(event.return_x);
-        return_y_.add(event.return_y);
-        price_x_.add(event.price_x);
-        price_y_.add(event.price_y);
-        for (auto& est : estimators_) est->update(event.return_x, event.return_y);
+        price_x_.add(event.x.price);
+        price_y_.add(event.y.price);
+        if (has_prev_) {
+            const double rx = std::log(event.x.price / prev_price_x_);
+            const double ry = std::log(event.y.price / prev_price_y_);
+            return_x_.add(rx);
+            return_y_.add(ry);
+            for (auto& est : estimators_) est->update(rx, ry);
+        }
+        prev_price_x_ = event.x.price;
+        prev_price_y_ = event.y.price;
+        has_prev_ = true;
     }
 
     Moments moments() const {
@@ -71,34 +80,6 @@ public:
         return out;
     }
 
-    // Windowed Pearson correlation of the two return series over the most recent
-    // `window` events resident in the buffer. Needs paired samples, so it reads
-    // the buffer directly rather than from incremental state.
-    static double rolling_correlation(const RingBuffer& buffer, std::size_t window) {
-        const std::size_t head = buffer.head();
-        const std::size_t oldest = buffer.oldest_available();
-        std::size_t begin = (head > window) ? head - window : oldest;
-        if (begin < oldest) begin = oldest;
-        if (head - begin < 2) return 0.0;
-
-        const double n = static_cast<double>(head - begin);
-        double sum_x = 0.0, sum_y = 0.0;
-        for (std::size_t i = begin; i < head; ++i) {
-            const MarketEvent e = buffer.get(i);
-            sum_x += e.return_x;
-            sum_y += e.return_y;
-        }
-        const double mean_x = sum_x / n, mean_y = sum_y / n;
-        double cov = 0.0, var_x = 0.0, var_y = 0.0;
-        for (std::size_t i = begin; i < head; ++i) {
-            const MarketEvent e = buffer.get(i);
-            const double dx = e.return_x - mean_x, dy = e.return_y - mean_y;
-            cov += dx * dy; var_x += dx * dx; var_y += dy * dy;
-        }
-        const double denom = std::sqrt(var_x * var_y);
-        return denom > 0.0 ? cov / denom : 0.0;
-    }
-
 private:
     // Online mean/variance via Welford's algorithm (was running_stats.hpp).
     struct Welford {
@@ -117,5 +98,7 @@ private:
 
     mutable std::mutex mutex_;
     Welford return_x_, return_y_, price_x_, price_y_;
+    double prev_price_x_ = 0.0, prev_price_y_ = 0.0;  // for return = Δlog price
+    bool has_prev_ = false;
     std::vector<std::unique_ptr<DependenceEstimator>> estimators_;
 };

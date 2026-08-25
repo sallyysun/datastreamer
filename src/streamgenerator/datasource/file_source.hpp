@@ -10,7 +10,7 @@ class FileSource : public DataSource {
 public:
     explicit FileSource(const std::string& filepath);
 
-    MarketEvent next() override;
+    TickPair next() override;
 
 private:
     std::ifstream file_;

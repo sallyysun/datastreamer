@@ -4,12 +4,12 @@
 #include <memory>
 
 #include "../datasource/datasource.hpp"
-#include "../../protocol/market_event.hpp"
+#include "../../protocol/symbol_tick.hpp"
 #include "delay_strategies.hpp"
 
 class Producer {
 public:
-    using Sink = std::function<void(const MarketEvent&)>;
+    using Sink = std::function<void(const TickPair&)>;
 
     Producer(
         std::shared_ptr<DataSource> source,
