@@ -49,9 +49,21 @@ static std::string mime_type(const std::string &path) {
     return "text/plain";
 }
 
-// Topic a MarketEvent is published on (consumers subscribe by topic).
-static const char* topic_for(const MarketEvent &event) {
-    return event.type == EventType::Quote ? "quotes" : "trades";
+// The two equity symbols this server streams (the two legs of the DGP's pair).
+// Overridable via SYMBOLS=<X>,<Y>. Equity-only for now.
+static std::pair<std::string, std::string> live_symbols() {
+    const char *env = std::getenv("SYMBOLS");
+    const std::string s = env && *env ? env : "AAPL,MSFT";
+    const std::size_t comma = s.find(',');
+    if (comma == std::string::npos) return {s, s};
+    return {s.substr(0, comma), s.substr(comma + 1)};
+}
+
+// Per-symbol topic: "trades.equity.<symbol>". Consumers subscribe by prefix --
+// "trades" / "trades.equity" get every symbol, "trades.equity.AAPL" gets one
+// (see Broker::Sub::matches).
+static std::string equity_topic(const std::string &symbol) {
+    return "trades.equity." + symbol;
 }
 
 // Pick the live dependence regime from the DEPENDENCE env var (see
@@ -79,7 +91,12 @@ int main() {
     Serializer serializer;
 
     auto dependence = make_live_dependence();
-    std::cout << "live dependence: " << dependence->name() << "\n";
+    const auto symbols = live_symbols();
+    const std::string sym_x = symbols.first;
+    const std::string sym_y = symbols.second;
+    std::cout << "live dependence: " << dependence->name() << " | symbols: " << sym_x
+              << ", " << sym_y << " (topics " << equity_topic(sym_x) << " / "
+              << equity_topic(sym_y) << ")\n";
     auto source = std::make_shared<SyntheticSource>(std::move(dependence));
 
     // Raw-TCP broker for C++ consumers.
@@ -117,14 +134,20 @@ int main() {
         .open = [](auto *ws) { ws->subscribe("ticks"); }
     });
 
-    // Producer thread: pull events, publish RAW to the broker (per topic) and to
-    // the browser display topic. No estimation here.
+    // Producer thread: pull each bivariate DGP step, split it into two per-symbol
+    // ticks, and publish each to its own topic. A consumer subscribes to two
+    // symbols and pairs them back up. The browser still gets the combined tick on
+    // "ticks" (unchanged). No estimation here.
     std::thread producer_thread([&]() {
         std::size_t n = 0;
         producer.run([&](const MarketEvent &event) {
-            const std::string msg = serializer.to_json(event);
-            broker.publish(topic_for(event), msg);
-            app.publish("ticks", msg, uWS::OpCode::TEXT);
+            const SymbolTick tick_x{sym_x, event.price_x, event.volume_x,
+                                    event.return_x, event.timestamp, event.true_rho_s};
+            const SymbolTick tick_y{sym_y, event.price_y, event.volume_y,
+                                    event.return_y, event.timestamp, event.true_rho_s};
+            broker.publish(equity_topic(sym_x), serializer.to_json(tick_x));
+            broker.publish(equity_topic(sym_y), serializer.to_json(tick_y));
+            app.publish("ticks", serializer.to_json(event), uWS::OpCode::TEXT);
             if (++n % 20 == 0) {
                 std::cout << "events=" << n
                           << " tcp_consumers=" << broker.subscriber_count() << "\n";

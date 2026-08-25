@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 #include <random>
 
 // A Dependence produces the true copula parameter rho_t for each step,
@@ -34,14 +35,13 @@ public:
     OscillatingDependence(double amplitude, double period, double offset = 0.0)
         : amplitude_(amplitude), period_(period), offset_(offset) {}
     double next() override {
-        const double rho = offset_ + amplitude_ * std::sin(2.0 * kPi * static_cast<double>(t_) / period_);
+        const double rho = offset_ + amplitude_ * std::sin(2.0 * std::numbers::pi * static_cast<double>(t_) / period_);
         ++t_;
         return rho;
     }
     const char* name() const override { return "oscillate"; }
 
 private:
-    static constexpr double kPi = 3.14159265358979323846;
     double amplitude_, period_, offset_;
     std::size_t t_ = 0;
 };

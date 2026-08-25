@@ -2,11 +2,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <numbers>
 #include <utility>
-
-namespace {
-constexpr double kPi = 3.14159265358979323846;
-}
 
 SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence)
     : price_x_(100.0),
@@ -55,6 +52,6 @@ MarketEvent SyntheticSource::next() {
         ts
     };
     // Gaussian copula: Spearman's rho = (6/pi) * asin(rho/2).
-    event.true_rho_s = 6.0 / kPi * std::asin(rho / 2.0);
+    event.true_rho_s = 6.0 / std::numbers::pi * std::asin(rho / 2.0);
     return event;
 }

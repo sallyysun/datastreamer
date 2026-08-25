@@ -49,3 +49,26 @@ MarketEvent Serializer::from_json(const std::string& text) {
     if (j.contains("true_rho_s")) event.true_rho_s = j["true_rho_s"].get<double>();
     return event;
 }
+
+std::string Serializer::to_json(const SymbolTick& tick) {
+    return json{
+        {"symbol", tick.symbol},
+        {"price", tick.price},
+        {"volume", tick.volume},
+        {"return", tick.ret},
+        {"timestamp", tick.timestamp},
+        {"true_rho_s", tick.true_rho_s}
+    }.dump();
+}
+
+SymbolTick Serializer::symbol_from_json(const std::string& text) {
+    json j = json::parse(text);
+    SymbolTick tick;
+    tick.symbol = j.at("symbol").get<std::string>();
+    tick.price = j.at("price").get<double>();
+    tick.volume = j.at("volume").get<double>();
+    tick.ret = j.at("return").get<double>();
+    tick.timestamp = j.at("timestamp").get<long long>();
+    if (j.contains("true_rho_s")) tick.true_rho_s = j["true_rho_s"].get<double>();
+    return tick;
+}

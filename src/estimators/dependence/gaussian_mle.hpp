@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 
 #include "estimator.hpp"
 #include "../objective.hpp"
@@ -57,7 +58,7 @@ public:
         const double rho = std::tanh(theta_);
         // Gaussian copula: Spearman's rho = (6/pi) asin(rho/2) -- same space as
         // the nonparametric estimators, so results are directly comparable.
-        return std::clamp(6.0 / kPi * std::asin(rho / 2.0), -1.0, 1.0);
+        return std::clamp(6.0 / std::numbers::pi * std::asin(rho / 2.0), -1.0, 1.0);
     }
 
     void reset() override {
@@ -91,8 +92,6 @@ private:
             var_y_ = m2_y_ / (n - 1.0);
         }
     }
-
-    static constexpr double kPi = 3.14159265358979323846;
 
     Config config_;
     const char* name_;

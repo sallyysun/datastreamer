@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <random>
 
 #include "../src/streamgenerator/datasource/dependence.hpp"
@@ -27,12 +28,11 @@ public:
         const double rho = std::clamp(dependence_.next(), -0.999, 0.999);
         const double z1 = normal_(rng_);
         const double z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng_);
-        const double rho_s = 6.0 / kPi * std::asin(rho / 2.0);
+        const double rho_s = 6.0 / std::numbers::pi * std::asin(rho / 2.0);
         return {z1, z2, rho, rho_s};
     }
 
 private:
-    static constexpr double kPi = 3.14159265358979323846;
     Dependence& dependence_;
     std::mt19937 rng_;
     std::normal_distribution<double> normal_;
