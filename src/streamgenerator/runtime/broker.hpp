@@ -8,8 +8,10 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -19,9 +21,17 @@
 #include <vector>
 
 // Minimal TCP publish/subscribe broker -- a "mini Kafka" broker. Consumers
-// connect over TCP and send a line "SUBSCRIBE <topic>\n"; thereafter they
-// receive newline-delimited JSON events published to that topic (or the
-// wildcard "all").
+// connect over TCP and send a line "SUBSCRIBE <topic> [max_hz]\n"; thereafter
+// they receive newline-delimited JSON events published to a matching topic.
+//
+// Topics are hierarchical, dot-separated (e.g. "trades.SYNX_SYNY"). A
+// subscription matches by prefix on dot boundaries: subscribing to "trades"
+// receives every "trades.<pair>", while "trades.SYNX_SYNY" selects just that
+// pair. The literal "all" matches everything.
+//
+// The optional [max_hz] throttles a connection to at most that many messages
+// per second (0 / omitted = unthrottled); excess messages are dropped, which is
+// consistent with the best-effort model below.
 //
 // Best-effort, NO retention or offsets by design: client sockets are
 // non-blocking, so a consumer that cannot keep up simply drops events. Each
@@ -51,15 +61,18 @@ public:
         return true;
     }
 
-    // Deliver msg to every consumer subscribed to `topic` (or "all").
+    // Deliver msg to every consumer whose subscription matches `topic`, honouring
+    // each connection's optional rate limit.
     void publish(const std::string& topic, const std::string& msg) {
         std::string framed = msg;
         framed.push_back('\n');
+        const auto now = std::chrono::steady_clock::now();
         std::lock_guard<std::mutex> lock(mutex_);
-        for (const auto& [fd, topics] : subs_) {
-            if (topics.count(topic) || topics.count("all")) {
-                ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
-            }
+        for (auto& [fd, sub] : subs_) {
+            if (!sub.matches(topic)) continue;
+            if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
+            ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
+            sub.last_sent = now;
         }
     }
 
@@ -117,13 +130,27 @@ private:
         while ((pos = buf.find('\n')) != std::string::npos) {
             std::string line = buf.substr(0, pos);
             buf.erase(0, pos + 1);
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+
             const std::string kw = "SUBSCRIBE ";
-            if (line.rfind(kw, 0) == 0) {
-                std::string topic = line.substr(kw.size());
-                while (!topic.empty() && (topic.back() == '\r' || topic.back() == ' ')) topic.pop_back();
-                subs_[fd].insert(topic);
-                std::cout << "broker: fd " << fd << " subscribed to '" << topic << "'\n";
+            if (line.rfind(kw, 0) != 0) continue;
+
+            // "SUBSCRIBE <topic> [max_hz]" -- optional trailing rate limit.
+            std::string rest = line.substr(kw.size());
+            std::string topic = rest;
+            double max_hz = 0.0;
+            if (const std::size_t sp = rest.find(' '); sp != std::string::npos) {
+                topic = rest.substr(0, sp);
+                max_hz = std::atof(rest.c_str() + sp + 1);
             }
+            if (topic.empty()) continue;
+
+            Sub& sub = subs_[fd];
+            sub.topics.insert(topic);
+            if (max_hz > 0.0) sub.min_interval = std::chrono::duration<double, std::milli>(1000.0 / max_hz);
+            std::cout << "broker: fd " << fd << " subscribed to '" << topic << "'";
+            if (max_hz > 0.0) std::cout << " @ " << max_hz << " msg/s";
+            std::cout << "\n";
         }
     }
 
@@ -134,11 +161,38 @@ private:
         inbuf_.erase(fd);
     }
 
+    // Per-connection subscription: the set of topics it wants, plus an optional
+    // rate limit (min gap between deliveries; zero = unthrottled).
+    struct Sub {
+        using clock = std::chrono::steady_clock;
+        std::unordered_set<std::string> topics;
+        std::chrono::duration<double, std::milli> min_interval{0.0};
+        clock::time_point last_sent{};
+
+        // A subscription matches a published topic if any subscribed topic equals
+        // it, is the literal "all", or is a dot-boundary prefix of it
+        // (e.g. "trades" matches "trades.SYNX_SYNY").
+        bool matches(const std::string& pub) const {
+            for (const auto& s : topics) {
+                if (s == "all" || s == pub) return true;
+                if (pub.size() > s.size() && pub[s.size()] == '.' &&
+                    pub.compare(0, s.size(), s) == 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool throttled(clock::time_point now) const {
+            return min_interval.count() > 0.0 && (now - last_sent) < min_interval;
+        }
+    };
+
     int port_;
     int listen_fd_ = -1;
     std::atomic<bool> running_{false};
     std::thread thread_;
     std::mutex mutex_;
-    std::unordered_map<int, std::unordered_set<std::string>> subs_;
+    std::unordered_map<int, Sub> subs_;
     std::unordered_map<int, std::string> inbuf_;
 };

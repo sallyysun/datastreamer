@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <numbers>
 
 #include "estimator.hpp"
 
@@ -15,10 +16,12 @@
 // integral, full-domain-integral, and online-standardization recurrences match
 // that package exactly.
 //
-// NOTE: unlike the reference, the Spearman coupling matrix W here is built by
-// numerical (trapezoidal) quadrature rather than the closed form. The reference
-// evaluates the same coupling analytically -- porting that would remove the only
-// numerical-approximation step (see integral_matrix). See notes/roadmap.md.
+// Scope: this port covers only the online bivariate Spearman's-rho path. The
+// reference package additionally does univariate pdf/cdf/quantile estimation,
+// Kendall's tau, consistent merging of sub-estimators, and batch mode -- none
+// ported (see notes/code_changes). The Spearman coupling matrix W is built in
+// closed form (see integral_matrix), matching the reference; there is no
+// remaining quadrature/approximation step.
 class HermiteEstimator : public DependenceEstimator {
 public:
     struct Config {
@@ -143,7 +146,7 @@ private:
     static Eigen::VectorXd basis_integrals(int order) {
         const int dim = order + 1;
         Eigen::VectorXd z = Eigen::VectorXd::Zero(dim);
-        z(0) = std::sqrt(2.0) * std::pow(kPi, 0.25);
+        z(0) = std::sqrt(2.0) / kQuarterRootPiInv; // = sqrt(2) * pi^(1/4)
         for (int k = 2; k < dim; k += 2) {
             z(k) = std::sqrt((k-1.0) / k) * z(k - 2);
         }
@@ -186,8 +189,10 @@ private:
         return W;
     }
 
-    static constexpr double kPi = 3.14159265358979323846;
-    static constexpr double kQuarterRootPiInv = 0.7511255444649425; // 1 / (4th root of pi)
+    // 1 / pi^(1/4): ground-state Hermite-function normaliser. std::sqrt is not
+    // constexpr until C++23, so this is computed once at static-init (inline const).
+    inline static const double kQuarterRootPiInv =
+        1.0 / std::sqrt(std::sqrt(std::numbers::pi));
 
     Config config_;
     const char* name_;

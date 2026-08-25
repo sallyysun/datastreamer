@@ -1,6 +1,7 @@
 #pragma once
 
 #include "market_event.hpp"
+#include "symbol_tick.hpp"
 
 #include <string>
 #include <utility>
@@ -19,4 +20,8 @@ public:
     // Inverse of to_json: parse one JSON tick back into a MarketEvent. Used by
     // C++ consumers reading the raw event stream off the broker.
     static MarketEvent from_json(const std::string& text);
+
+    // Single-symbol tick (per-symbol publish path).
+    static std::string to_json(const SymbolTick& tick);
+    static SymbolTick symbol_from_json(const std::string& text);
 };

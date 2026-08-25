@@ -431,6 +431,10 @@ changepoint algorithm for copulas" a contribution rather than an application of 
 
 # Change-detection methods to survey
 
+> Developed further in [change_detection.md](change_detection.md): the state-space view
+> ($\lambda$ *is* a Kalman gain; CUSUM *is* a 2-state filter), the three-axis detector design
+> space, the $\mathrm{ARL}_0$ calibration trap, and a build order.
+
 Classics (CUSUM, Page-Hinkley) are the start; the broader landscape, grouped by fit to a
 streaming, O(1), copula setting:
 

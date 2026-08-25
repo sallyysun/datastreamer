@@ -1,13 +1,19 @@
 // Standalone C++ consumer for the datastreamer mini-Kafka.
 //
-// Connects to the broker over TCP, subscribes to a topic, and runs its own
-// device: a RingBuffer (buffer-type device), a StateManager, and an inference
-// layer (the dependence estimators). Each consumer is an independent process --
-// its buffer is its only memory, so a slow consumer just falls behind.
+// Subscribes to TWO per-symbol equity topics, FIFO-pairs the two single-symbol
+// streams into bivariate samples, and runs its own device: a RingBuffer
+// (buffer-type device), a StateManager, and an inference layer (the dependence
+// estimators). Each consumer is an independent process -- its buffer is its only
+// memory, so a slow consumer just falls behind.
 //
 // Usage:
-//   ./consumer [--host 127.0.0.1] [--port 9003] [--topic trades]
-//              [--policy all|snapshot|latest] [--print 20]
+//   ./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT]
+//              [--policy all|snapshot|latest] [--print 20] [--rate 0]
+//
+// The consumer subscribes to "trades.equity.<X>" and "trades.equity.<Y>" and
+// pairs by arrival order. This assumes the producers publish synchronously (one
+// tick per symbol per step); asynchronous / multi-rate legs are a later concern
+// (and --rate can desync the legs, so leave it 0 for estimation).
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -17,7 +23,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <string>
+#include <utility>
 
 #include "consumer.hpp"
 #include "../protocol/serializer.hpp"
@@ -37,6 +45,12 @@ const char* arg(int argc, char** argv, const char* key, const char* fallback) {
     return fallback;
 }
 
+std::pair<std::string, std::string> parse_symbols(const std::string& s) {
+    const std::size_t comma = s.find(',');
+    if (comma == std::string::npos) return {s, s};
+    return {s.substr(0, comma), s.substr(comma + 1)};
+}
+
 int connect_broker(const std::string& host, int port) {
     int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
@@ -48,14 +62,31 @@ int connect_broker(const std::string& host, int port) {
     return fd;
 }
 
+// Pair two single-symbol ticks (X-leg, Y-leg) into a bivariate MarketEvent for
+// the estimators. true_rho_s is carried identically on both legs by the DGP.
+MarketEvent pair_to_event(const SymbolTick& x, const SymbolTick& y) {
+    MarketEvent event{
+        x.price, y.price,
+        x.volume, y.volume,
+        x.ret, y.ret,
+        x.timestamp
+    };
+    event.true_rho_s = x.true_rho_s;
+    return event;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     const std::string host = arg(argc, argv, "--host", "127.0.0.1");
     const int port = std::atoi(arg(argc, argv, "--port", "9003"));
-    const std::string topic = arg(argc, argv, "--topic", "trades");
+    const auto [sym_x, sym_y] = parse_symbols(arg(argc, argv, "--symbols", "AAPL,MSFT"));
     const ConsumerPolicy policy = parse_policy(arg(argc, argv, "--policy", "all"));
     const int print_every = std::atoi(arg(argc, argv, "--print", "20"));
+    const double rate = std::atof(arg(argc, argv, "--rate", "0"));  // msg/s, 0 = unlimited
+
+    const std::string topic_x = "trades.equity." + sym_x;
+    const std::string topic_y = "trades.equity." + sym_y;
 
     const int fd = connect_broker(host, port);
     if (fd < 0) {
@@ -63,11 +94,20 @@ int main(int argc, char** argv) {
                      host.c_str(), port);
         return 1;
     }
-    const std::string sub = "SUBSCRIBE " + topic + "\n";
-    ::send(fd, sub.data(), sub.size(), 0);
-    std::printf("consumer: connected to %s:%d, subscribed to '%s'\n", host.c_str(), port, topic.c_str());
+    for (const std::string& topic : {topic_x, topic_y}) {
+        std::string sub = "SUBSCRIBE " + topic;
+        if (rate > 0.0) sub += " " + std::to_string(rate);
+        sub += "\n";
+        ::send(fd, sub.data(), sub.size(), 0);
+    }
+    std::printf("consumer: connected to %s:%d, pairing '%s' x '%s'%s\n",
+                host.c_str(), port, sym_x.c_str(), sym_y.c_str(),
+                rate > 0.0 ? " (throttled)" : "");
 
     Consumer device(1024, policy);
+
+    // One FIFO per leg; when both are non-empty we can emit a paired sample.
+    std::deque<SymbolTick> queue_x, queue_y;
 
     std::string buf;
     char chunk[4096];
@@ -83,21 +123,32 @@ int main(int argc, char** argv) {
             buf.erase(0, pos + 1);
             if (line.empty()) continue;
 
-            MarketEvent event;
+            SymbolTick tick;
             try {
-                event = Serializer::from_json(line);
+                tick = Serializer::symbol_from_json(line);
             } catch (...) {
                 continue;  // skip malformed
             }
-            device.on_event(event);
+            if (tick.symbol == sym_x) queue_x.push_back(tick);
+            else if (tick.symbol == sym_y) queue_y.push_back(tick);
+            else continue;
 
-            if (++n_events % static_cast<std::size_t>(print_every) == 0) {
-                std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.true_rho_s);
-                for (const auto& [name, rho] : device.dependence()) {
-                    std::printf("%s=%+.3f ", name.c_str(), rho);
+            // Drain any complete pairs (synchronous producers keep the legs in
+            // lockstep, so front-to-front pairing is exact).
+            while (!queue_x.empty() && !queue_y.empty()) {
+                const MarketEvent event = pair_to_event(queue_x.front(), queue_y.front());
+                queue_x.pop_front();
+                queue_y.pop_front();
+                device.on_event(event);
+
+                if (++n_events % static_cast<std::size_t>(print_every) == 0) {
+                    std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.true_rho_s);
+                    for (const auto& [name, rho] : device.dependence()) {
+                        std::printf("%s=%+.3f ", name.c_str(), rho);
+                    }
+                    std::printf("\n");
+                    std::fflush(stdout);
                 }
-                std::printf("\n");
-                std::fflush(stdout);
             }
         }
     }

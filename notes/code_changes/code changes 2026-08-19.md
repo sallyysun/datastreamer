@@ -134,8 +134,12 @@ DEPENDENCE=jump ./server                 # producer + broker (tcp/9003) + displa
 ```
 
 ## Still missing / next
-- Consolidate the two "brokers": the in-process `EventBus` is superseded by the network `Broker` —
-  remove or repurpose it.
+
+> Living backlog now consolidated in [notes/todo.md](../todo.md) — this list is the snapshot as of
+> this session. Since then: the `EventBus` consolidation below is **done** (removed from the tree).
+
+- ~~Consolidate the two "brokers": the in-process `EventBus` is superseded by the network `Broker` —
+  remove or repurpose it.~~ **Done** — `EventBus` removed; the network `Broker` is the only bus.
 - Richer topics (per-symbol / per-pair) so consumers select more than event type; wire `FileSource`
   replay + live feeds as selectable sources.
 - Broker retention/offsets deliberately omitted (minimal buffer-type devices) — revisit only if
@@ -145,3 +149,11 @@ DEPENDENCE=jump ./server                 # producer + broker (tcp/9003) + displa
   rank-PIT transform for non-Gaussian real marginals (currently standardization, exact for Gaussian).
 - Change detection + restart (CUSUM / BOCPD); the `reset()` hook is in the interface.
 - Multi-seed replication + error bars before any number is a thesis result.
+- **Our Hermite estimator vs the reference `external/hermiter` (R/Rcpp, Stephanou–Varughese):** we
+  port only the *online bivariate Spearman's rho* path. Not ported — and not needed for this thesis —
+  are the reference's univariate pdf/cdf/**quantile** estimators, **Kendall's tau**, consistent
+  **merging** of estimators formed on data subsets (distributed setting), and one-pass **batch**
+  estimation. The one earlier numerical difference (Spearman coupling matrix `W` by trapezoidal
+  quadrature vs the reference's closed form) is now **closed** — `integral_matrix` computes `W`
+  analytically (IBP symmetry + column recurrence), so no quadrature/approximation step remains.
+  Still open: validate our `W` / rho output against the reference package on shared inputs.
