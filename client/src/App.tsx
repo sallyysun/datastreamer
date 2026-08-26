@@ -184,6 +184,16 @@ export default function App() {
   const intervalLabel =
     intervalSec === 1 ? "1s (max)" : `${intervalSec}s`;
 
+  // Price ratio of the two legs, when exactly two are subscribed.
+  const ratio =
+    selected.length === 2
+      ? (() => {
+          const a = latestBySymbol[selected[0]]?.price;
+          const b = latestBySymbol[selected[1]]?.price;
+          return a && b ? (a / b).toFixed(3) : "--";
+        })()
+      : null;
+
   return (
     <div className="container">
       <header className="header">
@@ -253,6 +263,33 @@ export default function App() {
         </section>
       ) : (
         <>
+          {/* KPI TILES */}
+          <div className="tiles">
+            {selected.map((sym) => (
+              <div className="tile" key={sym} style={{ borderLeftColor: colorFor(sym) }}>
+                <div className="tile-k">{sym} · last</div>
+                <div className="tile-v" style={{ color: colorFor(sym) }}>
+                  {fmt(latestBySymbol[sym]?.price)}
+                </div>
+                <div className="tile-f">vol {fmt(latestBySymbol[sym]?.volume, 0)}</div>
+              </div>
+            ))}
+            {ratio !== null && (
+              <div className="tile" style={{ borderLeftColor: "var(--up)" }}>
+                <div className="tile-k">ratio</div>
+                <div className="tile-v" style={{ color: "var(--up)" }}>{ratio}</div>
+                <div className="tile-f">{selected[0]} / {selected[1]}</div>
+              </div>
+            )}
+            <div className="tile">
+              <div className="tile-k">ticks</div>
+              <div className="tile-v">{count}</div>
+              <div className="tile-f">
+                {selected.length} stream{selected.length !== 1 ? "s" : ""} · {intervalSec}s
+              </div>
+            </div>
+          </div>
+
           {/* PRICE CHART — one line per subscribed symbol */}
           <section className="panel">
             <div className="panel-head">

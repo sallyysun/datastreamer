@@ -101,6 +101,13 @@ code {
 .throttle-num:focus { outline: 1px solid var(--x); }
 .throttle-unit { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); min-width: 58px; }
 
+/* ---------- stat tiles ---------- */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile { background: var(--panel); border: 1px solid var(--border); border-left-width: 3px; border-left-color: var(--border-2); border-radius: 8px; padding: 13px 15px; }
+.tile-k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.3px; color: var(--muted); }
+.tile-v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 24px; font-weight: 700; margin-top: 6px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.tile-f { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
 /* ---------- panels ---------- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
 .panel-head {
