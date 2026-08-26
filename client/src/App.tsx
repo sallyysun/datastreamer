@@ -30,7 +30,7 @@ const TOPIC_PREFIX = "trades.equity.";
 const topicFor = (sym: string) => TOPIC_PREFIX + sym;
 
 // Deterministic per-symbol colour, stable across renders (index into catalog).
-const PALETTE = ["#22d3ee", "#a78bfa", "#00e676", "#ffb454", "#ff6ec7", "#5b9dff"];
+const PALETTE = ["#f6c177", "#a0a5d6", "#74ccaa", "#60b5be", "#e294b9"];
 
 const fmt = (v: number | undefined, d = 2) =>
   typeof v === "number" ? v.toFixed(d) : "--";
