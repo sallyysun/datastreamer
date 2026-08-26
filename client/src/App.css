@@ -121,6 +121,7 @@ code {
 .legwrap { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 .chart { height: 340px; padding: 12px 8px 8px; }
+.chart.short { height: 240px; }
 
 /* empty state */
 .empty { display: grid; place-items: center; text-align: center; padding: 54px 22px; }
