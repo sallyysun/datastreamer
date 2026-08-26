@@ -17,7 +17,7 @@ public:
     explicit SyntheticSource(std::unique_ptr<Dependence> dependence =
                                  std::make_unique<ConstantDependence>(0.6));
 
-    MarketEvent next() override;
+    TickPair next() override;
 
 private:
     double price_x_;

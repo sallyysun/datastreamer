@@ -1,27 +1,13 @@
 #pragma once
 
-#include "market_event.hpp"
 #include "symbol_tick.hpp"
 
 #include <string>
-#include <utility>
-#include <vector>
 
+// The wire is single-symbol ticks: producers publish per symbol, subscribers
+// (browser or C++ consumer) pair the symbols they want.
 class Serializer {
 public:
-    static std::string to_json(const MarketEvent& event);
-
-    // Same payload plus a "dependence" object mapping estimator name -> its
-    // current Spearman rho estimate, so live estimates reach the client.
-    static std::string to_json(
-        const MarketEvent& event,
-        const std::vector<std::pair<std::string, double>>& dependence);
-
-    // Inverse of to_json: parse one JSON tick back into a MarketEvent. Used by
-    // C++ consumers reading the raw event stream off the broker.
-    static MarketEvent from_json(const std::string& text);
-
-    // Single-symbol tick (per-symbol publish path).
     static std::string to_json(const SymbolTick& tick);
     static SymbolTick symbol_from_json(const std::string& text);
 };

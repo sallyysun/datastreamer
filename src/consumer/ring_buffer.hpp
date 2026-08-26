@@ -4,7 +4,7 @@
 #include <mutex>
 #include <vector>
 
-#include "../protocol/market_event.hpp"
+#include "../protocol/symbol_tick.hpp"
 
 class RingBuffer {
 public:
@@ -13,7 +13,7 @@ public:
           data_(capacity),
           head_(0) {}
 
-    void push(const MarketEvent& event) {
+    void push(const TickPair& event) {
         std::lock_guard<std::mutex> lock(write_mutex_);
 
         const size_t idx = head_ % capacity_;
@@ -41,13 +41,13 @@ public:
         return h - capacity_;
     }
 
-    MarketEvent get(size_t index) const {
+    TickPair get(size_t index) const {
         return data_[index % capacity_];
     }
 
 private:
     size_t capacity_;
-    std::vector<MarketEvent> data_;
+    std::vector<TickPair> data_;
 
     std::atomic<size_t> head_;
     mutable std::mutex write_mutex_;

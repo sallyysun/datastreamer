@@ -10,10 +10,13 @@
 
 #include <nlohmann/json.hpp>
 
+#include <vector>
+
 #include "datasource/synthetic_source.hpp"
 #include "runtime/producer.hpp"
 #include "runtime/broker.hpp"
 #include "../protocol/serializer.hpp"
+#include "../protocol/topic.hpp"
 #include "runtime/delay_strategies.hpp"
 
 using json = nlohmann::json;
@@ -129,25 +132,51 @@ int main() {
         res->end(buffer.str());
     });
 
-    // Browser display: raw event stream over WebSocket (no server-side estimates).
+    // The concrete per-symbol topics the browser can subscribe to, and the
+    // catalog message announcing them on connect.
+    const std::vector<std::string> catalog_topics = {equity_topic(sym_x), equity_topic(sym_y)};
+    const std::string catalog_msg =
+        json{{"type", "catalog"}, {"symbols", json::array({sym_x, sym_y})}}.dump();
+
+    // Browser display over WebSocket. Topic-aware, symmetric with the TCP broker:
+    // the browser sends {"action":"subscribe","topics":[...]} and we expand each
+    // (possibly a dot-prefix like "trades") against the catalog, so it receives
+    // only the concrete symbol topics it asked for. No server-side estimation.
     app.ws<int>("/*", {
-        .open = [](auto *ws) { ws->subscribe("ticks"); }
+        .open = [&catalog_msg](auto *ws) {
+            ws->send(catalog_msg, uWS::OpCode::TEXT);  // announce available symbols
+        },
+        .message = [&catalog_topics](auto *ws, std::string_view message, uWS::OpCode) {
+            json j = json::parse(message, nullptr, /*allow_exceptions=*/false);
+            if (j.is_discarded() || !j.contains("action") || !j.contains("topics")) return;
+            const std::string action = j["action"].get<std::string>();
+            for (const auto &t : j["topics"]) {
+                const std::string req = t.get<std::string>();
+                for (const auto &concrete : catalog_topics) {
+                    if (!topic_matches(req, concrete)) continue;
+                    if (action == "subscribe") ws->subscribe(concrete);
+                    else if (action == "unsubscribe") ws->unsubscribe(concrete);
+                }
+            }
+        }
     });
 
     // Producer thread: pull each bivariate DGP step, split it into two per-symbol
-    // ticks, and publish each to its own topic. A consumer subscribes to two
-    // symbols and pairs them back up. The browser still gets the combined tick on
-    // "ticks" (unchanged). No estimation here.
+    // ticks, and publish each to its own topic on BOTH transports (TCP broker and
+    // WS). A subscriber -- C++ consumer or browser -- pairs the symbols it wants.
+    // No estimation here.
     std::thread producer_thread([&]() {
         std::size_t n = 0;
-        producer.run([&](const MarketEvent &event) {
-            const SymbolTick tick_x{sym_x, event.price_x, event.volume_x,
-                                    event.return_x, event.timestamp, event.true_rho_s};
-            const SymbolTick tick_y{sym_y, event.price_y, event.volume_y,
-                                    event.return_y, event.timestamp, event.true_rho_s};
-            broker.publish(equity_topic(sym_x), serializer.to_json(tick_x));
-            broker.publish(equity_topic(sym_y), serializer.to_json(tick_y));
-            app.publish("ticks", serializer.to_json(event), uWS::OpCode::TEXT);
+        producer.run([&](const TickPair &event) {
+            // The DGP leaves the legs unnamed; the server names the instruments.
+            SymbolTick tick_x = event.x; tick_x.symbol = sym_x;
+            SymbolTick tick_y = event.y; tick_y.symbol = sym_y;
+            const std::string msg_x = serializer.to_json(tick_x);
+            const std::string msg_y = serializer.to_json(tick_y);
+            broker.publish(equity_topic(sym_x), msg_x);
+            broker.publish(equity_topic(sym_y), msg_y);
+            app.publish(equity_topic(sym_x), msg_x, uWS::OpCode::TEXT);
+            app.publish(equity_topic(sym_y), msg_y, uWS::OpCode::TEXT);
             if (++n % 20 == 0) {
                 std::cout << "events=" << n
                           << " tcp_consumers=" << broker.subscriber_count() << "\n";

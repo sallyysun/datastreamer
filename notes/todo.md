@@ -76,7 +76,7 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   transform for non-Gaussian real marginals (currently standardization, exact for Gaussian).
 - ⬜ **Change detection + restart** (CUSUM / BOCPD); `reset()` hook already in the interface
   (`estimator.hpp:16`). Design space + build order in
-  [change_detection.md](change_detection.md).
+  [change_detection.md](studies/change_detection.md).
 - ⬜ **Local-level Kalman estimator** (`kalman_local_level.hpp`) on Fisher-$z$'d blockwise
   Spearman. Strict generalization of the fixed-$\lambda$ estimators (steady-state Kalman gain
   $K=1-\lambda$), and the prerequisite for innovation-based detection.
@@ -88,6 +88,6 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   only comparable at matched in-control false-alarm rate, and rank/PIT feedback means
   $\mathrm{ARL}_0$ must be bootstrapped on the actual pseudo-observation stream rather than
   read off a formula. Blocks every detector result — see
-  [change_detection.md](change_detection.md) Part VI.
+  [change_detection.md](studies/change_detection.md) Part VI.
 - ⬜ Decide whether to keep the `StateManager` moments (now inside `DeviceState`) exposed, or
   slim the device to buffer + copula inference only.

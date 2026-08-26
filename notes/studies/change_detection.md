@@ -225,7 +225,7 @@ Every detector in the standard list is scalar and therefore misses distinction #
 can change *shape* (tail dependence appears, asymmetry flips) at **constant** Spearman $\rho$. Take
 the state to be the Hermite coefficient vector $a_t\in\mathbb R^K$ (random walk), observations
 $h_{jk}(U_t,V_t)$ — already computed in
-[hermiter.hpp](../src/estimators/dependence/hermiter.hpp) — and detect on the innovation *vector*:
+[hermiter.hpp](../../src/estimators/dependence/hermiter.hpp) — and detect on the innovation *vector*:
 
 $$
 S_t=\max\!\big(0,\ \|S_{t-1}+e_t\|_{\Sigma^{-1}}-k\big).
@@ -301,7 +301,7 @@ $$
 \end{array}}
 $$
 
-Multi-seed with error bars — see the open item in [todo.md](todo.md).
+Multi-seed with error bars — see the open item in [todo.md](../todo.md).
 
 ## The sharpened research question
 

@@ -31,7 +31,7 @@ std::vector<std::string> FileSource::split(
     return tokens;
 }
 
-MarketEvent FileSource::next() {
+TickPair FileSource::next() {
     std::string line;
 
     // skip CSV header once
@@ -55,13 +55,11 @@ MarketEvent FileSource::next() {
         );
     }
 
-    return MarketEvent{
-        std::stod(fields[0]), // price_x
-        std::stod(fields[1]), // price_y
-        std::stod(fields[2]), // volume_x
-        std::stod(fields[3]), // volume_y
-        std::stod(fields[4]), // return_x
-        std::stod(fields[5]), // return_y
-        std::stoll(fields[6]) // timestamp
-    };
+    // CSV columns: price_x, price_y, volume_x, volume_y, return_x, return_y,
+    // timestamp. Returns (cols 4,5) are ignored -- the device re-derives them
+    // from price. Real data has no ground-truth rho, so true_rho_s = 0.
+    const long long ts = std::stoll(fields[6]);
+    const SymbolTick x{"", std::stod(fields[0]), std::stod(fields[2]), ts, 0.0};
+    const SymbolTick y{"", std::stod(fields[1]), std::stod(fields[3]), ts, 0.0};
+    return TickPair{x, y};
 }

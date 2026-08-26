@@ -20,7 +20,7 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence)
 {
 }
 
-MarketEvent SyntheticSource::next() {
+TickPair SyntheticSource::next() {
     // Current true dependence for this step (clamped away from +-1 so the
     // Gaussian-copula construction stays well defined).
     double rho = dependence_->next();
@@ -42,16 +42,14 @@ MarketEvent SyntheticSource::next() {
                   now.time_since_epoch())
                   .count();
 
-    MarketEvent event{
-        price_x_,
-        price_y_,
-        volume_x_,
-        volume_y_,
-        r_x,
-        r_y,
-        ts
-    };
-    // Gaussian copula: Spearman's rho = (6/pi) * asin(rho/2).
-    event.true_rho_s = 6.0 / std::numbers::pi * std::asin(rho / 2.0);
-    return event;
+    // Gaussian copula: Spearman's rho = (6/pi) * asin(rho/2). r_x/r_y were used
+    // to advance the prices above; the wire carries price + volume, and each
+    // device re-derives the return from consecutive prices.
+    const double rho_s = 6.0 / std::numbers::pi * std::asin(rho / 2.0);
+
+    // Symbols are left empty here (the DGP is instrument-agnostic); the server
+    // names the two legs before publishing.
+    const SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
+    const SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
+    return TickPair{x, y};
 }

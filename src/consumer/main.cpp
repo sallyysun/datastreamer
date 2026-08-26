@@ -62,19 +62,6 @@ int connect_broker(const std::string& host, int port) {
     return fd;
 }
 
-// Pair two single-symbol ticks (X-leg, Y-leg) into a bivariate MarketEvent for
-// the estimators. true_rho_s is carried identically on both legs by the DGP.
-MarketEvent pair_to_event(const SymbolTick& x, const SymbolTick& y) {
-    MarketEvent event{
-        x.price, y.price,
-        x.volume, y.volume,
-        x.ret, y.ret,
-        x.timestamp
-    };
-    event.true_rho_s = x.true_rho_s;
-    return event;
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -136,13 +123,13 @@ int main(int argc, char** argv) {
             // Drain any complete pairs (synchronous producers keep the legs in
             // lockstep, so front-to-front pairing is exact).
             while (!queue_x.empty() && !queue_y.empty()) {
-                const MarketEvent event = pair_to_event(queue_x.front(), queue_y.front());
+                const TickPair event{queue_x.front(), queue_y.front()};
                 queue_x.pop_front();
                 queue_y.pop_front();
                 device.on_event(event);
 
                 if (++n_events % static_cast<std::size_t>(print_every) == 0) {
-                    std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.true_rho_s);
+                    std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.x.true_rho_s);
                     for (const auto& [name, rho] : device.dependence()) {
                         std::printf("%s=%+.3f ", name.c_str(), rho);
                     }

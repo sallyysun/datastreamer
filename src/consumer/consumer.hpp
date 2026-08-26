@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "../protocol/market_event.hpp"
+#include "../protocol/symbol_tick.hpp"
 #include "device_state.hpp"
 #include "ring_buffer.hpp"
 
@@ -42,7 +42,7 @@ public:
 
     // ----------- ingestion (called per received event) -----------
 
-    void on_event(const MarketEvent& event) {
+    void on_event(const TickPair& event) {
         buffer_->push(event);
         process_available();
     }
@@ -58,7 +58,7 @@ public:
                 handle_policy();
                 continue;
             }
-            const MarketEvent e = buffer_->get(cursor_);
+            const TickPair e = buffer_->get(cursor_);
             state_.update(e);   // folds moments + inference (thesis: Psi on device state)
             ++cursor_;
         }
@@ -75,10 +75,6 @@ public:
     // ----------- statistics -----------
 
     DeviceState::Moments moments() const { return state_.moments(); }
-
-    double rolling_correlation(std::size_t window) const {
-        return DeviceState::rolling_correlation(*buffer_, window);
-    }
 
     // ----------- introspection -----------
 

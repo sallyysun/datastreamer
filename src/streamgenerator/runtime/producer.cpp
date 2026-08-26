@@ -10,7 +10,7 @@ Producer::Producer(
 
 void Producer::run(Sink sink) {
     while (true) {
-        MarketEvent event = source_->next();
+        TickPair event = source_->next();
         delay_();
         sink(event);
     }
@@ -18,7 +18,7 @@ void Producer::run(Sink sink) {
 
 void Producer::run(Sink sink, int n_events) {
     for (int i = 0; i < n_events; i++) {
-        MarketEvent event = source_->next();
+        TickPair event = source_->next();
         delay_();
         sink(event);
     }

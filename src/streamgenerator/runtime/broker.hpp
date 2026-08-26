@@ -20,6 +20,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../protocol/topic.hpp"
+
 // Minimal TCP publish/subscribe broker -- a "mini Kafka" broker. Consumers
 // connect over TCP and send a line "SUBSCRIBE <topic> [max_hz]\n"; thereafter
 // they receive newline-delimited JSON events published to a matching topic.
@@ -169,16 +171,11 @@ private:
         std::chrono::duration<double, std::milli> min_interval{0.0};
         clock::time_point last_sent{};
 
-        // A subscription matches a published topic if any subscribed topic equals
-        // it, is the literal "all", or is a dot-boundary prefix of it
-        // (e.g. "trades" matches "trades.SYNX_SYNY").
+        // Matches if any subscribed topic matches the published one (shared
+        // dot-prefix rule, see protocol/topic.hpp).
         bool matches(const std::string& pub) const {
             for (const auto& s : topics) {
-                if (s == "all" || s == pub) return true;
-                if (pub.size() > s.size() && pub[s.size()] == '.' &&
-                    pub.compare(0, s.size(), s) == 0) {
-                    return true;
-                }
+                if (topic_matches(s, pub)) return true;
             }
             return false;
         }

@@ -1,0 +1,1271 @@
+<title>Copula Changepoints</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+
+<style>
+/* ============================================================
+   TOKENS — light is the bare :root, dark redefines tokens only
+   ============================================================ */
+:root {
+  --paper:        #F4F6F8;
+  --surface:      #FFFFFF;
+  --surface-2:    #E9EEF2;
+  --ink:          #151A22;
+  --ink-muted:    #59646F;
+  --ink-faint:    #8894A0;
+  --rule:         #D5DCE3;
+  --rule-strong:  #B6C1CB;
+  --accent:       #0F6E72;
+  --accent-ink:   #0B5457;
+  --accent-wash:  #DFEDED;
+  --alarm:        #A9550F;
+  --alarm-wash:   #F6E8D8;
+  --shadow:       0 1px 2px rgba(21,26,34,.05), 0 10px 28px -16px rgba(21,26,34,.22);
+
+  --font-display: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-body:    "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --font-mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --measure: 68ch;
+  --rail: 208px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:       #101419;
+    --surface:     #171C23;
+    --surface-2:   #1E242C;
+    --ink:         #E3E8EE;
+    --ink-muted:   #9AA5B2;
+    --ink-faint:   #6E7A87;
+    --rule:        #28313A;
+    --rule-strong: #3A444F;
+    --accent:      #4FB3B7;
+    --accent-ink:  #6FC8CB;
+    --accent-wash: #12312F;
+    --alarm:       #D99248;
+    --alarm-wash:  #2C2317;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:       #101419;
+  --surface:     #171C23;
+  --surface-2:   #1E242C;
+  --ink:         #E3E8EE;
+  --ink-muted:   #9AA5B2;
+  --ink-faint:   #6E7A87;
+  --rule:        #28313A;
+  --rule-strong: #3A444F;
+  --accent:      #4FB3B7;
+  --accent-ink:  #6FC8CB;
+  --accent-wash: #12312F;
+  --alarm:       #D99248;
+  --alarm-wash:  #2C2317;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 10px 28px -16px rgba(0,0,0,.7);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--accent-wash); color: var(--accent-ink); }
+
+a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ============================================================
+   SHELL — fixed rail + centred measure
+   ============================================================ */
+.shell {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 0 28px 120px;
+}
+
+.rail { display: none; }
+
+@media (min-width: 1080px) {
+  .shell { padding-left: calc(var(--rail) + 56px); }
+  .rail {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: max(28px, calc(50vw - 610px + 28px));
+    width: var(--rail);
+    height: 100vh;
+    padding: 52px 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--rule);
+  }
+}
+
+.rail-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 18px;
+}
+.rail ol { list-style: none; margin: 0; padding: 0 20px 0 0; display: flex; flex-direction: column; gap: 1px; }
+.rail a {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  line-height: 1.34;
+  color: var(--ink-muted);
+  text-decoration: none;
+  padding: 6px 10px 6px 12px;
+  border-left: 2px solid transparent;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.rail a:hover { color: var(--ink); background: var(--surface-2); }
+.rail a .num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+  flex: none;
+  width: 1.6em;
+  font-variant-numeric: tabular-nums;
+}
+.rail a.on { color: var(--accent-ink); border-left-color: var(--accent); font-weight: 600; }
+.rail a.on .num { color: var(--accent); }
+
+/* ============================================================
+   MASTHEAD
+   ============================================================ */
+.masthead {
+  max-width: var(--measure);
+  padding: 84px 0 0;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 6vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -.022em;
+  margin: 0 0 20px;
+  text-wrap: balance;
+}
+
+.standfirst {
+  font-size: 1.22rem;
+  line-height: 1.52;
+  color: var(--ink-muted);
+  margin: 0 0 34px;
+  text-wrap: pretty;
+}
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 26px;
+  padding: 16px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+.meta span b {
+  color: var(--ink-faint);
+  font-weight: 500;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  margin-right: 7px;
+}
+
+/* ============================================================
+   SECTIONS + TYPE
+   ============================================================ */
+.part {
+  max-width: var(--measure);
+  padding-top: 72px;
+  scroll-margin-top: 24px;
+}
+
+.part-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 10px;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.65rem, 3.4vw, 2.15rem);
+  line-height: 1.14;
+  letter-spacing: -.016em;
+  margin: 0 0 8px;
+  text-wrap: balance;
+}
+
+.deck {
+  font-size: 1.06rem;
+  color: var(--ink-muted);
+  margin: 0 0 30px;
+  padding-bottom: 22px;
+  border-bottom: 2px solid var(--ink);
+  text-wrap: pretty;
+}
+
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.3rem;
+  letter-spacing: -.008em;
+  line-height: 1.24;
+  margin: 42px 0 12px;
+  text-wrap: balance;
+}
+
+h4 {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 32px 0 10px;
+}
+
+p { margin: 0 0 17px; text-wrap: pretty; }
+strong { font-weight: 600; }
+em { font-style: italic; }
+
+ul, ol { margin: 0 0 17px; padding-left: 1.35em; }
+li { margin-bottom: 9px; }
+li::marker { color: var(--ink-faint); }
+
+code {
+  font-family: var(--font-mono);
+  font-size: .855em;
+  background: var(--surface-2);
+  padding: .12em .38em;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+/* ============================================================
+   MATH
+   ============================================================ */
+.eq {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 1.06rem;
+  line-height: 2.1;
+  padding: 18px 6px;
+  margin: 0 0 18px;
+  color: var(--ink);
+}
+i, .var { font-style: italic; }
+sub, sup { font-size: .68em; line-height: 0; }
+
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  text-align: center;
+  margin: 0 .16em;
+  font-size: .96em;
+  line-height: 1.28;
+}
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .4em .1em; }
+.frac > span:last-child  { padding: .1em .4em 0; }
+
+.sqrt { white-space: nowrap; }
+.sqrt > .rad {
+  border-top: 1px solid currentColor;
+  padding: 0 .2em 0 .1em;
+  margin-left: -.06em;
+}
+
+.op { font-style: normal; }
+.sep { display: inline-block; width: 2.2em; }
+
+/* ============================================================
+   CLAIM — the alarm accent, used only at threshold moments
+   ============================================================ */
+.claim {
+  background: var(--alarm-wash);
+  border-left: 3px solid var(--alarm);
+  padding: 22px 26px;
+  margin: 28px 0;
+  border-radius: 0 3px 3px 0;
+}
+.claim .claim-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  color: var(--alarm);
+  margin: 0 0 10px;
+}
+.claim .eq { padding: 6px 0; margin: 0; }
+.claim p:last-child { margin-bottom: 0; }
+.claim strong { color: var(--ink); }
+
+.warn {
+  border: 1px solid var(--alarm);
+  border-left-width: 3px;
+  background: var(--alarm-wash);
+  padding: 18px 22px;
+  margin: 26px 0;
+  border-radius: 0 3px 3px 0;
+  font-size: .96rem;
+}
+.warn p:last-child { margin-bottom: 0; }
+.warn .claim-label { color: var(--alarm); }
+
+.note {
+  border-left: 2px solid var(--rule-strong);
+  padding: 4px 0 4px 20px;
+  margin: 26px 0;
+  color: var(--ink-muted);
+  font-size: .96rem;
+}
+.note p:last-child { margin-bottom: 0; }
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.tablewrap {
+  overflow-x: auto;
+  margin: 26px 0 30px;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule-strong);
+}
+table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: .93rem;
+}
+th {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-align: left;
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid var(--rule-strong);
+  vertical-align: bottom;
+  font-size: .92rem;
+}
+td {
+  padding: 13px 16px 13px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-muted);
+}
+td:first-child { color: var(--ink); font-weight: 600; padding-right: 22px; }
+tr:last-child td { border-bottom: none; }
+td code, th code { font-size: .85em; }
+
+/* ============================================================
+   FIGURES
+   ============================================================ */
+figure { margin: 34px 0; }
+.figbody {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 26px 22px 20px;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+figcaption {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin-top: 12px;
+  padding-left: 2px;
+}
+figcaption b { color: var(--ink); font-weight: 600; }
+
+.diagram { display: block; width: 100%; height: auto; min-width: 460px; }
+.d-box   { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1; }
+.d-box-a { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.25; }
+.d-line  { stroke: var(--ink-muted); stroke-width: 1.25; fill: none; }
+.d-line-a{ stroke: var(--accent); stroke-width: 1.5; fill: none; }
+.d-dead  { stroke: var(--ink-faint); stroke-width: 1.25; fill: none; opacity: .55; }
+.d-txt   { font-family: var(--font-display); font-size: 13px; font-weight: 600; fill: var(--ink); }
+.d-lab   { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-muted); letter-spacing: .04em; }
+.d-lab-a { font-family: var(--font-mono); font-size: 10px; fill: var(--accent); letter-spacing: .04em; }
+.d-fade  { opacity: .5; }
+
+/* ============================================================
+   LADDER / STEPS — numbering encodes a real dependency order
+   ============================================================ */
+.steps { list-style: none; padding: 0; margin: 26px 0 0; counter-reset: s; }
+.steps > li {
+  counter-increment: s;
+  position: relative;
+  padding: 0 0 22px 52px;
+  margin: 0;
+  border-left: 1px solid var(--rule);
+}
+.steps > li::before {
+  content: counter(s);
+  position: absolute;
+  left: -14px;
+  top: -2px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.steps > li.key::before { border-color: var(--accent); color: var(--accent); background: var(--accent-wash); }
+.steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.steps h5 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 2px 0 5px;
+  color: var(--ink);
+}
+.steps p { margin: 0; font-size: .96rem; color: var(--ink-muted); }
+
+/* ============================================================
+   REFERENCES
+   ============================================================ */
+.refs { list-style: none; padding: 0; margin: 22px 0 0; }
+.refs li {
+  padding: 15px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: .95rem;
+  color: var(--ink-muted);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 18px;
+  align-items: start;
+}
+.refs li > span:first-child { grid-column: 1; }
+.refs b { color: var(--ink); font-weight: 600; }
+.chip {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 2px;
+  white-space: nowrap;
+  border: 1px solid;
+}
+.chip.solid { color: var(--accent-ink); border-color: var(--accent); background: var(--accent-wash); }
+.chip.check { color: var(--alarm); border-color: var(--alarm); background: var(--alarm-wash); }
+.chip.mine  { color: var(--ink-muted); border-color: var(--rule-strong); background: var(--surface-2); }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.foot {
+  max-width: var(--measure);
+  margin-top: 84px;
+  padding-top: 26px;
+  border-top: 2px solid var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--ink-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+html { scroll-behavior: smooth; }
+</style>
+
+<nav class="rail" aria-label="Contents">
+  <p class="rail-title">Contents</p>
+  <ol>
+    <li><a href="#claim"><span class="num">—</span><span>The claim</span></a></li>
+    <li><a href="#p1"><span class="num">I</span><span>Two bridges</span></a></li>
+    <li><a href="#p2"><span class="num">II</span><span>The detector design space</span></a></li>
+    <li><a href="#p3"><span class="num">III</span><span>The SSM ladder</span></a></li>
+    <li><a href="#p4"><span class="num">IV</span><span>What the survey misses</span></a></li>
+    <li><a href="#p5"><span class="num">V</span><span>Architecture: the loop</span></a></li>
+    <li><a href="#p6"><span class="num">VI</span><span>Evaluation</span></a></li>
+    <li><a href="#build"><span class="num">→</span><span>Build order</span></a></li>
+    <li><a href="#refs"><span class="num">§</span><span>References</span></a></li>
+  </ol>
+</nav>
+
+<main class="shell">
+
+<header class="masthead">
+  <p class="eyebrow">Honours thesis · working note</p>
+  <h1>Change detection for streaming copulas</h1>
+  <p class="standfirst">
+    Ten named detectors are <strong>one recursion with three knobs</strong>. And the exponential
+    forgetting already in the codebase is <strong>a Kalman filter in disguise</strong>. Both are
+    identities, not analogies — and both shorten the work.
+  </p>
+  <div class="meta">
+    <span><b>Date</b>25 August 2026</span>
+    <span><b>Status</b>Working note</span>
+    <span><b>Companion</b>roadmap.md · todo.md</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════ THE CLAIM -->
+<section class="part" id="claim">
+  <p class="part-label">Orientation</p>
+  <h2>Why this note exists</h2>
+  <p class="deck">
+    The roadmap already surveys <em>which</em> detectors exist and sketches BOCPD. This note does the
+    two things that survey does not.
+  </p>
+
+  <p>
+    <strong>First</strong>, it shows that CUSUM, Shiryaev–Roberts, GLR, BOCPD and HMM regime-switching
+    are one recursion with three knobs — not ten separate methods. That turns the thesis contribution
+    from <em>“we benchmarked ten detectors”</em> (which answers to <em>it depends</em>) into
+    <em>“the design space has three axes; here is which cell wins for copulas, and why.”</em>
+  </p>
+  <p>
+    <strong>Second</strong>, it develops the state-space view, which is the missing link between the
+    exponential forgetting already implemented in <code>src/estimators/dependence/</code> and the
+    detectors we want to add. They are not two branches. One contains the other.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART I -->
+<section class="part" id="p1">
+  <p class="part-label">Part I</p>
+  <h2>Two bridges</h2>
+  <p class="deck">Both are identities, not analogies. Both shorten the work.</p>
+
+  <h3>Bridge 1 · our λ <em>is</em> a Kalman gain</h3>
+
+  <p>Take the local level model on <i>z</i><sub>t</sub> = atanh <i>ρ</i><sub>t</sub>:</p>
+
+  <div class="eq">
+    <i>z</i><sub>t</sub> = <i>z</i><sub>t−1</sub> + <i>ω</i><sub>t</sub>,<span class="sep"></span>
+    <i>ω</i><sub>t</sub> ~ <span class="op">𝒩</span>(0, <i>σ</i><sub>ω</sub><sup>2</sup>)
+    <span class="sep"></span><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint)">state</span>
+    <br>
+    <i>y</i><sub>t</sub> = <i>z</i><sub>t</sub> + <i>v</i><sub>t</sub>,<span class="sep"></span>
+    <i>v</i><sub>t</sub> ~ <span class="op">𝒩</span>(0, <i>σ</i><sub>v</sub><sup>2</sup>)
+    <span class="sep"></span><span style="font-family:var(--font-mono);font-size:11px;color:var(--ink-faint)">observation</span>
+  </div>
+
+  <p>The Kalman recursion is</p>
+
+  <div class="eq">
+    <i>P</i><sub>t|t−1</sub> = <i>P</i><sub>t−1</sub> + <i>σ</i><sub>ω</sub><sup>2</sup>,<span class="sep"></span>
+    <i>F</i><sub>t</sub> = <i>P</i><sub>t|t−1</sub> + <i>σ</i><sub>v</sub><sup>2</sup>,<span class="sep"></span>
+    <i>K</i><sub>t</sub> =
+    <span class="frac"><span><i>P</i><sub>t|t−1</sub></span><span><i>F</i><sub>t</sub></span></span>
+    <br>
+    <i>e</i><sub>t</sub> = <i>y</i><sub>t</sub> − <i>ẑ</i><sub>t−1</sub>,<span class="sep"></span>
+    <i>ẑ</i><sub>t</sub> = <i>ẑ</i><sub>t−1</sub> + <i>K</i><sub>t</sub><i>e</i><sub>t</sub>
+  </div>
+
+  <p>At steady state <i>K</i><sub>t</sub> → <i>K</i> and this collapses to:</p>
+
+  <div class="claim">
+    <p class="claim-label">Identity 1</p>
+    <div class="eq">
+      <i>ẑ</i><sub>t</sub> = (1 − <i>K</i>) <i>ẑ</i><sub>t−1</sub> + <i>K</i> <i>y</i><sub>t</sub>
+      <span class="sep"></span>
+      <span style="font-family:var(--font-display);font-size:.92rem">an EWMA with</span>
+      <span class="sep" style="width:.6em"></span>
+      <i>λ</i> = 1 − <i>K</i>
+    </div>
+    <div class="eq" style="padding-top:0">
+      <i>K</i> =
+      <span class="frac">
+        <span><span class="sqrt">√<span class="rad"><i>q</i><sup>2</sup> + 4<i>q</i></span></span> − <i>q</i></span>
+        <span>2</span>
+      </span>,
+      <span class="sep"></span>
+      <i>q</i> =
+      <span class="frac"><span><i>σ</i><sub>ω</sub><sup>2</sup></span><span><i>σ</i><sub>v</sub><sup>2</sup></span></span>
+      <span class="sep" style="width:.8em"></span>
+      <span style="font-family:var(--font-display);font-size:.92rem">(signal-to-noise ratio)</span>
+    </div>
+  </div>
+
+  <h4>Consequences</h4>
+  <ul>
+    <li>
+      Every fixed-<i>λ</i> estimator in <code>src/estimators/dependence/</code> is the
+      <strong>steady-state limit of the simplest possible SSM</strong>. The SSM is a strict
+      generalization, not a competing branch — it slots in beside the existing estimators.
+    </li>
+    <li>
+      “Choose <i>λ</i>” becomes “choose <i>q</i>”, a signal-to-noise ratio. <i>λ</i> is a tuning
+      constant; <i>q</i> is a quantity with a likelihood, so <strong>the data can speak to it</strong>.
+    </li>
+    <li>
+      <strong>VFF ≡ estimating <i>q</i> online.</strong> Same statement as the roadmap’s “the real knob
+      is the process noise”, now with the exact map between parameterizations.
+    </li>
+    <li>
+      The transient <i>K</i><sub>t</sub> &gt; <i>K</i> handles <strong>cold start</strong> automatically:
+      the filter is wide open early and tightens as <i>P</i><sub>t</sub> shrinks. That is the principled
+      version of the <code>hermite_ew</code> cold-start patch.
+    </li>
+  </ul>
+
+  <h3>Bridge 2 · CUSUM is already a state-space filter</h3>
+
+  <p>
+    Model the change as a <strong>2-state absorbing Markov chain</strong> — pre-change → post-change,
+    no return. Then the same graphical model produces all four methods, differing only in the semiring
+    and the latent alphabet:
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Recursion</th><th>Latent structure</th><th>Yields</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Forward / sum-product</td>
+          <td>2-state absorbing</td>
+          <td><strong>Shiryaev–Roberts</strong> &nbsp; <i>R</i><sub>t</sub> = (1 + <i>R</i><sub>t−1</sub>)<i>Λ</i><sub>t</sub></td>
+        </tr>
+        <tr>
+          <td>Max-product (Viterbi)</td>
+          <td>2-state absorbing</td>
+          <td><strong>CUSUM</strong> &nbsp; <i>S</i><sub>t</sub> = max(0, <i>S</i><sub>t−1</sub> + log <i>Λ</i><sub>t</sub>)</td>
+        </tr>
+        <tr>
+          <td>Forward / sum-product</td>
+          <td>Run-length counter</td>
+          <td><strong>BOCPD</strong></td>
+        </tr>
+        <tr>
+          <td>Forward / sum-product</td>
+          <td><i>K</i>-state recurrent</td>
+          <td><strong>Regime-switching HMM</strong></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    This makes CUSUM → SR → BOCPD → HMM <strong>one ladder</strong> rather than four unrelated
+    citations.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART II -->
+<section class="part" id="p2">
+  <p class="part-label">Part II</p>
+  <h2>The detector design space</h2>
+  <p class="deck">
+    Every method in the survey list is the same sequential recursion. Only three things vary.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Knob</th><th>Options</th><th>Who is who</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Unknown change time <i>τ</i></td>
+          <td>max over <i>τ</i> &nbsp;/&nbsp; sum over <i>τ</i></td>
+          <td>CUSUM, GLR = max (Viterbi). SR, BOCPD = sum (forward filter).</td>
+        </tr>
+        <tr>
+          <td>Unknown post-change <i>θ</i><sub>1</sub></td>
+          <td>known plug-in / maximize / integrate against prior</td>
+          <td>CUSUM = known. GLR = maximize. SR-<i>r</i>, BOCPD = integrate.</td>
+        </tr>
+        <tr>
+          <td>Input statistic</td>
+          <td>raw observation / score / log-LR / kernel embedding</td>
+          <td>Page–Hinkley, sequential score test, CUSUM, MMD.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    <strong>Why this matters.</strong> Page–Hinkley and the EWMA chart fall out as
+    <strong>degenerate cells</strong> — Page–Hinkley is CUSUM with a mean-shift plug-in, and the EWMA
+    chart is the steady-state Kalman of Bridge 1 with a threshold bolted on. Neither needs a separate
+    experiment. That is real work saved.
+  </p>
+
+  <h3>Regime-switching vs change-point is a hazard choice, not a paradigm</h3>
+
+  <p>
+    It is tempting to file HMMs under a different question — <em>“which regime am I in?”</em> versus
+    <em>“when did it change?”</em> They are the same object. What differs is what happens to
+    <i>θ</i> at a transition:
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Latent chain</th><th><i>θ</i> after a transition</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>CUSUM</td><td>2-state, absorbing</td><td>fixed known <i>θ</i><sub>1</sub></td></tr>
+        <tr><td>BOCPD</td><td>run-length <i>r</i><sub>t</sub></td><td>drawn <strong>fresh from the prior</strong></td></tr>
+        <tr><td>HMM</td><td><i>K</i>-state, recurrent</td><td><strong>reused</strong> from a finite remembered set</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="claim">
+    <p class="claim-label">Consequence · chapter candidate</p>
+    <p>
+      <strong>BOCPD is amnesiac.</strong> Financial dependence regimes <em>recur</em> — calm → crisis →
+      calm — and BOCPD discards everything it learned about the crisis regime the moment it leaves. An
+      HMM re-enters a known regime instantly, with <strong>zero relearning delay</strong>. The synthesis
+      lets a new run either reuse an old regime or spawn a new one.
+    </p>
+    <div class="eq" style="padding-bottom:4px">
+      <span style="font-family:var(--font-display);font-weight:600;font-size:1.02rem">
+        Does regime memory reduce detection delay on <em>recurring</em> dependence shifts?
+      </span>
+    </div>
+    <p style="text-align:center;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);margin:0">
+      Sharp · novel · answerable · needs only the oscillate DGP we already generate
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART III -->
+<section class="part" id="p3">
+  <p class="part-label">Part III</p>
+  <h2>The SSM ladder</h2>
+  <p class="deck">Four levels, increasing sophistication, each reusing the last.</p>
+
+  <h3>Level 1 · SSM whitens, CUSUM detects</h3>
+  <p>
+    Run the Kalman filter of Bridge 1, then run CUSUM or Page–Hinkley on the
+    <strong>standardized innovations</strong> <i>e</i><sub>t</sub>/√<i>F</i><sub>t</sub>, which are
+    i.i.d. <span class="op">𝒩</span>(0,1) <em>under the model</em>.
+  </p>
+  <p>
+    <strong>Why this is the highest-value thing to build.</strong> It fixes distinction 5 in the roadmap
+    — <em>drift is the common case</em>. CUSUM on raw <i>ρ̂</i><sub>t</sub> chatters under drift because
+    the pre-change stream is not stationary, so Lorden-type optimality does not apply. The SSM absorbs
+    the drift, the innovations become white, and the classical theory transfers.
+  </p>
+
+  <div class="claim">
+    <p class="claim-label">Division of labour</p>
+    <div class="eq" style="padding:8px 0">
+      <span style="font-family:var(--font-display);font-weight:600">SSM handles gradual drift</span>
+      <span class="sep"></span>│<span class="sep"></span>
+      <span style="font-family:var(--font-display);font-weight:600">CUSUM handles what the SSM cannot absorb</span>
+    </div>
+  </div>
+
+  <h4>Practical observation equation</h4>
+  <p>
+    Do <em>not</em> feed one tick at a time — the per-tick normal-score product
+    <i>z</i><sub>x,t</sub><i>z</i><sub>y,t</sub> has mean <i>ρ</i> and variance 1 + <i>ρ</i><sup>2</sup>,
+    and the link <i>ρ</i> = tanh <i>z</i> is nonlinear, so you would need an EKF/UKF. Instead emit a
+    Fisher-transformed windowed Spearman every <i>m</i> ticks:
+  </p>
+
+  <div class="eq">
+    <i>y</i><sub>t</sub> = atanh <i>ρ̂</i><sup>S</sup><sub>t</sub>,
+    <span class="sep"></span>
+    <i>σ</i><sub>v</sub><sup>2</sup> ≈
+    <span class="frac"><span>1.06</span><span><i>m</i> − 3</span></span>
+  </div>
+
+  <p>
+    <i>σ</i><sub>v</sub><sup>2</sup> being <strong>known</strong> is a gift specific to this problem: it
+    pins down the denominator of <i>q</i>, leaving a <em>single</em> scalar to fit. O(1) amortized,
+    linear-Gaussian, exact filter.
+  </p>
+
+  <h3>Level 2 · GLR on the state</h3>
+  <p>
+    The honest version when the post-change <i>ρ</i> is unknown. A jump of unknown size <i>ν</i> at
+    unknown time <i>τ</i> leaves a <em>deterministic signature</em> on the innovation sequence — the
+    filter’s step response <i>ϱ</i><sub>s</sub>(<i>τ</i>) — so the GLR is a matched filter maximized
+    over <i>τ</i>:
+  </p>
+
+  <div class="eq">
+    <i>g</i><sub>t</sub> = max<sub>τ</sub>
+    <span class="frac">
+      <span>( Σ<sub>s</sub> <i>ϱ</i><sub>s</sub>(<i>τ</i>) <i>e</i><sub>s</sub> / <i>F</i><sub>s</sub> )<sup>2</sup></span>
+      <span>Σ<sub>s</sub> <i>ϱ</i><sub>s</sub>(<i>τ</i>)<sup>2</sup> / <i>F</i><sub>s</sub></span>
+    </span>
+    <span class="sep" style="width:1em"></span> &gt; <i>h</i>
+  </div>
+
+  <p>
+    For the local level model <i>ϱ</i><sub>s</sub>(<i>τ</i>) is closed-form. This is exactly
+    <em>“CUSUM, but the SSM tells you what a change looks like.”</em>
+  </p>
+
+  <div class="warn">
+    <p class="claim-label">⚠ Streaming caveat</p>
+    <p>
+      A GLR with sup over all <i>τ</i> ≤ <i>t</i> is <strong>O(<i>t</i>) per step</strong> and is
+      <strong>not streaming-admissible</strong> — it breaks the central claim of the project. Use the
+      <strong>window-limited GLR</strong> (Lai): restrict <i>τ</i> ∈ [<i>t</i>−<i>W</i>,
+      <i>t</i>−<i>W</i><sub>0</sub>], giving O(<i>W</i>) per step with near-optimal delay.
+      Non-negotiable if GLR goes in.
+    </p>
+  </div>
+
+  <h3>Level 3 · switching SSMs — soft detection, no hard reset</h3>
+  <ul>
+    <li>
+      <strong>Harrison &amp; Stevens multiprocess DLM.</strong> Each step is a mixture over
+      {normal, outlier, level shift}; collapse via GPB1 to stay O(1). Detect-and-restart
+      <em>without</em> a bang-bang decision.
+    </li>
+    <li>
+      <strong>IMM filter</strong> (target-tracking literature). A bank of Kalman filters at different
+      <i>σ</i><sub>ω</sub><sup>2</sup>, Markov-switched and soft-mixed. This is the roadmap’s
+      “multi-timescale ensemble”, but with a transition model and decades of theory attached.
+    </li>
+    <li>
+      <strong>West’s cumulative Bayes factor monitoring.</strong>
+      <i>H</i><sub>t</sub> = <i>B</i><sub>t</sub> · min(1, <i>H</i><sub>t−1</sub>) — which is
+      <em>literally CUSUM in log space</em> with log-Bayes-factor increments. The tightest link between
+      our CUSUM and the DLM world.
+    </li>
+  </ul>
+
+  <h3>Level 4 · no detector at all</h3>
+  <p>
+    Give the process noise a heavy tail (Student-<i>t</i>) or a spike-and-slab / Laplace prior. A jump
+    becomes just a large draw from the tail, and the filter adapts on its own. The MAP under Laplace
+    process noise is fused-lasso / ℓ<sub>1</sub> trend filtering; the streaming version is an online
+    proximal step. Cheap, and it sidesteps the false-alarm-threshold question entirely.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART IV -->
+<section class="part" id="p4">
+  <p class="part-label">Part IV</p>
+  <h2>What the standard survey misses</h2>
+  <p class="deck">Five gaps, ordered by value to this thesis.</p>
+
+  <ol class="steps">
+    <li class="key">
+      <h5>Test martingales and e-values</h5>
+      <p>
+        The biggest gap. Every classical detector needs a threshold calibrated against a
+        <strong>known</strong> pre-change law — but roadmap distinction 3 says rank/PIT feedback makes
+        the pre-change stream non-i.i.d., so those ARL guarantees <em>do not transfer</em>. Conformal
+        test martingales give anytime-valid false-alarm control <strong>without trusting the null</strong>.
+        Recent literature, essentially untouched in the copula change-point space, and it solves a
+        problem we have already identified as fundamental. <strong>Strongest novelty candidate here.</strong>
+      </p>
+    </li>
+    <li class="key">
+      <h5>The <em>efficient</em> (orthogonalized) score, not the raw score</h5>
+      <p style="margin-bottom:14px">
+        Partition <i>θ</i> = (<i>θ</i><sub>marg</sub>, <i>θ</i><sub>dep</sub>). The efficient score for
+        the dependence block — the score minus its projection onto the nuisance tangent space —
+      </p>
+      <div class="eq" style="text-align:left;padding:0 0 14px">
+        <i>S̃</i><sub>dep</sub> = <i>S</i><sub>dep</sub> −
+        <i>I</i><sub>dm</sub> <i>I</i><sub>mm</sub><sup>−1</sup> <i>S</i><sub>marg</sub>
+      </div>
+      <p>
+        — yields a CUSUM that is <strong>invariant to marginal changes by construction</strong>. This is
+        the principled fix for distinction 2 (the marginal-vs-dependence confound), rather than hoping
+        the ranks are clean. Fisher scoring already computes every ingredient. Score-CUSUM is also the
+        <em>locally most powerful</em> test, hence optimal for <strong>small</strong> changes — exactly
+        the copula regime. <strong>Rank this above GLR.</strong>
+      </p>
+    </li>
+    <li>
+      <h5>Multivariate CUSUM on Hermite coefficients</h5>
+      <p style="margin-bottom:14px">
+        Every detector in the standard list is scalar, and therefore misses distinction 1 by design: a
+        copula can change <em>shape</em> — tail dependence appears, asymmetry flips — at
+        <strong>constant</strong> Spearman <i>ρ</i>. Take the state to be the Hermite coefficient vector
+        <i>a</i><sub>t</sub> (random walk), observations <i>h</i><sub>jk</sub>(<i>U</i><sub>t</sub>,
+        <i>V</i><sub>t</sub>) — already computed in <code>hermiter.hpp</code> — and detect on the
+        innovation <em>vector</em>:
+      </p>
+      <div class="eq" style="text-align:left;padding:0 0 14px">
+        <i>S</i><sub>t</sub> = max( 0, ‖<i>S</i><sub>t−1</sub> + <i>e</i><sub>t</sub>‖<sub>Σ<sup>−1</sup></sub> − <i>k</i> )
+      </div>
+      <p>No published streaming-copula equivalent that I am aware of.</p>
+    </li>
+    <li>
+      <h5>The optimal-delay benchmark</h5>
+      <p style="margin-bottom:14px">Lorden / Lai:</p>
+      <div class="eq" style="text-align:left;padding:0 0 14px">
+        𝔼[delay] ≈
+        <span class="frac">
+          <span>log(ARL<sub>0</sub>)</span>
+          <span>KL(<i>θ</i><sub>1</sub> ‖ <i>θ</i><sub>0</sub>)</span>
+        </span>
+      </div>
+      <p>
+        For Gaussian copulas the KL between <i>ρ</i><sub>0</sub> and <i>ρ</i><sub>1</sub> is closed form.
+        So we can <strong>compute the theoretically minimal detection delay</strong> for any <i>ρ</i>
+        jump and plot every detector against it. This upgrades the evaluation chapter from “we compared
+        some things” to <strong>“here is the efficiency frontier, and how close each detector gets.”</strong>
+      </p>
+    </li>
+    <li>
+      <h5>Window-limited GLR</h5>
+      <p>See the streaming caveat in Part III, Level 2. Without it, GLR is not admissible here at all.</p>
+    </li>
+  </ol>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART V -->
+<section class="part" id="p5">
+  <p class="part-label">Part V</p>
+  <h2>Architecture: the loop, not the pipeline</h2>
+  <p class="deck">
+    The obvious topology is one-way. That topology is wrong — or at least uninteresting.
+  </p>
+
+  <figure>
+    <div class="figbody">
+      <svg class="diagram" viewBox="0 0 560 92" role="img" aria-label="One-way pipeline: estimator to detector to reset or continue">
+        <defs>
+          <marker id="ah-dead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+        <g class="d-fade" style="color:var(--ink-faint)">
+          <rect class="d-box" x="14" y="26" width="140" height="42" rx="2" />
+          <text class="d-txt" x="84" y="52" text-anchor="middle">Estimator</text>
+          <path class="d-dead" d="M 162 47 L 200 47" marker-end="url(#ah-dead)" />
+          <rect class="d-box" x="208" y="26" width="140" height="42" rx="2" />
+          <text class="d-txt" x="278" y="52" text-anchor="middle">Detector</text>
+          <path class="d-dead" d="M 356 47 L 394 47" marker-end="url(#ah-dead)" />
+          <rect class="d-box" x="402" y="26" width="144" height="42" rx="2" />
+          <text class="d-txt" x="474" y="52" text-anchor="middle">reset / continue</text>
+        </g>
+        <text class="d-lab" x="14" y="14">ONE-WAY — WHAT THE ROADMAP ASSUMES</text>
+      </svg>
+    </div>
+    <figcaption><b>Rejected.</b> The detector is a terminal consumer; adaptation is all-or-nothing.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="figbody">
+      <svg class="diagram" viewBox="0 0 560 196" role="img" aria-label="Feedback loop: estimator emits innovations to detector, detector emits a change posterior that sets lambda, which feeds back to the estimator">
+        <defs>
+          <marker id="ah-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+
+        <text class="d-lab-a" x="14" y="14">THE LOOP — DETECTOR MODULATES MEMORY</text>
+
+        <rect class="d-box-a" x="26" y="34" width="160" height="46" rx="2" />
+        <text class="d-txt" x="106" y="62" text-anchor="middle">Estimator</text>
+
+        <rect class="d-box-a" x="374" y="34" width="160" height="46" rx="2" />
+        <text class="d-txt" x="454" y="62" text-anchor="middle">Detector</text>
+
+        <g style="color:var(--accent)">
+          <path class="d-line-a" d="M 194 57 L 366 57" marker-end="url(#ah-a)" />
+        </g>
+        <text class="d-lab" x="280" y="46" text-anchor="middle">innovations e_t / √F_t</text>
+
+        <rect class="d-box" x="186" y="128" width="188" height="46" rx="2" />
+        <text class="d-txt" x="280" y="149" text-anchor="middle">P(change | data)</text>
+        <text class="d-lab" x="280" y="164" text-anchor="middle">→ λ_t</text>
+
+        <g style="color:var(--accent)">
+          <path class="d-line-a" d="M 454 88 L 454 151 L 382 151" marker-end="url(#ah-a)" />
+          <path class="d-line-a" d="M 178 151 L 106 151 L 106 88" marker-end="url(#ah-a)" />
+        </g>
+        <text class="d-lab" x="466" y="120">evidence</text>
+        <text class="d-lab" x="46" y="120">memory</text>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Adopted.</b> Hard reset is simply <i>λ</i><sub>t</sub> → 0 when the posterior crosses a
+      threshold; Harrison–Stevens / IMM soft-mixing sits in between.
+    </figcaption>
+  </figure>
+
+  <div class="claim">
+    <p class="claim-label">Identity 2</p>
+    <div class="eq" style="padding:6px 0">
+      <span style="font-family:var(--font-display);font-weight:600;font-size:1.04rem">
+        VFF and detect-and-restart are not rivals — they are one dial at different decision hardness.
+      </span>
+    </div>
+    <p>
+      The roadmap currently frames these as competing options (#1 vs #2 of “the ultimate streaming
+      estimator”). They are the same architecture. Cleaner story, and less to build.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART VI -->
+<section class="part" id="p6">
+  <p class="part-label">Part VI</p>
+  <h2>Evaluation</h2>
+  <p class="deck">One trap, one metric set, one question.</p>
+
+  <h3>The trap: detectors are only comparable at matched ARL<sub>0</sub></h3>
+  <p>
+    Every detector has a threshold <i>h</i> that trades false alarms against delay. Comparing two
+    detectors at arbitrary thresholds is <strong>meaningless</strong>. Calibrate all of them to the same
+    in-control average run length under stationarity <em>first</em>, then compare delay.
+  </p>
+  <p>
+    And because of rank feedback, ARL<sub>0</sub> <strong>must be calibrated by simulation or bootstrap
+    on the actual pseudo-observation stream</strong>, not read off a formula. The harness does not
+    measure ARL<sub>0</sub> at all yet — this is the first thing to add, before any detector number is
+    treated as a result.
+  </p>
+
+  <h4>Metrics</h4>
+  <div class="tablewrap">
+    <table>
+      <tbody>
+        <tr><td>ARL<sub>0</sub></td><td>In-control average run length — the false-alarm rate.</td></tr>
+        <tr><td>𝔼[delay]</td><td>Detection delay, <em>at matched</em> ARL<sub>0</sub>.</td></tr>
+        <tr><td>𝔼[delay] / bound</td><td>Efficiency against the Lorden/KL bound (Part IV.4).</td></tr>
+        <tr><td>Recovery time</td><td>Ticks until |<i>ρ̂</i><sub>t</sub> − <i>ρ</i><sub>t</sub>| is back within tolerance.</td></tr>
+        <tr><td>Post-change RMSE</td><td>Tracking error after the break.</td></tr>
+        <tr><td>Stationary variance</td><td>The cost paid when nothing happens.</td></tr>
+        <tr><td>Per-update cost</td><td>ns/tick and bytes of state — streaming-admissibility.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Multi-seed with error bars — see the open item in <code>todo.md</code>.</p>
+
+  <h3>The sharpened research question</h3>
+  <p>
+    Not <em>“how does the choice of detector affect the trade-off”</em>, which answers to
+    <em>it depends</em>. Instead:
+  </p>
+
+  <div class="claim">
+    <p class="claim-label">Thesis question</p>
+    <p style="font-family:var(--font-display);font-size:1.12rem;line-height:1.44;font-weight:600;margin:0">
+      How closely can a streaming, O(1), marginal-invariant copula change-point detector approach the
+      information-theoretic detection-delay bound — and does adaptive memory dominate the entire
+      fixed-<i>λ</i> family on the ARL<sub>0</sub> / delay / stationary-variance frontier?
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ BUILD ORDER -->
+<section class="part" id="build">
+  <p class="part-label">Sequence</p>
+  <h2>Build order</h2>
+  <p class="deck">
+    A real dependency order — each step needs the one above it. Steps 1–3 alone give the thesis its
+    cleanest single result.
+  </p>
+
+  <ol class="steps">
+    <li class="key">
+      <h5>ARL<sub>0</sub> calibration in the harness</h5>
+      <p>Bootstrap under stationarity. Nothing else is interpretable without it.</p>
+    </li>
+    <li class="key">
+      <h5>Local-level Kalman on Fisher-<i>z</i>’d blockwise Spearman</h5>
+      <p>
+        <code>kalman_local_level.hpp</code>, roughly 150 lines. Bridge 1 means it is a strict
+        generalization of the fixed-<i>λ</i> estimators, not a new branch.
+      </p>
+    </li>
+    <li class="key">
+      <h5>Innovation CUSUM</h5>
+      <p>On <i>e</i><sub>t</sub>/√<i>F</i><sub>t</sub>, wired to the existing <code>reset()</code> hook.</p>
+    </li>
+    <li>
+      <h5>Efficient-score CUSUM</h5>
+      <p>Marginal-invariant by construction; reuses the Fisher-scoring machinery.</p>
+    </li>
+    <li>
+      <h5>Window-limited GLR</h5>
+      <p>The unknown-<i>ρ</i><sub>1</sub> comparator, kept streaming-admissible.</p>
+    </li>
+    <li>
+      <h5>BOCPD</h5>
+      <p>NIW-on-normal-scores, per the roadmap. The Bayesian gold standard to measure against.</p>
+    </li>
+    <li>
+      <h5>The novelty bets</h5>
+      <p>Test martingales · MCUSUM on Hermite coefficients · regime memory.</p>
+    </li>
+  </ol>
+
+  <div class="claim">
+    <p class="claim-label">The headline result, if nothing else lands</p>
+    <p style="margin:0">
+      The fixed-<i>λ</i> estimators are <strong>one point on a curve the Kalman filter
+      parameterizes</strong> — and the drift the filter absorbs is exactly what was making CUSUM
+      chatter.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ REFERENCES -->
+<section class="part" id="refs">
+  <p class="part-label">Sources</p>
+  <h2>References to chase</h2>
+  <p class="deck">
+    Leads, not verified citations. Written from memory while drafting — none has been checked against a
+    bibliographic database.
+  </p>
+
+  <div class="note">
+    <p>
+      <strong>Read the chips before citing anything here.</strong>
+      <span style="white-space:nowrap"><span class="chip solid" style="display:inline-block">high confidence</span></span>
+      means the work exists and the attribution is very likely right;
+      <span style="white-space:nowrap"><span class="chip check" style="display:inline-block">verify</span></span>
+      means the paper exists but the specific claim attached to it may not;
+      <span style="white-space:nowrap"><span class="chip mine" style="display:inline-block">own derivation</span></span>
+      means it is not a citation at all — it is an argument made in this note, checkable in a couple of
+      lines of algebra, but not something any paper says about <em>this</em> estimator.
+    </p>
+  </div>
+
+  <ul class="refs">
+    <li>
+      <span><b>Basseville &amp; Nikiforov (1993)</b>, <i>Detection of Abrupt Changes: Theory and Application</i>, Prentice Hall. Innovation-based detection; detection with nuisance parameters, behind Part IV.2. <em>Caveat: “parity space” is FDI terminology I associated with it — confirm the term appears there.</em></span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Willsky &amp; Jones (1976)</b>, “A generalized likelihood ratio approach to the detection and estimation of jumps in linear systems”, <i>IEEE Trans. Automatic Control</i> 21(1), 108–112.</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Lai (1995)</b>, <i>JRSS-B</i> 57(4), 613–658; <b>Lai (1998)</b>, <i>IEEE Trans. Information Theory</i> 44(7). Window-limited GLR; information bounds on delay.</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Harrison &amp; Stevens (1976)</b>, “Bayesian forecasting”, <i>JRSS-B</i> 38(3), 205–247; <b>West &amp; Harrison</b>, <i>Bayesian Forecasting and Dynamic Linear Models</i>, Springer. Cumulative Bayes factor monitoring is more precisely <b>West (1986)</b>, “Bayesian model monitoring”, <i>JRSS-B</i> 48(1).</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Adams &amp; MacKay (2007)</b>, “Bayesian Online Changepoint Detection”, arXiv:0710.3742.</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Crosier (1988)</b>, <i>Technometrics</i> 30(3), 291–303 (MCUSUM); <b>Lowry, Woodall, Champ &amp; Rigdon (1992)</b>, <i>Technometrics</i> 34(1), 46–53 (MEWMA).</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Harvey (2013)</b>, <i>Dynamic Models for Volatility and Heavy Tails</i>, CUP; <b>Creal, Koopman &amp; Lucas (2013)</b>, <i>J. Applied Econometrics</i> 28(5), 777–795.</span>
+      <span class="chip solid">high confidence</span>
+    </li>
+    <li>
+      <span><b>Fearnhead &amp; Liu (2007)</b>, <i>JRSS-B</i> 69(4). The paper exists, but I attached <em>parameter reuse</em> to it and am not confident that is what it does. The regime-memory idea is really <b>Fox, Sudderth, Jordan &amp; Willsky</b> (sticky HDP-HMM). Fix this line.</span>
+      <span class="chip check">verify</span>
+    </li>
+    <li>
+      <span>“<b>Creal et al. have a time-varying copula example</b>” — plausible but unchecked. The safer anchor for GAS copulas is <b>Patton</b>’s dynamic copula work and the GAS-copula follow-up literature.</span>
+      <span class="chip check">verify</span>
+    </li>
+    <li>
+      <span><b>Vovk</b> (conformal test martingales); <b>Ramdas et al.</b> (safe anytime-valid inference, e-values). The area is real but my citation was vague. The precise ones are likely <b>Shin, Ramdas &amp; Rinaldo</b>, “E-detectors: a nonparametric framework for sequential change detection”, plus <b>Vovk (2021)</b>, “Testing randomness online”, <i>Statistical Science</i>.</span>
+      <span class="chip check">verify</span>
+    </li>
+    <li>
+      <span><b>Bücher &amp; Kojadinovic</b> — sequential tests for constancy of the copula. The body of work exists; no year pinned.</span>
+      <span class="chip check">verify</span>
+    </li>
+    <li>
+      <span><b>“<i>λ</i> = 1 − <i>K</i>”</b> (Bridge 1) and <b>“online Fisher scoring with forgetting is a GAS model with <i>B</i> = <i>λ</i>”</b>. Present these as own observations, not as citations.</span>
+      <span class="chip mine">own derivation</span>
+    </li>
+  </ul>
+</section>
+
+<footer class="foot">
+  Working note · datastreamer · 25 August 2026<br>
+  Companion to roadmap.md and todo.md. Distinctions 1–5 referenced throughout are the five properties
+  that make a copula change-point a different object from a scalar mean shift, set out in the roadmap.
+</footer>
+
+</main>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+  var map = {};
+  links.forEach(function (a) {
+    var el = document.querySelector(a.getAttribute('href'));
+    if (el) { map[el.id] = a; }
+  });
+  var targets = Object.keys(map).map(function (id) { return document.getElementById(id); });
+  if (!('IntersectionObserver' in window) || !targets.length) { return; }
+
+  var visible = {};
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { visible[e.target.id] = e.isIntersecting; });
+    var current = null;
+    targets.forEach(function (t) { if (visible[t.id] && !current) { current = t.id; } });
+    if (!current) { return; }
+    links.forEach(function (a) { a.classList.remove('on'); });
+    map[current].classList.add('on');
+  }, { rootMargin: '-12% 0px -70% 0px', threshold: 0 });
+
+  targets.forEach(function (t) { obs.observe(t); });
+})();
+</script>
