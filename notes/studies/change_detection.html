@@ -506,6 +506,7 @@ figcaption b { color: var(--ink); font-weight: 600; }
   white-space: nowrap;
   border: 1px solid;
 }
+.chip.read  { color: var(--surface); border-color: var(--accent); background: var(--accent); }
 .chip.solid { color: var(--accent-ink); border-color: var(--accent); background: var(--accent-wash); }
 .chip.check { color: var(--alarm); border-color: var(--alarm); background: var(--alarm-wash); }
 .chip.mine  { color: var(--ink-muted); border-color: var(--rule-strong); background: var(--surface-2); }
@@ -896,6 +897,67 @@ html { scroll-behavior: smooth; }
     process noise is fused-lasso / ℓ<sub>1</sub> trend filtering; the streaming version is an online
     proximal step. Cheap, and it sidesteps the false-alarm-threshold question entirely.
   </p>
+
+  <h3>Aside · when the filter has to go nonlinear</h3>
+  <p>
+    Everything above stays linear-Gaussian because the observation is a blockwise Fisher-<i>z</i>’d
+    Spearman (Level 1). Feed <strong>per-tick</strong> normal-score products instead and the link
+    <i>ρ</i> = tanh <i>z</i> is nonlinear — the exact Kalman filter is gone and you need SMC.
+    <strong>Rodríguez &amp; Walker (2021), <em>Copula Particle Filters</em></strong> is the cheapest
+    route I have found. They rewrite the filtering recursion as:
+  </p>
+
+  <div class="eq">
+    <i>p</i>(<i>x</i><sub>t+1</sub> | <i>y</i><sup>t</sup>) =
+    <i>p</i>(<i>x</i><sub>t+1</sub> | <i>y</i><sup>t−1</sup>) ·
+    <i>c</i>( <i>P</i>(<i>x</i><sub>t+1</sub>|<i>y</i><sup>t−1</sup>), <i>P</i>(<i>y</i><sub>t</sub>|<i>y</i><sup>t−1</sup>) )
+    <br>
+    <i>P</i>(<i>x</i><sub>t+1</sub> | <i>y</i><sup>t</sup>) =
+    <span class="frac"><span>∂<i>C</i></span><span>∂<i>v</i></span></span>
+    ( · , · )
+  </div>
+
+  <p>
+    so particle propagation is just <em>draw <i>u</i> ~ U(0,1), solve ∂<i>C</i>/∂<i>v</i> = <i>u</i></em>
+    — closed form for the Gaussian copula,
+    <i>P</i>(<i>x</i>|<i>x</i><sub>d</sub>) = Φ(<i>z</i>√(1−<i>ρ</i><sup>2</sup>) + <i>ρ</i>Φ<sup>−1</sup>(<i>s</i>)).
+    No importance sampling in the propagation step at all.
+  </p>
+
+  <div class="claim">
+    <p class="claim-label">Why it matters here</p>
+    <p style="margin:0">
+      The algorithm accumulates the <strong>marginal likelihood as a by-product</strong> — log-lik
+      += log <i>k</i> − log <i>M</i> at every step. That is exactly the machinery needed to estimate
+      <i>σ</i><sub>ω</sub><sup>2</sup>, equivalently <i>q</i>, online: <strong>the VFF problem from
+      Part I.</strong> A filter that hands you the likelihood for free is a route to <em>inferring
+      your own forgetting rate</em>.
+    </p>
+  </div>
+
+  <p>
+    <strong>Where it sits.</strong> O(<i>M</i>) per step, <i>M</i> ≥ 100 recommended when the link is
+    nonlinear, plus root-finding for any copula without a closed-form conditional. Not the live TCP
+    path — a <strong>gold-standard reference to benchmark against</strong>, the slot this note already
+    reserves for the Bayesian branch. R code and both real datasets ship as supplementary material.
+  </p>
+
+  <div class="warn">
+    <p class="claim-label">⚠ Do not conflate the two <i>ρ</i>’s</p>
+    <p>
+      In this thesis <i>ρ</i> is the <strong>estimand</strong>. In that paper <i>ρ</i> is a
+      <strong>tuning knob of the sampler</strong> — they recommend trying 0.1, 0.5, 0.8, and report it
+      interacting badly with Metropolis–Hastings acceptance (one example accepted almost nothing at
+      <i>ρ</i> = 0.9; another needed <i>ρ</i> &gt; 0.9 to converge). Same symbol, opposite role. Say so
+      explicitly if you cite it.
+    </p>
+  </div>
+
+  <p>
+    <strong>What it is not:</strong> a change-detection paper. No changepoints, regimes or CUSUM appear
+    in it, and its examples — Gaussian SSM, stochastic volatility, VGT log-returns, unemployment — are
+    all <em>univariate</em> state problems. Filtering machinery, not a competitor to anything here.
+  </p>
 </section>
 
 <!-- ═══════════════════════════════════════════ PART IV -->
@@ -1168,13 +1230,15 @@ html { scroll-behavior: smooth; }
   <p class="part-label">Sources</p>
   <h2>References to chase</h2>
   <p class="deck">
-    Leads, not verified citations. Written from memory while drafting — none has been checked against a
-    bibliographic database.
+    Leads, not verified citations. One entry has been read in full; the rest were written from memory
+    while drafting and have not been checked against a bibliographic database.
   </p>
 
   <div class="note">
     <p>
       <strong>Read the chips before citing anything here.</strong>
+      <span style="white-space:nowrap"><span class="chip read" style="display:inline-block">read in full</span></span>
+      means the paper itself was read and the claims attached to it come from the text;
       <span style="white-space:nowrap"><span class="chip solid" style="display:inline-block">high confidence</span></span>
       means the work exists and the attribution is very likely right;
       <span style="white-space:nowrap"><span class="chip check" style="display:inline-block">verify</span></span>
@@ -1186,6 +1250,10 @@ html { scroll-behavior: smooth; }
   </div>
 
   <ul class="refs">
+    <li>
+      <span><b>Rodríguez, C. E. &amp; Walker, S. G. (2021)</b>, “Copula Particle Filters”, <i>Computational Statistics and Data Analysis</i> 161, 107230. doi:10.1016/j.csda.2021.107230. The copula as a device to eliminate the propagation integral in an SSM; marginal likelihood as a by-product; R code and both datasets in the supplement. See the Part III aside — <b>including the <i>ρ</i>-conflation warning</b>.</span>
+      <span class="chip read">read in full</span>
+    </li>
     <li>
       <span><b>Basseville &amp; Nikiforov (1993)</b>, <i>Detection of Abrupt Changes: Theory and Application</i>, Prentice Hall. Innovation-based detection; detection with nuisance parameters, behind Part IV.2. <em>Caveat: “parity space” is FDI terminology I associated with it — confirm the term appears there.</em></span>
       <span class="chip solid">high confidence</span>

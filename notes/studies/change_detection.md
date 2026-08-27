@@ -196,6 +196,45 @@ then just a large draw from the tail and the filter adapts on its own. The MAP u
 noise is **fused-lasso / $\ell_1$ trend filtering**; the streaming version is an online proximal
 step. Cheap, and it sidesteps the false-alarm-threshold question entirely.
 
+## Aside — when the filter has to go nonlinear (Copula Particle Filter)
+
+Everything above stays linear-Gaussian because the observation is a blockwise Fisher-$z$'d Spearman
+(Level 1). If you ever feed **per-tick** normal-score products instead, the link $\rho=\tanh z$ is
+nonlinear and the exact Kalman filter is gone — you need SMC. **Rodríguez & Walker (2021), *Copula
+Particle Filters*** is the cheapest route I have seen:
+
+$$
+p(x_{t+1}\mid y^{t})=p(x_{t+1}\mid y^{t-1})\;
+c\big(P(x_{t+1}\mid y^{t-1}),\,P(y_t\mid y^{t-1})\big),
+\qquad
+P(x_{t+1}\mid y^{t})=\tfrac{\partial C}{\partial v}(\cdot,\cdot)
+$$
+
+so particle propagation is *draw $u\sim U(0,1)$, solve $\partial C/\partial v=u$* — closed form for
+the Gaussian copula, $P(x\mid x_d)=\Phi(z\sqrt{1-\rho^2}+\rho\,\Phi^{-1}(s))$, $z\sim\mathcal N(0,1)$.
+No importance sampling in the propagation step.
+
+**Why it matters here:** the algorithm accumulates the **marginal likelihood as a by-product**
+($\text{log-lik} \mathrel{+}= \log k - \log M$ each step). That is exactly the machinery needed to
+estimate $\sigma_\omega^2$ — equivalently $q$ — online, i.e. the VFF problem from Part I. A filter
+that hands you the likelihood for free is a route to *"infer your own forgetting rate."*
+
+**Where it sits:** O($M$) per step, $M\ge 100$ recommended when the link is nonlinear, plus
+root-finding for any copula without a closed-form conditional. Not the live TCP path — a
+**gold-standard reference to benchmark against**, the slot this doc already reserves for the
+Bayesian branch. R code and both real datasets ship as supplementary material, so validating an
+implementation against theirs is realistic.
+
+> ⚠️ **Do not conflate the two $\rho$'s.** In this thesis $\rho$ is the *estimand*. In that paper
+> $\rho$ is a **tuning knob of the sampler** — they recommend trying $0.1, 0.5, 0.8$, and report it
+> interacting badly with Metropolis–Hastings acceptance (one example accepted almost nothing at
+> $\rho=0.9$; another needed $\rho>0.9$ to converge). Same symbol, opposite role. Say so explicitly
+> if you cite it.
+
+**What it is not:** a change-detection paper. No changepoints, regimes, or CUSUM anywhere in it, and
+its examples (Gaussian SSM, stochastic volatility, VGT log-returns, unemployment) are all
+*univariate* state problems. It is filtering machinery, not a competitor to anything in this doc.
+
 ---
 
 # Part IV — What the standard survey misses
@@ -335,6 +374,18 @@ was making CUSUM chatter.*
 ---
 
 # References to chase
+
+Everything below except the first entry was written from memory and has **not** been checked against
+a bibliographic database. Treat them as leads, not citations.
+
+**Read in full:**
+
+- **Rodríguez, C. E. & Walker, S. G. (2021), "Copula Particle Filters", *Computational Statistics
+  and Data Analysis* 161, 107230.** doi:10.1016/j.csda.2021.107230. Copula as a device to eliminate
+  the propagation integral in an SSM; likelihood as a by-product; R code + datasets in the
+  supplement. See the Level-4 aside in Part III — **and the $\rho$-conflation warning there.**
+
+**From memory, unverified:**
 
 - Basseville & Nikiforov (1993), *Detection of Abrupt Changes* — innovation-based detection; the
   nuisance-rejection / parity-space material behind Part IV.2.
