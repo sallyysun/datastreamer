@@ -30,7 +30,7 @@ const TOPIC_PREFIX = "trades.equity.";
 const topicFor = (sym: string) => TOPIC_PREFIX + sym;
 
 // Deterministic per-symbol colour, stable across renders (index into catalog).
-const PALETTE = ["#22d3ee", "#a78bfa", "#00e676", "#ffb454", "#ff6ec7", "#5b9dff"];
+const PALETTE = ["#f6c177", "#a0a5d6", "#74ccaa", "#60b5be", "#e294b9"];
 
 const fmt = (v: number | undefined, d = 2) =>
   typeof v === "number" ? v.toFixed(d) : "--";
@@ -184,6 +184,16 @@ export default function App() {
   const intervalLabel =
     intervalSec === 1 ? "1s (max)" : `${intervalSec}s`;
 
+  // Price ratio of the two legs, when exactly two are subscribed.
+  const ratio =
+    selected.length === 2
+      ? (() => {
+          const a = latestBySymbol[selected[0]]?.price;
+          const b = latestBySymbol[selected[1]]?.price;
+          return a && b ? (a / b).toFixed(3) : "--";
+        })()
+      : null;
+
   return (
     <div className="container">
       <header className="header">
@@ -253,6 +263,33 @@ export default function App() {
         </section>
       ) : (
         <>
+          {/* KPI TILES */}
+          <div className="tiles">
+            {selected.map((sym) => (
+              <div className="tile" key={sym} style={{ borderLeftColor: colorFor(sym) }}>
+                <div className="tile-k">{sym} · last</div>
+                <div className="tile-v" style={{ color: colorFor(sym) }}>
+                  {fmt(latestBySymbol[sym]?.price)}
+                </div>
+                <div className="tile-f">vol {fmt(latestBySymbol[sym]?.volume, 0)}</div>
+              </div>
+            ))}
+            {ratio !== null && (
+              <div className="tile" style={{ borderLeftColor: "var(--up)" }}>
+                <div className="tile-k">ratio</div>
+                <div className="tile-v" style={{ color: "var(--up)" }}>{ratio}</div>
+                <div className="tile-f">{selected[0]} / {selected[1]}</div>
+              </div>
+            )}
+            <div className="tile">
+              <div className="tile-k">ticks</div>
+              <div className="tile-v">{count}</div>
+              <div className="tile-f">
+                {selected.length} stream{selected.length !== 1 ? "s" : ""} · {intervalSec}s
+              </div>
+            </div>
+          </div>
+
           {/* PRICE CHART — one line per subscribed symbol */}
           <section className="panel">
             <div className="panel-head">
@@ -305,21 +342,9 @@ export default function App() {
             </div>
           </section>
 
-          {/* DEPENDENCE — placeholder until a consumer republishes estimates (Phase 3) */}
-          {selected.length >= 2 && (
-            <section className="panel">
-              <div className="panel-head">
-                <span>DEPENDENCE ρ̂</span>
-                <span className="legend muted">estimator output · not yet wired</span>
-              </div>
-              <div className="dep-placeholder">
-                <span className="badge">Phase 3</span>
-                Online ρ̂ (Xiao / Hermite / Gaussian-MLE) runs in a C++ consumer device, not the
-                browser. This panel lights up once a consumer republishes its estimates to
-                <code>estimates.equity.&lt;PAIR&gt;</code> and the server bridges them here.
-              </div>
-            </section>
-          )}
+          {/* No dependence panel: the browser is a strict price viewer. Online ρ̂
+              (Xiao / Hermite / Gaussian-MLE) is computed per-device inside each C++
+              consumer and stays there -- it is not sent back to the browser. */}
 
           {/* TAPE */}
           <section className="panel">
