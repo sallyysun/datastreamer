@@ -210,7 +210,7 @@ zeros:
 | $W_{0,2}$   | $\sqrt{\pi/2}=1.25331413732$ | $4.9\times10^{-17}$ | $2.6\times10^{-10}$ |
 | $W_{10,10}$ | $0.43618981487$ | $2.4\times10^{-16}$ | $1.8\times10^{-12}$ |
 
-So the $\sim10^{-10}$ discrepancy the parity check (`experiments/reference_parity`)
+So the $\sim10^{-10}$ discrepancy the comparison (`experiments/reference_comparison`)
 reports between our Hermite $\rho_S$ and `hermiter`'s is **not** our port drifting
 from the reference — it is the reference's stored $W$ drifting from the true $W$,
 and our analytic construction is the correct one. (Confirmed by injecting the

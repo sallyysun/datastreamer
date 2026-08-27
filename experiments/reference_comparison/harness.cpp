@@ -1,4 +1,4 @@
-// reference_parity harness -- drives the ACTUAL C++ estimator classes on a
+// reference_comparison harness -- drives the ACTUAL C++ estimator classes on a
 // shared (x,y) CSV and prints per-step Spearman-rho estimates at full
 // precision, so the output can be compared line-for-line against the reference
 // implementations (Python onlineNPCORR, R hermiter).
@@ -10,9 +10,9 @@
 // the shipped headers.
 //
 // Build (from repo root):
-//   clang++ experiments/reference_parity/harness.cpp -std=c++20 -O2 \
+//   clang++ experiments/reference_comparison/harness.cpp -std=c++20 -O2 \
 //     -Isrc -I$(brew --prefix eigen)/include/eigen3 \
-//     -o experiments/reference_parity/harness
+//     -o experiments/reference_comparison/harness
 //
 // Usage:
 //   harness xiao    <csv> [bins]  [calib] [window]   # window=0 => cumulative

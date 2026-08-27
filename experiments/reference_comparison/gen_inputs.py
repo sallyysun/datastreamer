@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate shared (x,y) input streams for the reference_parity check.
+"""Generate shared (x,y) input streams for the reference_comparison check.
 
 Each dataset is written as data/<name>.csv with a header `x,y` and one
 observation per line at full float precision, so the C++ harness, the Python

@@ -1,4 +1,4 @@
-# reference_parity
+# reference_comparison
 
 Validates the C++ online dependence estimators against the upstream reference
 implementations they were ported from, on **byte-identical shared inputs**.
@@ -16,7 +16,7 @@ precision.
 ## Run
 
 ```bash
-experiments/reference_parity/run.sh
+experiments/reference_comparison/run.sh
 ```
 
 Requires `clang++`, Eigen, `python3` (numpy), and `Rscript` with the `hermiter`

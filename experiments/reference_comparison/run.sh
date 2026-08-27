@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reference_parity -- validate the C++ dependence estimators against their
+# reference_comparison -- validate the C++ dependence estimators against their
 # upstream reference implementations on shared inputs.
 #
 #   Xiao empirical-copula Spearman  <->  external/onlineNPCORR  (Python)
@@ -10,7 +10,7 @@
 # estimated Spearman rho. Requires: clang++, Eigen, python3 (numpy), Rscript
 # with the `hermiter` package installed.
 #
-# Run:  experiments/reference_parity/run.sh
+# Run:  experiments/reference_comparison/run.sh
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
