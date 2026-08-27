@@ -6,11 +6,11 @@ observation per line at full float precision, so the C++ harness, the Python
 onlineNPCORR reference, and the R hermiter reference all consume byte-identical
 inputs.
 """
-import os
+from pathlib import Path
 import numpy as np
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
-os.makedirs(OUT, exist_ok=True)
+OUT = Path(__file__).resolve().parent / "data"
+OUT.mkdir(exist_ok=True)
 
 
 def bivariate_normal(n, rho, seed):
@@ -22,7 +22,7 @@ def bivariate_normal(n, rho, seed):
 
 
 def write(name, x, y):
-    path = os.path.join(OUT, name + ".csv")
+    path = OUT / (name + ".csv")
     with open(path, "w") as f:
         f.write("x,y\n")
         for xi, yi in zip(x, y):

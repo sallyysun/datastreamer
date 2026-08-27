@@ -14,13 +14,12 @@ Usage: xiao_reference.py <data.csv> <cuts.txt> [window]
        window > 0 => hard sliding window (reference online_mv_corr);
        0 (default) => cumulative (reference online_corr).
 """
-import os
 import sys
+from pathlib import Path
 import numpy as np
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-REF = os.path.normpath(os.path.join(HERE, "..", "..", "external", "onlineNPCORR"))
-sys.path.insert(0, REF)
+REF = Path(__file__).resolve().parents[2] / "external" / "onlineNPCORR"
+sys.path.insert(0, str(REF))
 from utility import spearmanr_by_matrix  # noqa: E402
 
 
