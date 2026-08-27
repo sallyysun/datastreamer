@@ -102,12 +102,8 @@ int main() {
               << equity_topic(sym_y) << ")\n";
     auto source = std::make_shared<SyntheticSource>(std::move(dependence));
 
-    // Raw-TCP broker for C++ consumers. Bridge any consumer-published estimates
-    // (estimates.*) straight to the browser WebSocket -- Phase 3 dependence panel.
+    // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
-    broker.on_message = [&app](const std::string &topic, const std::string &msg) {
-        app.publish(topic, msg, uWS::OpCode::TEXT);
-    };
     if (broker.start()) {
         std::cout << "broker listening on tcp/" << cfg.broker_port << "\n";
     } else {
@@ -136,15 +132,11 @@ int main() {
         res->end(buffer.str());
     });
 
-    // The concrete topics the browser can subscribe to (two symbols + the pair's
-    // estimates), and the catalog message announcing them on connect.
-    const std::string pair = sym_x + "_" + sym_y;
-    const std::string est_topic = "estimates.equity." + pair;
-    const std::vector<std::string> catalog_topics = {
-        equity_topic(sym_x), equity_topic(sym_y), est_topic};
+    // The concrete per-symbol topics the browser can subscribe to, and the
+    // catalog message announcing them on connect.
+    const std::vector<std::string> catalog_topics = {equity_topic(sym_x), equity_topic(sym_y)};
     const std::string catalog_msg =
-        json{{"type", "catalog"}, {"symbols", json::array({sym_x, sym_y})},
-             {"pair", pair}, {"estimates", est_topic}}.dump();
+        json{{"type", "catalog"}, {"symbols", json::array({sym_x, sym_y})}}.dump();
 
     // Browser display over WebSocket. Topic-aware, symmetric with the TCP broker:
     // the browser sends {"action":"subscribe","topics":[...]} and we expand each

@@ -20,7 +20,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -66,8 +65,6 @@ int connect_broker(const std::string& host, int port) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    std::signal(SIGPIPE, SIG_IGN);  // republishing send() must not kill us on a broken pipe
-
     const std::string host = arg(argc, argv, "--host", "127.0.0.1");
     const int port = std::atoi(arg(argc, argv, "--port", "9003"));
     const auto [sym_x, sym_y] = parse_symbols(arg(argc, argv, "--symbols", "AAPL,MSFT"));
@@ -95,11 +92,6 @@ int main(int argc, char** argv) {
                 rate > 0.0 ? " (throttled)" : "");
 
     Consumer device(1024, policy);
-
-    // Phase 3: this device republishes its estimates on estimates.equity.<PAIR>,
-    // which the server bridges to the browser's dependence panel.
-    const std::string est_pair = sym_x + "_" + sym_y;
-    const std::string est_topic = "estimates.equity." + est_pair;
 
     // One FIFO per leg; when both are non-empty we can emit a paired sample.
     std::deque<SymbolTick> queue_x, queue_y;
@@ -135,20 +127,10 @@ int main(int argc, char** argv) {
                 queue_x.pop_front();
                 queue_y.pop_front();
                 device.on_event(event);
-                ++n_events;
 
-                const auto dep = device.dependence();
-
-                // Republish estimates back to the broker for any subscribers
-                // (the server bridges estimates.* to the browser).
-                const std::string est =
-                    Serializer::estimates_to_json(est_pair, n_events, event.x.true_rho_s, dep);
-                const std::string pmsg = "PUBLISH " + est_topic + " " + est + "\n";
-                ::send(fd, pmsg.data(), pmsg.size(), 0);
-
-                if (n_events % static_cast<std::size_t>(print_every) == 0) {
+                if (++n_events % static_cast<std::size_t>(print_every) == 0) {
                     std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.x.true_rho_s);
-                    for (const auto& [name, rho] : dep) {
+                    for (const auto& [name, rho] : device.dependence()) {
                         std::printf("%s=%+.3f ", name.c_str(), rho);
                     }
                     std::printf("\n");

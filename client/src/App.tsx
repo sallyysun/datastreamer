@@ -6,7 +6,6 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 
@@ -33,15 +32,6 @@ const topicFor = (sym: string) => TOPIC_PREFIX + sym;
 // Deterministic per-symbol colour, stable across renders (index into catalog).
 const PALETTE = ["#f6c177", "#a0a5d6", "#74ccaa", "#60b5be", "#e294b9"];
 
-// Phase 3: a consumer's estimates for the pair, republished via the server.
-type EstimateMsg = { pair: string; n: number; true_rho_s: number; rho: Record<string, number> };
-type EstRow = { n: number; true: number } & Record<string, number>;
-const MAX_EST_POINTS = 240;
-const EST_COLORS: Record<string, string> = {
-  xiao: "#74ccaa", xiao_ew: "#60b5be", hermite: "#f6c177", hermite_ew: "#e294b9",
-};
-const estColor = (name: string) => EST_COLORS[name] ?? "#aab6c4";
-
 const fmt = (v: number | undefined, d = 2) =>
   typeof v === "number" ? v.toFixed(d) : "--";
 const clock = (t: number) => new Date(t).toLocaleTimeString();
@@ -63,10 +53,6 @@ export default function App() {
   const [tape, setTape] = useState<Tick[]>([]);
   const [count, setCount] = useState(0);
 
-  // Phase 3: live dependence estimates from a running consumer device.
-  const [estSeries, setEstSeries] = useState<EstRow[]>([]);
-  const [estNames, setEstNames] = useState<string[]>([]);
-
   // Display throttle: commit buffered ticks to the screen at most once per
   // `intervalSec`. Capped at 1s (fastest); the user can dial it slower.
   const [intervalSec, setIntervalSec] = useState(1);
@@ -75,9 +61,6 @@ export default function App() {
   const selectedRef = useRef(selected);
   const bufferRef = useRef<Tick[]>([]);
   const seriesMapRef = useRef<Map<number, Row>>(new Map());
-  const estTopicRef = useRef<string | null>(null);
-  const estBufferRef = useRef<EstimateMsg[]>([]);
-  const estNamesRef = useRef<string[]>([]);
 
   const colorFor = (sym: string) => {
     const i = catalog.indexOf(sym);
@@ -120,7 +103,6 @@ export default function App() {
       setStatus("connected");
       setError(null);
       const topics = selectedRef.current.map(topicFor);
-      if (estTopicRef.current) topics.push(estTopicRef.current);
       if (topics.length) ws.send(JSON.stringify({ action: "subscribe", topics }));
     };
     ws.onclose = () => setStatus("disconnected");
@@ -135,17 +117,6 @@ export default function App() {
       const obj = m as Record<string, unknown>;
       if (obj.type === "catalog") {
         setCatalog(Array.isArray(obj.symbols) ? (obj.symbols as string[]) : []);
-        // Subscribe to the pair's estimates topic so a running consumer's rho
-        // lights up the dependence panel.
-        const et = typeof obj.estimates === "string" ? obj.estimates : null;
-        estTopicRef.current = et;
-        if (et && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ action: "subscribe", topics: [et] }));
-        }
-        return;
-      }
-      if (obj.rho && typeof obj.rho === "object") {
-        estBufferRef.current.push(m as EstimateMsg); // flushed on the throttle interval
         return;
       }
       if (typeof obj.symbol === "string") {
@@ -178,26 +149,6 @@ export default function App() {
       setSeries(Array.from(map.values()).sort((a, b) => a.time - b.time));
       setTape((prev) => [...[...buf].reverse(), ...prev].slice(0, MAX_TAPE));
       setCount((c) => c + buf.length);
-
-      // Estimates (Phase 3): append the buffered rho snapshots.
-      const estBuf = estBufferRef.current;
-      if (estBuf.length) {
-        estBufferRef.current = [];
-        let namesChanged = false;
-        const newRows = estBuf.map((e) => {
-          const row: EstRow = { n: e.n, true: e.true_rho_s };
-          for (const [k, v] of Object.entries(e.rho)) {
-            row[k] = v;
-            if (!estNamesRef.current.includes(k)) {
-              estNamesRef.current.push(k);
-              namesChanged = true;
-            }
-          }
-          return row;
-        });
-        if (namesChanged) setEstNames([...estNamesRef.current]);
-        setEstSeries((prev) => [...prev, ...newRows].slice(-MAX_EST_POINTS));
-      }
     };
 
     const id = window.setInterval(flush, Math.max(1, intervalSec) * 1000);
@@ -391,79 +342,9 @@ export default function App() {
             </div>
           </section>
 
-          {/* DEPENDENCE — live estimator rho when a consumer is publishing (Phase 3) */}
-          {selected.length >= 2 && (
-            <section className="panel">
-              <div className="panel-head">
-                <span>DEPENDENCE ρ̂</span>
-                {estSeries.length > 0 ? (
-                  <span className="legend">
-                    <span className="legwrap">
-                      <i className="sw" style={{ background: "#7a8798" }} /> true ρ
-                    </span>
-                    {estNames.map((nm) => (
-                      <span key={nm} className="legwrap">
-                        <i className="sw" style={{ background: estColor(nm) }} /> {nm}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="legend muted">estimator output · waiting for a consumer</span>
-                )}
-              </div>
-              {estSeries.length > 0 ? (
-                <div className="chart short">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={estSeries} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="#1b2430" vertical={false} />
-                      <XAxis dataKey="n" stroke="#4b5563" tick={{ fontSize: 11 }} minTickGap={40} />
-                      <YAxis
-                        domain={[-1, 1]}
-                        ticks={[-1, -0.5, 0, 0.5, 1]}
-                        stroke="#4b5563"
-                        tick={{ fontSize: 11 }}
-                        width={40}
-                      />
-                      <ReferenceLine y={0} stroke="#2a3542" />
-                      <Tooltip
-                        contentStyle={tooltipStyle}
-                        formatter={(v) => (typeof v === "number" ? v.toFixed(3) : String(v))}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="true"
-                        name="true ρ"
-                        stroke="#7a8798"
-                        strokeWidth={1.5}
-                        strokeDasharray="5 4"
-                        dot={false}
-                        isAnimationActive={false}
-                      />
-                      {estNames.map((nm) => (
-                        <Line
-                          key={nm}
-                          type="monotone"
-                          dataKey={nm}
-                          stroke={estColor(nm)}
-                          strokeWidth={2}
-                          dot={false}
-                          isAnimationActive={false}
-                          connectNulls
-                        />
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div className="dep-placeholder">
-                  <span className="badge">Phase 3</span>
-                  Online ρ̂ (Xiao / Hermite / Gaussian-MLE) runs in a C++ consumer device, not the
-                  browser. Start one — <code>./consumer --symbols {selected[0]},{selected[1]}</code> —
-                  and its estimates stream in here.
-                </div>
-              )}
-            </section>
-          )}
+          {/* No dependence panel: the browser is a strict price viewer. Online ρ̂
+              (Xiao / Hermite / Gaussian-MLE) is computed per-device inside each C++
+              consumer and stays there -- it is not sent back to the browser. */}
 
           {/* TAPE */}
           <section className="panel">

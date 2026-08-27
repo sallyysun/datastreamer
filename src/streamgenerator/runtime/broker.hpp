@@ -12,7 +12,6 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdlib>
-#include <functional>
 #include <iostream>
 #include <mutex>
 #include <string>
@@ -67,14 +66,17 @@ public:
     // Deliver msg to every consumer whose subscription matches `topic`, honouring
     // each connection's optional rate limit.
     void publish(const std::string& topic, const std::string& msg) {
+        std::string framed = msg;
+        framed.push_back('\n');
+        const auto now = std::chrono::steady_clock::now();
         std::lock_guard<std::mutex> lock(mutex_);
-        deliver_locked(topic, msg);
+        for (auto& [fd, sub] : subs_) {
+            if (!sub.matches(topic)) continue;
+            if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
+            ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
+            sub.last_sent = now;
+        }
     }
-
-    // Hook invoked for every message a CONSUMER publishes back (via "PUBLISH"),
-    // e.g. an estimates.* stream. The server sets this to bridge those to the
-    // browser WebSocket. Not called for producer-side publish() above.
-    std::function<void(const std::string& topic, const std::string& msg)> on_message;
 
     std::size_t subscriber_count() {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -122,19 +124,6 @@ private:
         }
     }
 
-    // Fan out `msg` to matching subscribers. Caller must hold mutex_.
-    void deliver_locked(const std::string& topic, const std::string& msg) {
-        std::string framed = msg;
-        framed.push_back('\n');
-        const auto now = std::chrono::steady_clock::now();
-        for (auto& [fd, sub] : subs_) {
-            if (!sub.matches(topic)) continue;
-            if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
-            ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
-            sub.last_sent = now;
-        }
-    }
-
     void handle_input(int fd, const std::string& chunk) {
         std::lock_guard<std::mutex> lock(mutex_);
         std::string& buf = inbuf_[fd];
@@ -145,39 +134,25 @@ private:
             buf.erase(0, pos + 1);
             while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
 
-            // "SUBSCRIBE <topic> [max_hz]" -- optional trailing rate limit.
-            const std::string sub_kw = "SUBSCRIBE ";
-            if (line.rfind(sub_kw, 0) == 0) {
-                std::string rest = line.substr(sub_kw.size());
-                std::string topic = rest;
-                double max_hz = 0.0;
-                if (const std::size_t sp = rest.find(' '); sp != std::string::npos) {
-                    topic = rest.substr(0, sp);
-                    max_hz = std::atof(rest.c_str() + sp + 1);
-                }
-                if (topic.empty()) continue;
-                Sub& sub = subs_[fd];
-                sub.topics.insert(topic);
-                if (max_hz > 0.0) sub.min_interval = std::chrono::duration<double, std::milli>(1000.0 / max_hz);
-                std::cout << "broker: fd " << fd << " subscribed to '" << topic << "'";
-                if (max_hz > 0.0) std::cout << " @ " << max_hz << " msg/s";
-                std::cout << "\n";
-                continue;
-            }
+            const std::string kw = "SUBSCRIBE ";
+            if (line.rfind(kw, 0) != 0) continue;
 
-            // "PUBLISH <topic> <json>" -- a consumer publishing back (e.g. estimates).
-            const std::string pub_kw = "PUBLISH ";
-            if (line.rfind(pub_kw, 0) == 0) {
-                const std::string rest = line.substr(pub_kw.size());
-                const std::size_t sp = rest.find(' ');
-                if (sp == std::string::npos) continue;
-                const std::string topic = rest.substr(0, sp);
-                const std::string payload = rest.substr(sp + 1);
-                if (topic.empty() || payload.empty()) continue;
-                deliver_locked(topic, payload);          // fan out to other consumers
-                if (on_message) on_message(topic, payload);  // and bridge to the WS
-                continue;
+            // "SUBSCRIBE <topic> [max_hz]" -- optional trailing rate limit.
+            std::string rest = line.substr(kw.size());
+            std::string topic = rest;
+            double max_hz = 0.0;
+            if (const std::size_t sp = rest.find(' '); sp != std::string::npos) {
+                topic = rest.substr(0, sp);
+                max_hz = std::atof(rest.c_str() + sp + 1);
             }
+            if (topic.empty()) continue;
+
+            Sub& sub = subs_[fd];
+            sub.topics.insert(topic);
+            if (max_hz > 0.0) sub.min_interval = std::chrono::duration<double, std::milli>(1000.0 / max_hz);
+            std::cout << "broker: fd " << fd << " subscribed to '" << topic << "'";
+            if (max_hz > 0.0) std::cout << " @ " << max_hz << " msg/s";
+            std::cout << "\n";
         }
     }
 
