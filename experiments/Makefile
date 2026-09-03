@@ -13,7 +13,10 @@ EIGEN = /opt/homebrew/opt/eigen
 experiment:
 	$(CXX) main.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o experiment
 
-clean:
-	rm -f experiment
+calibrate_arl0:
+	$(CXX) calibrate_arl0.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o calibrate_arl0
 
-.PHONY: experiment clean
+clean:
+	rm -f experiment calibrate_arl0
+
+.PHONY: experiment calibrate_arl0 clean

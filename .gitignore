@@ -4,5 +4,6 @@
 /server
 /consumer
 /experiments/experiment
+/experiments/calibrate_arl0
 __pycache__/
 /experiments/results/
