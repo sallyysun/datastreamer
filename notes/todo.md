@@ -62,18 +62,56 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   revisit only if replay / at-least-once is needed.
 
 ### Client (see "Client vision" above)
-- ⬜ **React topic-picker viewer** — `client/src` has no subscribe/subscription code yet;
-  the WS side still broadcasts a single `ticks` topic.
+- ✅ **React topic-picker viewer** — landed in "Client vision" (#6): topic-aware WS +
+  subscription picker with adaptive panels, browser stays a strict viewer.
 
 ### Estimators
-- ⬜ **Validate C++ estimators against the reference submodules** (`external/hermiter` in R,
-  `external/onlineNPCORR` in Python) on shared inputs.
+- ✅ **Validate C++ estimators against the reference submodules** (`external/hermiter` in R,
+  `external/onlineNPCORR` in Python) on shared inputs — cross-validation harness landed (#5).
 - ✅ **Hermite scope vs `external/hermiter`:** we port only the *online bivariate Spearman's rho*
   path. Not ported (not needed for this thesis): univariate pdf/cdf/quantile, Kendall's tau,
   consistent merging of sub-estimators, batch mode. The old quadrature-vs-closed-form `W`
   difference is closed — `integral_matrix` is analytic (IBP symmetry + column recurrence).
-- ⬜ **Parametric goodness-of-fit** (choose parametric vs nonparametric online) + **rank-PIT**
-  transform for non-Gaussian real marginals (currently standardization, exact for Gaussian).
+- ✅ **Other parametric copula families** — Clayton / Gumbel / Student-t online MLE
+  (`dependence/parametric_copula.hpp`, family math in `copula_family.hpp`; keys
+  `clayton_mle`, `gumbel_mle`, `t_mle` + `_ew`). Fisher-preconditioned natural gradient
+  (empirical Fisher, since Clayton/Gumbel have no closed-form Fisher); each reports Spearman's
+  rho via `spearman_from_param` (`rho_S = 12 E[UV] - 3` by quadrature on the density).
+  Clayton/Gumbel are positive-dependence only; the t copula's nu is a fixed hyper-parameter.
+- ✅ **Parametric-vs-nonparametric goodness-of-fit selection** — `CopulaSelector`
+  (`dependence/copula_selector.hpp`, keys `copula_select` + `_ew`). Scores Gaussian / Clayton /
+  Gumbel / t + a binned nonparametric density by forgetting-weighted **prequential**
+  log-likelihood (shared marginals ⇒ marginal term cancels, so it is a like-for-like copula
+  comparison) and reports the winner's Spearman rho. Verified: picks the generating family on
+  matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
+- ✅ **Non-Gaussian copula DGP** — `dgp::Copula` (`src/streamgenerator/datasource/copula.hpp`,
+  generator-side counterpart to the estimator-side `copula_family.hpp`): Gaussian / Clayton /
+  Gumbel / Student-t samplers, each calibrated to the SAME target Spearman rho_S per step via
+  `param_from_spearman` (bisection on the estimator-side `spearman_from_param`, so generator and
+  estimator agree by construction — samplers verified: empirical rho_S matches the reported
+  ground truth to ≤0.006 across families/targets, incl. negative-target clamping for the
+  positive-dependence-only Archimedean families). Wired into both the offline harness
+  (`COPULA=gaussian|clayton|gumbel|t ./experiment <scenario>`, family-suffixed CSV output) and
+  the live server (`COPULA` env var alongside `DEPENDENCE`).
+  **Result (`experiments/analysis.ipynb`, "DGP family comparison"):** the misspecification
+  signature is now measurable — each parametric MLE is strongest on its OWN generating family and
+  weak elsewhere (e.g. `clayton_mle` worst on `gaussian`/`gumbel` data, best on `clayton`), and
+  `copula_select` is the best-or-tied cumulative estimator on every family without knowing which
+  generated the data. Caveat: Spearman rho is a rank statistic blind to tail dependence, so this
+  RMSE gap likely understates the real family separation — a tail-dependence metric is the
+  natural follow-up (see below).
+- ⬜ **Tail-dependence metric** (e.g. empirical upper/lower tail-dependence coefficients) to
+  complement the Spearman-rho comparison above — rho_S can't see the very thing (tail behaviour)
+  that actually distinguishes Clayton/Gumbel/t from Gaussian, so the misspecification RMSE gaps
+  measured are likely a lower bound on the real difference.
+- ⬜ **Same-rho_S, different-shape changepoint scenario** — now unlocked by the `Copula`
+  abstraction (switch family mid-stream at constant target rho_S): the roadmap distinction #1
+  case a scalar rho detector structurally cannot see. Also unlocks the tail-asymmetry
+  pairs-trading angle (roadmap `application_2.md`).
+- ⬜ **rank-PIT** transform for non-Gaussian real marginals (currently online standardization,
+  exact only for Gaussian; the parametric copula estimators inherit this marginal convention).
+- ➖ Estimating the Student-t **degrees of freedom** nu online — left as a fixed hyper-parameter;
+  online nu estimation is a separate problem, not needed for the misspecification comparison.
 - ⬜ **Change detection + restart** (CUSUM / BOCPD); `reset()` hook already in the interface
   (`estimator.hpp:16`). Design space + build order in
   [change_detection.md](studies/change_detection.md).
