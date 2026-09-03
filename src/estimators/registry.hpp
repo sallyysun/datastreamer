@@ -6,6 +6,7 @@
 #include "dependence/estimator.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermiter.hpp"
+#include "dependence/kalman_local_level.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
 
@@ -57,6 +58,32 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     if (key == "gaussian_mle_ew") {
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50}, "gaussian_mle_ew");
+    }
+    // Kalman local-level filter (change_detection.md Bridge 1): a strict
+    // generalization of the fixed-lambda estimators above, not a sibling of
+    // them -- the free knob is sigma_omega2 (process noise, "how fast does
+    // rho actually wander"), not a hand-picked lambda. Two operating points
+    // for now, same slow/fast contrast as the *_ew pairs elsewhere; VFF
+    // (estimating sigma_omega2 online) is future work.
+    //
+    // `block` is a second, less obvious knob: the observation model treats
+    // rho as constant WITHIN a block, so block must stay well under the
+    // fastest true timescale in the DGP suite or that assumption breaks and
+    // the filter reports a materially biased read, not just a noisier one.
+    // Swept empirically against `oscillate` (period 400, the fastest scenario
+    // here): block=50 (1/8 period) already costs ~35% extra RMSE relative to
+    // block=20 at matched sigma_omega2; block=10 keeps improving oscillate but
+    // starts costing accuracy on `constant` (noisier per-block Fisher-z read,
+    // sigma_v2 ~ 1.06/(block-3)). block=20 is the harness-wide sweet spot.
+    if (key == "kalman") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-4, .burn_in_blocks = 2},
+            "kalman");
+    }
+    if (key == "kalman_fast") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+            "kalman_fast");
     }
     return nullptr;
 }

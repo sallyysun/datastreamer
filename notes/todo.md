@@ -77,9 +77,34 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
 - ⬜ **Change detection + restart** (CUSUM / BOCPD); `reset()` hook already in the interface
   (`estimator.hpp:16`). Design space + build order in
   [change_detection.md](studies/change_detection.md).
-- ⬜ **Local-level Kalman estimator** (`kalman_local_level.hpp`) on Fisher-$z$'d blockwise
-  Spearman. Strict generalization of the fixed-$\lambda$ estimators (steady-state Kalman gain
-  $K=1-\lambda$), and the prerequisite for innovation-based detection.
+- ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
+  `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
+  windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,
+  so the filter is exact linear-Gaussian (no EKF) — the free knob is $\sigma_\omega^2$ (process
+  noise), not a hand-picked $\lambda$.
+  **Verified — Bridge 1 identity is exact, not approximate:** on a stationary stream the filter's
+  steady-state Kalman gain matches the closed form $K=(\sqrt{q^2+4q}-q)/2$, $q=\sigma_\omega^2/\sigma_v^2$,
+  to numerical precision across $q\in[4\times10^{-4}, 4.4]$ — confirms every fixed-$\lambda$
+  estimator in this directory really is this filter's steady-state special case, not just an
+  analogy.
+  **Found and fixed a real bug via the harness, not guesswork:** the block observation model
+  assumes $\rho$ is ~constant *within* a block; at the default `block=50` this broke down on
+  `oscillate` (period 400 — a block spans 1/8 of a cycle, and near a zero-crossing $\rho$ moves by
+  nearly its full range within one block), making `kalman`/`kalman_fast` **worse than every other
+  estimator including non-adaptive ones** (RMSE 0.42-0.43 vs `windowed_rank`'s 0.36). Swept block
+  size against all 5 scenarios and confirmed the mechanism (RMSE fell monotonically as block
+  shrank on `oscillate`, rose slightly on `constant` from noisier per-block Fisher-z reads);
+  `block=20` is the harness-wide sweet spot and is now the default.
+  **Result, full harness (`experiments/results/experiment_*.csv`):** `kalman` (slow,
+  $\sigma_\omega^2=10^{-4}$) is competitive with the cumulative estimators on `constant` (RMSE
+  0.017 vs `gaussian_mle`'s 0.015); `kalman_fast` ($\sigma_\omega^2=10^{-2}$) is competitive with
+  the best `_ew` estimators on `drift`/`jump`/`stochastic`, and **beats every other estimator in
+  the suite, including all `_ew` variants, on `oscillate`** (RMSE 0.316 vs `windowed_rank`'s 0.361
+  and `hermite_ew`'s 0.345) — the fastest-changing, hardest scenario, which is exactly where a
+  genuinely adaptive filter should have the edge over a fixed window or fixed $\lambda$.
+  Exposes `innovation()` / `innovation_variance()` / `standardized_innovation()` /
+  `kalman_gain()` — the exact quantities an innovation-CUSUM (`change_detection.md` Part III
+  Level 1) needs, and the next thing to build on top of this.
 
 ### Experiments / device
 - ⬜ **Multi-seed replication + error bars** before any number is a thesis result (harness

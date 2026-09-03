@@ -57,7 +57,8 @@ int main(int argc, char** argv) {
     CopulaSource source(*dependence, seed);
 
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
-                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew"};
+                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
+                                           "kalman", "kalman_fast"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);
