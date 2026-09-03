@@ -74,9 +74,33 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   difference is closed — `integral_matrix` is analytic (IBP symmetry + column recurrence).
 - ⬜ **Parametric goodness-of-fit** (choose parametric vs nonparametric online) + **rank-PIT**
   transform for non-Gaussian real marginals (currently standardization, exact for Gaussian).
-- ⬜ **Change detection + restart** (CUSUM / BOCPD); `reset()` hook already in the interface
-  (`estimator.hpp:16`). Design space + build order in
-  [change_detection.md](studies/change_detection.md).
+- ✅ **Change detection + restart, step 1: innovation CUSUM** (`dependence/kalman_cusum.hpp`,
+  key `kalman_cusum`; build order step 3 in
+  [change_detection.md](studies/change_detection.md)). Two one-sided CUSUMs on
+  `KalmanLocalLevel`'s standardized innovations $e_t/\sqrt{F_t}$ (change_detection.md Part III
+  Level 1); on alarm, calls the filter's `reset()` — the hook already in the interface
+  (`estimator.hpp:16`). BOCPD is still open, tracked separately below.
+  **Verified on the real pipeline, not synthetic $N(0,1)$ draws:** classical
+  Page/Hawkins-Olwell defaults ($\delta=1,h=5$) produced **zero false alarms in ~80,000 simulated
+  blocks** (8 seeds × 10000 blocks, `constant` scenario) — i.e. $\mathrm{ARL}_0>10{,}000$ blocks,
+  a safe lower bound, *not* a calibrated number (that is the separate $\mathrm{ARL}_0$-calibration
+  item below — this only confirms the defaults are sane enough to build on, not thesis-ready).
+  On `jump` (0.2→0.8 at $t=2500$): 1 alarm, 0 false alarms before the jump, detection delay 59
+  ticks (3 blocks). On `oscillate`: 21 alarms over 5000 ticks — plausible, since each half-period
+  really is a large genuine shift, not noise.
+  **Non-obvious finding — hard reset has a real RMSE cost, not just a detection-delay benefit:**
+  `kalman_cusum`'s RMSE is *worse* than plain `kalman_fast` on both `jump` (0.118 vs 0.092) and
+  `oscillate` (0.373 vs 0.316), despite (or rather because of) detecting the jump correctly. By
+  the time the alarm fires, `kalman_fast` has already been adapting toward the new value for
+  several blocks — the hard reset snaps the state back to $z=0$ and forces the filter to re-climb
+  from a flat prior, adding transient error exactly where the smoothly-adapting filter was already
+  closing in. This is the concrete instance of the Part V point that "VFF and detect-and-restart
+  are not rivals, they are one dial at different decision hardness" — a soft posterior-weighted
+  mix (Harrison-Stevens / IMM) would plausibly avoid this discontinuity; worth a direct comparison
+  once BOCPD (softer than hard-reset CUSUM) exists.
+  **Not done yet, and load-bearing before any number above is a thesis result:** $\mathrm{ARL}_0$
+  calibration (next item) and the efficient-score / marginal-invariant CUSUM refinement
+  (change_detection.md Part IV.2).
 - ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
   `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
   windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,

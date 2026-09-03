@@ -6,6 +6,7 @@
 #include "dependence/estimator.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermiter.hpp"
+#include "dependence/kalman_cusum.hpp"
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
@@ -84,6 +85,19 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
             "kalman_fast");
+    }
+    // Innovation CUSUM on kalman_fast's standardized innovations, detect-and-
+    // restart via reset() on alarm (change_detection.md Part III Level 1).
+    // (delta, h) are classical Page/Hawkins-Olwell defaults, Monte-Carlo sanity
+    // checked on THIS pipeline (not synthetic N(0,1)) at ~80000 simulated
+    // blocks with zero false alarms -- i.e. ARL0 > 10000 blocks, a safe lower
+    // bound, not a calibrated target. See the caveat in kalman_cusum.hpp.
+    if (key == "kalman_cusum") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .delta = 1.0, .h = 5.0},
+            "kalman_cusum");
     }
     return nullptr;
 }
