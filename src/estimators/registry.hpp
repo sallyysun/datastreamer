@@ -7,6 +7,7 @@
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermiter.hpp"
 #include "dependence/kalman_cusum.hpp"
+#include "dependence/kalman_glr.hpp"
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
@@ -105,6 +106,25 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
                 .delta = 1.0, .h = 3.5},
             "kalman_cusum");
+    }
+    // Window-limited GLR (change_detection.md Part III Level 2): the honest
+    // version of kalman_cusum for an UNKNOWN jump size, built as a matched
+    // filter on the filter's own closed-form step response
+    // rho_s(tau)=(1-K)^{s-tau} -- Monte-Carlo verified against this exact
+    // filter (empirical decay ratio 0.65-0.74 per block vs theoretical
+    // (1-K)=0.672 at sigma_omega2=1e-2, block=20). window=30 blocks (600
+    // ticks) bounds it to O(window) per block, per Lai's window-limited
+    // construction -- the unbounded sup-over-tau GLR is not
+    // streaming-admissible. h=10.0 is CALIBRATED the same way as
+    // kalman_cusum's h (experiments/calibrate_arl0.cpp, same target ARL0 of
+    // 1000 blocks): worst case over rho in {0.0, 0.3, 0.6, 0.8} is
+    // rho=0.8, empirical ARL0=2727 blocks (2.7x margin).
+    if (key == "kalman_glr") {
+        return std::make_unique<KalmanGlrDetector>(
+            KalmanGlrDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .window = 30, .min_lag = 1, .h = 10.0},
+            "kalman_glr");
     }
     return nullptr;
 }

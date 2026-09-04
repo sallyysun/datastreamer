@@ -97,10 +97,48 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   are not rivals, they are one dial at different decision hardness" — a soft posterior-weighted
   mix (Harrison-Stevens / IMM) would plausibly avoid this discontinuity; worth a direct comparison
   once BOCPD (softer than hard-reset CUSUM) exists.
-  **Not done yet, load-bearing before any number above is a full thesis result:** the
-  efficient-score / marginal-invariant CUSUM refinement (change_detection.md Part IV.2). $h$ is
-  now calibrated (see the $\mathrm{ARL}_0$ item just below) but still on the raw innovation, not
-  the marginal-invariant efficient score.
+  **The efficient-score / marginal-invariant CUSUM refinement (change_detection.md Part IV.2) is
+  NOT needed here, verified directly rather than assumed:** Part IV.2 exists to fix a
+  marginal-vs-dependence confound in the Fisher-scoring MLE branch (`gaussian_mle.hpp`, on the
+  other branch), where a pure marginal change can masquerade as a dependence change because the
+  score is built from raw normal-score products. This detector's observation is different by
+  construction — a windowed *Spearman's rho*, a rank statistic, invariant to any monotone
+  transform of either marginal on its own. Checked directly: a huge, purely marginal
+  location+scale jump on both legs ($x\mapsto5x{+}100$, $y\mapsto0.1y{-}50$, both monotone
+  increasing) with the copula (and hence true Spearman $\rho$) held *exactly* constant produced
+  **zero alarms**, before or after, and the CUSUM statistic never left the noise floor (peak 3.19
+  vs threshold 3.5). This structural invariance is a property of the shared block-Spearman
+  observation, not of the CUSUM statistic specifically, so it carries over to `kalman_glr` below
+  without a separate check.
+- ✅ **Change detection + restart, step 2: window-limited GLR** (`dependence/kalman_glr.hpp`, key
+  `kalman_glr`; build order step 5 in [change_detection.md](studies/change_detection.md), Part III
+  Level 2). `kalman_cusum` assumes a *known* design shift size $\delta$; GLR is the honest version
+  for an *unknown* jump size, built as a matched filter on the filter's own step response, and
+  window-limited (Lai 1995) to $O(\text{window})$ per block — the unbounded sup-over-$\tau$ GLR is
+  explicitly not streaming-admissible.
+  **Derived and verified the step response, not assumed it:** for this scalar steady-state local-level
+  filter, a unit level jump at $\tau$ contributes $\varrho_s(\tau)=(1-K)^{s-\tau}$ to the
+  standardized innovation ($K$ = steady-state Kalman gain, Bridge 1) — derived from the bias
+  recursion $b_s=(1-K)b_{s-1}+K\nu$. Monte Carlo (2000 seeds, real block-Spearman noise, not
+  synthetic): empirical decay ratio between consecutive post-jump blocks averaged 0.65–0.74 across
+  8 blocks vs the theoretical $(1-K)=0.672$ — matches within Monte Carlo noise at every lag.
+  Matched-filter accumulators updated via the shift-register recurrence
+  $A_t(j)=e_t+(1-K)A_{t-1}(j-1)$, statistic $g(j)=A(j)^2/N(j)$ maximized over lag $j$, $N(j)$
+  precomputed once in closed form.
+  **Result, full harness:** on `jump`, `kalman_glr` matches `kalman_cusum` exactly (59-tick
+  delay, 0 false alarms, identical RMSE 0.1177) — for a jump this large, "known size" vs "unknown
+  size, inferred" makes no practical difference. On `oscillate`, GLR alarms slightly less often
+  than CUSUM (20 vs 25) and its RMSE is worse (0.369 vs 0.340) — plausibly because GLR's own
+  matched-filter response to the reset-induced re-climb transient (a second, smaller apparent
+  "jump" as the filter relearns from a flat prior) doesn't line up as cleanly with the true
+  oscillation shape as CUSUM's simpler running sum does; not yet investigated further.
+  Also exposes `estimated_jump_size()` / `estimated_lag_blocks()` — a real cost/benefit over
+  CUSUM: on the synthetic verification jump (0.2→0.85 Spearman) it flagged the changepoint 1 block
+  after `kalman_cusum` would need to, with an initial size estimate order-of-magnitude-correct but
+  noisy (2.87 vs true 1.05 in atanh units, single realization) — useful as a diagnostic, not yet
+  validated as a point estimate.
+  Both detectors share a new common `ChangeDetector` interface (`dependence/change_detector.hpp`)
+  so the harness logs alarms without a dynamic_cast per detector type.
 - ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
   `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
   windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,
@@ -133,8 +171,10 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
 ### Experiments / device
 - ⬜ **Multi-seed replication + error bars** before any number is a thesis result (harness
   still uses a single fixed `seed = 42`).
-- ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum` (`experiments/calibrate_arl0.cpp`, run:
-  `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]`). Bootstrapped directly on the real
+- ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum` and `kalman_glr`
+  (`experiments/calibrate_arl0.cpp`, run:
+  `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates both detectors in one
+  run). Bootstrapped directly on the real
   pipeline's block-Spearman innovations — not synthetic $N(0,1)$ draws, not a formula, per
   [change_detection.md](studies/change_detection.md) Part VI. Sweeps $h$, measures empirical
   $\mathrm{ARL}_0$ over 6 seeds × 5000 blocks at each of $\rho\in\{0.0,0.3,0.6,0.8\}$ (the
@@ -149,7 +189,13 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   $h=3.5$: `jump` detection delay is unchanged (59 ticks — the 0.2→0.8 jump is large enough to
   clear either threshold about equally fast), `oscillate` alarms rose 21→25 and RMSE improved
   0.373→0.340 (closer to, but still short of, `kalman_fast`'s un-reset 0.316 — consistent with
-  the hard-reset-cost finding above). **Still open:** detection-delay metrics proper (this item
+  the hard-reset-cost finding above).
+  `kalman_glr`'s own sweep at the same target: $h{=}5\to$ worst case (at $\rho=0.8$) 92 blocks;
+  $h{=}10\to$ 2727 blocks; $h{=}15\to\;\geq\!30{,}000$ blocks. $h=10$ is calibrated (2.7× margin)
+  — and happens to match the value picked as an initial guess before calibrating, which is a
+  coincidence worth noting rather than trusting next time a config parameter changes (block,
+  window, or $\sigma_\omega^2$ all shift the calibration and must be re-run).
+  **Still open:** detection-delay metrics proper (this item
   only calibrates the false-alarm side); multi-seed error bars on the calibration itself (next
   item) and on any resulting delay number.
 - ⬜ Decide whether to keep the `StateManager` moments (now inside `DeviceState`) exposed, or

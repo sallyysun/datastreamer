@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "../src/estimators/dependence/kalman_cusum.hpp"
+#include "../src/estimators/dependence/change_detector.hpp"
 #include "../src/estimators/registry.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-                                           "kalman", "kalman_fast", "kalman_cusum"};
+                                           "kalman", "kalman_fast", "kalman_cusum", "kalman_glr"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);
@@ -70,13 +70,16 @@ int main(int argc, char** argv) {
         ests.push_back(std::move(e));
     }
 
-    // Non-owning CUSUM pointers so per-tick alarm state can be logged -- the
-    // diagnostic a changepoint detector needs that estimate() alone can't give
-    // (estimate() stays Spearman-only so every estimator is comparable in one
-    // space, same convention as CopulaSelector::selected() on the other branch).
-    std::vector<KalmanCusumDetector*> cusums(keys.size(), nullptr);
+    // Non-owning ChangeDetector pointers so per-tick alarm state can be logged
+    // -- the diagnostic a changepoint detector needs that estimate() alone
+    // can't give (estimate() stays Spearman-only so every estimator is
+    // comparable in one space, same convention as CopulaSelector::selected()
+    // on the other branch). ChangeDetector is a common interface over
+    // kalman_cusum and kalman_glr so this loop doesn't need one dynamic_cast
+    // per detector type.
+    std::vector<ChangeDetector*> detectors(keys.size(), nullptr);
     for (std::size_t e = 0; e < keys.size(); ++e) {
-        cusums[e] = dynamic_cast<KalmanCusumDetector*>(ests[e].get());
+        detectors[e] = dynamic_cast<ChangeDetector*>(ests[e].get());
     }
     struct AlarmTrace {
         std::string column;
@@ -85,7 +88,7 @@ int main(int argc, char** argv) {
     };
     std::vector<AlarmTrace> alarm_traces;
     for (std::size_t e = 0; e < keys.size(); ++e) {
-        if (cusums[e]) alarm_traces.push_back({keys[e] + "_alarm", e, {}});
+        if (detectors[e]) alarm_traces.push_back({keys[e] + "_alarm", e, {}});
     }
 
     std::vector<double> true_s(N);
@@ -99,7 +102,7 @@ int main(int argc, char** argv) {
             ests[e]->update(s.x, s.y);
             series[e].est.push_back(ests[e]->estimate());
         }
-        for (auto& at : alarm_traces) at.vals.push_back(cusums[at.est_index]->alarmed_this_block() ? 1 : 0);
+        for (auto& at : alarm_traces) at.vals.push_back(detectors[at.est_index]->alarmed_this_block() ? 1 : 0);
     }
 
     // Written relative to this directory (run the harness from experiments/).

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 
+#include "change_detector.hpp"
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
@@ -27,14 +28,18 @@
 // change_detection.md -- CUSUM = the Viterbi/max recursion over a 2-state
 // absorbing chain with a known post-change mean).
 //
-// CAVEAT, load-bearing (see notes/todo.md): (delta, h) below are the classical
-// Page / Hawkins-Olwell defaults, sanity-checked here by Monte Carlo against
-// their own in-control run length on the REAL pipeline (not synthetic iid
-// N(0,1) draws -- see checks/kalman_cusum_check.cpp). They are NOT calibrated
-// against a target ARL0 the way change_detection.md Part VI requires before any
-// detection-delay number becomes a thesis result. This class is the detector
-// that calibration will be run against, not a substitute for it.
-class KalmanCusumDetector : public DependenceEstimator {
+// (delta, h) are set in registry.hpp; h is bootstrap-calibrated against a
+// target ARL0 there (see experiments/calibrate_arl0.cpp and notes/todo.md) --
+// not read off a classical CUSUM table, per change_detection.md Part VI.
+//
+// Confirmed NOT to need the "efficient score" fix in change_detection.md Part
+// IV.2 (the marginal/dependence confound, distinction #2): the observation
+// this filter is built on is a windowed Spearman's rho, a RANK statistic, so
+// it is invariant to any monotone marginal transformation by construction --
+// verified directly (a large location+scale jump on both marginals, copula
+// held exactly constant, produced zero alarms and a CUSUM statistic that
+// never left the noise floor).
+class KalmanCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         KalmanLocalLevel::Config kalman;
@@ -89,7 +94,7 @@ public:
     // Change-detection diagnostics -- not part of DependenceEstimator, read the
     // same way copula::CopulaFit exposes lower_tail()/upper_tail(): free once
     // computed, meant to be read once per closed block (see alarmed_this_block()).
-    bool alarmed_this_block() const { return alarmed_; }
+    bool alarmed_this_block() const override { return alarmed_; }
     std::size_t alarm_count() const { return alarm_count_; }
     std::size_t blocks_since_alarm() const { return blocks_since_alarm_; }
     double cusum_pos() const { return s_pos_; }
