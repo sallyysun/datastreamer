@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
                                            "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd"};
+                                           "kalman_bocpd", "kalman_bocpd_fast"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);

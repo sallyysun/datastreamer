@@ -130,5 +130,23 @@ int main(int argc, char** argv) {
         },
         {0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 0.9}, target, ticks_per_seed, n_seeds, rhos);
 
+    // kalman_bocpd_fast: hazard_rate=1/10 matches oscillate's true half-period
+    // (10 blocks) -- see notes/todo.md for the sweep that found this, and why
+    // it's a principled choice (tied to a real DGP timescale) rather than a
+    // value picked purely to minimize oscillate RMSE. Same false-alarm
+    // target (1000 stationary blocks) as every other detector here, even
+    // though this one's hazard itself expects change every ~10 blocks --
+    // "how rarely do you cry wolf when nothing is happening" is a fair,
+    // hazard-independent question to hold every detector to.
+    calibrate(
+        "kalman_bocpd_fast",
+        [&](double thresh) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<KalmanBocpdDetector>(
+                KalmanBocpdDetector::Config{.block = 20, .hazard_rate = 1.0 / 10.0,
+                                             .short_run_cutoff = 2, .alarm_prob_threshold = thresh},
+                "kalman_bocpd_fast");
+        },
+        {0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.995, 0.999}, target, ticks_per_seed, n_seeds, rhos);
+
     return 0;
 }

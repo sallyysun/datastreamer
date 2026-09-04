@@ -206,6 +206,45 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   of any discrete segment at all. Net: BOCPD is not a uniform upgrade, it is a different bet that
   pays off exactly when its modeling assumption (rare, discrete, long-lived regimes) holds — and
   multi-seed replication is what turned that from a single-seed impression into a confirmed result.
+- ✅ **`kalman_bocpd_fast`** — same model, `hazard_rate` retuned from $1/1000$ to $1/10$ blocks,
+  the Bayesian analog of `kalman`/`kalman_fast`'s $\sigma_\omega^2$ contrast: hazard rate IS BOCPD's
+  own "how fast do I expect things to change" knob, so a single fixed value cannot be optimal
+  across regimes with different timescales any more than a single $\sigma_\omega^2$ can — this was
+  the direct, testable form of the "hazard prior mismatched to `oscillate`" diagnosis above, checked
+  rather than left as a plausible-sounding excuse.
+  **Swept hazard against `oscillate` first** (20 seeds each): RMSE fell monotonically from 0.368
+  ($1/1000$) to ~0.228 near hazard $\approx1/1.4$–$1/2$, but that regime is so short-memory it stops
+  modeling "regimes" at all and degenerates into an aggressive smoother. $1/10$ (matching
+  `oscillate`'s actual half-period of 10 blocks) was chosen instead of the numerically-best value
+  specifically because it ties to a real DGP timescale rather than being tuned to minimize one
+  scenario's RMSE — the difference between a principled setting and overfitting the test scenario.
+  $\mathrm{ARL}_0$-recalibrated at this hazard (same 1000-block target, same `calibrate_arl0.cpp`):
+  smallest threshold clearing it is 0.90 (1.25× margin); 0.95 used for a 2.1× margin, matching the
+  convention everywhere else in this file.
+  **Result, multi-seed harness, full comparison across all six Kalman-family entries (RMSE,
+  mean±SE):**
+
+  | scenario | `kalman` | `kalman_fast` | `kalman_cusum` | `kalman_glr` | `kalman_bocpd` | `kalman_bocpd_fast` |
+  |---|---|---|---|---|---|---|
+  | constant | 0.0208 | 0.0712 | 0.0721 | 0.0721 | **0.0189** | 0.0613 |
+  | drift | 0.1274 | 0.0921 | 0.0930 | 0.0928 | 0.1214 | **0.0961** |
+  | jump | 0.1288 | 0.0880 | 0.1146 | 0.1110 | **0.0598** | 0.0760 |
+  | stochastic | 0.0956 | **0.0735** | 0.0792 | 0.0776 | 0.0856 | 0.0800 |
+  | oscillate | 0.4153 | 0.3166 | 0.3477 | 0.3556 | 0.3683 | **0.2695** |
+
+  The hazard retune turned out **less of a trade-off than the oscillate-only sweep suggested**:
+  `kalman_bocpd_fast` isn't just better on `oscillate`, it's competitive almost everywhere except
+  `constant` — it beats `kalman_bocpd` outright on `drift` and `stochastic` (both are gradual,
+  continuous change, where shorter memory helps the same way `kalman_fast` beats `kalman`), loses
+  only moderately on `jump` (0.076 vs 0.060, still far ahead of `kalman_cusum`/`kalman_glr`'s
+  0.11+), and only really loses badly on `constant` (0.061 vs 0.019 — "expect frequent change" is
+  the one prior that's actively wrong when nothing ever changes).
+  **One real cost the RMSE table doesn't show:** on `jump`, `kalman_bocpd_fast` only detected the
+  changepoint in 9/20 seeds (vs `kalman_bocpd`'s 17/20) despite a *faster* mean delay when it did
+  (25.7±3.3 vs 31.9±3.4 ticks) — a fast hazard keeps the run-length posterior diffuse even under
+  stationarity, so a genuine large jump's signature is less cleanly distinguishable from the
+  model's constant background expectation of change. Detection reliability and detection speed are
+  not the same axis, and this hazard trades one for the other.
 - ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
   `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
   windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,
@@ -277,10 +316,14 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   — and happens to match the value picked as an initial guess before calibrating, which is a
   coincidence worth noting rather than trusting next time a config parameter changes (block,
   window, or $\sigma_\omega^2$ all shift the calibration and must be re-run).
-  `kalman_bocpd` sweeps `alarm_prob_threshold` instead of $h$ (`hazard_rate` fixed at $1/1000$,
-  already matching this target): threshold$=0.05\to$ worst case 357 blocks; $0.10\to$ 714;
-  $0.15\to$ 1071 (calibrated, only 7% margin — see the caveat under the BOCPD item above);
-  $0.90\to$ 2143. Full results and the wider caveat on that result are under the BOCPD item above.
+  `kalman_bocpd` and `kalman_bocpd_fast` sweep `alarm_prob_threshold` instead of $h$ (`hazard_rate`
+  fixed per-key, $1/1000$ and $1/10$ respectively). Post burn-in-bug-fix (see the BOCPD item
+  above): `kalman_bocpd` threshold$=0.05\to$ worst case 417 blocks; $0.10\to$ 1000 (bare minimum,
+  no margin); $0.15\to$ 1875 (calibrated, 1.875x margin). `kalman_bocpd_fast` needs a much higher
+  threshold for the same target since its hazard alone makes "short run" far more often true:
+  $0.80\to$ worst case 400 blocks; $0.90\to$ 1250 (bare minimum); $0.95\to$ 2143 (calibrated, 2.1x
+  margin). Full results for both, and the wider hazard-as-tuning-knob finding, are under the
+  BOCPD items above.
   **Still open:** detection-delay metrics proper (this item
   only calibrates the false-alarm side); multi-seed error bars on the calibration itself (next
   item) and on any resulting delay number.

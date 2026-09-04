@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
                                            "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd"};
+                                           "kalman_bocpd", "kalman_bocpd_fast"};
     // Which keys are detectors, determined once (independent of seed).
     std::vector<bool> is_detector(keys.size(), false);
     for (std::size_t e = 0; e < keys.size(); ++e) {

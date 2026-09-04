@@ -153,5 +153,33 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .short_run_cutoff = 2, .alarm_prob_threshold = 0.15},
             "kalman_bocpd");
     }
+    // Same model, hazard_rate retuned to 1/10 -- matching `oscillate`'s true
+    // half-period (10 blocks at block=20, period=400) -- so this is the
+    // Bayesian analog of kalman/kalman_fast's sigma_omega2 contrast: the
+    // hazard rate is BOCPD's own "how fast do I expect things to change"
+    // knob, and a single fixed value cannot be optimal across regimes with
+    // different timescales any more than a single sigma_omega2 can. Swept
+    // hazard on `oscillate` (notes/todo.md): RMSE fell monotonically from
+    // 0.368 (hazard=1/1000) to ~0.228 near hazard=1/1.4-1/2, but that regime
+    // is so short-memory it stops modeling "regimes" at all and just becomes
+    // an aggressive smoother; 1/10 (0.270 on oscillate, a real ~15%
+    // improvement over kalman_fast's 0.317) was chosen because it ties to an
+    // actual DGP timescale rather than a value tuned purely to minimize
+    // oscillate RMSE -- and it costs far less elsewhere (constant/drift/jump
+    // roughly 3x worse than kalman_bocpd's own default, vs 7-8x worse at the
+    // more extreme hazards). alarm_prob_threshold is separately
+    // ARL0-calibrated (experiments/calibrate_arl0.cpp) against the same
+    // 1000-block target as every other detector here: smallest threshold
+    // clearing the target is 0.90 (worst case, rho=0.6, ARL0=1250 -- only a
+    // 1.25x margin); 0.95 used instead for a comfortable ~2.1x margin (worst
+    // case ARL0=2143), matching the margin convention used for every other
+    // detector in this file.
+    if (key == "kalman_bocpd_fast") {
+        return std::make_unique<KalmanBocpdDetector>(
+            KalmanBocpdDetector::Config{
+                .block = 20, .hazard_rate = 1.0 / 10.0,
+                .short_run_cutoff = 2, .alarm_prob_threshold = 0.95},
+            "kalman_bocpd_fast");
+    }
     return nullptr;
 }
