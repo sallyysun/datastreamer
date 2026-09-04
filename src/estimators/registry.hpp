@@ -6,6 +6,7 @@
 #include "dependence/estimator.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermiter.hpp"
+#include "dependence/kalman_bocpd.hpp"
 #include "dependence/kalman_cusum.hpp"
 #include "dependence/kalman_glr.hpp"
 #include "dependence/kalman_local_level.hpp"
@@ -125,6 +126,28 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
                 .window = 30, .min_lag = 1, .h = 10.0},
             "kalman_glr");
+    }
+    // Bayesian Online Changepoint Detection (change_detection.md Part III
+    // Level 3 / build order step 6) on the same blockwise Fisher-z'd
+    // Spearman observation as the estimators above. Unlike kalman_cusum and
+    // kalman_glr, there is no reset() call anywhere -- estimate() is the
+    // run-length-weighted posterior mean, a soft Bayesian model average
+    // rather than a hard detect-and-restart. hazard_rate=1/1000 blocks
+    // matches the ARL0=1000-block target the other two detectors were
+    // calibrated against, so all three share the same "expected time between
+    // changes" operating point. alarm_prob_threshold=0.15 is separately
+    // ARL0-calibrated (experiments/calibrate_arl0.cpp) against the SAME
+    // target: worst case over rho in {0.0, 0.3, 0.6, 0.8} is rho=0.0,
+    // empirical ARL0=1071 blocks (only a 7% margin -- thinner than
+    // kalman_cusum/kalman_glr's 2x/2.7x, since the sweep grid here is coarser
+    // near the boundary; tighten the grid before trusting this margin
+    // closely).
+    if (key == "kalman_bocpd") {
+        return std::make_unique<KalmanBocpdDetector>(
+            KalmanBocpdDetector::Config{
+                .block = 20, .hazard_rate = 1.0 / 1000.0,
+                .short_run_cutoff = 2, .alarm_prob_threshold = 0.15},
+            "kalman_bocpd");
     }
     return nullptr;
 }

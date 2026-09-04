@@ -139,6 +139,53 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   validated as a point estimate.
   Both detectors share a new common `ChangeDetector` interface (`dependence/change_detector.hpp`)
   so the harness logs alarms without a dynamic_cast per detector type.
+- ✅ **Change detection + restart, step 3: BOCPD** (`dependence/kalman_bocpd.hpp`, key
+  `kalman_bocpd`; build order step 6, the Bayesian gold standard) — Adams & MacKay (2007) run-length
+  posterior on the same blockwise Fisher-z'd Spearman observation, with a conjugate Normal model
+  (KNOWN $\sigma_v^2$, unknown segment mean $\mu=\operatorname{atanh}\rho$) in place of the paper's
+  general NIW, since $\sigma_v^2$ already has a closed form throughout this Kalman/CUSUM/GLR line.
+  Unlike `kalman_cusum`/`kalman_glr`, **no `reset()` is ever called** — `estimate()` is the
+  run-length-weighted posterior mean, a soft Bayesian model average, which is exactly the mechanism
+  Part V predicts should avoid the hard-reset RMSE cost documented above. Truncated at
+  `max_run_length=150` blocks for $O(\text{max\_run\_length})$ per block, same bounded-window trade
+  as GLR.
+  **Found and fixed a real bug via direct verification, not a design choice:** $P(r_t{=}0\mid
+  \text{data})$ — the textbook "changepoint probability" — is **mathematically pinned to exactly
+  the hazard rate $H$ on every tick, independent of the data**, under a truly constant hazard: the
+  one-step marginal likelihood $S=\sum_r P(r_{t-1}{=}r)L(r)$ is a common factor in both the reset
+  branch ($H\cdot S$) and the total growth mass ($(1{-}H)\cdot S$), so it cancels in the
+  normalization. Derived this from the recursion algebra, then confirmed it empirically (flat at
+  exactly $0.0010=1/1000$ across a real synthetic jump). The genuine signal instead lives in how
+  $(1{-}H)$ redistributes *within* the growth branch — confirmed the MAP run length correctly
+  collapses to 1 at a true changepoint — so the alarm rule now thresholds $P(r_t\le
+  \text{short\_run\_cutoff}\mid\text{data})$ (cutoff=2) instead, which is genuinely data-dependent
+  (spiked 0.53→0.9999 across the two blocks after a synthetic 0.2→0.85 jump, back to baseline
+  ~0.001–0.002 within one more block).
+  **$\mathrm{ARL}_0$-calibrated** the same way and against the same target as `kalman_cusum`/
+  `kalman_glr` (`experiments/calibrate_arl0.cpp`, `hazard_rate` fixed at $1/1000$ blocks to match
+  their target directly; sweeps `alarm_prob_threshold` instead of $h$). Calibrated threshold 0.15,
+  worst case (at $\rho=0.0$) empirical $\mathrm{ARL}_0=1071$ blocks — **only a 7% margin**, thinner
+  than `kalman_cusum`/`kalman_glr`'s 2×/2.7×; the sweep grid is coarser near this boundary
+  (0.05 steps) and should be tightened before trusting the margin closely.
+  **Result, full harness — wins decisively on its home scenario, loses where its prior is
+  mismatched:** on `jump`, `kalman_bocpd` beats every other Kalman-family detector or estimator by
+  a wide margin — RMSE 0.064 vs `kalman_cusum`/`kalman_glr`'s 0.118 (a 46% reduction) and even
+  `kalman_fast`'s un-reset 0.092, plus a faster detection delay (39 vs 59 ticks). This is the
+  concrete confirmation of the Part V prediction: soft model-averaging really does avoid the hard
+  reset's forced re-climb from a flat prior. Same story on `constant` (RMSE 0.011, best of every
+  Kalman variant including plain `kalman`). But on `oscillate` (RMSE 0.385, worst of the Kalman
+  family) and `drift` (RMSE 0.106, worse than `kalman_fast`/`kalman_cusum`/`kalman_glr`'s 0.089),
+  it loses — the hazard prior assumes segments last ~1000 blocks on average, badly mismatched to
+  `oscillate`'s true regime length (~10 blocks, half the period) and to `drift`'s complete absence
+  of any discrete segment at all. Net: BOCPD is not a uniform upgrade, it is a different bet that
+  pays off exactly when its modeling assumption (rare, discrete, long-lived regimes) holds.
+  **Caveat found, not smoothed over:** this single-seed harness run shows 2 false alarms on
+  `constant` and 2 *before* the true jump on `jump` (out of ~125–250 blocks per run) — more than
+  the calibrated $\mathrm{ARL}_0{\approx}1071$ blocks would suggest for a run this short
+  ($\text{run\_length}/\mathrm{ARL}_0\approx0.12$–$0.23$ expected). Plausibly ordinary single-seed
+  variance given the thin calibration margin above, but not yet confirmed — needs the multi-seed
+  replication item below before trusting the false-alarm side of this comparison as much as the
+  RMSE side.
 - ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
   `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
   windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,
@@ -171,9 +218,9 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
 ### Experiments / device
 - ⬜ **Multi-seed replication + error bars** before any number is a thesis result (harness
   still uses a single fixed `seed = 42`).
-- ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum` and `kalman_glr`
+- ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum`, `kalman_glr`, and `kalman_bocpd`
   (`experiments/calibrate_arl0.cpp`, run:
-  `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates both detectors in one
+  `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates all three detectors in one
   run). Bootstrapped directly on the real
   pipeline's block-Spearman innovations — not synthetic $N(0,1)$ draws, not a formula, per
   [change_detection.md](studies/change_detection.md) Part VI. Sweeps $h$, measures empirical
@@ -195,6 +242,10 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   — and happens to match the value picked as an initial guess before calibrating, which is a
   coincidence worth noting rather than trusting next time a config parameter changes (block,
   window, or $\sigma_\omega^2$ all shift the calibration and must be re-run).
+  `kalman_bocpd` sweeps `alarm_prob_threshold` instead of $h$ (`hazard_rate` fixed at $1/1000$,
+  already matching this target): threshold$=0.05\to$ worst case 357 blocks; $0.10\to$ 714;
+  $0.15\to$ 1071 (calibrated, only 7% margin — see the caveat under the BOCPD item above);
+  $0.90\to$ 2143. Full results and the wider caveat on that result are under the BOCPD item above.
   **Still open:** detection-delay metrics proper (this item
   only calibrates the false-alarm side); multi-seed error bars on the calibration itself (next
   item) and on any resulting delay number.

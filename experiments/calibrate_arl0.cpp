@@ -1,5 +1,5 @@
 // ARL0 calibration for the Kalman-filter change detectors (kalman_cusum,
-// kalman_glr).
+// kalman_glr, kalman_bocpd).
 //
 // change_detection.md Part VI is explicit that no detector number is a thesis
 // result until it is compared at a MATCHED in-control average run length
@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "../src/estimators/dependence/change_detector.hpp"
+#include "../src/estimators/dependence/kalman_bocpd.hpp"
 #include "../src/estimators/dependence/kalman_cusum.hpp"
 #include "../src/estimators/dependence/kalman_glr.hpp"
 
@@ -70,12 +71,12 @@ double calibrate(const char* label,
             const double arl0 = measure_arl0([&make_detector, h] { return make_detector(h); },
                                               rho, ticks_per_seed, n_seeds, 1000);
             const double reported = std::fabs(arl0);
-            std::printf("  h=%.1f  rho=%.1f  ARL0%s=%.0f blocks\n",
+            std::printf("  h=%.2f  rho=%.2f  ARL0%s=%.0f blocks\n",
                         h, rho, arl0 < 0 ? " (lower bound, zero alarms observed)" : "", reported);
             if (reported < worst_arl0) { worst_arl0 = reported; worst_rho = rho; }
         }
         const bool meets = worst_arl0 >= target;
-        std::printf("h=%.1f  worst-case (rho=%.1f) ARL0 = %.0f blocks  -- %s\n\n",
+        std::printf("h=%.2f  worst-case (rho=%.2f) ARL0 = %.0f blocks  -- %s\n\n",
                      h, worst_rho, worst_arl0, meets ? "meets target" : "BELOW target");
         if (meets && calibrated_h < 0.0) calibrated_h = h;
     }
@@ -83,7 +84,7 @@ double calibrate(const char* label,
         std::printf("%s: no h in the sweep range met the target -- widen the sweep\n\n", label);
         return -1.0;
     }
-    std::printf("%s: calibrated h = %.1f for target ARL0 = %.0f blocks (worst case over rho)\n\n",
+    std::printf("%s: calibrated h = %.2f for target ARL0 = %.0f blocks (worst case over rho)\n\n",
                 label, calibrated_h, target);
     return calibrated_h;
 }
@@ -112,6 +113,22 @@ int main(int argc, char** argv) {
                 KalmanGlrDetector::Config{.kalman = kalman_cfg, .window = 30, .min_lag = 1, .h = h}, "kalman_glr");
         },
         {5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    // kalman_bocpd sweeps alarm_prob_threshold, not h -- same "smallest
+    // threshold meeting the target" search, since ARL0 also rises
+    // monotonically with a stricter probability threshold. hazard_rate is
+    // fixed at the config default (1/1000, matching this target already);
+    // what's being calibrated here is the ALARM RULE built on top of that
+    // posterior, not the posterior itself.
+    calibrate(
+        "kalman_bocpd",
+        [&](double thresh) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<KalmanBocpdDetector>(
+                KalmanBocpdDetector::Config{.block = 20, .hazard_rate = 1.0 / 1000.0,
+                                             .short_run_cutoff = 2, .alarm_prob_threshold = thresh},
+                "kalman_bocpd");
+        },
+        {0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 0.9}, target, ticks_per_seed, n_seeds, rhos);
 
     return 0;
 }
