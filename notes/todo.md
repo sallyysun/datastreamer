@@ -125,13 +125,19 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   Matched-filter accumulators updated via the shift-register recurrence
   $A_t(j)=e_t+(1-K)A_{t-1}(j-1)$, statistic $g(j)=A(j)^2/N(j)$ maximized over lag $j$, $N(j)$
   precomputed once in closed form.
-  **Result, full harness:** on `jump`, `kalman_glr` matches `kalman_cusum` exactly (59-tick
+  **Result, single-seed=42:** on `jump`, `kalman_glr` matches `kalman_cusum` exactly (59-tick
   delay, 0 false alarms, identical RMSE 0.1177) — for a jump this large, "known size" vs "unknown
   size, inferred" makes no practical difference. On `oscillate`, GLR alarms slightly less often
   than CUSUM (20 vs 25) and its RMSE is worse (0.369 vs 0.340) — plausibly because GLR's own
   matched-filter response to the reset-induced re-climb transient (a second, smaller apparent
   "jump" as the filter relearns from a flat prior) doesn't line up as cleanly with the true
   oscillation shape as CUSUM's simpler running sum does; not yet investigated further.
+  **Multi-seed (20 seeds, mean±SE, see the replication item below) refines this:** on `jump`,
+  `kalman_glr` RMSE = 0.1110±0.0032 vs `kalman_cusum`'s 0.1146±0.0027 — GLR is marginally better on
+  average, but the gap is under 1 combined SE, i.e. not clearly distinguishable from noise at this
+  seed count, consistent with (not contradicting) the single-seed "makes no practical difference"
+  reading above. On `oscillate` the gap is real: `kalman_cusum` 0.348±0.003 vs `kalman_glr`
+  0.356±0.003, several SEs apart.
   Also exposes `estimated_jump_size()` / `estimated_lag_blocks()` — a real cost/benefit over
   CUSUM: on the synthetic verification jump (0.2→0.85 Spearman) it flagged the changepoint 1 block
   after `kalman_cusum` would need to, with an initial size estimate order-of-magnitude-correct but
@@ -163,29 +169,43 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   ~0.001–0.002 within one more block).
   **$\mathrm{ARL}_0$-calibrated** the same way and against the same target as `kalman_cusum`/
   `kalman_glr` (`experiments/calibrate_arl0.cpp`, `hazard_rate` fixed at $1/1000$ blocks to match
-  their target directly; sweeps `alarm_prob_threshold` instead of $h$). Calibrated threshold 0.15,
-  worst case (at $\rho=0.0$) empirical $\mathrm{ARL}_0=1071$ blocks — **only a 7% margin**, thinner
-  than `kalman_cusum`/`kalman_glr`'s 2×/2.7×; the sweep grid is coarser near this boundary
-  (0.05 steps) and should be tightened before trusting the margin closely.
-  **Result, full harness — wins decisively on its home scenario, loses where its prior is
-  mismatched:** on `jump`, `kalman_bocpd` beats every other Kalman-family detector or estimator by
-  a wide margin — RMSE 0.064 vs `kalman_cusum`/`kalman_glr`'s 0.118 (a 46% reduction) and even
-  `kalman_fast`'s un-reset 0.092, plus a faster detection delay (39 vs 59 ticks). This is the
-  concrete confirmation of the Part V prediction: soft model-averaging really does avoid the hard
-  reset's forced re-climb from a flat prior. Same story on `constant` (RMSE 0.011, best of every
-  Kalman variant including plain `kalman`). But on `oscillate` (RMSE 0.385, worst of the Kalman
-  family) and `drift` (RMSE 0.106, worse than `kalman_fast`/`kalman_cusum`/`kalman_glr`'s 0.089),
-  it loses — the hazard prior assumes segments last ~1000 blocks on average, badly mismatched to
-  `oscillate`'s true regime length (~10 blocks, half the period) and to `drift`'s complete absence
+  their target directly; sweeps `alarm_prob_threshold` instead of $h$). Calibrated threshold 0.15
+  (smallest sweep point clearing the target was 0.10, worst case ARL0 exactly 1000 with no margin;
+  0.15 gives a comfortable 1.875× margin, worst case ARL0=1875 blocks at $\rho=0.0$ — same
+  margin-over-bare-minimum trade as `kalman_cusum`/`kalman_glr`).
+  **A second real bug, this time caught by multi-seed replication, not single-seed inspection:**
+  the first calibration pass (before the fix described next) reported only a 7% ARL0 margin and,
+  consistently, the single-seed harness run showed 2 false alarms before the `jump` scenario's true
+  jump — plausible as single-seed variance on its own, EXCEPT `experiments/multiseed.cpp` (20
+  seeds) showed the SAME ~2.1 false alarms per run on every seed, not scattered noise — a
+  systematic effect, not variance. Root cause: `alarmed_this_block()` fired
+  **deterministically on blocks 0–1 of every run, regardless of data** (verified directly: 200
+  stationary seeds, 100% alarm rate at blocks 0 and 1, 0% from block 2 on) — with fewer than
+  `short_run_cutoff`+2 blocks of history, EVERY active hypothesis trivially satisfies
+  $r\le\text{short\_run\_cutoff}$ (there has not been time for a longer-run alternative to exist),
+  so $P(\text{short run})\approx1$ independent of any real evidence. Fixed by suppressing alarms
+  until enough history has accumulated for a genuine "short vs long" comparison to be meaningful;
+  reconfirmed at 0 spurious alarms in the same 200-seed check, then recalibrated (the number above)
+  and reverified on the harness: false-alarms-before-jump dropped from 2.10±0.07 to 0.10±0.07
+  across 20 seeds, now in the same near-zero range as `kalman_cusum` (0.05±0.05) and `kalman_glr`
+  (0.00±0.00). This is the concrete payoff of building the multi-seed tool now rather than trusting
+  single-seed calibration margins.
+  **Result, multi-seed harness (20 seeds, mean±SE) — wins decisively on its home scenario, loses
+  where its prior is mismatched:** on `jump`, `kalman_bocpd` RMSE = 0.0598±0.0022 vs
+  `kalman_cusum`'s 0.1146±0.0027 and `kalman_glr`'s 0.1110±0.0032 — a ~48% reduction, more than 15
+  standard errors apart, not a single-seed artifact — plus a faster mean detection delay (31.9±3.4
+  vs 46.4±4.9 / 49.6±6.9 ticks). This is the concrete, now statistically solid confirmation of the
+  Part V prediction: soft model-averaging really does avoid the hard reset's forced re-climb from a
+  flat prior. Same story on `constant` (RMSE 0.0189±0.0021, second only to the cumulative
+  estimators and better than every other Kalman variant). But on `oscillate` (RMSE 0.368±0.003,
+  worst of the Kalman-family detectors — `kalman_fast` 0.317±0.002 < `kalman_cusum` 0.348±0.003 <
+  `kalman_glr` 0.356±0.003 < `kalman_bocpd`), `drift` (0.121±0.002 vs `kalman_cusum`/`kalman_glr`'s
+  0.093), and `stochastic` (0.086±0.006 vs 0.078–0.079) it loses, every gap several SEs wide — the
+  hazard prior assumes segments last ~1000 blocks on average, badly mismatched to `oscillate`'s
+  true regime length (~10 blocks, half the period) and to `drift`/`stochastic`'s complete absence
   of any discrete segment at all. Net: BOCPD is not a uniform upgrade, it is a different bet that
-  pays off exactly when its modeling assumption (rare, discrete, long-lived regimes) holds.
-  **Caveat found, not smoothed over:** this single-seed harness run shows 2 false alarms on
-  `constant` and 2 *before* the true jump on `jump` (out of ~125–250 blocks per run) — more than
-  the calibrated $\mathrm{ARL}_0{\approx}1071$ blocks would suggest for a run this short
-  ($\text{run\_length}/\mathrm{ARL}_0\approx0.12$–$0.23$ expected). Plausibly ordinary single-seed
-  variance given the thin calibration margin above, but not yet confirmed — needs the multi-seed
-  replication item below before trusting the false-alarm side of this comparison as much as the
-  RMSE side.
+  pays off exactly when its modeling assumption (rare, discrete, long-lived regimes) holds — and
+  multi-seed replication is what turned that from a single-seed impression into a confirmed result.
 - ✅ **Local-level Kalman estimator** (`dependence/kalman_local_level.hpp`, keys `kalman`/
   `kalman_fast`). Emits $y_t=\operatorname{atanh}(\hat\rho^S_t)$ every `block` ticks from a
   windowed Spearman, with **known** observation variance $\sigma_v^2\approx 1.06/(\text{block}-3)$,
@@ -216,8 +236,23 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   Level 1) needs, and the next thing to build on top of this.
 
 ### Experiments / device
-- ⬜ **Multi-seed replication + error bars** before any number is a thesis result (harness
-  still uses a single fixed `seed = 42`).
+- ✅ **Multi-seed replication + error bars**, for the Kalman/CUSUM/GLR/BOCPD line
+  (`experiments/multiseed.cpp`, run: `make multiseed && ./multiseed <scenario> [n_seeds] [base_seed]`,
+  default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
+  as `./experiment` so results are directly comparable; reports RMSE and, for every `ChangeDetector`,
+  alarm count / false-alarms-before-jump / detection delay as mean±SE, written to
+  `results/multiseed_<scenario>.csv`. Still single-seed (only `./experiment`, not this) for every
+  estimator OUTSIDE this detector line (Xiao/Hermite/gaussian_mle families, and everything on the
+  parametric-copula branch) — this closes the caveat for the Kalman-filter work specifically, not
+  the whole harness.
+  **Not just a formality — it caught a real bug the single-seed check missed:** the first
+  `kalman_bocpd` ARL0 calibration and harness run both looked plausible in isolation (7% ARL0
+  margin, 2 false alarms in one `jump` run), but running 20 seeds showed the SAME ~2.1 false alarms
+  on nearly every seed — a systematic bug (alarms firing deterministically in the first 2 blocks of
+  every run, independent of data), not sampling variance. See the BOCPD item above for the fix and
+  the corrected, now-verified numbers. This is the concrete case for why this item was worth doing
+  now rather than deferring it: a single well-chosen seed's plausible-looking numbers do not
+  substitute for it.
 - ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum`, `kalman_glr`, and `kalman_bocpd`
   (`experiments/calibrate_arl0.cpp`, run:
   `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates all three detectors in one

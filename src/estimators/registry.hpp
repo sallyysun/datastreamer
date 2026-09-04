@@ -137,11 +137,15 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     // calibrated against, so all three share the same "expected time between
     // changes" operating point. alarm_prob_threshold=0.15 is separately
     // ARL0-calibrated (experiments/calibrate_arl0.cpp) against the SAME
-    // target: worst case over rho in {0.0, 0.3, 0.6, 0.8} is rho=0.0,
-    // empirical ARL0=1071 blocks (only a 7% margin -- thinner than
-    // kalman_cusum/kalman_glr's 2x/2.7x, since the sweep grid here is coarser
-    // near the boundary; tighten the grid before trusting this margin
-    // closely).
+    // target, AFTER fixing a real burn-in bug the first calibration pass
+    // missed (see kalman_bocpd.hpp: alarmed_this_block() used to fire
+    // deterministically on the first ~2 blocks of every run, independent of
+    // data -- multi-seed replication caught it via an anomalously high
+    // false-alarm rate the single-seed check hadn't revealed). The smallest
+    // threshold clearing the target post-fix is 0.10 (worst case, rho=0.0,
+    // ARL0 exactly 1000 -- no real margin); 0.15 is used instead for a
+    // comfortable 1.875x margin (worst case ARL0=1875 blocks), same
+    // conservatism-for-margin trade already made for kalman_cusum/kalman_glr.
     if (key == "kalman_bocpd") {
         return std::make_unique<KalmanBocpdDetector>(
             KalmanBocpdDetector::Config{

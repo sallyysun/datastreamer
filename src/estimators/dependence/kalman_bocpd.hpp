@@ -169,7 +169,19 @@ public:
         for (std::size_t r = 0; r < log_prob_.size() && r <= config_.short_run_cutoff; ++r) {
             p_short_run_ += std::exp(log_prob_[r]);
         }
-        alarmed_ = p_short_run_ > config_.alarm_prob_threshold;
+        // Suppress alarms while the run-length array is itself still shorter
+        // than short_run_cutoff+2: with too few blocks of history, EVERY
+        // active hypothesis satisfies r<=short_run_cutoff trivially (there
+        // has not been time for a longer-run alternative to even exist), so
+        // P(short run) is deterministically ~1 regardless of data -- verified
+        // directly: 100% spurious alarm at blocks 0-1 on a stationary stream
+        // across 200 seeds, independent of sigma_omega2 or any real evidence.
+        // This guard applies after EVERY reset() (including a genuine
+        // detect-and-... well, there is no hard reset here, but external
+        // reset() calls between harness runs hit it too), not just at
+        // startup, which is exactly where it needs to apply.
+        const bool long_enough_history = blocks_ > config_.short_run_cutoff + 1;
+        alarmed_ = long_enough_history && (p_short_run_ > config_.alarm_prob_threshold);
         if (alarmed_) ++alarm_count_;
     }
 

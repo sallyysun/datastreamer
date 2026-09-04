@@ -16,7 +16,10 @@ experiment:
 calibrate_arl0:
 	$(CXX) calibrate_arl0.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o calibrate_arl0
 
-clean:
-	rm -f experiment calibrate_arl0
+multiseed:
+	$(CXX) multiseed.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o multiseed
 
-.PHONY: experiment calibrate_arl0 clean
+clean:
+	rm -f experiment calibrate_arl0 multiseed
+
+.PHONY: experiment calibrate_arl0 multiseed clean
