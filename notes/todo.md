@@ -206,6 +206,18 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   of any discrete segment at all. Net: BOCPD is not a uniform upgrade, it is a different bet that
   pays off exactly when its modeling assumption (rare, discrete, long-lived regimes) holds — and
   multi-seed replication is what turned that from a single-seed impression into a confirmed result.
+  **This win DOES survive fair per-family tuning, unlike `kalman_fast`'s apparent `oscillate` win
+  (see the ⚠️ correction under the local-level Kalman item).** Sweeping each competing family's own
+  forgetting parameter on `jump` (20 seeds each): best Xiao is $\lambda=0.99\to0.0798$, best Hermite
+  is $\lambda=0.01\to0.0815$, best plain Kalman is $\sigma_\omega^2=10^{-3}\to0.0840$ — all three
+  already at or near their defaults, and all beaten by `kalman_bocpd`'s **0.0598** by ~25%.
+  **That gap is the one genuinely structural result in this whole line of work:** no single fixed
+  forgetting rate can be simultaneously long-memory (low variance while the regime is stable) and
+  short-memory (fast adaptation right after it breaks) — every fixed-$\lambda$ estimator has to
+  pick one compromise and live with it. BOCPD does not have to: its run-length posterior effectively
+  *switches* memory length based on evidence. That is a capability a fixed $\lambda$ cannot
+  replicate at any tuning, which is exactly why this gap survives tuning when the `oscillate` one
+  did not.
 - ✅ **`kalman_bocpd_fast`** — same model, `hazard_rate` retuned from $1/1000$ to $1/10$ blocks,
   the Bayesian analog of `kalman`/`kalman_fast`'s $\sigma_\omega^2$ contrast: hazard rate IS BOCPD's
   own "how fast do I expect things to change" knob, so a single fixed value cannot be optimal
@@ -266,10 +278,28 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   **Result, full harness (`experiments/results/experiment_*.csv`):** `kalman` (slow,
   $\sigma_\omega^2=10^{-4}$) is competitive with the cumulative estimators on `constant` (RMSE
   0.017 vs `gaussian_mle`'s 0.015); `kalman_fast` ($\sigma_\omega^2=10^{-2}$) is competitive with
-  the best `_ew` estimators on `drift`/`jump`/`stochastic`, and **beats every other estimator in
-  the suite, including all `_ew` variants, on `oscillate`** (RMSE 0.316 vs `windowed_rank`'s 0.361
-  and `hermite_ew`'s 0.345) — the fastest-changing, hardest scenario, which is exactly where a
-  genuinely adaptive filter should have the edge over a fixed window or fixed $\lambda$.
+  the best `_ew` estimators on `drift`/`jump`/`stochastic` and beats them on `oscillate`
+  (RMSE 0.316 vs `windowed_rank`'s 0.361 and `hermite_ew`'s 0.345).
+  ⚠️ **CORRECTED 2026-09-06 — that `oscillate` comparison was NOT like-for-like, and the earlier
+  wording ("beats every other estimator in the suite, including all `_ew` variants") was an
+  overclaim.** It compared `kalman_fast` against `xiao_ew`/`hermite_ew` **at their default
+  $\lambda$** (0.99 / 0.01), which are far too slow-forgetting for a period-400 oscillation — not
+  against those families tuned for the scenario. Sweeping each family's own forgetting parameter on
+  `oscillate` (20 seeds each) reverses the conclusion outright:
+
+  | family | best setting | `oscillate` RMSE |
+  | --- | --- | --- |
+  | Xiao | $\lambda=0.95$ | **0.1826** |
+  | Hermite | $\lambda=0.05$ | 0.1879 |
+  | Kalman | $\sigma_\omega^2=0.3$ | 0.2256 |
+
+  Properly tuned, Xiao and Hermite beat the best achievable Kalman filter on `oscillate` by ~19%,
+  and the Kalman curve **plateaus** near 0.226 as $\sigma_\omega^2\to\infty$ — it cannot be tuned
+  past that, because at $K\to1$ it is reading its block observation as-is, and that observation
+  still carries the $m/2$ aggregation lag and the $\sigma_v^2\approx1.06/(m-3)\approx0.062$ noise
+  floor derived above. The block-aggregation cost is a hard ceiling, not a tuning choice. So the
+  local-level filter's value here is **not** raw tracking accuracy — see the corrected summary
+  under the BOCPD item for what it actually buys.
   Exposes `innovation()` / `innovation_variance()` / `standardized_innovation()` /
   `kalman_gain()` — the exact quantities an innovation-CUSUM (`change_detection.md` Part III
   Level 1) needs, and the next thing to build on top of this.
