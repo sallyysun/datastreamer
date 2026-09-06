@@ -454,7 +454,46 @@ on evidence: long while the segment persists, collapsing to short the moment the
 No fixed $\lambda$ can do that at any tuning, which is exactly why this gap survives fair tuning and
 the other did not.
 
-### 6.3 Why hard reset costs RMSE
+### 6.3 The tuning sweeps are a direct measurement of Part 0's prediction
+
+[change_detection.md](change_detection.md) Part 0 derives the trade-off theoretically. Writing
+$\mathrm{ESS} \approx (2-\alpha)/\alpha$ for the effective sample size of a geometric-forgetting
+estimator:
+
+$$
+\mathrm{MSE}(\mathrm{ESS}) \;\approx\;
+\underbrace{\frac{\sigma^2}{\mathrm{ESS}}}_{\text{variance}}
+\;+\;
+\underbrace{\left(\dot\theta \, \frac{\mathrm{ESS}}{2}\right)^{\!2}}_{\text{lag}},
+$$
+
+whose minimiser depends on $\dot\theta$ — how fast dependence is currently moving. The prediction is
+that the optimal memory length is a **property of the regime, not of the estimator**, and that it
+should shorten as $\dot\theta$ grows.
+
+The §5.4 sweeps measure exactly this. Converting each family's optimum to $\mathrm{ESS}$ (Xiao:
+$\alpha = 1-\lambda$; Hermite: $\alpha = \lambda$ — the mirror-image convention Part 0 tabulates):
+
+| Scenario | Xiao optimum | Hermite optimum | implied $\mathrm{ESS}$ | regime $\dot\theta$ |
+| --- | --- | --- | --- | --- |
+| `constant` | cumulative | cumulative | $\to \infty$ | zero |
+| `jump` | $\lambda = 0.99$ | $\lambda = 0.01$ | $\approx 199$ ticks | zero except at one instant |
+| `oscillate` | $\lambda = 0.95$ | $\lambda = 0.05$ | $\approx 39$ ticks | large, continuous |
+
+**Two independent estimator families land on the same $\mathrm{ESS}$ in each regime** — 199 ticks on
+`jump`, 39 ticks on `oscillate` — despite having different internals, different bin/basis
+representations, and reciprocal parameter conventions. That is the theory's central claim confirmed
+quantitatively: the optimum is set by the data-generating process, not the estimator, and it shortens
+by a factor of ~5 as $\dot\theta$ goes from "rare jump" to "continuously oscillating".
+
+It also sharpens why §6.2's BOCPD result matters. Part 0's boxed conclusion — *no fixed $\lambda$
+dominates, so the estimator must set its own memory* — is a statement about a curve every
+fixed-$\lambda$ estimator is stuck on. The `oscillate` correction in §5.4 shows `kalman_fast` was
+merely at a **better point on that same curve** than `xiao_ew`'s default, which is why sweeping
+$\lambda$ erased its advantage entirely. BOCPD is the one estimator here that is not on the curve at
+all, and correspondingly the one whose advantage survived.
+
+### 6.4 Why hard reset costs RMSE
 
 By the time an alarm fires (~46 ticks on `jump`), the un-reset filter has already partly adapted
 toward the new level. `reset()` discards that and restarts from a flat prior, so the estimator
