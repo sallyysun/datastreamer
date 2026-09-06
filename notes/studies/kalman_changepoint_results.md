@@ -69,14 +69,71 @@ Mostly **layer 3**, on one layer 2 choice, tested against several layer 1 choice
 | Layer | Question | Sections |
 | --- | --- | --- |
 | **1 — assume** | Which family generated the data? | [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families) |
-| **2 — estimate** | How do we track ρ as it moves? | §0.9, §3.1–3.3, §3.9, §4.1, §5.1, §6.1 |
-| **3 — handle change** | Forget, or detect and restart? | §0.10, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
+| **2 — estimate** | How do we track ρ as it moves? | §0.10, §3.1–3.3, §3.9, §4.1, §5.1, §6.1 |
+| **3 — handle change** | Forget, or detect and restart? | §0.11, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
 | *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §8, [§9](#9-reproduction) |
 
 **The headline is a layer-3 result:** on a jump, continuous adaptation *beat* explicit
 detection — the restart discarded a nearly-converged estimate.
 
-### 0.3 The copula, and what ρ throws away
+### 0.3 What we have tried, and what we have not
+
+24 estimators are registered. Laid out on the three layers, the coverage is lopsided.
+
+```text
+LAYER 1  WHAT DO I ASSUME?
+  ✓ Nonparametric    xiao, xiao_ew, xiao_win, hermite, hermite_ew, windowed_rank
+  ✓ Parametric       gaussian_mle, clayton_mle, gumbel_mle, t_mle, copula_select
+  ✓ DGP families     gaussian, clayton, gumbel, t          (all four, §10)
+  ✗ Marginals        rank-PIT never built — standardization only
+
+LAYER 2  HOW DO I ESTIMATE?
+  ✓ Sliding window   windowed_rank
+  ✓ Fixed forgetting every _ew variant
+  ✓ Linear-Gaussian  kalman, kalman_fast
+  ✗ VFF              forgetting rate never made adaptive
+  ✗ EKF / UKF        never tried
+  ✗ Particle filter  never tried
+  ✗ Coefficient      only scalar rho is ever monitored; the Hermite a_jk
+    monitoring       vector is computed, then discarded
+
+LAYER 3  HOW DO I HANDLE CHANGE?
+  ✓ Detectors        CUSUM, GLR, EWMA chart, Shiryaev-Roberts, BOCPD
+  ✓ Hard reset       the only alarm response tested
+  ✗ Covariance bump  proposed in §11.4, never built
+  ✗ No-restart       detector as a signal without restarting — never tried
+```
+
+**The biggest gap is a hole in the middle of the matrix.** Every detector wraps
+`KalmanLocalLevel`. None has ever been put on `xiao`, `hermite`, or an MLE.
+
+|              | Fixed forgetting | VFF | CUSUM | GLR | EWMA | SR | BOCPD |
+| ------------ | ---------------- | --- | ----- | --- | ---- | -- | ----- |
+| **Xiao**     | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Hermite**  | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **MLEs**     | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| **Kalman**   | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+So every detection result here is **conditional on one layer-2 choice**. We cannot yet
+say whether detection helps *estimators in general*, only whether it helps the Kalman
+filter — and [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
+says that for a jump, it does not.
+
+**Where the particle filter would go.** Layer 2, replacing the Kalman filter, not
+competing with the detectors. Kalman assumes the hidden state moves linearly with Gaussian
+noise. Spearman's ρ is bounded on $(-1,1)$ and its block estimate is not Gaussian near the
+edges, so a nonlinear filter is the honest version. It costs O(number of particles) per
+tick instead of O(1) — affordable under the relaxed budget, and untested.
+
+**Three gaps that matter most**
+
+1. **Detectors on non-Kalman estimators** — closes the empty matrix above.
+2. **VFF** — it is the direct rival to detection in layer 3, and §11 says the rival is
+   currently winning. Not having built it means the comparison is incomplete.
+3. **Alarm response other than hard reset** — §11 shows the reset *is* the cost, so the
+   fix belongs here.
+
+### 0.4 The copula, and what ρ throws away
 
 Two stocks, two questions: *how does each behave alone* (marginals) and *how do they move
 together* (dependence).
@@ -102,7 +159,7 @@ change of shape at fixed ρ is invisible to all of them (distinction 1). Monitor
 Hermite coefficient vector instead — an O(k) object the estimator already computes and
 then discards — is the cheapest available fix.
 
-### 0.4 Ranks, and why the current code is exposed
+### 0.5 Ranks, and why the current code is exposed
 
 **Rank-PIT**: replace a value by its rank over what you've seen. 87th of 100 → 0.87. No
 assumption about the distribution's shape.
@@ -119,7 +176,7 @@ value**. Rank-PIT is open in [todo.md](../todo.md).
 [§4.4](#44-marginal-invariance-distinction-2--confirmed-no-fix-needed) shows the current
 approach survives the *simulated* DGPs; that is not a defence against real returns.
 
-### 0.5 The five distinctions
+### 0.6 The five distinctions
 
 Why a copula changepoint is harder than the changepoints most detectors target. Cited by
 number elsewhere; full statements in [roadmap.md](roadmap.md).
@@ -135,7 +192,7 @@ number elsewhere; full statements in [roadmap.md](roadmap.md).
 **Distinction 3 undermines the theory**: every optimality result in
 [§12](#12-references) assumes i.i.d. pre-change data. Rank streams are not.
 
-### 0.6 Three terms used later
+### 0.7 Three terms used later
 
 **Functional** — a function that eats a whole object and returns a number. ρ is a
 functional of the copula, and a lossy one. *You choose which functional the detector
@@ -153,7 +210,7 @@ much you'd have won betting against "nothing changed" — and it holds without i
 which is exactly what distinction 3 destroys.
 [change_detection.md](change_detection.md) Part IV.1 calls this the strongest novelty
 candidate in the project; none of that literature is in the library yet.
-### 0.7 Forgetting, and why an optimal memory exists
+### 0.8 Forgetting, and why an optimal memory exists
 
 The standard streaming device is the **exponentially weighted moving average**: for observations
 $y_1,\dots,y_t$ and a rate $\alpha \in (0,1]$,
@@ -190,7 +247,7 @@ $\lambda$ is the *update weight*, so smaller $\lambda$ = longer memory ($\alpha 
 reduce to the same $\text{ESS} = (2-\alpha)/\alpha$. Getting this backwards silently inverts an
 experiment — see the header of `src/estimators/registry.hpp`.
 
-### 0.8 Blocks, and the Fisher transform
+### 0.9 Blocks, and the Fisher transform
 
 Two obstacles stop us from filtering $\hat\rho_S$ tick by tick.
 
@@ -222,7 +279,7 @@ the denominator of the signal-to-noise ratio, leaving one scalar to choose inste
 Blocking is not free (§6.1), but it buys an *exactly* linear-Gaussian model, so the optimal filter is
 closed-form rather than an EKF/UKF.
 
-### 0.9 State-space models and the Kalman filter
+### 0.10 State-space models and the Kalman filter
 
 **Definition (linear-Gaussian state-space model).** A hidden state evolving by a linear rule,
 observed through linear noise (**[Kalman 1960]**; textbook treatments **[Harvey 1989]**,
@@ -239,7 +296,7 @@ $$
 
 with $\omega_t, v_t$ independent. This particular one — a random walk seen in noise — is the
 **local-level model**. Here $z_t = \operatorname{atanh}\rho_t$ is the true dependence and $y_t$ is
-the block measurement of §0.8. The two variances say everything: $\sigma_\omega^2$ is *how fast we
+the block measurement of §0.9. The two variances say everything: $\sigma_\omega^2$ is *how fast we
 believe the world changes*, $\sigma_v^2$ is *how noisy our measurement is*.
 
 #### The idea in one paragraph
@@ -302,13 +359,13 @@ $$
 \hat z_t \;=\; \hat z_{t-1} + K(y_t - \hat z_{t-1}) \;=\; (1-K)\,\hat z_{t-1} + K y_t ,
 $$
 
-which is exactly the EWMA of §0.7 with $\alpha = K$, i.e. $\boxed{\lambda = 1 - K}$. **Every
+which is exactly the EWMA of §0.8 with $\alpha = K$, i.e. $\boxed{\lambda = 1 - K}$. **Every
 fixed-$\lambda$ estimator in this codebase is this filter at steady state** — they are not analogous,
 they are the same recursion. This is "Bridge 1" (§3.3, verified numerically in §4.1). The filter's
 extra content is the *transient*: it starts uncertain and tightens, whereas a fixed $\lambda$ is
 born at its final memory and can never change it.
 
-### 0.10 Detection: from likelihood ratios to four detectors
+### 0.11 Detection: from likelihood ratios to four detectors
 
 **Definition (log-likelihood ratio).** Two competing explanations of the data, $H_0$ (no change) and
 $H_1$ (change), compared by
@@ -379,7 +436,7 @@ cry wolf. Comparing detectors requires first tuning each threshold to a *common*
 (here 1000 blocks, §3.7), and only then comparing detection delay. This is the frequentist criterion
 applied even to the Bayesian detectors, so all four sit on one axis.
 
-### 0.11 Reading the results
+### 0.12 Reading the results
 
 **RMSE** is against the *known* true $\rho_S$ path, which the simulator supplies:
 
@@ -388,7 +445,7 @@ $$
 $$
 
 with $t_0 = 500$ discarded as burn-in. Lower is better; it mixes variance and lag-bias exactly as
-§0.3 describes.
+§0.4 describes.
 
 Every headline number is a mean over 20 random seeds with its standard error
 $\mathrm{SE} = s/\sqrt{n}$. Two numbers differing by less than a couple of SEs are not distinguishable.
@@ -398,7 +455,7 @@ Single-seed numbers are for development only — §7 records two real bugs that 
 look bad because its $\lambda$ was set for a different scenario. §5.4 tunes each family fairly and
 reverses one of the apparent results. Always check there before quoting a ranking.
 
-### 0.12 Symbols
+### 0.13 Symbols
 
 | Symbol | Meaning |
 | --- | --- |
@@ -1331,7 +1388,7 @@ The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
 - ✓ **[Sklar 1959]** — the decomposition: joint = marginals + copula.
 - ✓ **[Nelsen 2006]** — *An Introduction to Copulas.* Standard reference.
 - ✓ **[Fantazzini 2009]** — misspecified marginals bias elliptical copula correlations by
-  up to 70%. The argument for rank-PIT (§0.4).
+  up to 70%. The argument for rank-PIT (§0.5).
 - ✓ **[Kojadinovic & Yan 2010]** — rank-based goodness-of-fit; the batch counterpart to
   `copula_select`.
 - ✓ **[Patton 2006]**, ✓ **[Opschoor et al. 2021]** — dynamic / score-driven copulas, the
