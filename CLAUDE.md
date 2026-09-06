@@ -98,5 +98,6 @@ Read the note, don't re-derive it.
 
 - This is research code with a thesis attached: correctness of the *statistics* matters more than
   code elegance, and a claim in a note is not a result until the harness produces it.
-- Match the existing comment density — headers here carry substantial explanatory comments
-  explaining *why*, and that is deliberate.
+- Keep source nearly comment-free: a short file header pointing at the note that explains it, plus
+  comments only for a non-obvious *why* (guards, clamps, units, traps). Derivations and rationale go
+  in `notes/`, not in the `.hpp`.
