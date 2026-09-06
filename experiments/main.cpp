@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     auto copula = dgp::make_copula(family);
     CopulaSource source(*dependence, *copula, seed);
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
+    const std::vector<std::string> keys = {"xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
                                            "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
                                            "kalman_bocpd", "kalman_bocpd_fast",

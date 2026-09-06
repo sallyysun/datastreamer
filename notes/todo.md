@@ -348,10 +348,12 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
   as `./experiment` so results are directly comparable; reports RMSE and, for every `ChangeDetector`,
   alarm count / false-alarms-before-jump / detection delay as mean±SE, written to
-  `results/multiseed_<scenario>.csv`. Still single-seed (only `./experiment`, not this) for every
-  estimator OUTSIDE this detector line (Xiao/Hermite/gaussian_mle families, and everything on the
-  parametric-copula branch) — this closes the caveat for the Kalman-filter work specifically, not
-  the whole harness.
+  `results/multiseed_<scenario>[_<family>].csv`.
+  ⚠️ **Correction:** this entry originally claimed multi-seed covered "the Kalman/CUSUM/GLR/BOCPD
+  line" only, with the Xiao/Hermite/`gaussian_mle` families left single-seed. That was wrong —
+  `multiseed.cpp` always shared its `keys` list with `main.cpp`, so those families were multi-seeded
+  from the start. The genuinely uncovered cases were `xiao_win` (registered but in neither harness's
+  `keys`) and the parametric-copula branch; both are now covered — see the grid item below.
   **Not just a formality — it caught a real bug the single-seed check missed:** the first
   `kalman_bocpd` ARL0 calibration and harness run both looked plausible in isolation (7% ARL0
   margin, 2 false alarms in one `jump` run), but running 20 seeds showed the SAME ~2.1 false alarms
@@ -360,6 +362,17 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   the corrected, now-verified numbers. This is the concrete case for why this item was worth doing
   now rather than deferring it: a single well-chosen seed's plausible-looking numbers do not
   substitute for it.
+- ✅ **Full multi-seed grid across DGP families** (`experiments/run_multiseed_grid.sh`, run:
+  `./run_multiseed_grid.sh 20 42`). Both harnesses now read `COPULA=gaussian|clayton|gumbel|t`, so
+  the 5 scenarios × 4 families × 22 estimators are all covered at 20 seeds with error bars. Closes
+  the two genuine coverage gaps: `xiao_win`, which was registered in `registry.hpp` but absent from
+  both `keys` lists and so had never been run at all, and the 8 parametric-copula keys
+  (`clayton_mle`/`gumbel_mle`/`t_mle`/`copula_select` + `_ew`), which were single-seed and
+  Gaussian-DGP only. Results and the misspecification reading in
+  [kalman_changepoint_results.md](studies/kalman_changepoint_results.md) §10.
+  `multiseed.cpp` also rejects an unknown `COPULA` up front, because `dgp::make_copula` silently
+  falls back to Gaussian on a typo — which in a scripted grid would mislabel a whole family's
+  results rather than fail.
 - ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum`, `kalman_glr`, and `kalman_bocpd`
   (`experiments/calibrate_arl0.cpp`, run:
   `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates all three detectors in one

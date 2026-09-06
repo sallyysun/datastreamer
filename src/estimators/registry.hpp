@@ -21,8 +21,8 @@
 // unknown key.
 //
 // These configs are the single source of truth and are kept IDENTICAL to the
-// live DependenceMonitor (src/device/dependence_monitor.hpp), so offline and
-// online RMSE numbers are directly comparable. Keep the two in sync.
+// live consumer's (src/consumer/), so offline and online RMSE numbers are
+// directly comparable. Keep the two in sync.
 //
 // Forgetting conventions differ per estimator (same memory, mirror-image knob):
 //   * Xiao    lambda = retention;    alpha = 1 - lambda. LARGER = longer memory.

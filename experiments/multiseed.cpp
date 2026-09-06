@@ -6,6 +6,7 @@
 //
 // Usage: ./multiseed <scenario> [n_seeds] [base_seed]   (defaults: 10, 42)
 //   scenario in {constant, drift, jump, stochastic, oscillate}
+//   COPULA=gaussian|clayton|gumbel|t selects the DGP family (default gaussian).
 
 #include <algorithm>
 #include <cmath>
@@ -39,10 +40,12 @@ struct SeedResult {
     std::vector<long> detection_delay;  // -1 = never detected
 };
 
-SeedResult run_one_seed(const std::string& scenario, const std::vector<std::string>& keys,
+SeedResult run_one_seed(const std::string& scenario, const std::string& family,
+                         const std::vector<std::string>& keys,
                          std::size_t N, std::size_t burn, unsigned seed) {
     auto dependence = make_dependence(scenario, N, seed);
-    CopulaSource source(*dependence, seed);
+    auto copula = dgp::make_copula(family);
+    CopulaSource source(*dependence, *copula, seed);
 
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) ests.push_back(make_estimator(k));
@@ -136,10 +139,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
+    // dgp::make_copula falls back to Gaussian on an unrecognised name, which would
+    // silently mislabel a whole grid, so reject anything unknown up front.
+    const char* copula_env = std::getenv("COPULA");
+    const std::string family = copula_env ? copula_env : "gaussian";
+    if (family != "gaussian" && family != "clayton" && family != "gumbel" &&
+        family != "t" && family != "student_t") {
+        std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t)\n", family.c_str());
+        return 1;
+    }
+    const std::string family_name = dgp::make_copula(family)->name();
+
+    const std::vector<std::string> keys = {"xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
                                            "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd", "kalman_bocpd_fast"};
+                                           "kalman_bocpd", "kalman_bocpd_fast",
+                                           "clayton_mle", "clayton_mle_ew",
+                                           "gumbel_mle", "gumbel_mle_ew",
+                                           "t_mle", "t_mle_ew",
+                                           "copula_select", "copula_select_ew"};
     std::vector<bool> is_detector(keys.size(), false);
     for (std::size_t e = 0; e < keys.size(); ++e) {
         auto probe = make_estimator(keys[e]);
@@ -156,7 +174,7 @@ int main(int argc, char** argv) {
 
     for (int s = 0; s < n_seeds; ++s) {
         const unsigned seed = base_seed + static_cast<unsigned>(s);
-        SeedResult r = run_one_seed(scenario, keys, N, burn, seed);
+        SeedResult r = run_one_seed(scenario, family, keys, N, burn, seed);
         for (std::size_t e = 0; e < keys.size(); ++e) {
             rmse[e].push_back(r.rmse[e]);
             if (is_detector[e]) {
@@ -170,14 +188,15 @@ int main(int argc, char** argv) {
         }
     }
 
-    std::printf("scenario=%s  n_seeds=%d  base_seed=%u  N=%zu  burn=%zu\n\n",
-                scenario.c_str(), n_seeds, base_seed, N, burn);
-    std::printf("%-16s %16s", "estimator", "RMSE (mean+-se)");
+    std::printf("scenario=%s  copula=%s  n_seeds=%d  base_seed=%u  N=%zu  burn=%zu\n\n",
+                scenario.c_str(), family_name.c_str(), n_seeds, base_seed, N, burn);
+    std::printf("%-18s %16s", "estimator", "RMSE (mean+-se)");
     if (has_known_jump) std::printf("  %14s  %16s  %16s", "alarms/run", "false_before", "delay,ticks(hits)");
     else std::printf("  %14s", "alarms/run");
     std::printf("\n");
 
-    const std::string path = "results/multiseed_" + scenario + ".csv";
+    const std::string suffix = (family_name == "gaussian") ? "" : ("_" + family_name);
+    const std::string path = "results/multiseed_" + scenario + suffix + ".csv";
     std::ofstream out(path);
     if (!out.is_open()) {
         std::fprintf(stderr, "cannot open '%s' for writing (does results/ exist? run: mkdir -p results)\n",
@@ -191,7 +210,7 @@ int main(int argc, char** argv) {
 
     for (std::size_t e = 0; e < keys.size(); ++e) {
         const Stats rs = mean_stderr(rmse[e]);
-        std::printf("%-16s %8.4f +- %6.4f", keys[e].c_str(), rs.mean, rs.se);
+        std::printf("%-18s %8.4f +- %6.4f", keys[e].c_str(), rs.mean, rs.se);
 
         double a_mean = 0.0, a_se = 0.0, fb_mean = 0.0, fb_se = 0.0, d_mean = 0.0, d_se = 0.0;
         std::size_t d_n = 0;

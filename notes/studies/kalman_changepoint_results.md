@@ -565,15 +565,13 @@ that made distinct swept thresholds print identically.
 
 ## 8. Limitations
 
-- **Single DGP family.** Everything here is Gaussian-copula. `gaussian_mle_ew`'s strong showing is
-  partly the reward of correct specification; on the Clayton/Gumbel/$t$ DGPs built on the
-  parametric-copula branch it would be expected to lose. The nonparametric estimators' apparent
-  inefficiency is the price they pay for robustness this suite never tests.
+- **Single DGP family.** Everything in *this* section is Gaussian-copula. `gaussian_mle_ew`'s strong
+  showing is partly the reward of correct specification; the nonparametric estimators' apparent
+  inefficiency is the price they pay for robustness this table never tests. **Superseded** —
+  §11 extends the grid to the Clayton/Gumbel/$t$ DGPs.
 - **Detection-delay metrics are partial.** $\mathrm{ARL}_0$ calibration controls the false-alarm side
   only. Delay is reported but not compared against the Lorden/KL optimal-delay bound
   (change_detection.md Part IV.4).
-- **Multi-seed covers this detector line only** — the Xiao/Hermite/`gaussian_mle` families and all
-  parametric-copula-branch work remain single-seed.
 - **$\sigma_\omega^2$, hazard, and $m$ are all fixed hyper-parameters.** Estimating them online (VFF)
   is the natural next step and is what §3.3 argues the Bridge-1 parameterization makes possible.
 - **No live-path integration.** All results are offline; nothing here runs in `src/consumer/` yet.
@@ -592,10 +590,15 @@ make calibrate_arl0        # ./calibrate_arl0 -- ARL0 threshold calibration
 
 for s in constant drift jump stochastic oscillate; do ./multiseed $s 20; done
 ./calibrate_arl0 1000
+
+./run_multiseed_grid.sh 20 42   # all 5 scenarios x all 4 DGP families (~25 min)
 ```
 
-Outputs land in `results/` (gitignored): `experiment_<scenario>.csv` (per-tick estimates plus
-per-detector alarm columns) and `multiseed_<scenario>.csv` (mean/SE summaries).
+Both binaries take `COPULA=gaussian|clayton|gumbel|t` to choose the DGP family (default
+`gaussian`); non-Gaussian families get a filename suffix so runs do not clobber each other.
+
+Outputs land in `results/` (gitignored): `experiment_<scenario>[_<family>].csv` (per-tick estimates
+plus per-detector alarm columns) and `multiseed_<scenario>[_<family>].csv` (mean/SE summaries).
 
 Implementation: `src/estimators/dependence/kalman_local_level.hpp`, `kalman_cusum.hpp`,
 `kalman_glr.hpp`, `kalman_bocpd.hpp`, `change_detector.hpp`; configs and their calibration rationale
