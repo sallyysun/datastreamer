@@ -1,0 +1,115 @@
+{"kind":"deck","id":"pr/4pcxxa","name":"Deck"}
+{"kind":"layout","layoutId":"ac4eeec7-4790-49ac-8d7d-7d8253377ef3","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"f19a5acc-934d-41a7-8b3d-5b297f5c7f1b","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/b5ll3f","slide":1,"title":"Memory in online dependence estimation","textShapes":4}
+{"kind":"textbox","id":"sh/ypszq1gj","slide":1,"text":"Memory in online dependence estimation","textPreview":"Memory in online dependence estimation","textChars":38,"textLines":1,"bbox":[66,88,1150,74]}
+{"kind":"textbox","id":"sh/lsji1gza","slide":1,"text":"How much history should an estimator remember when dependence changes?","textPreview":"How much history should an estimator remember when dependence changes?","textChars":70,"textLines":1,"bbox":[67,210,1040,140]}
+{"kind":"shape","id":"sh/krahsbyp","slide":1,"bbox":[67,412,1146,0]}
+{"kind":"textbox","id":"sh/7u103qhg","slide":1,"text":"Estimate ρₛ,t from a stream, without knowing whether the next regime is stable or changing.","textPreview":"Estimate ρₛ,t from a stream, without knowing whether the next regime is stable or changing.","textChars":91,"textLines":1,"bbox":[67,444,1030,100]}
+{"kind":"textbox","id":"sh/6tszulgv","slide":1,"text":"20-minute research presentation","textPreview":"20-minute research presentation","textChars":31,"textLines":1,"bbox":[67,642,450,25]}
+{"kind":"notes","id":"nt/b5ll3f","slide":1,"text":"Opening, 1 minute. The target is time-varying Spearman copula dependence. The problem is memory: too little history gives noisy estimates; too much history causes lag. Today I will show the mathematics, the synthetic evidence, and what the adaptive method actually achieved. Source: notes/studies/results_2026_09_22.md and manuscript.md."}
+{"kind":"slide","id":"sl/j29zj1","slide":2,"title":"The online estimation path","textShapes":14}
+{"kind":"textbox","id":"sh/g32pwjex","slide":2,"text":"The online estimation path","textPreview":"The online estimation path","textChars":26,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/f29onexs","slide":2,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/u107u9w7","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"shape","id":"sh/t0r6l4fm","slide":2,"bbox":[75,250,205,113]}
+{"kind":"textbox","id":"sh/szipsze1","slide":2,"text":"Pair source","textPreview":"Pair source","textChars":11,"textLines":1,"bbox":[92,279,180,62]}
+{"kind":"shape","id":"sh/7y9ojexg","slide":2,"bbox":[340,250,205,113]}
+{"kind":"textbox","id":"sh/6x07q9gv","slide":2,"text":"Producer","textPreview":"Producer","textChars":8,"textLines":1,"bbox":[357,279,180,62]}
+{"kind":"shape","id":"sh/5wr6x4fa","slide":2,"bbox":[605,250,205,113]}
+{"kind":"textbox","id":"sh/kvypozyp","slide":2,"text":"Broker","textPreview":"Broker","textChars":6,"textLines":1,"bbox":[622,279,180,62]}
+{"kind":"shape","id":"sh/e1wbml03","slide":2,"bbox":[870,250,205,113]}
+{"kind":"textbox","id":"sh/z25svqho","slide":2,"text":"Consumer","textPreview":"Consumer","textChars":8,"textLines":1,"bbox":[887,279,180,62]}
+{"kind":"textbox","id":"sh/03etovi9","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[290,277,45,65]}
+{"kind":"textbox","id":"sh/14nax0zu","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[555,277,45,65]}
+{"kind":"textbox","id":"sh/qdwbi107","slide":2,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[820,277,45,65]}
+{"kind":"textbox","id":"sh/re5sr6hc","slide":2,"text":"Raw symbol ticks","textPreview":"Raw symbol ticks","textChars":16,"textLines":1,"bbox":[73,389,220,42]}
+{"kind":"textbox","id":"sh/cfetkbix","slide":2,"text":"Per-symbol topics","textPreview":"Per-symbol topics","textChars":17,"textLines":1,"bbox":[607,389,230,42]}
+{"kind":"textbox","id":"sh/dgnatgzi","slide":2,"text":"ρ̂ₛ,t and memory","textPreview":"ρ̂ₛ,t and memory","textChars":16,"textLines":1,"bbox":[874,389,275,42]}
+{"kind":"shape","id":"sh/i9cre10v","slide":2,"bbox":[75,470,1110,0]}
+{"kind":"textbox","id":"sh/3alsn6hg","slide":2,"text":"Today’s measured results: reproducible synthetic experiments using the same estimator classes.","textPreview":"Today’s measured results: reproducible synthetic experiments using the same estimator classes.","textChars":94,"textLines":1,"bbox":[75,505,1060,75]}
+{"kind":"textbox","id":"sh/7e18f2x8","slide":2,"text":"Adaptive bank integration into the live consumer is the next implementation step.","textPreview":"Adaptive bank integration into the live consumer is the next implementation step.","textChars":81,"textLines":1,"bbox":[75,582,1060,54]}
+{"kind":"notes","id":"nt/j29zj1","slide":2,"text":"2 minutes. The producer and broker already publish paired synthetic observations as two per-symbol ticks. The standalone consumer reconstructs returns and runs online estimators. The reported adaptive-memory results come from experiments/probe_adaptive.cpp, not the browser or a live feed. The live consumer currently runs fixed Xiao and Hermite variants; connecting the new banks is future work. Source: src/streamgenerator/main.cpp, src/consumer/device_state.hpp, experiments/probe_adaptive.cpp."}
+{"kind":"slide","id":"sl/bxt5h8","slide":3,"title":"The memory tradeoff","textShapes":3}
+{"kind":"textbox","id":"sh/1cnalkj2","slide":3,"text":"The memory tradeoff","textPreview":"The memory tradeoff","textChars":19,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/epwra5kb","slide":3,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/zq5sja1w","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/9g7ap4jy","slide":3,"text":"MSE(M) ≈ σ²/M + (dM/2)²","textPreview":"MSE(M) ≈ σ²/M + (dM/2)²","textChars":23,"textLines":1,"bbox":[295,603,720,50]}
+{"kind":"chart","id":"ch/o3ex43i9","slide":3,"name":"","chartType":"line","bbox":[86,170,1090,405]}
+{"kind":"notes","id":"nt/bxt5h8","slide":3,"text":"3 minutes. This is the analytical approximation, not a fit to the experiment. For locally linear drift with slope d, variance decreases as 1/M and squared lag bias grows as (dM/2)^2. Their sum has an interior optimum; for a jump, this local linear approximation is not exact. The chart uses σ²=1 and d=0.0005 solely to illustrate the shape. Source: notes/studies/memory_sweep.md; notes/studies/rate_budget.md."}
+{"kind":"slide","id":"sl/un5lcr","slide":4,"title":"Different estimators, one memory axis","textShapes":13}
+{"kind":"textbox","id":"sh/3q9gn6l4","slide":4,"text":"Different estimators, one memory axis","textPreview":"Different estimators, one memory axis","textChars":37,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/4rixgb2p","slide":4,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/psrypg3a","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/u1gfa1kn","slide":4,"text":"Xiao","textPreview":"Xiao","textChars":4,"textLines":1,"bbox":[91,180,310,58]}
+{"kind":"textbox","id":"sh/f2pgjml8","slide":4,"text":"α = 1 − λ","textPreview":"α = 1 − λ","textChars":9,"textLines":1,"bbox":[425,180,690,58]}
+{"kind":"shape","id":"sh/g3yxcr2t","slide":4,"bbox":[91,242,1055,0]}
+{"kind":"textbox","id":"sh/h4rylw3e","slide":4,"text":"Hermite","textPreview":"Hermite","textChars":7,"textLines":1,"bbox":[91,272,310,58]}
+{"kind":"textbox","id":"sh/exkfmlkr","slide":4,"text":"α = λ","textPreview":"α = λ","textChars":5,"textLines":1,"bbox":[425,272,690,58]}
+{"kind":"shape","id":"sh/zytgvqlc","slide":4,"bbox":[91,334,1055,0]}
+{"kind":"textbox","id":"sh/nylkvi58","slide":4,"text":"Gaussian MLE","textPreview":"Gaussian MLE","textChars":12,"textLines":1,"bbox":[91,364,310,58]}
+{"kind":"textbox","id":"sh/2xcj2xon","slide":4,"text":"α ≈ 1 − λ  (Fisher step)","textPreview":"α ≈ 1 − λ  (Fisher step)","textChars":24,"textLines":1,"bbox":[425,364,690,58]}
+{"kind":"shape","id":"sh/pk32xsne","slide":4,"bbox":[91,426,1055,0]}
+{"kind":"textbox","id":"sh/oju14n6t","slide":4,"text":"Kalman","textPreview":"Kalman","textChars":6,"textLines":1,"bbox":[91,456,310,58]}
+{"kind":"textbox","id":"sh/bm5kz25k","slide":4,"text":"α ≈ K  (steady gain)","textPreview":"α ≈ K  (steady gain)","textChars":20,"textLines":1,"bbox":[425,456,690,58]}
+{"kind":"shape","id":"sh/alwj6xoz","slide":4,"bbox":[91,518,1055,0]}
+{"kind":"textbox","id":"sh/xon21cna","slide":4,"text":"M ≈ (2 − α)/α","textPreview":"M ≈ (2 − α)/α","textChars":13,"textLines":1,"bbox":[89,565,465,54]}
+{"kind":"textbox","id":"sh/cne1876p","slide":4,"text":"20 / 24","textPreview":"20 / 24","textChars":7,"textLines":1,"bbox":[790,555,240,65]}
+{"kind":"textbox","id":"sh/zq5k3m5g","slide":4,"text":"Xiao–MLE matched optima","textPreview":"Xiao–MLE matched optima","textChars":23,"textLines":1,"bbox":[792,617,365,36]}
+{"kind":"notes","id":"nt/un5lcr","slide":4,"text":"2 minutes. Each method has its own parameterization. Xiao and Gaussian MLE use a retention λ, with α approximately 1−λ. Hermite uses λ as the update weight. Kalman has a gain implied by process and observation variance. Converting all of them to nominal effective memory creates one comparison axis. In 20 of 24 scenario-window-family cells, Xiao and Gaussian MLE picked the same best memory. This does not mean their errors are identical. Source: notes/studies/results_2026_09_22.md sections 1 and 9; notes/studies/memory_sweep.md section 9."}
+{"kind":"slide","id":"sl/0icscf","slide":5,"title":"The parametric advantage depends on the family","textShapes":7}
+{"kind":"textbox","id":"sh/qlsvy9gr","slide":5,"text":"The parametric advantage depends on the family","textPreview":"The parametric advantage depends on the family","textChars":46,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/doju9oz2","slide":5,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/snad0jyx","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/epsv2tgn","slide":5,"text":"6 / 6","textPreview":"6 / 6","textChars":5,"textLines":1,"bbox":[907,215,250,85]}
+{"kind":"textbox","id":"sh/1c3udofe","slide":5,"text":"on-family wins","textPreview":"on-family wins","textChars":14,"textLines":1,"bbox":[908,298,290,49]}
+{"kind":"textbox","id":"sh/0bud4jyt","slide":5,"text":"+66.7%","textPreview":"+66.7%","textChars":6,"textLines":1,"bbox":[907,399,275,78]}
+{"kind":"textbox","id":"sh/nelcfyxk","slide":5,"text":"worst observed off-family MLE loss","textPreview":"worst observed off-family MLE loss","textChars":34,"textLines":1,"bbox":[907,480,290,95]}
+{"kind":"textbox","id":"sh/2dcv6tgz","slide":5,"text":"Matched-memory comparisons; 40 seeds per setting","textPreview":"Matched-memory comparisons; 40 seeds per setting","textChars":48,"textLines":1,"bbox":[84,619,720,28]}
+{"kind":"chart","id":"ch/vidk7qls","slide":5,"name":"","chartType":"bar","bbox":[82,184,785,413]}
+{"kind":"notes","id":"nt/0icscf","slide":5,"text":"2 minutes. The Gaussian MLE is well specified on Gaussian-copula data and beats Xiao in all six windows. Across the other three generating families it wins 9 of 18 cells, with a worst observed increase in loss of 66.7% on Clayton. The argument for nonparametric Xiao is robustness to unknown family, not that it always has the smallest error. Data: notes/studies/results_2026_09_22.md section 2, from memory_sweep.md section 9."}
+{"kind":"slide","id":"sl/8g1d86","slide":6,"title":"Fewer updates shift the optimum","textShapes":5}
+{"kind":"textbox","id":"sh/wj6dcvqd","slide":6,"text":"Fewer updates shift the optimum","textPreview":"Fewer updates shift the optimum","textChars":31,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/vixwjqps","slide":6,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/uhoval87","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/8f6d8bq1","slide":6,"text":"M*ₜᵢ꜀ₖₛ ∝ f⁻¹ᐟ³","textPreview":"M*ₜᵢ꜀ₖₛ ∝ f⁻¹ᐟ³","textChars":15,"textLines":1,"bbox":[950,290,280,83]}
+{"kind":"textbox","id":"sh/7exwf6pw","slide":6,"text":"Linear drift","textPreview":"Linear drift","textChars":12,"textLines":1,"bbox":[952,384,257,40]}
+{"kind":"textbox","id":"sh/md4v618b","slide":6,"text":"Thinning beat batching at equal budget in the tested cases.","textPreview":"Thinning beat batching at equal budget in the tested cases.","textChars":59,"textLines":1,"bbox":[84,611,1050,50]}
+{"kind":"chart","id":"ch/h8nu9o3a","slide":6,"name":"","chartType":"bar","bbox":[86,180,833,410]}
+{"kind":"notes","id":"nt/8g1d86","slide":6,"text":"2 minutes. Here f is the fraction of incoming ticks the estimator processes, not the broker rate limit. An observation memory M spans M/f wall-clock ticks. On linear drift, minimizing σ²/(f M_ticks)+(d M_ticks/2)^2 gives M*_ticks proportional to f^(-1/3). Measured ratios were 1.25 at f=1/2 and 1.67 at f=1/4; predictions 1.26 and 1.59. This law is not expected to hold exactly at jumps. Thinning beat contiguous batching by 1.3 to 8.4 percent in the tested settings. Source: notes/studies/rate_budget.md."}
+{"kind":"slide","id":"sl/7vjak6","slide":7,"title":"The bank chooses memory from predictive loss","textShapes":8}
+{"kind":"textbox","id":"sh/xcbep0ji","slide":7,"text":"The bank chooses memory from predictive loss","textPreview":"The bank chooses memory from predictive loss","textChars":44,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/a90fe50r","slide":7,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/ba9wnq1c","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/kf2xkfi9","slide":7,"text":"7 memory settings","textPreview":"7 memory settings","textChars":17,"textLines":1,"bbox":[84,166,325,55]}
+{"kind":"textbox","id":"sh/lgbetkje","slide":7,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[399,170,50,55]}
+{"kind":"textbox","id":"sh/ydkfi503","slide":7,"text":"update weights","textPreview":"update weights","textChars":14,"textLines":1,"bbox":[464,166,330,55]}
+{"kind":"textbox","id":"sh/zetwra1o","slide":7,"text":"→","textPreview":"→","textChars":1,"textLines":1,"bbox":[788,170,50,55]}
+{"kind":"textbox","id":"sh/83mxofi5","slide":7,"text":"weighted estimate","textPreview":"weighted estimate","textChars":17,"textLines":1,"bbox":[848,166,350,55]}
+{"kind":"textbox","id":"sh/lo3qx4f6","slide":7,"text":"Worst-case regret across tested scenarios: 3.6–5.0× lower than the best fixed setting","textPreview":"Worst-case regret across tested scenarios: 3.6–5.0× lower than the best fixed setting","textChars":85,"textLines":1,"bbox":[83,605,1105,50]}
+{"kind":"chart","id":"ch/dg3itwr6","slide":7,"name":"","chartType":"scatter","bbox":[82,242,1100,340]}
+{"kind":"notes","id":"nt/7vjak6","slide":7,"text":"3 minutes. Each bank runs the same estimator at several forgetting rates. The generic bank scores each arm by pre-update squared rank residual, applies exponential weights, and adds fixed-share weight so an arm can recover. It reports a weighted rho and posterior-mean memory. This plot uses the actual seed-averaged Xiao bank trajectory on the Gaussian jump experiment. It first favours long memory, then contracts after the change. The worst-case regret ratio compares candidate policies over four synthetic scenarios; it is not a real-feed result or a universal guarantee. Data: experiments/results/adaptive_memory_traj.csv; notes/studies/results_2026_09_22.md sections 4 and 9."}
+{"kind":"slide","id":"sl/56tn8z","slide":8,"title":"The whole-run gain is earned before the jump","textShapes":7}
+{"kind":"textbox","id":"sh/zuh47md8","slide":8,"text":"The whole-run gain is earned before the jump","textPreview":"The whole-run gain is earned before the jump","textChars":44,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/0vq50rut","slide":8,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/1wzm9wve","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/r6x43mdc","slide":8,"text":"−7,647","textPreview":"−7,647","textChars":6,"textLines":1,"bbox":[907,214,278,70]}
+{"kind":"textbox","id":"sh/c765w7ux","slide":8,"text":"before the jump","textPreview":"before the jump","textChars":15,"textLines":1,"bbox":[909,282,287,42]}
+{"kind":"textbox","id":"sh/dsfm5cvi","slide":8,"text":"+4,860","textPreview":"+4,860","textChars":6,"textLines":1,"bbox":[907,379,278,70]}
+{"kind":"textbox","id":"sh/a18n61cv","slide":8,"text":"during recovery","textPreview":"during recovery","textChars":15,"textLines":1,"bbox":[909,448,287,42]}
+{"kind":"textbox","id":"sh/v21of6tg","slide":8,"text":"Total: −1,881","textPreview":"Total: −1,881","textChars":13,"textLines":1,"bbox":[85,611,560,45]}
+{"kind":"chart","id":"ch/658r69ob","slide":8,"name":"","chartType":"bar","bbox":[83,180,780,420]}
+{"kind":"notes","id":"nt/56tn8z","slide":8,"text":"3 minutes. This is seed-averaged cumulative squared error against one best fixed Xiao arm selected over the complete jump run. Negative means the bank is ahead. The bank gains 7,647 ×10^-3 before the jump, then loses 4,860 ×10^-3 in recovery and another 905 ×10^-3 after settling; rounded values sum to about −1,881 ×10^-3 overall. Thus the whole-run result conceals the very period where rapid adaptation matters. This is why the talk reports time decomposition as well as scalar regret. Source: notes/studies/results_2026_09_22.md section 6 and notes/studies/adaptive_memory.md section 15."}
+{"kind":"slide","id":"sl/ny7nne","slide":9,"title":"What the results establish","textShapes":9}
+{"kind":"textbox","id":"sh/50bidc3e","slide":9,"text":"What the results establish","textPreview":"What the results establish","textChars":26,"textLines":1,"bbox":[66,46,1148,70]}
+{"kind":"shape","id":"sh/ix0z2x43","slide":9,"bbox":[66,128,1148,0]}
+{"kind":"textbox","id":"sh/3yt0b2lo","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1163,661,50,25]}
+{"kind":"textbox","id":"sh/gvih0nmx","slide":9,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[75,188,55,54]}
+{"kind":"textbox","id":"sh/hwri9s3i","slide":9,"text":"Memory is a common statistical choice across estimator families.","textPreview":"Memory is a common statistical choice across estimator families.","textChars":64,"textLines":1,"bbox":[150,188,1035,75]}
+{"kind":"textbox","id":"sh/u90zyd4r","slide":9,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[75,302,55,54]}
+{"kind":"textbox","id":"sh/vu9g7ilc","slide":9,"text":"Adaptive selection is robust across the tested synthetic regimes.","textPreview":"Adaptive selection is robust across the tested synthetic regimes.","textChars":65,"textLines":1,"bbox":[150,302,1035,75]}
+{"kind":"textbox","id":"sh/0rmhcr21","slide":9,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[75,416,55,54]}
+{"kind":"textbox","id":"sh/1svilw3m","slide":9,"text":"Recovery after a jump remains the main weakness.","textPreview":"Recovery after a jump remains the main weakness.","textChars":48,"textLines":1,"bbox":[150,416,1035,75]}
+{"kind":"shape","id":"sh/l4jexgry","slide":9,"bbox":[75,539,1110,0]}
+{"kind":"textbox","id":"sh/k3axobad","slide":9,"text":"Next: run the bank in the live consumer and inspect memory beside trade intensity and price staleness.","textPreview":"Next: run the bank in the live consumer and inspect memory beside trade intensity and price staleness.","textChars":102,"textLines":1,"bbox":[75,566,1065,82]}
+{"kind":"notes","id":"nt/ny7nne","slide":9,"text":"2 minutes. The contribution is empirical: a common memory axis, a measured bias-variance and rate tradeoff, and a time-resolved assessment of memory selection. The bank algorithms themselves are established forms of exponential weights or multiple-model averaging plus fixed share. The live integration remains to be done. On real trades there is no latent rho for RMSE or truth-based regret. Asynchronous sampling can change measured correlation without a change in latent dependence, so the real-feed demonstration must show trade intensity and price age alongside mean memory. Sources: notes/studies/results_2026_09_22.md; notes/studies/online_study_protocol.md; Epps (1979) https://doi.org/10.1080/01621459.1979.10482508; Zhang (2011) https://doi.org/10.1016/j.jeconom.2010.03.012."}

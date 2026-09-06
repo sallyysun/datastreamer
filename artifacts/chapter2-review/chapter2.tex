@@ -1,0 +1,188 @@
+% Revised from the Chapter 2 text supplied by Sally; 25 October 2026.
+% TODO(Sally) comments are editorial tasks, not resolved factual assertions.
+\chapter{Data Streams}
+
+Financial observations arrive sequentially, while an estimate of dependence may be needed before the next observation becomes available. For example, a procedure monitoring the dependence between two asset returns must incorporate new pairs without repeatedly analysing their complete history. The statistical question is therefore not only how to estimate dependence, but what information to retain and how to use it as observations arrive.
+
+An online procedure operates sequentially. In this thesis, a streaming procedure must additionally operate through a specified retained state under an explicit device constraint. These constraints may limit the number of stored observations, the dimension of a summary, or its numerical representation. This chapter establishes the retained-state description and implementation used for the online copula estimators. Section~\ref{sec:background} introduces the relevant computational background; Section~\ref{sec:streams-framework} summarises the coauthored statistical framework; Section~\ref{sec:copula-example} develops a worked example; and Section~\ref{sec:implementation} relates these definitions to \texttt{datastreamer}.
+
+\section{Data streams and online computation}
+\label{sec:background}
+
+\subsection{Sequential observations and resource constraints}
+A data stream is a sequence of observations that becomes available over time and may continue over an indeterminate horizon. Sequential arrival does not itself preclude storing all observations. The streaming setting considered here imposes a further restriction on the information available for subsequent updates. Memory, computation and delivery constraints must be distinguished: a compact summary can still be expensive to update, and an efficient estimator cannot recover observations that never reach it.
+
+\subsection{Online algorithms and constrained streaming procedures}
+Online algorithms make decisions as inputs become available, whereas an offline algorithm may inspect the complete input before acting. A recursive update is one way to implement an online procedure, but recursion alone does not impose a storage bound: the state could simply append each new observation. A streaming procedure in the present framework therefore combines an update rule with an explicit restriction on its state space $\mathcal Z$, defined in Section~\ref{sec:streams-framework}. For copula estimation, relevant restrictions include a fixed count-grid size, a fixed Hermite expansion order and a bounded observation window.
+
+\subsection{Performance benchmarks: competitive analysis and regret}
+For a specified cost-minimisation problem, let $C_{\mathrm{ALG}}(\sigma)$ denote the cost incurred by an online algorithm on an admissible input sequence $\sigma$. Let $C_{\mathrm{OPT}}(\sigma)$ be the minimum cost for an offline algorithm permitted to inspect that entire sequence, under the same problem definition. The online algorithm is $c$-competitive if
+\[
+ C_{\mathrm{ALG}}(\sigma)\leq c C_{\mathrm{OPT}}(\sigma)+\alpha
+\]
+for every admissible $\sigma$, where $\alpha$ is independent of the input sequence. Competitive analysis provides a worst-case benchmark, exemplified by the list-update and paging problems of Sleator and Tarjan~\cite{sleator_tarjan_1985}. No competitive bound is established in this chapter.
+
+Regret uses a different comparison. Let $\mathcal A$ be an action set and $L(a,x)$ the loss of action $a$ when outcome $x$ occurs. At round $n$, the procedure chooses $a_n$ before observing $x_n$. Its regret against the best fixed action in hindsight is
+\[
+ R_T=\sum_{n=1}^{T}L(a_n,x_n)
+       -\inf_{a\in\mathcal A}\sum_{n=1}^{T}L(a,x_n).
+\]
+The infimum can be written as a minimum when an optimal fixed action exists. A deterministic no-regret guarantee requires, for every admissible outcome sequence,
+\[
+ \limsup_{T\to\infty}\frac{R_T}{T}\leq 0.
+\]
+For randomised procedures, an expected or probabilistic guarantee must instead be specified explicitly. Assumptions about the losses and feedback determine whether such guarantees are available~\cite{hazan_2022}.
+
+For an estimator bank, a fixed comparator may be one estimator index whose fitted state continues to evolve. This is distinct from comparison with an oracle that switches estimators. Fixed-comparator regret does not automatically justify tracking, discounted combination weights or unbounded density log-losses. The connection to the estimator combinations discussed in Chapter~5 is conceptual here; a theorem for those combinations would require its own assumptions and proof.
+% TODO(Sally): Check this description against Chapter 5 and cross-reference any theorem actually proved there.
+
+The implementation provides empirical comparisons rather than the above guarantees: its basic experiment harness reports root mean squared error against known simulated Spearman correlation and an estimator-reported storage measure. The latter is not total process memory. Timing and data-loss measurements are separate requirements for evaluating delivery under load.
+% TODO(Sally): Identify the exact accuracy, timing and storage results retained in Chapters 4 and 5; the chapters were not supplied.
+
+\subsection{Related statistical and stream-processing software}
+\label{subsec:existing}
+Apache DataSketches provides compact streaming summaries for tasks including quantiles, cardinalities and frequency estimation, with error guarantees for its sketch algorithms~\cite{apache_datasketches}. Its role is statistical summarisation, so both storage and approximation accuracy are relevant. The \texttt{R} package \texttt{stream} provides a framework for modelling and simulating streams and experimenting with data-stream mining methods, integrated with the analysis facilities of \texttt{R}~\cite{stream}.
+
+Event-distribution infrastructure serves a different role: it connects producers with subscribers. Apache Kafka is a related system discussed in the original design, but the present implementation should not be interpreted as reproducing its guarantees.
+% TODO(Sally): Supply an approved official Kafka reference if retaining a more detailed capability comparison. No additional Kafka bibliography entry has been invented.
+
+The combination needed here is controlled generation, explicit subscriber state, defined consumption policies and a common estimator interface. These requirements motivate the small \texttt{C++} implementation described below. They do not imply that the related tools are generally unsuitable for streaming research or unable to represent information loss.
+
+\section{The statistical framework}
+\label{sec:streams-framework}
+This section summarises the stream--device--objective formulation developed in the coauthored unpublished working draft~\cite{stream_device_objective_draft}. Algorithmic summaries describe retained information; this formulation also specifies the process generating the observations and the inferential target. The account here is limited to the definitions needed for the copula estimators. The implementation and copula adaptations are separate contributions of this thesis.
+% TODO(Sally): Confirm the exact authors, title and version of the coauthored draft in the bibliography, and check these definitions against that version. The draft itself was not supplied.
+
+\subsection{The stream: latent process, observation times and observation channel}
+A \textbf{stream model} is a triple
+\[
+ \mathcal S=(X,\tau,Q),
+\]
+where $X=\{X_t\}_{t\in\mathcal T}$ is the latent process, $\tau=\{\tau_n\}_{n\geq1}$ is a non-decreasing sequence of observation times, and $Q$ is an observation channel. Write $Q_t(x,\cdot)$ for the distribution of an observed value given latent state $x$ at time $t$. This specifies the observation mechanism; any further conditional-independence assumptions must be stated for the particular stream model.
+
+The observed stream consists of timestamped pairs $(\tau_n,Y_n)$. The index $n$ counts observations, whereas $t$ indexes the underlying process. Equal observation times are allowed, and $\tau_n\to\infty$ excludes infinitely many observations within a bounded time interval. A noiseless channel returns the sampled latent state; a noisy or quantised channel can alter its distribution, including the dependence between components. Thus the copula of an observed pair need not equal that of the latent pair.
+
+Observation, delivery and processing times are distinct. The notation $\tau_n$ denotes observation time, not all three. Section~\ref{sec:implementation} specifies the timestamps and processing order present in the code.
+
+\subsection{The device: retained state and recursive updates}
+A \textbf{device} is a triple
+\[
+ \mathcal D=(\mathcal Z,\Psi,Z_0),
+\]
+where $\mathcal Z$ is a measurable state space, $\Psi=\{\Psi_n\}_{n\geq1}$ is a sequence of measurable update maps and $Z_0\in\mathcal Z$ is an initial state. In the basic formulation,
+\[
+ Z_n=\Psi_n\bigl(Z_{n-1},(\tau_n,Y_n)\bigr).
+\]
+Each observation affects later computation only through the retained state. This state includes all quantities needed for future updates, including coefficients, calibration observations and counters, regardless of the software class that owns them. The basic recursion treats updates as instantaneous; a queueing implementation requires additional bookkeeping for delivery and processing.
+
+\subsection{State constraints: finite states, fixed-dimensional summaries and buffers}
+Finite-state devices have a fixed finite set of possible states. Fixed-dimensional devices retain a fixed number of numerical entries, for example a count matrix or running moments. Buffer-type devices retain a bounded number of observations. These descriptions may overlap: an implementation can combine a buffer with numerical summaries.
+
+Fixed dimension does not imply a fixed exact bit budget. An exact cumulative count grows with the stream, even if it occupies only one mathematical coordinate. A bound on retained observations also depends on their representation. Accordingly, memory must be described in terms of numerical entries, machine storage or bits, rather than treating these measures as interchangeable. In this implementation, numerical summaries use finite-precision types; Section~\ref{sec:implementation} gives the relevant restrictions.
+
+A fixed-size sliding window is a deterministic buffer policy. Reservoir sampling would require auxiliary randomisation and is therefore an extension of the basic deterministic update rule; it is not needed for the implementation described here. Information in the current state may be discarded at the next update, so the information sets associated with successive states need not form a filtration.
+
+\subsection{The objective: target and temporal relevance}
+The \textbf{statistical objective} is a family
+\[
+ \mathcal O=\{(\theta_t,w_t):t\in\mathcal T\},
+\]
+where $\theta_t$ is the quantity to be estimated and $w_t(s)$ describes the relevance at time $t$ of information from time $s\leq t$. The objective specifies the inferential aim. The device determines what is retained, and an estimator determines how that information is used. A relevance profile alone defines neither an estimator nor its evaluation loss.
+
+Equal temporal relevance is appropriate for the stationary illustration below. When recent information is scientifically more relevant, a profile such as $w_t(s)=\exp\{-\kappa(t-s)\}$, with $\kappa\geq0$, can express that preference. The continuous-time rate $\kappa$ is distinct from a per-observation update weight $\lambda$, and from the weights used to combine estimators. For irregular arrivals, fixed per-observation forgetting does not correspond to a fixed decay rate in elapsed time; retention over a gap $\Delta t$ would instead be $\exp(-\kappa\Delta t)$ if that time-based rule were intended.
+
+\subsection{Streaming estimators: reading an estimate from the retained state}
+A readout $\delta_n$ maps the retained state to an estimate:
+\[
+ \widehat\theta_n=\delta_n(Z_n).
+\]
+The target and the estimate are different objects: a copula parameter is the target, while its fitted value is an output. Portfolio weights would require a further specified decision rule. An estimate after observation $n$ can use $Z_n$; a forecast scored on observation $n$ must be formed using information available before that observation. A loss and its probability law must be specified separately if an expected risk is considered.
+
+\section{A worked copula example}
+\label{sec:copula-example}
+\subsection{Observed pairs, retained summaries and the target parameter}
+Consider an illustrative stationary stream of independent bivariate return pairs $X_n=(X_n^{(1)},X_n^{(2)})$, with continuous marginal distributions and a Gaussian copula with fixed parameter $r\in(-1,1)$. Set $\tau_n=n$ and let the observation channel be noiseless, so $Y_n=X_n$. This example explains the mathematical mapping; it is not a claim that every experiment uses this configuration.
+
+Choose fixed cutpoints defining $m$ bins for each margin, including unbounded outer bins. Let $b_1(y)$ and $b_2(y)$ denote the bin indices of a pair $y$. The device retains an $m\times m$ matrix $N_n$, initialised at zero and updated by
+\[
+ N_{ij,n}=N_{ij,n-1}+\mathbf 1\{b_1(Y_n)=i,\ b_2(Y_n)=j\}.
+\]
+The cutpoints are fixed device parameters. Row and column totals give the marginal counts. The matrix has fixed dimension, while exact counts require increasing precision as $n$ grows. The objective is $\theta_t=r$, with equal temporal relevance assigned to all past observations.
+
+\subsection{The estimator output and its evaluation}
+The readout first computes grouped-rank correlation from the matrix. This is a count-based approximation to Spearman correlation, following the type of method described by Xiao~\cite{xiao_online_2017}; it is not local likelihood density estimation. Binning loses within-cell rank information. For a Gaussian copula, the rank-inversion relationship used in Chapter~3 is
+\[
+ \rho_S=\frac{6}{\pi}\arcsin\!\left(\frac r2\right),
+ \qquad
+ \widehat r_n=2\sin\!\left(\frac{\pi\widehat\rho_{S,n}}6\right).
+\]
+Thus the readout returns $\widehat r_n$, and a fitted copula can be represented as $C_{\widehat r_n}$. The fixed cutpoints and count recursion define the device; the Gaussian family assumption enters the parameter readout. The method introduced in Chapter~4 must specify the treatment of empty cells, zero marginal rank variance and boundary estimates before evaluating a copula density.
+% TODO(Sally): Replace the Chapter 3/4 prose references with their existing labels and confirm boundary handling in the final copula fitting procedure.
+
+A known simulation value $r$ permits evaluation through, for example, squared error $(\widehat r_n-r)^2$. It is not an estimator input. Alternatively, error can be evaluated on the Spearman scale against $\rho_S$; these are different evaluation scales. The current common software interface returns estimated Spearman correlation, so returning a fitted Gaussian copula requires the additional inversion just described.
+
+\section{The datastreamer implementation}
+\label{sec:implementation}
+\subsection{Implemented scope and its relationship to the framework}
+The \texttt{C++} framework \texttt{datastreamer} supplies stream generation, publish--subscribe delivery and subscriber-owned statistical state. The description below is based on the inspected source at revision \texttt{c9aae8138aad} and distinguishes the networked consumer from the offline experiment harness.
+% TODO(Sally): Supply the repository/archive reference and confirm the revision used for the submitted experiments.
+
+The source tree contains a synthetic paired-price source and a CSV file source. The inspected server entry point selects the synthetic source; the existence of the file-source class does not imply that this entry point enables file replay. A live external market-feed connector was not established from the inspected source and is not claimed here. The offline harness directly generates bivariate simulated observations, passes them to the estimators and records results, without using the network broker or consumer buffer. Its outputs therefore evaluate statistical updates, not delivery loss under network load.
+% TODO(Sally): Identify which harness, configurations and input sources produced each final thesis result; mark any additional planned input connectors explicitly as extensions.
+
+\begin{figure}[htbp]
+\centering
+\small
+\fbox{\parbox{0.88\linewidth}{\centering
+Statistical objective $\mathcal O$: target $\theta_t$ and temporal relevance $w_t$\\
+Guides estimator choice and evaluation; it is not an estimator output.}}
+\par\medskip
+\begin{tabular}{c}
+\fbox{\parbox{0.84\linewidth}{\centering Synthetic generator $\longrightarrow$ event delivery}}\\[3pt]
+$\downarrow$\\[3pt]
+\fbox{\parbox{0.84\linewidth}{\centering Subscriber device: pair incoming ticks; buffer pairs;\\
+update retained moments, previous prices and estimator coefficients}}\\[3pt]
+$\downarrow$\\[3pt]
+\fbox{\parbox{0.84\linewidth}{\centering Readout $\delta$: Xiao count-matrix or Hermite summary\\
+$\longrightarrow$ estimated Spearman correlation $\widehat\rho_S$}}
+\end{tabular}
+\caption{Simplified implemented networked path in \texttt{datastreamer}. The device includes the state required by its updates; the objective guides the procedure. The shared readout returns Spearman correlation. Gaussian parameter inversion in Section~\ref{sec:copula-example} is a separate mathematical step. The offline harness bypasses network delivery and subscriber buffering.}
+\label{fig:datastreamer}
+\end{figure}
+
+\subsection{Generators, event delivery and subscriber devices}
+The producer obtains an event from its source, applies a delay and then invokes its delivery function. Available delay functions implement no delay, a fixed sleep, an exponentially distributed sleep and a burst-style sequence with random pauses. Sleeps are rounded down to whole milliseconds. The inspected server selects a fixed nominal rate of ten paired events per second; source generation, delivery and scheduling overhead also contribute to elapsed intervals. These mechanisms control pacing and do not guarantee arbitrary arrival-time laws.
+
+Synthetic ticks carry a generation timestamp in milliseconds since the system-clock epoch, assigned before the producer delay. The CSV source reads the timestamp from its input. Neither timestamp should be interpreted as a recorded processing-completion time; the inspected consumer does not record separate receipt and completion timestamps for each pair. The offline harness instead uses a sample index and adds no measurement-noise channel to its generated pairs.
+
+The server publishes per-symbol ticks through a TCP broker and a WebSocket interface. The standalone statistical consumer subscribes to two symbol topics, pairs their ticks in first-in, first-out order and passes complete pairs to its device. This pairing assumes synchronised streams without unmatched losses; it does not match ticks by timestamp. Each device retains previous prices and computes log-price increments before updating its dependence estimators. The first pair initialises previous prices and does not yield a return observation.
+
+\subsection{Buffer policies, processing delays and discarded observations}
+The standalone consumer constructs a ring buffer of capacity 1,024 paired events. New events overwrite the oldest buffer positions after wraparound. Its cursor identifies the next buffer entry to process. Three policies are implemented: \texttt{ProcessAll} throws if an unprocessed entry has been overwritten; \texttt{Snapshot} advances a lagging cursor to the oldest retained entry; and \texttt{SkipToLatest} advances to the newest entry when a backlog exists. The executable defaults to \texttt{ProcessAll}, although the consumer class's constructor default is \texttt{SkipToLatest}.
+
+These policies must be distinguished from how the current execution path invokes them. Each call to \texttt{on\_event} pushes one pair and immediately drains available work in the same thread. There is no separately scheduled delayed statistical worker in that path. Consequently, an expensive update does not by itself demonstrate ring-buffer overflow: unread data can instead accumulate upstream while the consumer is occupied.
+
+The broker applies an optional per-connection rate limit and uses non-blocking socket sends without retaining a retry queue. The inspected send call does not check its returned byte count; successful complete delivery is therefore not established for each message. Rate limiting or failed and partial sends can remove or invalidate incoming data. Moreover, the consumer's two pairing queues and input-text accumulator have no explicit capacity limit in the inspected code. The 1,024-pair ring buffer therefore does not establish a bound on total consumer memory.
+
+Separate devices maintain separate states, but they are not statistically independent when they observe the same stream. Shared processor and transport resources may also couple their timing. Delivery loss before pairing can misalign the two symbol streams. If prices are skipped, a subsequent log-price increment spans the gap between retained prices rather than one original generation step. Both effects matter when comparing an estimate with a simulated one-step target.
+
+To distinguish indices, let $n$ count generated paired observations and let $k$ count valid pairs processed by a device. When original pairs remain identifiable, write $i_k$ for the generated index of the $k$th processed pair and use $(\tau_{i_k},Y_{i_k})$ in its state recursion. The present arrival-order pairing does not ensure this identification after unmatched losses. A delivery-loss experiment would need original sequence identifiers, retained-pair matching and explicit processed/dropped-event records.
+% TODO(Sally): If the thesis claims measured information loss, provide the experiment and instrumentation supporting it. The inspected path does not establish an asynchronous worker, bounded upstream queues, or a complete event-loss audit.
+
+\subsection{Estimator updates and output interfaces}
+The common dependence-estimator interface provides \texttt{update(x,y)}, \texttt{estimate()}, \texttt{reset()}, \texttt{store\_bytes()} and a name. Its estimate is Spearman correlation. The subscriber's \texttt{DeviceState} owns cumulative and exponentially weighted Xiao and Hermite estimators, as well as previous prices and running moments. Updating these objects implements the state transition; calling their estimate methods implements a readout.
+
+The Xiao implementation maintains a joint grid, marginal totals and cutpoints calibrated from an initial sample. The subscriber configuration uses 20 bins per margin and 100 calibration pairs. Its readout computes grouped-rank correlation, returns zero before calibration or for zero rank variance, and clamps other results to $[-1,1]$. These zero returns are software conventions and should not be treated as evidence of independence during warm-up. The Hermite configurations use expansion order 10. The estimator literature motivating the Hermite approach is already cited in the thesis~\cite{stephanou_sequential_2021}.
+
+The two implementations use different meanings for a configuration field named \texttt{lambda}: Xiao uses it as the old-count retention factor, whereas Hermite uses it as the new-observation weight. Thus the subscriber values 0.99 and 0.01 respectively encode corresponding nominal forgetting factors. Neither quantity is the scientific relevance profile or an estimator-bank combination weight.
+
+Counts in the Xiao matrix are stored as \texttt{double}, and the running-moment counter uses \texttt{std::size\_t}. These provide finite machine representations, not unlimited exact arithmetic. No explicit counter-overflow recovery or large-count precision policy was found in these update routines. The storage report covers selected estimator allocations rather than all device and process memory.
+% TODO(Sally): State any numerical range assumptions or overflow safeguards required for long-running deployment; do not imply they are already implemented.
+
+Running variances use a one-pass update of count, mean and centred sum of squares. The implemented path does not require a two-pass scan. A two-pass method could be applied to a retained bounded window, but it could not rescan discarded observations without additional storage.
+% TODO(Sally): Supply the approved Welford citation if retaining that algorithm name in the thesis; no bibliographic details have been guessed.
+
+Finally, the offline harness updates each estimator before recording its estimate and comparing it with the current simulated correlation. This evaluates an estimate after incorporating the observation, not a prediction made beforehand. Predictive scoring in an estimator bank requires the opposite order: form the forecast, observe and score the new pair, and then update the state.
+
+\section{Chapter summary and connection to online copula estimation}
+The stream specifies what is generated and observed, the device specifies what is retained, and the objective specifies the target and temporal relevance. A readout turns the retained state into an estimate. The worked example links these objects through a count matrix, grouped-rank correlation and a Gaussian copula parameter readout. This distinction supports the later comparison of online copula estimators while keeping statistical approximation separate from delivery loss, numerical representation and computation time.

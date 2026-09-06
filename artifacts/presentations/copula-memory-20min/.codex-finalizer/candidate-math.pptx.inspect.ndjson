@@ -1,0 +1,187 @@
+{"kind":"deck","id":"pr/9epz7t","name":"Deck"}
+{"kind":"layout","layoutId":"a2220266-0753-49f6-b432-4217043c4138","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"2605aaf1-241a-4031-9767-bbbdc0c87864","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/gm3nz8","slide":1,"title":"Choosing memory in online copula estimation","textShapes":4}
+{"kind":"textbox","id":"sh/3yl83ato","slide":1,"text":"Choosing memory in online copula estimation","textPreview":"Choosing memory in online copula estimation","textChars":43,"textLines":1,"bbox":[69,87,1125,70]}
+{"kind":"textbox","id":"sh/4zu9cfu9","slide":1,"text":"How should an estimator trade statistical efficiency against adaptation when dependence changes?","textPreview":"How should an estimator trade statistical efficiency against adaptation when dependence changes?","textChars":96,"textLines":1,"bbox":[69,208,1080,143]}
+{"kind":"shape","id":"sh/p03q50be","slide":1,"bbox":[69,426,1136,0]}
+{"kind":"textbox","id":"sh/q1cre5cz","slide":1,"text":"A mathematical account of the estimators, adaptation rules, and their observed failure modes","textPreview":"A mathematical account of the estimators, adaptation rules, and their observed failure modes","textChars":92,"textLines":1,"bbox":[69,460,1070,95]}
+{"kind":"textbox","id":"sh/r2l87atk","slide":1,"text":"20-minute thesis update","textPreview":"20-minute thesis update","textChars":23,"textLines":1,"bbox":[69,640,425,26]}
+{"kind":"notes","id":"nt/gm3nz8","slide":1,"text":"Opening: 30 seconds. The target throughout is time-varying Spearman dependence of a bivariate copula. The common design variable is memory. I will show the estimators as update equations, derive the memory tradeoff, then examine whether the adaptive policies improve the decision criterion. Sources: notes/studies/memory_sweep.md; adaptive_memory.md; results_2026_09_22.md."}
+{"kind":"slide","id":"sl/ipefdz","slide":2,"title":"Target, observations, and online constraint","textShapes":8}
+{"kind":"textbox","id":"sh/2ls3mxkn","slide":2,"text":"Target, observations, and online constraint","textPreview":"Target, observations, and online constraint","textChars":43,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/p8j2xcjy","slide":2,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/o7alo72t","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/fihkr21w","slide":2,"text":"Latent pair","textPreview":"Latent pair","textChars":11,"textLines":1,"bbox":[83,180,240,42]}
+{"kind":"textbox","id":"sh/uh83ixkb","slide":2,"text":"(Uₜ,Vₜ) ∼ Cₜ     and     ρₛ,ₜ = 12 E[UₜVₜ] − 3","textPreview":"(Uₜ,Vₜ) ∼ Cₜ     and     ρₛ,ₜ = 12 E[UₜVₜ] − 3","textChars":46,"textLines":1,"bbox":[84,226,1080,72]}
+{"kind":"textbox","id":"sh/1kj2tcj2","slide":2,"text":"Observed prices","textPreview":"Observed prices","textChars":15,"textLines":1,"bbox":[83,348,285,42]}
+{"kind":"textbox","id":"sh/gjqlk72h","slide":2,"text":"log Pᵢ,ₜ − log Pᵢ,ₜ₋₁ = μᵢ + σᵢ Zᵢ,ₜ","textPreview":"log Pᵢ,ₜ − log Pᵢ,ₜ₋₁ = μᵢ + σᵢ Zᵢ,ₜ","textChars":36,"textLines":1,"bbox":[84,391,1080,68]}
+{"kind":"shape","id":"sh/zel43m1g","slide":2,"bbox":[84,501,1075,0]}
+{"kind":"textbox","id":"sh/ydc3uhkv","slide":2,"text":"Online rule: ρ̂ₛ,ₜ may depend on observations 1,…,t only.","textPreview":"Online rule: ρ̂ₛ,ₜ may depend on observations 1,…,t only.","textChars":57,"textLines":1,"bbox":[84,532,1030,60]}
+{"kind":"textbox","id":"sh/cnepszat","slide":2,"text":"Synthetic tests reveal ρₛ,ₜ to the scorer; a real feed does not.","textPreview":"Synthetic tests reveal ρₛ,ₜ to the scorer; a real feed does not.","textChars":64,"textLines":1,"bbox":[84,600,1040,43]}
+{"kind":"notes","id":"nt/ipefdz","slide":2,"text":"1.5 minutes. U,V are copula uniforms. Spearman rho equals 12 E[UV]−3, so every estimator is reported on one target scale. The synthetic source draws normal scores from a selected copula and integrates returns into prices. The consumer recovers log returns. The truth is for offline scoring only and never enters the estimator. For the Gaussian copula, ρ_S=(6/π)arcsin(r/2). Source: experiments/copula_source.hpp, src/streamgenerator/datasource/synthetic_source.cpp."}
+{"kind":"slide","id":"sl/useojg","slide":3,"title":"Fixed estimators: choose one memory M","textShapes":12}
+{"kind":"textbox","id":"sh/3y5sb654","slide":3,"text":"Fixed estimators: choose one memory M","textPreview":"Fixed estimators: choose one memory M","textChars":37,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/4zet4r6p","slide":3,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/5k7udwna","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/qlgb61ov","slide":3,"text":"Fixed means one preselected forgetting rate for the whole stream.","textPreview":"Fixed means one preselected forgetting rate for the whole stream.","textChars":65,"textLines":1,"bbox":[83,168,1100,55]}
+{"kind":"textbox","id":"sh/rmpcf650","slide":3,"text":"Weights: wⱼ = α(1−α)ʲ","textPreview":"Weights: wⱼ = α(1−α)ʲ","textChars":21,"textLines":1,"bbox":[83,233,1080,53]}
+{"kind":"textbox","id":"sh/cnyt8b6l","slide":3,"text":"ESS = 1 / ∑ⱼ wⱼ² = (2−α)/α","textPreview":"ESS = 1 / ∑ⱼ wⱼ² = (2−α)/α","textChars":26,"textLines":1,"bbox":[83,297,1080,62]}
+{"kind":"shape","id":"sh/do7uhgn6","slide":3,"bbox":[83,380,1086,0]}
+{"kind":"textbox","id":"sh/6pcbuhob","slide":3,"text":"Xiao, MLE","textPreview":"Xiao, MLE","textChars":9,"textLines":1,"bbox":[83,402,320,50]}
+{"kind":"textbox","id":"sh/7qls3mpw","slide":3,"text":"α ≈ 1−λ","textPreview":"α ≈ 1−λ","textChars":7,"textLines":1,"bbox":[420,402,470,50]}
+{"kind":"textbox","id":"sh/zut4765g","slide":3,"text":"Hermite","textPreview":"Hermite","textChars":7,"textLines":1,"bbox":[83,465,320,50]}
+{"kind":"textbox","id":"sh/etk3y1ov","slide":3,"text":"α = λ","textPreview":"α = λ","textChars":5,"textLines":1,"bbox":[420,465,470,50]}
+{"kind":"textbox","id":"sh/1wbm9wnm","slide":3,"text":"Kalman","textPreview":"Kalman","textChars":6,"textLines":1,"bbox":[83,528,320,50]}
+{"kind":"textbox","id":"sh/0v2l0r61","slide":3,"text":"M in ticks ≈ m(2−K)/K","textPreview":"M in ticks ≈ m(2−K)/K","textChars":21,"textLines":1,"bbox":[420,528,700,50]}
+{"kind":"textbox","id":"sh/rq9k3m5k","slide":3,"text":"Xiao and MLE select the same best memory in 20 of 24 tested cells.","textPreview":"Xiao and MLE select the same best memory in 20 of 24 tested cells.","textChars":66,"textLines":1,"bbox":[83,618,1086,42]}
+{"kind":"notes","id":"nt/useojg","slide":3,"text":"2 minutes. Squared weights sum to α/(2−α), so ESS is its reciprocal. The two λ conventions are mirror images: Xiao retains previous counts, Hermite uses λ as the current update weight. MLE discounts Fisher information, giving nominal α≈1−λ. Kalman updates every block, so multiply block ESS by m. This is a nominal variance-sense axis; short Kalman memories hit the one-block floor. Step-response experiments verified the mapping in each method’s linear domain. Source: notes/studies/memory_sweep.md sections 1 and 3; results_2026_09_22.md section 1."}
+{"kind":"slide","id":"sl/itq2kc","slide":4,"title":"Two nonparametric representations","textShapes":9}
+{"kind":"textbox","id":"sh/edwfuton","slide":4,"text":"Two nonparametric representations","textPreview":"Two nonparametric representations","textChars":33,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/1g7yp8ne","slide":4,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/0fexw36t","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/nipgry54","slide":4,"text":"Xiao: empirical copula histogram","textPreview":"Xiao: empirical copula histogram","textChars":32,"textLines":1,"bbox":[83,170,620,49]}
+{"kind":"textbox","id":"sh/mhgfydoj","slide":4,"text":"Nᵢⱼ,ₜ = λNᵢⱼ,ₜ₋₁ + (1−λ)1{(Uₜ,Vₜ) ∈ Bᵢⱼ}","textPreview":"Nᵢⱼ,ₜ = λNᵢⱼ,ₜ₋₁ + (1−λ)1{(Uₜ,Vₜ) ∈ Bᵢⱼ}","textChars":40,"textLines":1,"bbox":[84,223,1080,63]}
+{"kind":"textbox","id":"sh/947yt8na","slide":4,"text":"ρ̂ₛ,ₜ ≈ 12 ∑ᵢⱼ p̂ᵢⱼ,ₜ uᵢvⱼ − 3","textPreview":"ρ̂ₛ,ₜ ≈ 12 ∑ᵢⱼ p̂ᵢⱼ,ₜ uᵢvⱼ − 3","textChars":30,"textLines":1,"bbox":[84,288,1080,61]}
+{"kind":"shape","id":"sh/o3yx036p","slide":4,"bbox":[84,376,1085,0]}
+{"kind":"textbox","id":"sh/3mlwfep0","slide":4,"text":"Hermite: smooth density expansion","textPreview":"Hermite: smooth density expansion","textChars":33,"textLines":1,"bbox":[83,405,620,49]}
+{"kind":"textbox","id":"sh/2lcfm9of","slide":4,"text":"Aₜ = (1−α)Aₜ₋₁ + α h(xₜ)h(yₜ)ᵀ","textPreview":"Aₜ = (1−α)Aₜ₋₁ + α h(xₜ)h(yₜ)ᵀ","textChars":30,"textLines":1,"bbox":[84,458,1080,60]}
+{"kind":"textbox","id":"sh/cryhofml","slide":4,"text":"ρ̂ₛ,ₜ = 12 (u−z/2)ᵀ Aₜ (v−z/2)","textPreview":"ρ̂ₛ,ₜ = 12 (u−z/2)ᵀ Aₜ (v−z/2)","textChars":30,"textLines":1,"bbox":[84,528,1080,62]}
+{"kind":"textbox","id":"sh/ds7yx036","slide":4,"text":"Different state representations; the same dependence functional.","textPreview":"Different state representations; the same dependence functional.","textChars":64,"textLines":1,"bbox":[84,615,1080,38]}
+{"kind":"notes","id":"nt/itq2kc","slide":4,"text":"2 minutes. Xiao discretizes the empirical copula in a 20-by-20 count grid, with calibrated marginal cutpoints. Forgetting multiplies past counts by λ. The displayed cell-centre formula is schematic for its rank-correlation readout. Hermite projects the joint structure into an order-10 basis; h(x)h(y)^T updates a coefficient matrix and its CDF projections yield Spearman rho. The exact implementation also tracks marginal coefficient vectors and debiases their EW warm-up, so the displayed quadratic is the compact functional form, not a verbatim listing of all accumulators. Source: src/estimators/dependence/xiao_spearman.hpp, hermiter.hpp; notes/studies/memory_sweep.md."}
+{"kind":"slide","id":"sl/51mu72","slide":5,"title":"Gaussian copula MLE as a recursive Fisher step","textShapes":7}
+{"kind":"textbox","id":"sh/l8zax8vi","slide":5,"text":"Gaussian copula MLE as a recursive Fisher step","textPreview":"Gaussian copula MLE as a recursive Fisher step","textChars":46,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/y58rmtcr","slide":5,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/z6hsvydc","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/8va9s3ut","slide":5,"text":"θ = atanh(r)        ρₛ = (6/π)asin(r/2)","textPreview":"θ = atanh(r)        ρₛ = (6/π)asin(r/2)","textChars":39,"textLines":1,"bbox":[86,173,1070,59]}
+{"kind":"textbox","id":"sh/9wjal8ve","slide":5,"text":"sₜ = ∂ log cᵣ(Uₜ,Vₜ) / ∂θ       Iθ = 1 + r²","textPreview":"sₜ = ∂ log cᵣ(Uₜ,Vₜ) / ∂θ       Iθ = 1 + r²","textChars":43,"textLines":1,"bbox":[86,277,1070,68]}
+{"kind":"textbox","id":"sh/mt8rqdc3","slide":5,"text":"Hₜ = λHₜ₋₁ + Iθ","textPreview":"Hₜ = λHₜ₋₁ + Iθ","textChars":15,"textLines":1,"bbox":[86,384,480,58]}
+{"kind":"textbox","id":"sh/nu1sjid8","slide":5,"text":"θₜ = θₜ₋₁ + sₜ/Hₜ","textPreview":"θₜ = θₜ₋₁ + sₜ/Hₜ","textChars":17,"textLines":1,"bbox":[636,384,530,58]}
+{"kind":"shape","id":"sh/wzatwnu5","slide":5,"bbox":[86,490,1079,0]}
+{"kind":"textbox","id":"sh/x0japsvq","slide":5,"text":"At equilibrium: H ≈ Iθ/(1−λ), so the step has α ≈ 1−λ.","textPreview":"At equilibrium: H ≈ Iθ/(1−λ), so the step has α ≈ 1−λ.","textChars":54,"textLines":1,"bbox":[86,520,1090,91]}
+{"kind":"notes","id":"nt/51mu72","slide":5,"text":"1.5 minutes. The Gaussian copula log-density yields a score in the unconstrained Fisher parameter θ=atanh r. Its information is 1+r². The algorithm discounts accumulated information and takes a score divided by current information. At stationary information, H is approximately I/(1−λ), exposing an update weight α=1−λ. The code standardizes marginals online first. This is a parametric advantage only when the Gaussian family is credible. Source: src/estimators/dependence/gaussian_mle.hpp; notes/studies/memory_sweep.md section 9."}
+{"kind":"slide","id":"sl/dkv9tm","slide":6,"title":"Kalman filtering and detector attempts","textShapes":8}
+{"kind":"textbox","id":"sh/b6xgfypk","slide":6,"text":"Kalman filtering and detector attempts","textPreview":"Kalman filtering and detector attempts","textChars":38,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/c76xojq5","slide":6,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/d8fyho7q","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/2h4fi983","slide":6,"text":"Block observation","textPreview":"Block observation","textChars":17,"textLines":1,"bbox":[83,170,340,43]}
+{"kind":"textbox","id":"sh/3idgbe9o","slide":6,"text":"yᵦ = atanh(ρ̂ₛ,ᵦ),    zᵦ = zᵦ₋₁ + ωᵦ,    yᵦ = zᵦ + vᵦ","textPreview":"yᵦ = atanh(ρ̂ₛ,ᵦ),    zᵦ = zᵦ₋₁ + ωᵦ,    yᵦ = zᵦ + vᵦ","textChars":53,"textLines":1,"bbox":[84,221,1090,65]}
+{"kind":"textbox","id":"sh/ojmxkjqt","slide":6,"text":"Kᵦ = P⁻ᵦ/(P⁻ᵦ + R),     ẑᵦ = ẑ⁻ᵦ + Kᵦ(yᵦ − ẑ⁻ᵦ)","textPreview":"Kᵦ = P⁻ᵦ/(P⁻ᵦ + R),     ẑᵦ = ẑ⁻ᵦ + Kᵦ(yᵦ − ẑ⁻ᵦ)","textChars":50,"textLines":1,"bbox":[84,308,1090,64]}
+{"kind":"shape","id":"sh/pkvydore","slide":6,"bbox":[84,408,1079,0]}
+{"kind":"textbox","id":"sh/edkfe98r","slide":6,"text":"Change detection on the standardized innovation νᵦ","textPreview":"Change detection on the standardized innovation νᵦ","textChars":50,"textLines":1,"bbox":[84,439,1065,52]}
+{"kind":"textbox","id":"sh/fetw7e9c","slide":6,"text":"CUSUM: gᵦ = max{0, gᵦ₋₁ + δνᵦ − δ²/2}","textPreview":"CUSUM: gᵦ = max{0, gᵦ₋₁ + δνᵦ − δ²/2}","textChars":37,"textLines":1,"bbox":[84,495,1090,64]}
+{"kind":"textbox","id":"sh/jm98z6ts","slide":6,"text":"Tried CUSUM, GLR, and BOCPD; tuning memory mattered more than choosing a detector.","textPreview":"Tried CUSUM, GLR, and BOCPD; tuning memory mattered more than choosing a detector.","textChars":82,"textLines":1,"bbox":[84,589,1075,65]}
+{"kind":"notes","id":"nt/dkv9tm","slide":6,"text":"1.5 minutes. The local-level model runs on Fisher-transformed block Spearman estimates. R is approximately 1.06/(m−3), with m=20. The Kalman innovation can drive CUSUM, GLR, or BOCPD. These were measured at common false-alarm rates. BOCPD gave a structural improvement on the jump, but across the suite the forgetting variance affected RMSE about four times more than detector choice. Detector thresholds and process variance remain separate knobs. Source: notes/studies/kalman_changepoint_results.md sections 0.9–0.11 and findings; src/estimators/dependence/kalman_local_level.hpp."}
+{"kind":"slide","id":"sl/73img0","slide":7,"title":"Adaptive rules: detector, VFF, and bank","textShapes":10}
+{"kind":"textbox","id":"sh/vux4vixc","slide":7,"text":"Adaptive rules: detector, VFF, and bank","textPreview":"Adaptive rules: detector, VFF, and bank","textChars":39,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/wv65onyx","slide":7,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/hwfmxsfi","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/m54nidgv","slide":7,"text":"Detector","textPreview":"Detector","textChars":8,"textLines":1,"bbox":[85,178,250,49]}
+{"kind":"textbox","id":"sh/7qd4rixg","slide":7,"text":"Threshold innovation; reset or boost gain after an alarm","textPreview":"Threshold innovation; reset or boost gain after an alarm","textChars":56,"textLines":1,"bbox":[355,178,831,69]}
+{"kind":"shape","id":"sh/8r65kny1","slide":7,"bbox":[85,264,1088,0]}
+{"kind":"textbox","id":"sh/9sfmt8fm","slide":7,"text":"VFF","textPreview":"VFF","textChars":3,"textLines":1,"bbox":[85,298,250,49]}
+{"kind":"textbox","id":"sh/y14netgj","slide":7,"text":"Cₜ ← Cₜ₋₁ + r(eₜ² − Cₜ₋₁); adjust α ∝ Cₜʳ","textPreview":"Cₜ ← Cₜ₋₁ + r(eₜ² − Cₜ₋₁); adjust α ∝ Cₜʳ","textChars":41,"textLines":1,"bbox":[355,298,831,69]}
+{"kind":"shape","id":"sh/z2d4nyh4","slide":7,"bbox":[85,386,1088,0]}
+{"kind":"textbox","id":"sh/je1sfud0","slide":7,"text":"Bank","textPreview":"Bank","textChars":4,"textLines":1,"bbox":[85,420,250,49]}
+{"kind":"textbox","id":"sh/idsb6pwf","slide":7,"text":"ℓₖ,ₜ = sₖ,ₜ²/(2v);  wₖ,ₜ ∝ wₖ,ₜ₋₁ e⁻ηℓₖ,ₜ","textPreview":"ℓₖ,ₜ = sₖ,ₜ²/(2v);  wₖ,ₜ ∝ wₖ,ₜ₋₁ e⁻ηℓₖ,ₜ","textChars":41,"textLines":1,"bbox":[355,420,830,67]}
+{"kind":"textbox","id":"sh/5gjah4vq","slide":7,"text":"wₖ,ₜ ← (1−p)wₖ,ₜ + p/K","textPreview":"wₖ,ₜ ← (1−p)wₖ,ₜ + p/K","textChars":22,"textLines":1,"bbox":[355,490,830,61]}
+{"kind":"shape","id":"sh/4fat8zel","slide":7,"bbox":[85,581,1088,0]}
+{"kind":"textbox","id":"sh/ri1sjudw","slide":7,"text":"Fixed share p keeps arms alive; η controls reaction speed.","textPreview":"Fixed share p keeps arms alive; η controls reaction speed.","textChars":58,"textLines":1,"bbox":[85,608,1090,47]}
+{"kind":"notes","id":"nt/73img0","slide":7,"text":"1.5 minutes. A detector changes the update rule after an innovation crosses a threshold; we tried Kalman CUSUM, GLR and BOCPD, and score-based detectors on other estimators. VFF changes one forgetting parameter continuously from surprise. A bank runs K fixed-memory arms in parallel and scores their pre-update predictions; exponentiated losses update weights, and a fixed-share mixing step preserves the possibility of switching. η controls responsiveness, p is the assumed switching rate. The generic EstimatorBank uses squared rank residuals, not a genuine predictive likelihood. KalmanBank uses model predictive densities. Both are established algorithms, not a new algorithmic invention. Source: notes/studies/adaptive_memory.md sections 1, 5 and 17; results_2026_09_22.md section 9."}
+{"kind":"slide","id":"sl/cmi1yn","slide":8,"title":"Regret needs a comparator and a window","textShapes":9}
+{"kind":"textbox","id":"sh/hk3e9w7i","slide":8,"text":"Regret needs a comparator and a window","textPreview":"Regret needs a comparator and a window","textChars":38,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/uxsvy1o7","slide":8,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/fy1w76ps","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/4nux4b69","slide":8,"text":"Per-tick error:  ℓₜ(a) = (ρ̂ₜ⁽ᵃ⁾ − ρₜ)²","textPreview":"Per-tick error:  ℓₜ(a) = (ρ̂ₜ⁽ᵃ⁾ − ρₜ)²","textChars":39,"textLines":1,"bbox":[84,168,1080,56]}
+{"kind":"textbox","id":"sh/po3edg7u","slide":8,"text":"L[a,b)(a) = ∑ₜ₌ₐᵇ⁻¹ ℓₜ(a)","textPreview":"L[a,b)(a) = ∑ₜ₌ₐᵇ⁻¹ ℓₜ(a)","textChars":25,"textLines":1,"bbox":[84,246,1080,54]}
+{"kind":"shape","id":"sh/2lcf21o3","slide":8,"bbox":[84,333,1085,0]}
+{"kind":"textbox","id":"sh/3mlwb6po","slide":8,"text":"Static regret","textPreview":"Static regret","textChars":13,"textLines":1,"bbox":[84,370,325,48]}
+{"kind":"textbox","id":"sh/crex8v65","slide":8,"text":"L[a,b)(π) − minₐ L[a,b)(a)","textPreview":"L[a,b)(π) − minₐ L[a,b)(a)","textChars":26,"textLines":1,"bbox":[415,370,742,59]}
+{"kind":"textbox","id":"sh/dsneh07q","slide":8,"text":"Switching regret","textPreview":"Switching regret","textChars":16,"textLines":1,"bbox":[84,463,325,48]}
+{"kind":"textbox","id":"sh/1kfat4ba","slide":8,"text":"L[a,b)(π) − minₐ₁:ₜ, switches≤K ∑ₜ ℓₜ(aₜ)","textPreview":"L[a,b)(π) − minₐ₁:ₜ, switches≤K ∑ₜ ℓₜ(aₜ)","textChars":41,"textLines":1,"bbox":[415,463,748,86]}
+{"kind":"textbox","id":"sh/0j6t0zup","slide":8,"text":"The comparator uses hindsight; the online policy never sees ρₜ.","textPreview":"The comparator uses hindsight; the online policy never sees ρₜ.","textChars":63,"textLines":1,"bbox":[84,611,1080,42]}
+{"kind":"notes","id":"nt/cmi1yn","slide":8,"text":"1.5 minutes. Define loss before quoting any regret. Static regret compares the adaptive rule with the best single fixed arm selected after seeing the same interval. Switching regret compares with a hindsight sequence allowed K switches, so it is harder. The window [a,b) is part of the metric, not a plotting detail. In synthetic runs rho_t is known to the scorer only. On a real feed neither RMSE nor these hindsight regrets exist; cumulative excess predictive loss versus a named running estimator can be reported instead. Later worst-case regret is a per-scenario MSE form, while capture and decomposition use cumulative squared loss."}
+{"kind":"slide","id":"sl/g6wf0k","slide":9,"title":"The target sets the best memory","textShapes":8}
+{"kind":"textbox","id":"sh/tsnexcj2","slide":9,"text":"The target sets the best memory","textPreview":"The target sets the best memory","textChars":31,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/65cf2xkb","slide":9,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/r6lwv21w","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/1wne1cjy","slide":9,"text":"MSE ≈ σ²/M + (dM/2)²","textPreview":"MSE ≈ σ²/M + (dM/2)²","textChars":20,"textLines":1,"bbox":[916,181,290,118]}
+{"kind":"textbox","id":"sh/etwf6h0n","slide":9,"text":"Best M, measured","textPreview":"Best M, measured","textChars":16,"textLines":1,"bbox":[916,329,287,44]}
+{"kind":"textbox","id":"sh/fu5wzm18","slide":9,"text":"Oscillate  36","textPreview":"Oscillate  36","textChars":13,"textLines":1,"bbox":[916,381,288,43]}
+{"kind":"textbox","id":"sh/ozyxcrip","slide":9,"text":"Drift          235","textPreview":"Drift          235","textChars":18,"textLines":1,"bbox":[916,431,288,43]}
+{"kind":"textbox","id":"sh/p07e5wja","slide":9,"text":"Jump settled  495","textPreview":"Jump settled  495","textChars":17,"textLines":1,"bbox":[916,481,288,72]}
+{"kind":"textbox","id":"sh/p0zuxo7q","slide":9,"text":"Constant: optimum beyond 30,000-tick grid","textPreview":"Constant: optimum beyond 30,000-tick grid","textChars":41,"textLines":1,"bbox":[84,612,1100,43]}
+{"kind":"chart","id":"ch/4vq9cbut","slide":9,"name":"","chartType":"line","bbox":[80,175,810,396]}
+{"kind":"notes","id":"nt/g6wf0k","slide":9,"text":"2 minutes. The U curve is a theoretical local-linear illustration, not a fitted empirical curve. Variance decreases with M; drift lag grows roughly with dM/2. The measured optima move greatly by scenario. Constant asks for very long memory, while the 400-tick oscillation wants M=36. The jump has separate recovery and settled optima, so one whole-run best M hides the temporal conflict. The Xiao 20-bin histogram also has a small discretization bias floor. Source: notes/studies/memory_sweep.md section 4."}
+{"kind":"slide","id":"sl/rrglvd","slide":10,"title":"The MLE’s edge is payment for knowing the family","textShapes":7}
+{"kind":"textbox","id":"sh/t0ni1sna","slide":10,"text":"The MLE’s edge is payment for knowing the family","textPreview":"The MLE’s edge is payment for knowing the family","textChars":48,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/6xwzqdoj","slide":10,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/7y50zi54","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/h47i5sn6","slide":10,"text":"6 / 6","textPreview":"6 / 6","textChars":5,"textLines":1,"bbox":[907,216,284,75]}
+{"kind":"textbox","id":"sh/u1wjuxov","slide":10,"text":"on-family wins","textPreview":"on-family wins","textChars":14,"textLines":1,"bbox":[908,294,286,52]}
+{"kind":"textbox","id":"sh/f2503250","slide":10,"text":"+66.7%","textPreview":"+66.7%","textChars":6,"textLines":1,"bbox":[907,407,284,74]}
+{"kind":"textbox","id":"sh/4ry107mx","slide":10,"text":"worst off-family MLE loss","textPreview":"worst off-family MLE loss","textChars":25,"textLines":1,"bbox":[908,480,280,82]}
+{"kind":"textbox","id":"sh/ps7i9cni","slide":10,"text":"All numbers are synthetic Gaussian/Clayton/Gumbel/t comparisons.","textPreview":"All numbers are synthetic Gaussian/Clayton/Gumbel/t comparisons.","textChars":64,"textLines":1,"bbox":[84,620,1050,36]}
+{"kind":"chart","id":"ch/cval8v65","slide":10,"name":"","chartType":"bar","bbox":[82,180,785,421]}
+{"kind":"notes","id":"nt/rrglvd","slide":10,"text":"1.5 minutes. At matched memory, the Gaussian MLE beats Xiao in every Gaussian window. Across the other three copula families it wins 9 of 18 and can lose badly, with +66.7% in the worst observed Clayton cell. Xiao offers robustness when family is unknown. The main issue is not algorithm quality divorced from model specification. Source: notes/studies/results_2026_09_22.md section 2; memory_sweep.md section 9."}
+{"kind":"slide","id":"sl/vr9g4q","slide":11,"title":"Processing budget changes the memory optimum","textShapes":6}
+{"kind":"textbox","id":"sh/7qxkjito","slide":11,"text":"Processing budget changes the memory optimum","textPreview":"Processing budget changes the memory optimum","textChars":44,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/8r61s3u9","slide":11,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/tsz2l8be","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/y1ojmtcr","slide":11,"text":"MSE(Mₜᵢₘₑ) = σ²/(f Mₜᵢₘₑ) + (d Mₜᵢₘₑ/2)²","textPreview":"MSE(Mₜᵢₘₑ) = σ²/(f Mₜᵢₘₑ) + (d Mₜᵢₘₑ/2)²","textChars":40,"textLines":1,"bbox":[83,174,1110,77]}
+{"kind":"textbox","id":"sh/j2xkfytc","slide":11,"text":"∂MSE/∂M = 0  ⇒  M*ₜᵢ꜀ₖₛ = [2σ²/(f d²)]¹ᐟ³ ∝ f⁻¹ᐟ³","textPreview":"∂MSE/∂M = 0  ⇒  M*ₜᵢ꜀ₖₛ = [2σ²/(f d²)]¹ᐟ³ ∝ f⁻¹ᐟ³","textChars":49,"textLines":1,"bbox":[83,260,1110,75]}
+{"kind":"textbox","id":"sh/l4f2h8bi","slide":11,"text":"Thinning beat batching","textPreview":"Thinning beat batching","textChars":22,"textLines":1,"bbox":[940,411,257,90]}
+{"kind":"textbox","id":"sh/ix83yxsb","slide":11,"text":"at the same update budget","textPreview":"at the same update budget","textChars":25,"textLines":1,"bbox":[940,509,260,81]}
+{"kind":"chart","id":"ch/szatwfmx","slide":11,"name":"","chartType":"bar","bbox":[85,352,815,270]}
+{"kind":"notes","id":"nt/vr9g4q","slide":11,"text":"1.5 minutes. If only fraction f of incoming ticks is processed, M observations span M/f wall-clock ticks. Expressing variance in tick units gives σ²/(f M_ticks); lag bias remains d M_ticks/2. Minimization yields the cube-root law. At f=1/2 measured optimal memory ratio is 1.25 versus predicted 1.26; at f=1/4 it is 1.67 versus 1.59. This is for linear drift; jumps overshoot the prediction. Thinning uniformly in time beat contiguous batching in the tested conditions. Source: notes/studies/rate_budget.md."}
+{"kind":"slide","id":"sl/pa7ryi","slide":12,"title":"A decision criterion for unknown regimes","textShapes":8}
+{"kind":"textbox","id":"sh/ux07290b","slide":12,"text":"A decision criterion for unknown regimes","textPreview":"A decision criterion for unknown regimes","textChars":40,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/hkrqd4jm","slide":12,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/wjip4zih","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/jmt8fe1s","slide":12,"text":"R(π,e) = L(π,e) − minₐ L(a,e)","textPreview":"R(π,e) = L(π,e) − minₐ L(a,e)","textChars":29,"textLines":1,"bbox":[84,169,1080,60]}
+{"kind":"textbox","id":"sh/il076907","slide":12,"text":"Choose π to minimise maxₑ R(π,e)","textPreview":"Choose π to minimise maxₑ R(π,e)","textChars":32,"textLines":1,"bbox":[84,236,1080,55]}
+{"kind":"textbox","id":"sh/4n2p8jid","slide":12,"text":"VFF regret","textPreview":"VFF regret","textChars":10,"textLines":1,"bbox":[966,356,233,47]}
+{"kind":"textbox","id":"sh/rqt8jy14","slide":12,"text":"Xiao 39.29","textPreview":"Xiao 39.29","textChars":10,"textLines":1,"bbox":[966,412,233,48]}
+{"kind":"textbox","id":"sh/6pk7at0j","slide":12,"text":"Kalman 15.39","textPreview":"Kalman 15.39","textChars":12,"textLines":1,"bbox":[966,464,239,48]}
+{"kind":"textbox","id":"sh/gjy9wb6h","slide":12,"text":"×10⁻³ MSE","textPreview":"×10⁻³ MSE","textChars":9,"textLines":1,"bbox":[966,526,239,43]}
+{"kind":"chart","id":"ch/x4b69c32","slide":12,"name":"","chartType":"bar","bbox":[85,315,845,303]}
+{"kind":"notes","id":"nt/pa7ryi","slide":12,"text":"2 minutes. For each scenario e, subtract the best loss achieved in that scenario by the comparator class. Then examine the worst regret across constant, drift, jump, oscillate. This avoids the hardest scenario swallowing the comparison. The bank ranks first among the tested candidate policies on this criterion in all five estimator families. The plotted values are ×10^-3 MSE, whereas a later slide uses cumulative squared loss; keep those units distinct. The best fixed setting is selected in hindsight over the scenario suite; the bank itself acts online without scenario labels. Source: notes/studies/results_2026_09_22.md section 4; adaptive_memory.md section 12."}
+{"kind":"slide","id":"sl/ob9q69","slide":13,"title":"How much of one ideal switch does the bank capture?","textShapes":11}
+{"kind":"textbox","id":"sh/o7ah8be5","slide":13,"text":"How much of one ideal switch does the bank capture?","textPreview":"How much of one ideal switch does the bank capture?","textChars":51,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/n610f6dk","slide":13,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/mlsz61wz","slide":13,"text":"13","textPreview":"13","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/xc3ilgvm","slide":13,"text":"L*(K) = minₐ₁:ₜ:  switches(a₁:ₜ)≤K  ∑ₜ ℓₜ(aₜ)","textPreview":"L*(K) = minₐ₁:ₜ:  switches(a₁:ₜ)≤K  ∑ₜ ℓₜ(aₜ)","textChars":45,"textLines":1,"bbox":[84,172,1090,78]}
+{"kind":"textbox","id":"sh/wbahcbe1","slide":13,"text":"Capture = [L*(0) − Lbank] / [L*(0) − L*(1)]","textPreview":"Capture = [L*(0) − Lbank] / [L*(0) − L*(1)]","textChars":43,"textLines":1,"bbox":[84,266,1090,65]}
+{"kind":"shape","id":"sh/ba10j6dw","slide":13,"bbox":[84,370,1090,0]}
+{"kind":"textbox","id":"sh/a9sza1wb","slide":13,"text":"Xiao","textPreview":"Xiao","textChars":4,"textLines":1,"bbox":[98,416,240,47]}
+{"kind":"textbox","id":"sh/lg3ip0vy","slide":13,"text":"14.3%","textPreview":"14.3%","textChars":5,"textLines":1,"bbox":[409,416,210,47]}
+{"kind":"textbox","id":"sh/kfu1gved","slide":13,"text":"Gaussian MLE","textPreview":"Gaussian MLE","textChars":12,"textLines":1,"bbox":[98,483,278,47]}
+{"kind":"textbox","id":"sh/a18nydov","slide":13,"text":"14.0%","textPreview":"14.0%","textChars":5,"textLines":1,"bbox":[409,483,210,47]}
+{"kind":"textbox","id":"sh/v2horipg","slide":13,"text":"Kalman","textPreview":"Kalman","textChars":6,"textLines":1,"bbox":[98,550,240,47]}
+{"kind":"textbox","id":"sh/w3q50n61","slide":13,"text":"82.5%","textPreview":"82.5%","textChars":5,"textLines":1,"bbox":[409,550,210,47]}
+{"kind":"textbox","id":"sh/x4z6ts7m","slide":13,"text":"The K=1 comparator knows the jump time in hindsight.","textPreview":"The K=1 comparator knows the jump time in hindsight.","textChars":52,"textLines":1,"bbox":[760,450,435,118]}
+{"kind":"notes","id":"nt/ob9q69","slide":13,"text":"2 minutes. The K-switch comparator is a dynamic-programming oracle over arm sequences. K=0 is one fixed memory; K=1 permits one hindsight switch. Capture is the fraction of the one-switch improvement achieved by the online bank on the full jump run. Xiao and MLE banks captured about 14%; KalmanBank 82.5%. That gap reflects how the different bank weight updates react, but the comparator knows the jump time and cannot itself be deployed. Window choice changes the numbers, especially for generic banks. Source: notes/studies/results_2026_09_22.md section 5; adaptive_memory.md sections 13–14."}
+{"kind":"slide","id":"sl/qbcvki","slide":14,"title":"The bank wins before the jump and pays during recovery","textShapes":7}
+{"kind":"textbox","id":"sh/83ap4zmh","slide":14,"text":"The bank wins before the jump and pays during recovery","textPreview":"The bank wins before the jump and pays during recovery","textChars":54,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/721obulw","slide":14,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/m1s72p4b","slide":14,"text":"14","textPreview":"14","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/w7up8jmd","slide":14,"text":"−7,647","textPreview":"−7,647","textChars":6,"textLines":1,"bbox":[912,214,280,66]}
+{"kind":"textbox","id":"sh/v6l8fel8","slide":14,"text":"before the jump","textPreview":"before the jump","textChars":15,"textLines":1,"bbox":[914,282,282,40]}
+{"kind":"textbox","id":"sh/u5c7694n","slide":14,"text":"+4,860","textPreview":"+4,860","textChars":6,"textLines":1,"bbox":[912,385,280,66]}
+{"kind":"textbox","id":"sh/5wnqlo3a","slide":14,"text":"during recovery","textPreview":"during recovery","textChars":15,"textLines":1,"bbox":[914,453,282,40]}
+{"kind":"textbox","id":"sh/4vepcjmp","slide":14,"text":"Whole run: −1,881","textPreview":"Whole run: −1,881","textChars":17,"textLines":1,"bbox":[85,611,615,47]}
+{"kind":"chart","id":"ch/d8j25cfi","slide":14,"name":"","chartType":"bar","bbox":[83,173,788,429]}
+{"kind":"notes","id":"nt/qbcvki","slide":14,"text":"2 minutes. These are Xiao-bank cumulative squared-loss differences against the one best fixed Xiao memory selected over the whole jump run. Negative means the bank is ahead. It earns 7,647 units before the jump, loses 4,860 in recovery and 905 after settling. Thus a whole-run gain is not a recovery win. A faster learning rate η=4 can reverse recovery regret, but makes worst-case regret 13 times worse because of oscillate. This is the central failure mode and tradeoff. Source: notes/studies/results_2026_09_22.md sections 6 and 8; adaptive_memory.md section 15."}
+{"kind":"slide","id":"sl/7k32aj","slide":15,"title":"Scoring windows are part of the result","textShapes":8}
+{"kind":"textbox","id":"sh/adgvulwr","slide":15,"text":"Scoring windows are part of the result","textPreview":"Scoring windows are part of the result","textChars":38,"textLines":1,"bbox":[68,45,1140,71]}
+{"kind":"shape","id":"sh/xg7u5gf2","slide":15,"bbox":[68,128,1143,0]}
+{"kind":"textbox","id":"sh/wfydwbeh","slide":15,"text":"15","textPreview":"15","textChars":2,"textLines":1,"bbox":[1164,660,44,25]}
+{"kind":"textbox","id":"sh/nqpcz6x0","slide":15,"text":"RMSE[a,b) = √{ ∑ₜ₌ₐᵇ⁻¹ (ρ̂ₜ − ρₜ)² / (b−a) }","textPreview":"RMSE[a,b) = √{ ∑ₜ₌ₐᵇ⁻¹ (ρ̂ₜ − ρₜ)² / (b−a) }","textChars":44,"textLines":1,"bbox":[84,169,1100,65]}
+{"kind":"shape","id":"sh/mpwbq1wf","slide":15,"bbox":[84,262,1084,0]}
+{"kind":"textbox","id":"sh/9c7u1gf6","slide":15,"text":"Bank, first 400 recovery ticks","textPreview":"Bank, first 400 recovery ticks","textChars":30,"textLines":1,"bbox":[84,291,560,44]}
+{"kind":"textbox","id":"sh/8rytsbel","slide":15,"text":"Offline 0.2155     Live 0.2231","textPreview":"Offline 0.2155     Live 0.2231","textChars":30,"textLines":1,"bbox":[84,344,1050,52]}
+{"kind":"textbox","id":"sh/7m9cbadk","slide":15,"text":"Offline, first 1000 recovery ticks","textPreview":"Offline, first 1000 recovery ticks","textChars":34,"textLines":1,"bbox":[84,425,690,43]}
+{"kind":"textbox","id":"sh/6l0v25wz","slide":15,"text":"0.1437 — the recovered tail changes the aggregate.","textPreview":"0.1437 — the recovered tail changes the aggregate.","textChars":50,"textLines":1,"bbox":[84,476,1080,62]}
+{"kind":"shape","id":"sh/8fu1sb61","slide":15,"bbox":[84,560,1084,0]}
+{"kind":"textbox","id":"sh/tg321g7m","slide":15,"text":"One unseeded run; same-input parity and pair IDs remain to be checked.","textPreview":"One unseeded run; same-input parity and pair IDs remain to be checked.","textChars":70,"textLines":1,"bbox":[84,588,1085,60]}
+{"kind":"notes","id":"nt/7k32aj","slide":15,"text":"1 minute. Correct the initial live/offline impression. On the same 400-tick post-change window, Xiao bank RMSE is 0.2155 offline and 0.2231 live, 3.5 percent apart. Fixed Xiao differs more: 0.1944 offline versus 0.2216 live, about 14 percent. Comparing the live 400-tick number with offline 1000-tick 0.1437 created the false impression of live degradation. These are separate unseeded paths, so even matched windows establish only rough consistency, not parity. For real trades rho truth is unavailable, so show weights, mean memory, and prequential score; use fixed sampling plus trade-intensity and staleness controls for the Epps effect. Source: notes/studies/online_run_2026_09_22.md section 3.3."}
