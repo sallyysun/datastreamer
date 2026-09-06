@@ -10,7 +10,7 @@ mean anything, and the results — including two corrections to claims that did 
 Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
 `experiments/` — see [§9](#9-reproduction).
 
-[§0](#0-primer) is a from-scratch primer on the machinery. It assumes expectation, variance, the
+[§0](#0-orientation) is a from-scratch primer on the machinery. It assumes expectation, variance, the
 Gaussian, Bayes' rule and likelihood, and builds everything else — copulas, Spearman's $\rho$, the
 Fisher transform, state-space models, the Kalman filter, CUSUM, GLR, BOCPD and $\mathrm{ARL}_0$ —
 from those. Readers who already have this can start at §1.
@@ -22,52 +22,138 @@ from those. Readers who already have this can start at §1.
 > pages must be checked against a bibliographic database before entering `bibliography.bib`. None
 > of them are currently in the Zotero library except **[Roberts 1959]** and **[Gregory 2019]**.
 
-## 0. Primer
+## 0. Orientation
 
-### 0.1 The problem
+### 0.1 The three layers
 
-Two price series move together. *How* together, and does it change over time?
+The methods only look like rivals because they get listed flat. They sit on **three
+layers**, and you pick one thing from each.
 
-**Definition (copula).** For a random vector $(X, Y)$ with continuous marginal CDFs $F_X, F_Y$, Sklar's
-theorem gives a unique function $C : [0,1]^2 \to [0,1]$ with
+```text
+LAYER 1:  WHAT DO I ASSUME?          LAYER 3:  HOW DO I HANDLE CHANGE?
+          │                                    │
+          ├── Parametric                       ├── Continuous adaptation
+          │     Gaussian / Clayton             │     ├── Fixed forgetting
+          │     Gumbel / t                     │     └── VFF (rate itself moves)
+          │                                    │
+          └── Nonparametric                    └── Explicit detection
+                Xiao / Hermite                       ├── CUSUM
+                                                     ├── GLR
+LAYER 2:  HOW DO I ESTIMATE?                         ├── EWMA chart
+          │                                          ├── Shiryaev-Roberts
+          ├── Parametric                             └── BOCPD
+          │     MLE / Fisher scoring                       │
+          │                                                └── optional restart
+          └── Nonparametric
+                Xiao / Hermite
+                State-space: Kalman / EKF / UKF / particle
+```
 
-$$
-F_{X,Y}(x,y) \;=\; C\bigl(F_X(x),\, F_Y(y)\bigr).
-$$
+**Estimator choice and adaptation strategy are separate axes.**
 
-$C$ is the **copula**: the joint distribution of the *ranks* $U = F_X(X)$, $V = F_Y(Y)$, each uniform
-on $[0,1]$ — the dependence with the marginals divided out. That separation matters because the two
-move on different timescales: volatility changes for its own reasons, and should not contaminate a
-reading of co-movement.
+|                  | Fixed forgetting | VFF | CUSUM + restart | BOCPD |
+| ---------------- | ---------------- | --- | --------------- | ----- |
+| **Gaussian MLE** | ✓ | ⬜ | ⬜ | ⬜ |
+| **Xiao**         | ✓ | ⬜ | ⬜ | ⬜ |
+| **Hermite**      | ✓ | ⬜ | ⬜ | ⬜ |
+| **Kalman**       | ✓ | ⬜ | ✓ | ✓ |
 
-**Definition (Spearman's $\rho$).** The linear correlation of the ranks:
+✓ built and measured, ⬜ not built. The matrix does not need filling; the point is that
+it *is* a matrix. The Kalman filter is a **layer 2** choice, not a detector — a detector
+sits on top of it and reads its innovations.
 
-$$
-\rho_S \;=\; 12 \int_0^1\!\!\int_0^1 uv \; \mathrm dC(u,v) \; - \; 3
-\;=\; \operatorname{corr}\bigl(F_X(X),\, F_Y(Y)\bigr).
-$$
+### 0.2 Where this document sits
 
-Every estimator in this codebase reports $\rho_S$ regardless of what it fits internally, so a
-parametric MLE and a nonparametric rank estimator are directly comparable. For the Gaussian copula
-with correlation $\rho$, $\rho_S = \frac{6}{\pi}\arcsin(\rho/2)$.
+Mostly **layer 3**, on one layer 2 choice, tested against several layer 1 choices.
 
-**Streaming** means one pass, $O(1)$ per tick, memory bounded independent of stream length. An
-estimator needing the last $10^4$ points is disqualified however accurate it is.
+| Layer | Question | Sections |
+| --- | --- | --- |
+| **1 — assume** | Which family generated the data? | [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families) |
+| **2 — estimate** | How do we track ρ as it moves? | §0.9, §3.1–3.3, §3.9, §4.1, §5.1, §6.1 |
+| **3 — handle change** | Forget, or detect and restart? | §0.10, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
+| *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §8, [§9](#9-reproduction) |
 
-**The central tension.** More data lowers variance but reacts late when the truth moves. With
-$\hat\theta_t$ estimating a moving $\theta_t$:
+**The headline is a layer-3 result:** on a jump, continuous adaptation *beat* explicit
+detection — the restart discarded a nearly-converged estimate.
 
-$$
-\underbrace{\mathbb E\bigl[(\hat\theta_t - \theta_t)^2\bigr]}_{\text{MSE}}
-\;=\;
-\underbrace{\operatorname{Var}(\hat\theta_t)}_{\downarrow \text{ with memory}}
-\;+\;
-\underbrace{\bigl(\mathbb E[\hat\theta_t] - \theta_t\bigr)^2}_{\text{lag bias, } \uparrow \text{ with memory}} .
-$$
+### 0.3 The copula, and what ρ throws away
 
-Everything in this document is one answer to "how should memory be chosen?"
+Two stocks, two questions: *how does each behave alone* (marginals) and *how do they move
+together* (dependence).
 
-### 0.2 Forgetting, and why an optimal memory exists
+**The separation trick.** Don't record "+2.3%". Record **"AAPL's 87th-percentile day"**.
+Every observation becomes a pair like $(0.87, 0.91)$. Both coordinates are now uniform on
+$[0,1]$ by construction, so all information about *how big* the moves were is deleted on
+purpose. What survives is only how the percentiles move together — and that joint
+distribution is the copula $C(u,v)$.
+
+**[Sklar 1959]** ⚠️ (textbook: **[Nelsen 2006]** ✓) says the split is always possible and
+unique for continuous margins:
+
+$$F(x,y) = C\big(F_X(x),\, F_Y(y)\big) \qquad\text{joint} = \text{marginals} + \text{copula}$$
+
+Spearman's ρ is **one number computed off that surface**, $\rho_s = 12\iint C - 3$.
+
+> **The copula is a photograph. Spearman's ρ is its average brightness.**
+
+A Gaussian copula and a Clayton copula can both sit at ρ = 0.5 while one crashes together
+in the lower tail and the other doesn't. **Every detector here watches the scalar**, so a
+change of shape at fixed ρ is invisible to all of them (distinction 1). Monitoring the
+Hermite coefficient vector instead — an O(k) object the estimator already computes and
+then discards — is the cheapest available fix.
+
+### 0.4 Ranks, and why the current code is exposed
+
+**Rank-PIT**: replace a value by its rank over what you've seen. 87th of 100 → 0.87. No
+assumption about the distribution's shape.
+
+> **Marginal invariance.** If AAPL's volatility doubles, the *ranks don't change* — the
+> biggest day is still the biggest day. A copula estimated from ranks doesn't move when
+> the marginals move.
+
+That is precisely what a dependence detector needs. **This codebase doesn't do it**: it
+standardizes (Welford running mean/sd), which is exact only for Gaussian data.
+**[Fantazzini 2009]** ✓ measured the cost — with skewed data and symmetric marginals
+assumed, elliptical copula correlations were biased downward by **up to 70% of the true
+value**. Rank-PIT is open in [todo.md](../todo.md).
+[§4.4](#44-marginal-invariance-distinction-2--confirmed-no-fix-needed) shows the current
+approach survives the *simulated* DGPs; that is not a defence against real returns.
+
+### 0.5 The five distinctions
+
+Why a copula changepoint is harder than the changepoints most detectors target. Cited by
+number elsewhere; full statements in [roadmap.md](roadmap.md).
+
+| # | Short name | The problem |
+| --- | --- | --- |
+| 1 | Joint, not scalar | The thing changing is a surface; ρ is one number off it |
+| 2 | Marginal confound | Ignore volatility changes, detect dependence changes |
+| 3 | Rank feedback | Ranks shift as data arrives → the stream is not i.i.d. |
+| 4 | Weak signal | Dependence converges slowly → delay is fundamental |
+| 5 | Drift, not jumps | Real dependence mostly drifts; jumps are rare |
+
+**Distinction 3 undermines the theory**: every optimality result in
+[§12](#12-references) assumes i.i.d. pre-change data. Rank streams are not.
+
+### 0.6 Three terms used later
+
+**Functional** — a function that eats a whole object and returns a number. ρ is a
+functional of the copula, and a lossy one. *You choose which functional the detector
+watches.*
+
+**Multiplier bootstrap** — how to set a threshold with no usable formula. Distinction 3
+rules out the textbook null distribution, so simulate: multiply the existing terms by
+random mean-zero weights and recompute. Theory for empirical copula processes is
+**[Segers 2012]** ✓ and **[Bücher & Volgushev 2013]** ✓.
+
+**Anytime-valid / e-values** — a p-value is only trustworthy if you look *once*, at a
+pre-planned time; peek repeatedly and chance alone eventually gives a false alarm.
+Anytime-valid means look as often as you like. An **e-value** is a betting score — how
+much you'd have won betting against "nothing changed" — and it holds without i.i.d.,
+which is exactly what distinction 3 destroys.
+[change_detection.md](change_detection.md) Part IV.1 calls this the strongest novelty
+candidate in the project; none of that literature is in the library yet.
+### 0.7 Forgetting, and why an optimal memory exists
 
 The standard streaming device is the **exponentially weighted moving average**: for observations
 $y_1,\dots,y_t$ and a rate $\alpha \in (0,1]$,
@@ -104,7 +190,7 @@ $\lambda$ is the *update weight*, so smaller $\lambda$ = longer memory ($\alpha 
 reduce to the same $\text{ESS} = (2-\alpha)/\alpha$. Getting this backwards silently inverts an
 experiment — see the header of `src/estimators/registry.hpp`.
 
-### 0.3 Blocks, and the Fisher transform
+### 0.8 Blocks, and the Fisher transform
 
 Two obstacles stop us from filtering $\hat\rho_S$ tick by tick.
 
@@ -136,7 +222,7 @@ the denominator of the signal-to-noise ratio, leaving one scalar to choose inste
 Blocking is not free (§6.1), but it buys an *exactly* linear-Gaussian model, so the optimal filter is
 closed-form rather than an EKF/UKF.
 
-### 0.4 State-space models and the Kalman filter
+### 0.9 State-space models and the Kalman filter
 
 **Definition (linear-Gaussian state-space model).** A hidden state evolving by a linear rule,
 observed through linear noise (**[Kalman 1960]**; textbook treatments **[Harvey 1989]**,
@@ -153,7 +239,7 @@ $$
 
 with $\omega_t, v_t$ independent. This particular one — a random walk seen in noise — is the
 **local-level model**. Here $z_t = \operatorname{atanh}\rho_t$ is the true dependence and $y_t$ is
-the block measurement of §0.3. The two variances say everything: $\sigma_\omega^2$ is *how fast we
+the block measurement of §0.8. The two variances say everything: $\sigma_\omega^2$ is *how fast we
 believe the world changes*, $\sigma_v^2$ is *how noisy our measurement is*.
 
 #### The idea in one paragraph
@@ -216,13 +302,13 @@ $$
 \hat z_t \;=\; \hat z_{t-1} + K(y_t - \hat z_{t-1}) \;=\; (1-K)\,\hat z_{t-1} + K y_t ,
 $$
 
-which is exactly the EWMA of §0.2 with $\alpha = K$, i.e. $\boxed{\lambda = 1 - K}$. **Every
+which is exactly the EWMA of §0.7 with $\alpha = K$, i.e. $\boxed{\lambda = 1 - K}$. **Every
 fixed-$\lambda$ estimator in this codebase is this filter at steady state** — they are not analogous,
 they are the same recursion. This is "Bridge 1" (§3.3, verified numerically in §4.1). The filter's
 extra content is the *transient*: it starts uncertain and tightens, whereas a fixed $\lambda$ is
 born at its final memory and can never change it.
 
-### 0.5 Detection: from likelihood ratios to four detectors
+### 0.10 Detection: from likelihood ratios to four detectors
 
 **Definition (log-likelihood ratio).** Two competing explanations of the data, $H_0$ (no change) and
 $H_1$ (change), compared by
@@ -293,7 +379,7 @@ cry wolf. Comparing detectors requires first tuning each threshold to a *common*
 (here 1000 blocks, §3.7), and only then comparing detection delay. This is the frequentist criterion
 applied even to the Bayesian detectors, so all four sit on one axis.
 
-### 0.6 Reading the results
+### 0.11 Reading the results
 
 **RMSE** is against the *known* true $\rho_S$ path, which the simulator supplies:
 
@@ -302,7 +388,7 @@ $$
 $$
 
 with $t_0 = 500$ discarded as burn-in. Lower is better; it mixes variance and lag-bias exactly as
-§0.1 describes.
+§0.3 describes.
 
 Every headline number is a mean over 20 random seeds with its standard error
 $\mathrm{SE} = s/\sqrt{n}$. Two numbers differing by less than a couple of SEs are not distinguishable.
@@ -312,7 +398,7 @@ Single-seed numbers are for development only — §7 records two real bugs that 
 look bad because its $\lambda$ was set for a different scenario. §5.4 tunes each family fairly and
 reverses one of the apparent results. Always check there before quoting a ranking.
 
-### 0.7 Symbols
+### 0.12 Symbols
 
 | Symbol | Meaning |
 | --- | --- |
@@ -1237,54 +1323,64 @@ to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
 ## 12. References
 
-Inline citations use **[Author Year]**. ⚠️ **Everything below except Adams & MacKay, Roberts and
-Gregory is from memory** — verify before use in the thesis. Only **[Roberts 1959]** and
-**[Gregory 2019]** are currently in the Zotero library; the rest are tracked as an acquisition
-item in [todo.md](../todo.md).
+**✓ = in the Zotero library. ⚠️ = from memory, verify before it enters `bibliography.bib`.**
+The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
 
-**Detection — the four rules**
+**Layer 1 — what we assume**
 
-- **[Page 1954]** — *Continuous inspection schemes.* Biometrika. CUSUM itself.
-- **[Roberts 1959]** — *Control Chart Tests Based on Geometric Moving Averages.* Technometrics.
-  The EWMA chart implemented as `kalman_ewma_chart`. **In Zotero** (as the 2000 Technometrics
-  reprint).
-- **[Shiryaev 1963]** — the Shiryaev–Roberts statistic's Bayesian origin; `kalman_sr`.
-- **[Willsky & Jones 1976]** — *A generalized likelihood ratio approach to the detection and
-  estimation of jumps in linear systems.* GLR.
-- **[Adams & MacKay 2007]** — *Bayesian Online Changepoint Detection.* `kalman_bocpd`. The one
-  reference taken from the paper itself rather than memory.
+- ✓ **[Sklar 1959]** — the decomposition: joint = marginals + copula.
+- ✓ **[Nelsen 2006]** — *An Introduction to Copulas.* Standard reference.
+- ✓ **[Fantazzini 2009]** — misspecified marginals bias elliptical copula correlations by
+  up to 70%. The argument for rank-PIT (§0.4).
+- ✓ **[Kojadinovic & Yan 2010]** — rank-based goodness-of-fit; the batch counterpart to
+  `copula_select`.
+- ✓ **[Patton 2006]**, ✓ **[Opschoor et al. 2021]** — dynamic / score-driven copulas, the
+  literature this state-space framing sits beside.
 
-**Detection — optimality theory**
+**Layer 2 — how we estimate**
 
-- **[Lorden 1971]** — *Procedures for reacting to a change in distribution.* Ann. Math. Statist.
-  The minimax criterion CUSUM optimises: worst case over change time **and** pre-change history.
-- **[Pollak 1985]** — *Optimal detection of a change in distribution.* Ann. Statist. Replaces
-  Lorden's inner ess-sup with a conditional average; Shiryaev–Roberts is asymptotically optimal
-  for it.
-  > Together these two are why `kalman_cusum` vs `kalman_sr` is a comparison of **optimality
-  > criteria**, not of algorithms — one likelihood-ratio recursion, maximised over $\nu$ versus
-  > summed over $\nu$.
-- **[Moustakides 1986]** — Ann. Statist. CUSUM is *exactly*, not merely asymptotically,
-  Lorden-optimal.
-- **[Lai 1995]** — *Sequential changepoint detection in quality control and dynamical systems.*
-  Window-limited GLR — the form that is streaming-admissible.
-- **[Basseville & Nikiforov 1993]** — *Detection of Abrupt Changes.* Innovation-based detection.
-- **[Tartakovsky, Nikiforov & Basseville 2014]** — *Sequential Analysis: Hypothesis Testing and
-  Changepoint Detection.* The modern survey.
+- ⚠️ **[Kalman 1960]** — the filter. ⚠️ **[Harvey 1989]**, ⚠️ **[Durbin & Koopman 2001]** —
+  local-level model.
+- ✓ **[Xiao 2019]** — online empirical-copula Spearman estimator.
+- ✓ **[Stephanou & Varughese 2021]**, ✓ **[hermiter 2024]** — sequential Spearman via
+  Hermite series; `external/hermiter`.
+- ✓ **[Segers 2012]**, ✓ **[Bücher & Volgushev 2013]** — weak convergence of empirical and
+  *sequential* empirical copula processes under serial dependence, with multiplier
+  bootstrap. The theory §3.7's bootstrapped ARL₀ currently substitutes for empirically.
+- ✓ **[Gregory 2019]** — streaming empirical copula with error bounds. Cumulative: no
+  forgetting.
+- ✓ **[Cormode 2011]** — sketches; the basis for defending `store_bytes`.
+- ⚠️ **[Fieller, Hartley & Pearson 1957]** — the $1.06/(m-3)$ variance for Fisher-$z$'d
+  Spearman (§0.8, §3.1). This pins $\sigma_v^2$, so it fixes the scale every detector
+  threshold is expressed in.
+- ⚠️ **[Welford 1962]** — the running mean/variance the standardization uses.
+- ✓ **[Pereira, Costa & Gonçalves 2026]** — bootstrap-enhanced Fisher scoring for SSM
+  parameters. Batch, not online, but the principled way to choose $\sigma_\omega^2$
+  instead of hand-picking it.
 
-**State-space**
+**Layer 3 — the detectors**
 
-- **[Kalman 1960]** — the filter.
-- **[Harvey 1989]**, **[Durbin & Koopman 2001]** — local-level model, standard treatments.
+- ⚠️ **[Page 1954]** — CUSUM.
+- ✓ **[Roberts 1959]** — EWMA control chart; `kalman_ewma_chart`. In Zotero as the 2000
+  Technometrics reprint.
+- ⚠️ **[Shiryaev 1963]** — the Shiryaev–Roberts statistic; `kalman_sr`.
+- ⚠️ **[Willsky & Jones 1976]** — GLR. ⚠️ **[Lai 1995]** — the window-limited form that is
+  streaming-admissible.
+- ⚠️ **[Adams & MacKay 2007]** — BOCPD. Taken from the paper itself, not memory.
 
-**Measurement model**
+**Layer 3 — optimality theory**
 
-- **[Fieller, Hartley & Pearson 1957]** — *Tests for rank correlation coefficients I.* Biometrika.
-  The $1.06/(m-3)$ variance approximation for Fisher-$z$'d Spearman, used in §0.3 and §3.1. This
-  is what pins $\sigma_v^2$ and so fixes the innovation scale every detector threshold is
-  expressed in.
-- **[Gregory 2019]** — *A streaming algorithm for bivariate empirical copulas.* **In Zotero**,
-  read in full; see [reference_review.md](reference_review.md).
+- ⚠️ **[Lorden 1971]** — the minimax criterion CUSUM optimises: worst case over change
+  time *and* pre-change history.
+- ⚠️ **[Pollak 1985]** — replaces Lorden's inner ess-sup with a conditional average;
+  Shiryaev–Roberts is asymptotically optimal for it.
+  > These two are why `kalman_cusum` vs `kalman_sr` compares **optimality criteria**, not
+  > algorithms: one likelihood-ratio recursion, maximised over $\nu$ versus summed over it.
+- ⚠️ **[Moustakides 1986]** — CUSUM is *exactly*, not merely asymptotically, Lorden-optimal.
+- ⚠️ **[Basseville & Nikiforov 1993]** — innovation-based detection.
+- ⚠️ **[Tartakovsky, Nikiforov & Basseville 2014]** — the modern survey.
 
-The same memory caveat applies to the reference list in
-[change_detection.md](change_detection.md).
+**Not yet acquired** — nothing from these lines is in the library, and both are flagged as
+high value: variable-forgetting-factor RLS (Haykin; Paleologu et al.), and conformal /
+e-value anytime-valid testing (Vovk; Ramdas), which
+[change_detection.md](change_detection.md) Part IV.1 calls the strongest novelty candidate.
