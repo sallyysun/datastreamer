@@ -17,6 +17,11 @@ from those. Readers who already have this can start at §1.
 
 ---
 
+> **Citation convention.** Inline references are highlighted as **[Author Year]** and collected
+> in [§12](#12-references). ⚠️ Except where noted, they are **from memory** — years, volumes and
+> pages must be checked against a bibliographic database before entering `bibliography.bib`. None
+> of them are currently in the Zotero library except **[Roberts 1959]** and **[Gregory 2019]**.
+
 ## 0. Primer
 
 ### 0.1 The problem
@@ -124,7 +129,7 @@ $$
 \sigma_v^2 \;\approx\; \frac{1.06}{m-3}
 $$
 
-(Fieller–Hartley–Pearson, for a Fisher-$z$'d *Spearman* correlation — ~6% wider than Pearson's
+(**[Fieller, Hartley & Pearson 1957]**, for a Fisher-$z$'d *Spearman* correlation — ~6% wider than Pearson's
 $1/(m-3)$). $\sigma_v^2$ being **known rather than estimated** is the structural gift here: it pins
 the denominator of the signal-to-noise ratio, leaving one scalar to choose instead of two.
 
@@ -134,7 +139,8 @@ closed-form rather than an EKF/UKF.
 ### 0.4 State-space models and the Kalman filter
 
 **Definition (linear-Gaussian state-space model).** A hidden state evolving by a linear rule,
-observed through linear noise:
+observed through linear noise (**[Kalman 1960]**; textbook treatments **[Harvey 1989]**,
+**[Durbin & Koopman 2001]**):
 
 $$
 z_t = z_{t-1} + \omega_t, \quad \omega_t \sim \mathcal N(0, \sigma_\omega^2)
@@ -226,7 +232,10 @@ $$
 $$
 
 Large $\Lambda_t$ means $H_1$ explains the data better. Every detector below is a way of computing
-or approximating this online. All of them run on the standardized innovations $e_t/\sqrt{F_t}$,
+or approximating this online — they differ only in what they do with the unknown change time $\nu$:
+**maximise** over it (CUSUM **[Page 1954]**, GLR **[Willsky & Jones 1976]**), **sum** over it
+(Shiryaev–Roberts **[Shiryaev 1963]**), **smooth** it (EWMA chart **[Roberts 1959]**), or carry a
+**posterior** over it (BOCPD **[Adams & MacKay 2007]**). All of them run on the standardized innovations $e_t/\sqrt{F_t}$,
 which are i.i.d. $\mathcal N(0,1)$ under $H_0$ — so "has something changed?" becomes "have these
 stopped looking like standard normal noise?"
 
@@ -471,6 +480,11 @@ $\sigma_\omega^2$ online is the variable-forgetting-factor problem (still open).
 
 ### 3.4 Innovation CUSUM
 
+CUSUM is **[Page 1954]**; the innovation-based form used here follows
+**[Basseville & Nikiforov 1993]**. It is exactly minimax-optimal for Lorden's worst-case delay
+criterion — worst case over both change time and pre-change history — **[Lorden 1971]**,
+**[Moustakides 1986]**.
+
 Under the model the standardized innovations are white:
 $\tilde e_t = e_t/\sqrt{F_t} \sim \mathcal N(0,1)$ i.i.d. The filter absorbs gradual drift; what it
 *cannot* absorb shows up as a departure from standard normal. Two one-sided CUSUMs:
@@ -489,7 +503,8 @@ two-state absorbing chain. On alarm, the filter's `reset()` is called.
 ### 3.5 Window-limited GLR
 
 CUSUM assumes a *known* shift size $\delta$. GLR handles unknown size by matched-filtering the
-filter's own **step response**. For this filter a unit jump at $\tau$ contributes
+filter's own **step response** (**[Willsky & Jones 1976]**; the window-limited form that makes it
+streaming-admissible is **[Lai 1995]**). For this filter a unit jump at $\tau$ contributes
 
 $$
 \varrho_s(\tau) = (1-K)^{\,s-\tau}, \qquad s \ge \tau,
@@ -1140,7 +1155,9 @@ Added 2026-09-06, after registering `kalman_ewma_chart` and `kalman_sr`.
 
 ### 11.1 The comparison is controlled
 
-All four detectors wrap `KalmanLocalLevel` at `sigma_omega2 = 1e-2` — **the same
+The two detectors added here are the EWMA control chart (**[Roberts 1959]**) and Shiryaev–Roberts
+(**[Shiryaev 1963]**; asymptotically optimal for Pollak's conditional-average delay criterion,
+**[Pollak 1985]**). All four detectors wrap `KalmanLocalLevel` at `sigma_omega2 = 1e-2` — **the same
 configuration as `kalman_fast`**. So `kalman_fast` vs any detector is the same base
 filter with and without an alarm mechanism, not fast-vs-slow.
 
@@ -1190,8 +1207,8 @@ re-accumulate at the same rate the filter was already converging.
 
 ### 11.3 BOCPD is the control
 
-`kalman_bocpd` alarms **most** (1.45/run) and has the **best** RMSE (0.0598),
-breaking the monotone pattern outright. It never hard-resets — it reweights a
+`kalman_bocpd` (**[Adams & MacKay 2007]**) alarms **most** (1.45/run) and has the **best** RMSE
+(0.0598), breaking the monotone pattern outright. It never hard-resets — it reweights a
 distribution over run lengths. The cost is not detecting; it is *committing*.
 
 This is the hard-decision/soft-decision axis of
@@ -1220,15 +1237,54 @@ to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
 ## 12. References
 
-- Adams, R. P. & MacKay, D. J. C. (2007). *Bayesian Online Changepoint Detection.*
-- Page, E. S. (1954). *Continuous inspection schemes.* — CUSUM.
-- Willsky, A. S. & Jones, H. L. (1976). *A generalized likelihood ratio approach to the detection and
-  estimation of jumps in linear systems.*
-- Lai, T. L. (1995). *Sequential changepoint detection in quality control and dynamical systems.* —
-  window-limited GLR.
-- Basseville, M. & Nikiforov, I. (1993). *Detection of Abrupt Changes.* — innovation-based detection.
-- Fieller, E. C., Hartley, H. O. & Pearson, E. S. (1957). — the $1.06/(n-3)$ variance approximation.
+Inline citations use **[Author Year]**. ⚠️ **Everything below except Adams & MacKay, Roberts and
+Gregory is from memory** — verify before use in the thesis. Only **[Roberts 1959]** and
+**[Gregory 2019]** are currently in the Zotero library; the rest are tracked as an acquisition
+item in [todo.md](../todo.md).
 
-Citations other than Adams & MacKay are from memory and should be checked against a bibliographic
-database before use in the thesis — the same caveat that applies to the reference list in
+**Detection — the four rules**
+
+- **[Page 1954]** — *Continuous inspection schemes.* Biometrika. CUSUM itself.
+- **[Roberts 1959]** — *Control Chart Tests Based on Geometric Moving Averages.* Technometrics.
+  The EWMA chart implemented as `kalman_ewma_chart`. **In Zotero** (as the 2000 Technometrics
+  reprint).
+- **[Shiryaev 1963]** — the Shiryaev–Roberts statistic's Bayesian origin; `kalman_sr`.
+- **[Willsky & Jones 1976]** — *A generalized likelihood ratio approach to the detection and
+  estimation of jumps in linear systems.* GLR.
+- **[Adams & MacKay 2007]** — *Bayesian Online Changepoint Detection.* `kalman_bocpd`. The one
+  reference taken from the paper itself rather than memory.
+
+**Detection — optimality theory**
+
+- **[Lorden 1971]** — *Procedures for reacting to a change in distribution.* Ann. Math. Statist.
+  The minimax criterion CUSUM optimises: worst case over change time **and** pre-change history.
+- **[Pollak 1985]** — *Optimal detection of a change in distribution.* Ann. Statist. Replaces
+  Lorden's inner ess-sup with a conditional average; Shiryaev–Roberts is asymptotically optimal
+  for it.
+  > Together these two are why `kalman_cusum` vs `kalman_sr` is a comparison of **optimality
+  > criteria**, not of algorithms — one likelihood-ratio recursion, maximised over $\nu$ versus
+  > summed over $\nu$.
+- **[Moustakides 1986]** — Ann. Statist. CUSUM is *exactly*, not merely asymptotically,
+  Lorden-optimal.
+- **[Lai 1995]** — *Sequential changepoint detection in quality control and dynamical systems.*
+  Window-limited GLR — the form that is streaming-admissible.
+- **[Basseville & Nikiforov 1993]** — *Detection of Abrupt Changes.* Innovation-based detection.
+- **[Tartakovsky, Nikiforov & Basseville 2014]** — *Sequential Analysis: Hypothesis Testing and
+  Changepoint Detection.* The modern survey.
+
+**State-space**
+
+- **[Kalman 1960]** — the filter.
+- **[Harvey 1989]**, **[Durbin & Koopman 2001]** — local-level model, standard treatments.
+
+**Measurement model**
+
+- **[Fieller, Hartley & Pearson 1957]** — *Tests for rank correlation coefficients I.* Biometrika.
+  The $1.06/(m-3)$ variance approximation for Fisher-$z$'d Spearman, used in §0.3 and §3.1. This
+  is what pins $\sigma_v^2$ and so fixes the innovation scale every detector threshold is
+  expressed in.
+- **[Gregory 2019]** — *A streaming algorithm for bivariate empirical copulas.* **In Zotero**,
+  read in full; see [reference_review.md](reference_review.md).
+
+The same memory caveat applies to the reference list in
 [change_detection.md](change_detection.md).
