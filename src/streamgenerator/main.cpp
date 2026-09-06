@@ -82,6 +82,13 @@ static std::unique_ptr<Dependence> make_live_dependence() {
     return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
 }
 
+// Pick the live copula family from the COPULA env var (gaussian|clayton|gumbel|t,
+// default gaussian). The Dependence sets rho_S; the copula sets its SHAPE.
+static std::unique_ptr<dgp::Copula> make_live_copula() {
+    const char* env = std::getenv("COPULA");
+    return dgp::make_copula(env ? env : "gaussian");
+}
+
 // =========================================================
 // SERVER = stream generator (producer) + broker.
 // The server does NOT estimate: it publishes raw events. Estimation lives in
@@ -94,13 +101,14 @@ int main() {
     Serializer serializer;
 
     auto dependence = make_live_dependence();
+    auto copula = make_live_copula();
     const auto symbols = live_symbols();
     const std::string sym_x = symbols.first;
     const std::string sym_y = symbols.second;
-    std::cout << "live dependence: " << dependence->name() << " | symbols: " << sym_x
-              << ", " << sym_y << " (topics " << equity_topic(sym_x) << " / "
-              << equity_topic(sym_y) << ")\n";
-    auto source = std::make_shared<SyntheticSource>(std::move(dependence));
+    std::cout << "live dependence: " << dependence->name() << " | copula: " << copula->name()
+              << " | symbols: " << sym_x << ", " << sym_y << " (topics " << equity_topic(sym_x)
+              << " / " << equity_topic(sym_y) << ")\n";
+    auto source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula));
 
     // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
