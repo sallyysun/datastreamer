@@ -47,10 +47,16 @@ public:
         const double drho_dtheta = 1.0 - rho * rho;
         const double s_theta = GaussianCopulaObjective::score(zx, zy, rho) * drho_dtheta;
         const double i_theta = 1.0 + rho * rho;  // Fisher information in theta
+        if (!std::isfinite(s_theta)) return;
 
         const double decay = (config_.lambda > 0.0) ? config_.lambda : 1.0;
         info_ = decay * info_ + i_theta;
-        theta_ += s_theta / info_;
+        // score(.,.,rho) carries 1/(1-rho^2)^2 and drho_dtheta cancels only one
+        // power of it, so theta is clamped away from the saturation of tanh: at
+        // |rho| = 1 exactly the next step is inf, and opposite-signed infinities
+        // then latch theta at NaN for the rest of the stream. Same guards, and
+        // the same +-0.999 bound, as ParametricCopulaMLE.
+        theta_ = std::clamp(theta_ + s_theta / info_, -kMaxTheta, kMaxTheta);
     }
 
     double estimate() const override {
@@ -76,6 +82,8 @@ public:
     double rho() const { return std::tanh(theta_); }  // copula (linear) correlation
 
 private:
+    static constexpr double kMaxTheta = 3.8002;  // atanh(0.999)
+
     static double sd(double var) { return std::sqrt(std::max(var, 1e-12)); }
 
     void update_marginals(double x, double y) {
