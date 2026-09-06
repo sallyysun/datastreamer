@@ -410,3 +410,31 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   item) and on any resulting delay number.
 - ⬜ Decide whether to keep the `StateManager` moments (now inside `DeviceState`) exposed, or
   slim the device to buffer + copula inference only.
+
+### References to acquire (sequential analysis)
+- ⬜ **Acquire and cite the primary sequential-analysis sources.** Every detector in
+  `registry.hpp` — CUSUM, GLR, SR, EWMA chart, BOCPD — currently traces to no entry in
+  `sallysun-honours/bibliography.bib`, and the reference list in §12 of
+  [kalman_changepoint_results.md](studies/kalman_changepoint_results.md) is explicitly from
+  memory. Priority order, most load-bearing first:
+  - **Lorden (1971)**, *Procedures for reacting to a change in distribution*, Ann. Math. Statist.
+    — the minimax criterion CUSUM is optimal for: worst case over change time **and** over
+    pre-change history, $\sup_\nu \operatorname{ess\,sup} E_\nu[(T-\nu+1)^+ \mid \mathcal F_{\nu-1}]$
+    subject to $E_\infty[T]\ge\gamma$. Cite for `kalman_cusum`.
+  - **Pollak (1985)**, *Optimal detection of a change in distribution*, Ann. Statist. — replaces
+    Lorden's inner ess-sup with a conditional average, $\sup_\nu E_\nu[T-\nu \mid T\ge\nu]$;
+    Shiryaev–Roberts is asymptotically optimal for it. Cite for `kalman_sr`.
+    **These two are why `kalman_cusum` vs `kalman_sr` is a comparison of optimality criteria,
+    not of algorithms** — same likelihood-ratio recursion, max over $\nu$ vs sum over $\nu$.
+  - **Page (1954)**, *Continuous inspection schemes*, Biometrika — CUSUM itself.
+  - **Moustakides (1986)**, Ann. Statist. — CUSUM is *exactly*, not just asymptotically,
+    Lorden-optimal.
+  - **Shiryaev (1963)** — the SR statistic's Bayesian origin.
+  - **Roberts (2000/1959)**, *Control Chart Tests Based on Geometric Moving Averages* — the EWMA
+    chart implemented in `kalman_ewma_chart`. **Already in Zotero**, uncited.
+  - **Adams & MacKay (2007)** — BOCPD; the one reference already cited from the paper itself.
+  ⚠️ Volumes, pages and years above are from memory and must be checked against a bibliographic
+  database before entering `bibliography.bib`.
+- ⬜ **Adaptive-forgetting / VFF literature**, promoted by the §11 reset-cost finding: the fix
+  candidate (inflate state covariance on alarm rather than clearing state) is standard there.
+  Haykin, *Adaptive Filter Theory*; the Paleologu et al. variable-forgetting-factor RLS line.
