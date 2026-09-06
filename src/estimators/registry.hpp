@@ -11,8 +11,10 @@
 #include "dependence/hermiter.hpp"
 #include "dependence/kalman_bocpd.hpp"
 #include "dependence/kalman_cusum.hpp"
+#include "dependence/kalman_ewma_chart.hpp"
 #include "dependence/kalman_glr.hpp"
 #include "dependence/kalman_local_level.hpp"
+#include "dependence/kalman_shiryaev_roberts.hpp"
 #include "dependence/parametric_copula.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
@@ -98,6 +100,20 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .window = 30, .min_lag = 1, .h = 10.0},
             "kalman_glr");
     }
+    if (key == "kalman_ewma_chart") {
+        return std::make_unique<KalmanEwmaChartDetector>(
+            KalmanEwmaChartDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .r = 0.2, .L = 3.0},
+            "kalman_ewma_chart");
+    }
+    if (key == "kalman_sr") {
+        return std::make_unique<KalmanShiryaevRobertsDetector>(
+            KalmanShiryaevRobertsDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .delta = 1.0, .h = 5.0},
+            "kalman_sr");
+    }
     if (key == "kalman_bocpd") {
         return std::make_unique<KalmanBocpdDetector>(
             KalmanBocpdDetector::Config{
@@ -165,6 +181,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+        "kalman_ewma_chart", "kalman_sr",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

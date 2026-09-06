@@ -16,7 +16,9 @@
 #include "../src/estimators/dependence/change_detector.hpp"
 #include "../src/estimators/dependence/kalman_bocpd.hpp"
 #include "../src/estimators/dependence/kalman_cusum.hpp"
+#include "../src/estimators/dependence/kalman_ewma_chart.hpp"
 #include "../src/estimators/dependence/kalman_glr.hpp"
+#include "../src/estimators/dependence/kalman_shiryaev_roberts.hpp"
 
 namespace {
 
@@ -99,6 +101,24 @@ int main(int argc, char** argv) {
                 KalmanGlrDetector::Config{.kalman = kalman_cfg, .window = 30, .min_lag = 1, .h = h}, "kalman_glr");
         },
         {5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "kalman_ewma_chart",
+        [&](double L) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<KalmanEwmaChartDetector>(
+                KalmanEwmaChartDetector::Config{.kalman = kalman_cfg, .r = 0.2, .L = L},
+                "kalman_ewma_chart");
+        },
+        {2.0, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.5}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "kalman_sr",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<KalmanShiryaevRobertsDetector>(
+                KalmanShiryaevRobertsDetector::Config{.kalman = kalman_cfg, .delta = 1.0, .h = h},
+                "kalman_sr");
+        },
+        {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, target, ticks_per_seed, n_seeds, rhos);
 
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(
