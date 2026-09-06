@@ -18,11 +18,14 @@ Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
    orders of magnitude in $q = \sigma_\omega^2/\sigma_v^2$. Every fixed-$\lambda$ estimator in this
    codebase *is* this filter at steady state, with $\lambda = 1-K$.
 
-2. **BOCPD is the one genuine structural win, and it survives fair tuning.** On `jump`,
-   `kalman_bocpd` achieves RMSE $0.0598 \pm 0.0022$ against the *best-tuned* Xiao ($0.0798$),
-   Hermite ($0.0815$) and plain Kalman ($0.0840$) — a ~25% improvement that no choice of fixed
-   $\lambda$ can replicate, because no fixed forgetting rate can be simultaneously long-memory
-   before a break and short-memory after it.
+2. **BOCPD is the one genuine structural win — it survives fair tuning *and* misspecification.** On
+   `jump`, `kalman_bocpd` achieves RMSE $0.0598 \pm 0.0022$ against the *best-tuned* Xiao
+   ($0.0798$), Hermite ($0.0815$) and plain Kalman ($0.0840$) — a ~25% improvement that no choice of
+   fixed $\lambda$ can replicate, because no fixed forgetting rate can be simultaneously long-memory
+   before a break and short-memory after it. [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families)
+   extends this to all four DGP families: it is best in column on `jump` for Gaussian, Clayton,
+   Gumbel and $t_4$ alike ($0.0598$/$0.0602$/$0.0589$/$0.0633$), which is what a distribution-free
+   structural claim should do.
 
 3. **The Kalman filter's apparent `oscillate` win was a tuning artifact — corrected.** Compared at
    default $\lambda$, `kalman_fast` looked like it beat every nonparametric estimator on
@@ -36,8 +39,16 @@ Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
    prior. This is the concrete instance of change_detection.md Part V's claim that VFF and
    detect-and-restart are one dial, not rivals.
 
-5. **Two real bugs were found by verification, not by inspection** — see [§7](#7-bugs-found-and-fixed).
-   One was caught only because multi-seed replication existed.
+5. **Misspecification is real but asymmetric, and the Gaussian copula is a forgiving wrong answer.**
+   `gaussian_mle_ew` degrades only mildly off-family (`stochastic`: $0.0558$ on Gaussian →
+   $0.0592$–$0.0680$ elsewhere), while `clayton_mle` on Gumbel data is 10× worse than on its own
+   ($0.1589$ vs $0.0154$). Online GoF selection (`copula_select`) recovers the generating family
+   exactly when run cumulatively, but churns under forgetting — see §10.3.
+
+6. **Four real bugs were found by verification, not by inspection** — see [§7](#7-bugs-found-and-fixed).
+   Two were caught only because the replication tier existed: the BOCPD burn-in alarms (multi-seed)
+   and a NaN latch in `gaussian_mle` (cross-family grid). Both were invisible at one seed on one
+   DGP and unmistakable across twenty.
 
 ---
 
@@ -50,8 +61,11 @@ Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
 | `kalman_glr` | Hard-reset detector | Window-limited GLR (unknown jump size) via matched filter on the step response |
 | `kalman_bocpd`, `kalman_bocpd_fast` | Bayesian | Run-length posterior (Adams & MacKay 2007); hazard $1/1000$ / $1/10$; **no reset** |
 
-Pre-existing baselines used for comparison: `xiao`, `xiao_ew`, `hermite`, `hermite_ew`,
-`windowed_rank`, `gaussian_mle`, `gaussian_mle_ew`.
+Pre-existing baselines used for comparison: `xiao`, `xiao_ew`, `xiao_win`, `hermite`, `hermite_ew`,
+`windowed_rank`, `gaussian_mle`, `gaussian_mle_ew`, and — from the parametric-copula branch, merged
+in for [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families) — `clayton_mle`,
+`gumbel_mle`, `t_mle`, `copula_select` and their `_ew` variants. 22 estimators in total; §5 compares
+the 13 Gaussian-DGP ones, §10 all 22 across all four DGP families.
 
 **Bayesian vs frequentist.** `kalman`/`kalman_fast` are exact recursive Bayes for a linear-Gaussian
 model (they maintain the full posterior $p(z_t \mid y_{1:t}) = \mathcal N(\hat z_t, P_t)$).
@@ -298,6 +312,7 @@ mistake §5.4 corrects.
 | --- | --- | --- | --- | --- | --- |
 | `xiao` | 0.0128±0.0015 | 0.3893±0.0027 | 0.3199±0.0020 | 0.1539±0.0140 | 0.4107±0.0003 |
 | `xiao_ew` | 0.0470±0.0011 | 0.0669±0.0014 | 0.0798±0.0014 | 0.0594±0.0044 | 0.3484±0.0015 |
+| `xiao_win` | 0.0275±0.0013 | 0.0784±0.0020 | 0.1183±0.0018 | 0.0835±0.0067 | 0.3636±0.0005 |
 | `hermite` | **0.0121±0.0012** | 0.3902±0.0029 | 0.3179±0.0021 | 0.1524±0.0141 | 0.4107±0.0003 |
 | `hermite_ew` | 0.0520±0.0013 | 0.0700±0.0016 | 0.0815±0.0014 | 0.0630±0.0037 | 0.3490±0.0015 |
 | `windowed_rank` | 0.0271±0.0013 | 0.0778±0.0020 | 0.1170±0.0018 | 0.0832±0.0069 | 0.3632±0.0005 |
@@ -556,6 +571,27 @@ multi-seed replication as a correctness tool, not just an error-bar formality.**
 
 **3. Overclaim on `oscillate` (documentation).** Corrected in `notes/todo.md` — see §5.4.
 
+**4. `GaussianCopulaMLE` latches to NaN on heavy-tailed data — caught by the cross-family grid.**
+`gaussian_mle` and `gaussian_mle_ew` returned NaN on the Gumbel DGP; one seed in 20 (seed 57,
+`constant`) poisoned the whole mean. `GaussianCopulaObjective::score` carries $1/(1-\rho^2)^2$ and
+$\partial\rho/\partial\theta = 1-\rho^2$ cancels only one power, so
+$s_\theta \sim (1-\rho^2)^{-1}$. A joint extreme — which Gumbel's upper-tail dependence supplies
+and a Gaussian DGP essentially never does — drives $\theta$ past the saturation of $\tanh$; $\rho$
+is then exactly 1 in floating point, the next step is infinite, and two opposite-signed infinities
+latch $\theta$ at NaN for the remainder of the stream. Fixed by clamping $\theta$ to
+$\operatorname{atanh}(0.999)$ and skipping non-finite scores — the same two guards, and the same
+bound, that `ParametricCopulaMLE` already applied; `GaussianCopulaMLE` simply predated the
+convention. Verified that all 13 previously published Gaussian `jump` numbers are unchanged, so the
+clamp does not bind on Gaussian data.
+
+**5. Silent coverage gap (harness).** `xiao_win` was registered in `registry.hpp` but absent from
+both `main.cpp` and `multiseed.cpp` `keys` lists, so it had never been run — no error, just no row.
+The two lists are now noted as an invariant in `CLAUDE.md`.
+
+**6. Unknown `COPULA` fell back to Gaussian silently.** `dgp::make_copula` returns a Gaussian copula
+for any unrecognised name. Harmless interactively, but in a scripted grid a typo would have produced
+Gaussian results labelled as another family. `multiseed.cpp` now rejects unknown names up front.
+
 Also fixed along the way: a Gumbel-style grid artifact in the block-size default (`block=50` broke
 the within-block-constant assumption on `oscillate`, making the filter worse than non-adaptive
 estimators; swept and corrected to 20), and a `%.1f` print-precision bug in the calibration sweep
@@ -567,8 +603,8 @@ that made distinct swept thresholds print identically.
 
 - **Single DGP family.** Everything in *this* section is Gaussian-copula. `gaussian_mle_ew`'s strong
   showing is partly the reward of correct specification; the nonparametric estimators' apparent
-  inefficiency is the price they pay for robustness this table never tests. **Superseded** —
-  §11 extends the grid to the Clayton/Gumbel/$t$ DGPs.
+  inefficiency is the price they pay for robustness this table never tests. **Superseded** — §10
+  extends the grid to the Clayton/Gumbel/$t$ DGPs, and finds the effect real but mild.
 - **Detection-delay metrics are partial.** $\mathrm{ARL}_0$ calibration controls the false-alarm side
   only. Delay is reported but not compared against the Lorden/KL optimal-delay bound
   (change_detection.md Part IV.4).
@@ -606,7 +642,121 @@ in `src/estimators/registry.hpp`.
 
 ---
 
-## 10. References
+## 10. Misspecification: the multi-seed grid across DGP families
+
+Everything above is Gaussian-copula. This section runs the same 20-seed protocol over all four DGP
+families — Gaussian, Clayton, Gumbel, Student-$t$ ($\nu=4$) — and all 22 registered estimators
+(`./run_multiseed_grid.sh 20 42`). It closes the two real coverage gaps: `xiao_win`, which was
+registered in `registry.hpp` but present in neither harness's `keys` list and so had **never been
+run**, and the 8 parametric-copula keys, which were single-seed and Gaussian-DGP only.
+
+### 10.1 ⚠️ Cross-family RMSE is only comparable on three of the five scenarios
+
+Clayton and Gumbel are **positive-dependence-only** families. `dgp::make_copula` maps the dependence
+knob $d$ to a target $\rho_S$, but the Archimedean parameter is floored at independence, so the
+negative half of any path that crosses zero is clipped. The realized ground-truth path is therefore
+*not the same signal* across families:
+
+| scenario | Gaussian / $t$: min, max, sd | Clayton / Gumbel: min, max, sd | comparable? |
+|---|---|---|---|
+| `constant`   | $+0.582, +0.582$, sd $0.000$ | $+0.582, +0.582$, sd $0.000$ | ✅ identical |
+| `jump`       | $+0.191, +0.786$, sd $0.297$ | $+0.191, +0.786$, sd $0.297$ | ✅ identical |
+| `stochastic` | $+0.352, +0.826$, sd $0.107$ | $+0.352, +0.826$, sd $0.107$ | ✅ identical |
+| `drift`      | $-0.483, +0.786$, sd $0.363$ | $\mathbf{+0.001}, +0.786$, sd $0.259$ | ❌ clipped |
+| `oscillate`  | $-0.582, +0.582$, sd $0.410$ | $\mathbf{+0.001}, +0.582$, sd $0.225$ | ❌ clipped |
+
+So the Clayton/Gumbel columns on `drift` and `oscillate` look dramatically better (e.g. `xiao_ew`
+$0.2010$ on Clayton `oscillate` vs $0.3484$ on Gaussian) **purely because the target barely moves**:
+sd $0.225$ against $0.410$. That is a measurement artifact, not robustness. Read those two columns
+*down* (which estimator wins on this family) and never *across* (which family is easier).
+
+### 10.2 RMSE by DGP family (20 seeds, $N=5000$, burn-in 500)
+
+Best in column in **bold**. As in §5.1, "best" means best among these shipped configurations, not
+best achievable — §5.4's fair-tuning caveat applies here unchanged.
+
+| estimator | \|  Gau `const` | `jump` | `stoch` | \| Clay `const` | `jump` | `stoch` | \| Gum `const` | `jump` | `stoch` | \| $t$ `const` | `jump` | `stoch` |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| xiao              | 0.0128 | 0.3199 | 0.1539 | 0.0149 | 0.3166 | 0.1371 | **0.0139** | 0.3145 | 0.1420 | 0.0155 | 0.3200 | 0.1556 |
+| xiao_ew           | 0.0470 | 0.0798 | 0.0594 | 0.0543 | 0.0859 | 0.0637 | 0.0525 | 0.0834 | 0.0618 | 0.0567 | 0.0871 | 0.0680 |
+| xiao_win          | 0.0275 | 0.1183 | 0.0835 | 0.0337 | 0.1223 | 0.0796 | 0.0326 | 0.1189 | 0.0787 | 0.0354 | 0.1234 | 0.0866 |
+| hermite           | **0.0121** | 0.3179 | 0.1524 | 0.0155 | 0.3126 | 0.1344 | 0.0170 | 0.3111 | 0.1394 | 0.0150 | 0.3163 | 0.1540 |
+| hermite_ew        | 0.0520 | 0.0815 | 0.0630 | 0.0604 | 0.0897 | 0.0696 | 0.0566 | 0.0855 | 0.0659 | 0.0604 | 0.0902 | 0.0708 |
+| windowed_rank     | 0.0271 | 0.1170 | 0.0832 | 0.0333 | 0.1213 | 0.0791 | 0.0324 | 0.1183 | 0.0781 | 0.0341 | 0.1225 | 0.0859 |
+| gaussian_mle      | 0.0129 | 0.3157 | 0.1535 | **0.0142** | 0.3128 | 0.1430 | 0.0174 | 0.3072 | 0.1391 | 0.0142 | 0.3138 | 0.1519 |
+| gaussian_mle_ew   | 0.0375 | 0.0745 | **0.0558** | 0.0482 | 0.0866 | 0.0671 | 0.0463 | 0.0804 | 0.0592 | 0.0575 | 0.0869 | 0.0680 |
+| kalman            | 0.0208 | 0.1288 | 0.0956 | 0.0243 | 0.1288 | 0.0878 | 0.0250 | 0.1272 | 0.0907 | 0.0250 | 0.1293 | 0.0973 |
+| kalman_fast       | 0.0712 | 0.0880 | 0.0735 | 0.0790 | 0.0952 | 0.0793 | 0.0784 | 0.0934 | 0.0777 | 0.0801 | 0.0966 | 0.0823 |
+| kalman_cusum      | 0.0721 | 0.1146 | 0.0792 | 0.0797 | 0.1237 | 0.1023 | 0.0844 | 0.1219 | 0.0985 | 0.0845 | 0.1234 | 0.1031 |
+| kalman_glr        | 0.0721 | 0.1110 | 0.0776 | 0.0797 | 0.1136 | 0.0866 | 0.0797 | 0.1145 | 0.0881 | 0.0816 | 0.1161 | 0.0928 |
+| **kalman_bocpd**  | 0.0189 | **0.0598** | 0.0856 | 0.0196 | **0.0602** | 0.0818 | 0.0219 | **0.0589** | 0.0825 | 0.0209 | **0.0633** | 0.0894 |
+| kalman_bocpd_fast | 0.0613 | 0.0760 | 0.0800 | 0.0780 | 0.0885 | 0.0886 | 0.0736 | 0.0821 | 0.0836 | 0.0734 | 0.0893 | 0.0894 |
+| clayton_mle       | 0.1257 | 0.2985 | 0.2105 | 0.0154 | 0.2465 | 0.1379 | 0.1589 | 0.3148 | 0.2306 | 0.0820 | 0.3055 | 0.1966 |
+| clayton_mle_ew    | 0.1330 | 0.1255 | 0.1375 | 0.0339 | 0.0607 | **0.0551** | 0.1646 | 0.1621 | 0.1546 | 0.0905 | 0.1022 | 0.1121 |
+| gumbel_mle        | 0.0491 | 0.2532 | 0.1639 | 0.0790 | 0.2966 | 0.1804 | 0.0168 | 0.2428 | 0.1357 | 0.0183 | 0.2659 | 0.1651 |
+| gumbel_mle_ew     | 0.0644 | 0.0761 | 0.0838 | 0.0876 | 0.1033 | 0.0990 | 0.0409 | 0.0643 | **0.0564** | 0.0415 | 0.0708 | 0.0784 |
+| t_mle             | 0.0601 | 0.3040 | 0.1533 | 0.0294 | 0.3004 | 0.1367 | 0.0258 | 0.3013 | 0.1370 | **0.0131** | 0.2997 | 0.1490 |
+| t_mle_ew          | 0.0741 | 0.0835 | 0.0727 | 0.0531 | 0.0824 | 0.0648 | 0.0526 | 0.0782 | 0.0617 | 0.0460 | 0.0781 | **0.0610** |
+| copula_select     | 0.0277 | 0.2592 | 0.1487 | 0.0154 | 0.2465 | 0.1302 | 0.0168 | 0.2433 | 0.1287 | **0.0131** | 0.2983 | 0.1490 |
+| copula_select_ew  | 0.0402 | 0.0724 | 0.0617 | 0.0341 | 0.0653 | 0.0636 | 0.0417 | 0.0683 | 0.0681 | 0.0465 | 0.0778 | 0.0618 |
+
+Full five-scenario tables per family are in `results/multiseed_<scenario>[_<family>].csv`.
+
+### 10.3 What the grid shows
+
+**1. BOCPD's `jump` win is family-robust — the strongest result in this document.** `kalman_bocpd`
+is best in column on `jump` for *all four* families: $0.0598$ / $0.0602$ / $0.0589$ / $0.0633$. The
+margin over the best fixed-$\lambda$ nonparametric is 25–30% everywhere. §6.2 argued this is
+structural — no fixed $\lambda$ can be long-memory before a break and short-memory after — and the
+argument never used Gaussianity. The grid is the evidence: the win survives tail dependence
+(Clayton, lower), tail dependence (Gumbel, upper) and heavy joint tails ($t_4$), which is what a
+distribution-free structural claim should do. Note the ranking is otherwise remarkably stable across
+families — the whole column order barely moves, which is itself the marginal-invariance property of
+§4.4 showing up at the level of the leaderboard.
+
+**2. Correct specification pays, but misspecification is wildly asymmetric.** §8 predicted
+`gaussian_mle_ew` would "be expected to lose" off-Gaussian. Directionally right, but the effect is
+mild: it wins `stochastic` on Gaussian ($0.0558$), and off-family it degrades only to $0.0671$
+(Clayton) / $0.0592$ (Gumbel) / $0.0680$ ($t$) — never catastrophic, still mid-pack. The Gaussian
+copula is a forgiving wrong answer *in $\rho_S$ space*. `clayton_mle` is not: on Gumbel data it
+posts $0.1589$ `constant` (10× its own on-family $0.0154$) and on Gaussian $0.1257$. Gumbel-on-
+Clayton is bad but half as bad ($0.0790$). The practical reading: **fitting Clayton to
+non-Clayton data is the one genuinely dangerous choice here**, and it is dangerous because Clayton's
+lower-tail structure is actively wrong for upper-tail data, not merely uninformative.
+
+**3. `copula_select` recovers the generating family, cumulatively.** Compare the selector against
+the *correct* family's MLE, on each family's own data: Clayton $0.0154$ vs $0.0154$; Gumbel $0.0168$
+vs $0.0168$; $t$ $0.0131$ vs $0.0131$ — exact matches on `constant`, and near-exact on `jump`
+($0.2465$/$0.2465$, $0.2433$/$0.2428$). Online GoF selection works and costs essentially nothing
+when it is right. But `copula_select_ew` is *worse* than the right family's `_ew` on Clayton `drift`
+($0.1039$ vs $0.0717$): under forgetting, the selector is choosing on a short window and churns.
+Selection and forgetting interact badly, which is a concrete open problem, not a tuning detail.
+
+**4. `xiao_win` — measured for the first time — adds nothing over `windowed_rank`.** They agree to
+~0.5% on every family and scenario ($0.0275$ vs $0.0271$, $0.1183$ vs $0.1170$, …). That is the
+expected result (both are exact sliding windows of the same length; Xiao's binning is the only
+difference) and it is mild evidence the binning is not costing accuracy. It does cost less storage —
+5824 B vs 8000 B — so it is the better of the two, marginally. Not a thesis result on its own; worth
+recording so the next person does not re-run it.
+
+**5. The grid found a real bug** (§7, `gaussian_mle` NaN latch). That is now the second bug this
+document's replication tier has caught that single-seed runs missed, after the BOCPD burn-in alarms.
+Both were invisible at one seed and obvious at twenty.
+
+### 10.4 What this does *not* settle
+
+- Only `constant`/`jump`/`stochastic` support cross-family reading (§10.1). Extending
+  `drift`/`oscillate` needs a rotated or mixture Archimedean construction that can represent
+  negative dependence.
+- $\nu=4$ is fixed for both the $t$ DGP and `t_mle`, so the $t$ column is a matched-$\nu$ best case
+  and overstates how well `t_mle` would do against unknown tail weight.
+- The detectors are still calibrated on Gaussian innovations only (§3.7). The $\mathrm{ARL}_0$
+  thresholds were never re-derived per family; that the alarm counts stay sane off-family is
+  encouraging but is not calibration.
+
+---
+
+## 11. References
 
 - Adams, R. P. & MacKay, D. J. C. (2007). *Bayesian Online Changepoint Detection.*
 - Page, E. S. (1954). *Continuous inspection schemes.* — CUSUM.
