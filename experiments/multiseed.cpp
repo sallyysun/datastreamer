@@ -28,17 +28,15 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
     if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, N);
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
-    // period 400 matches the live server so offline vs online oscillate RMSE
-    // is directly comparable (same convention as experiment.cpp).
     if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
     return nullptr;
 }
 
 struct SeedResult {
-    std::vector<double> rmse;              // per estimator
-    std::vector<double> alarm_count;        // per estimator; 0 for non-detectors
-    std::vector<double> false_before;       // per estimator; jump scenario only, else 0
-    std::vector<long> detection_delay;      // per estimator; -1 = not a detector or never detected
+    std::vector<double> rmse;
+    std::vector<double> alarm_count;
+    std::vector<double> false_before;   // jump scenario only
+    std::vector<long> detection_delay;  // -1 = never detected
 };
 
 SeedResult run_one_seed(const std::string& scenario, const std::vector<std::string>& keys,
@@ -142,7 +140,6 @@ int main(int argc, char** argv) {
                                            "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
                                            "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
                                            "kalman_bocpd", "kalman_bocpd_fast"};
-    // Which keys are detectors, determined once (independent of seed).
     std::vector<bool> is_detector(keys.size(), false);
     for (std::size_t e = 0; e < keys.size(); ++e) {
         auto probe = make_estimator(keys[e]);
@@ -152,8 +149,8 @@ int main(int argc, char** argv) {
     std::vector<std::vector<double>> rmse(keys.size());
     std::vector<std::vector<double>> alarms(keys.size());
     std::vector<std::vector<double>> false_before(keys.size());
-    std::vector<std::vector<double>> delays(keys.size());  // successful detections only
-    std::vector<int> misses(keys.size(), 0);                // seeds where a known jump was never caught
+    std::vector<std::vector<double>> delays(keys.size());
+    std::vector<int> misses(keys.size(), 0);
 
     const bool has_known_jump = (scenario == "jump");
 

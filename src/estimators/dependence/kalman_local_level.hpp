@@ -9,26 +9,13 @@
 #include "estimator.hpp"
 
 // Local-level Kalman filter on Fisher-z'd blockwise Spearman's rho.
-// Methodology and results: notes/studies/kalman_changepoint_results.md.
-//
-//   z_t = z_{t-1} + omega_t,   omega_t ~ N(0, sigma_omega^2)
-//   y_t = z_t + v_t,           v_t     ~ N(0, sigma_v^2)
-//
-// where z = atanh(rho). At steady state the gain converges and the recursion
-// collapses to an EWMA with lambda = 1-K, so the fixed-lambda estimators in
-// this directory are its special case.
-//
-// Blockwise rather than per-tick because the link rho=tanh(z) is nonlinear:
-// batching m ticks into one Spearman correlation gives an observation whose
-// variance is known in closed form, sigma_v^2 ~= 1.06/(m-3), keeping the model
-// exactly linear-Gaussian. Between block boundaries estimate() holds the last
-// filtered value flat.
+// See notes/studies/kalman_changepoint_results.md.
 class KalmanLocalLevel : public DependenceEstimator {
 public:
     struct Config {
-        std::size_t block = 50;         // ticks per Spearman block (m); needs m>3
-        double sigma_omega2 = 1e-3;     // process noise -- the free knob (the "q")
-        std::size_t burn_in_blocks = 2;  // blocks before reporting a non-zero estimate
+        std::size_t block = 50;          // ticks per Spearman block; needs > 3
+        double sigma_omega2 = 1e-3;      // process noise
+        std::size_t burn_in_blocks = 2;
     };
 
     KalmanLocalLevel(Config config, const char* name)
@@ -47,9 +34,7 @@ public:
         const double m = static_cast<double>(config_.block);
         const double sigma_v2 = 1.06 / std::max(m - 3.0, 1.0);
 
-        // Predict: one state-transition step since the last observation.
         const double P_pred = P_ + config_.sigma_omega2;
-        // Update.
         const double F = P_pred + sigma_v2;
         const double K = P_pred / F;
         const double innovation = y_obs - z_;
@@ -88,8 +73,7 @@ public:
 
     const char* name() const override { return name_; }
 
-    // Detector inputs. Only meaningful for the block that just closed, so read
-    // them once per `block` ticks (gate on blocks()).
+    // Valid only for the block that just closed; gate on blocks().
     double innovation() const { return last_innovation_; }
     double innovation_variance() const { return last_F_; }
     double standardized_innovation() const {
@@ -99,7 +83,7 @@ public:
     std::size_t blocks() const { return blocks_; }
 
 private:
-    static constexpr double kPriorVariance = 1.0;  // weak prior on z_0
+    static constexpr double kPriorVariance = 1.0;
 
     double block_spearman() const {
         const std::size_t n = xs_.size();
@@ -141,8 +125,8 @@ private:
     const char* name_;
 
     std::vector<double> xs_, ys_;
-    double z_ = 0.0;              // filtered state, atanh(rho)
-    double P_ = kPriorVariance;   // filtered state variance
+    double z_ = 0.0;
+    double P_ = kPriorVariance;
     std::size_t blocks_ = 0;
 
     double last_innovation_ = 0.0;

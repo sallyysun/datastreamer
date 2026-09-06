@@ -22,11 +22,11 @@
 // online RMSE numbers are directly comparable. Keep the two in sync.
 //
 // Forgetting conventions differ per estimator (same memory, mirror-image knob):
-//   * Xiao    lambda = retention in (0,1); LARGER = longer memory.
-//             Effective sample size ~ (1+lambda)/(1-lambda). lambda=0.99 => ESS~200.
-//   * Hermite lambda = EWMA update weight in (0,1); SMALLER = longer memory.
-//             Effective sample size ~ 1/lambda. lambda=0.01 => ESS~100.
-//   For both, lambda = 0 means "cumulative" (no forgetting).
+//   * Xiao    lambda = retention;    alpha = 1 - lambda. LARGER = longer memory.
+//   * Hermite lambda = update weight; alpha = lambda.    SMALLER = longer memory.
+// Both then have ESS ~ (2-alpha)/alpha, so xiao lambda=0.99 and hermite
+// lambda=0.01 are the same memory (ESS ~ 200), not 200 vs 100.
+// For both, lambda = 0 means "cumulative" (no forgetting).
 inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& key) {
     if (key == "xiao") {
         return std::make_unique<XiaoSpearmanEstimator>(
@@ -62,15 +62,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50}, "gaussian_mle_ew");
     }
-    // Kalman local-level filter. The forgetting knob is sigma_omega2 (process
-    // noise) rather than a hand-picked lambda; the two operating points below
-    // mirror the slow/fast contrast of the *_ew pairs above.
-    //
-    // `block` matters as much: the observation model treats rho as constant
-    // within a block, so it must stay well under the fastest timescale in the
-    // DGP suite or the read is biased, not merely noisier. Larger blocks also
-    // cut observation noise (sigma_v2 ~ 1.06/(block-3)), so it trades lag
-    // against variance; 20 is the harness-wide compromise.
+    // Forgetting knob is sigma_omega2. `block` trades lag against observation
+    // noise and must stay under the fastest timescale in the DGP suite.
     if (key == "kalman") {
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-4, .burn_in_blocks = 2},
@@ -81,10 +74,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
             "kalman_fast");
     }
-    // Innovation CUSUM with detect-and-restart on alarm. h is calibrated by
-    // experiments/calibrate_arl0.cpp against a target ARL0, not taken from a
-    // classical table. Re-run it if block or sigma_omega2 changes -- ARL0
-    // depends on both.
+    // Detector thresholds below are calibrated by calibrate_arl0.cpp; re-run it
+    // if block, sigma_omega2 or hazard_rate changes.
     if (key == "kalman_cusum") {
         return std::make_unique<KalmanCusumDetector>(
             KalmanCusumDetector::Config{
@@ -92,9 +83,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 3.5},
             "kalman_cusum");
     }
-    // Window-limited GLR: kalman_cusum's counterpart for an unknown jump size.
-    // `window` bounds the candidate jump lags, keeping cost O(window) per
-    // block. h is calibrated the same way as kalman_cusum's.
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -102,11 +90,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .window = 30, .min_lag = 1, .h = 10.0},
             "kalman_glr");
     }
-    // BOCPD on the same observation. Unlike the two detectors above there is
-    // no reset() anywhere -- estimate() is the run-length-weighted posterior
-    // mean. hazard_rate matches the ARL0 target the others were calibrated
-    // against, so all of them sit at the same expected-time-between-changes
-    // operating point; alarm_prob_threshold is calibrated separately.
     if (key == "kalman_bocpd") {
         return std::make_unique<KalmanBocpdDetector>(
             KalmanBocpdDetector::Config{
@@ -114,12 +97,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .short_run_cutoff = 2, .alarm_prob_threshold = 0.15},
             "kalman_bocpd");
     }
-    // Same model with hazard_rate retuned to match `oscillate`'s half-period
-    // (10 blocks). Hazard is BOCPD's analog of sigma_omega2 -- its own "how
-    // fast do I expect change" knob -- so no single value suits every regime.
-    // The threshold has to rise with the hazard: a model that expects frequent
-    // change finds "the run is short" true more often, so holding the same
-    // ARL0 needs a stricter bar.
+    // hazard_rate is BOCPD's analog of sigma_omega2; the threshold rises with it
+    // because a model expecting frequent change finds short runs likelier.
     if (key == "kalman_bocpd_fast") {
         return std::make_unique<KalmanBocpdDetector>(
             KalmanBocpdDetector::Config{

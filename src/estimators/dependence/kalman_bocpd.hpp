@@ -12,25 +12,9 @@
 #include "estimator.hpp"
 
 // Bayesian Online Changepoint Detection (Adams & MacKay 2007) on the same
-// blockwise Fisher-z'd Spearman observation as KalmanLocalLevel.
-// Methodology and results: notes/studies/kalman_changepoint_results.md.
-//
-// The per-segment mean mu=atanh(rho) has a conjugate Normal prior N(mu0,
-// tau0^2) with sigma_v^2 known -- the NIW construction specialized to known
-// observation variance, since sigma_v^2 has a closed form here.
-//
-// Run-length recursion under a constant hazard H, where r_{t-1}=r means "r
-// observations belong to the current run as of the previous tick" (r=0 is the
-// fresh-prior hypothesis, stats empty). Each hypothesis contributes its own
-// predictive likelihood to both successors: growth (r_t=r+1, weight 1-H) and
-// reset (r_t=0, weight H, summed over all r). The r_t=0 bucket takes
-// probability from every r but its stats reset to empty. Kept in log-space
-// (log-sum-exp) to avoid underflow, and truncated at `max_run_length` so the
-// cost stays O(max_run_length) per block.
-//
-// estimate() is the run-length-weighted posterior mean of mu mapped through
-// tanh. Nothing here ever resets the state on an alarm -- the soft mixing is
-// the mechanism.
+// observation as KalmanLocalLevel. Never resets; estimate() is the
+// run-length-weighted posterior mean.
+// See notes/studies/kalman_changepoint_results.md.
 class KalmanBocpdDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
@@ -39,12 +23,9 @@ public:
         double prior_mu0 = 0.0;             // prior mean of mu = atanh(rho) at a fresh run
         double prior_tau0_sq = 1.0;         // prior variance of mu at a fresh run
         std::size_t max_run_length = 150;   // truncation bound, in blocks
-        // The alarm thresholds P(r_t <= short_run_cutoff | data), NOT raw
-        // P(r_t=0 | data): under a constant hazard the latter equals
-        // hazard_rate identically on every tick, independent of the data,
-        // because the one-step marginal likelihood common to the reset and
-        // growth branches cancels in the normalization. The usable signal is
-        // how (1-H) redistributes across the growth hypotheses.
+        // Thresholds P(r_t <= short_run_cutoff), not P(r_t=0): under a
+        // constant hazard the latter equals hazard_rate identically, whatever
+        // the data.
         std::size_t short_run_cutoff = 2;
         double alarm_prob_threshold = 0.5;
         std::size_t burn_in_blocks = 2;
@@ -73,7 +54,7 @@ public:
 
         const double log_h = std::log(config_.hazard_rate);
         const double log_1mh = std::log(1.0 - config_.hazard_rate);
-        const std::size_t R = log_prob_.size();  // active hypotheses, r=0..R-1
+        const std::size_t R = log_prob_.size();
 
         std::vector<double> loglik(R), post_mu(R);
         for (std::size_t r = 0; r < R; ++r) {
@@ -84,14 +65,11 @@ public:
             const double pred_var = tau_sq + sigma_v2;
             loglik[r] = -0.5 * std::log(2.0 * std::numbers::pi * pred_var) - 0.5 * (obs - mu) * (obs - mu) / pred_var;
 
-            // Posterior mean AFTER incorporating obs (n+1 observations) --
-            // used below for growth's stats and the model-averaged estimate.
             const double prec_post = 1.0 / config_.prior_tau0_sq + (n + 1.0) / sigma_v2;
             post_mu[r] = (1.0 / prec_post) * (config_.prior_mu0 / config_.prior_tau0_sq + (sum_y_[r] + obs) / sigma_v2);
         }
 
-        // New array has support 0..R (R+1 entries): index 0 = reset, index
-        // r+1 = growth from old index r.
+        // Index 0 = reset; index r+1 = growth from old index r.
         std::vector<double> new_log_prob(R + 1), new_sum_y(R + 1), new_post_mu(R + 1);
         double cp_logmass = -std::numeric_limits<double>::infinity();
         for (std::size_t r = 0; r < R; ++r) {
@@ -99,11 +77,6 @@ public:
         }
         new_log_prob[0] = cp_logmass;
         new_sum_y[0] = 0.0;
-        // The reset target's posterior mean uses EMPTY prior stats plus this
-        // one observation (n=1 total) -- exactly what post_mu[0] already is
-        // (the r=0 entry above used sum_y_[0]=0, n=0 prior obs). R is always
-        // >=1 here (log_prob_ starts at size 1 in reset()), so post_mu[0] is
-        // always defined.
         new_post_mu[0] = post_mu[0];
         for (std::size_t r = 0; r < R; ++r) {
             new_log_prob[r + 1] = log_prob_[r] + loglik[r] + log_1mh;
@@ -111,9 +84,6 @@ public:
             new_post_mu[r + 1] = post_mu[r];
         }
 
-        // Normalize in log-space, then truncate to max_run_length and
-        // renormalize (dropping negligible tail mass -- the truncation this
-        // class's O(max_run_length) bound requires).
         double log_norm = -std::numeric_limits<double>::infinity();
         for (double lp : new_log_prob) log_norm = log_add_exp(log_norm, lp);
         const std::size_t keep = std::min(new_log_prob.size(), config_.max_run_length + 1);
@@ -123,9 +93,8 @@ public:
 
         double log_norm_kept = -std::numeric_limits<double>::infinity();
         for (double& lp : log_prob_) { lp -= log_norm; log_norm_kept = log_add_exp(log_norm_kept, lp); }
-        for (double& lp : log_prob_) lp -= log_norm_kept;  // renormalize after truncation
+        for (double& lp : log_prob_) lp -= log_norm_kept;
 
-        // Model-averaged point estimate and MAP-adjacent alarm signal.
         double mu_hat = 0.0;
         double best_lp = -std::numeric_limits<double>::infinity();
         for (std::size_t r = 0; r < log_prob_.size(); ++r) {
@@ -134,16 +103,13 @@ public:
             best_lp = std::max(best_lp, log_prob_[r]);
         }
         estimate_ = std::clamp(std::tanh(mu_hat), -1.0, 1.0);
-        p_changepoint_ = std::exp(log_prob_[0]);  // == hazard_rate identically; see the Config comment
+        p_changepoint_ = std::exp(log_prob_[0]);
         p_short_run_ = 0.0;
         for (std::size_t r = 0; r < log_prob_.size() && r <= config_.short_run_cutoff; ++r) {
             p_short_run_ += std::exp(log_prob_[r]);
         }
-        // With fewer than short_run_cutoff+2 blocks of history every active
-        // hypothesis satisfies r <= short_run_cutoff trivially (no longer-run
-        // alternative has had time to exist), so P(short run) is ~1 regardless
-        // of the data. Suppress alarms until there is enough history for the
-        // comparison to mean anything.
+        // Below short_run_cutoff+2 blocks every hypothesis is trivially short,
+        // so P(short run) is ~1 regardless of the data.
         const bool long_enough_history = blocks_ > config_.short_run_cutoff + 1;
         alarmed_ = long_enough_history && (p_short_run_ > config_.alarm_prob_threshold);
         if (alarmed_) ++alarm_count_;
@@ -157,7 +123,7 @@ public:
         xs_.clear();
         ys_.clear();
         blocks_ = 0;
-        log_prob_.assign(1, 0.0);  // P(r_0=0)=1, certainty at the very start
+        log_prob_.assign(1, 0.0);
         sum_y_.assign(1, 0.0);
         estimate_ = 0.0;
         p_changepoint_ = 1.0;
@@ -175,8 +141,8 @@ public:
 
     bool alarmed_this_block() const override { return alarmed_; }
     std::size_t alarm_count() const { return alarm_count_; }
-    double p_changepoint() const { return p_changepoint_; }  // P(r_t=0 | data); == hazard_rate identically, see Config
-    double p_short_run() const { return p_short_run_; }      // P(r_t <= short_run_cutoff | data); the real alarm signal
+    double p_changepoint() const { return p_changepoint_; }
+    double p_short_run() const { return p_short_run_; }
     std::size_t map_run_length() const {
         std::size_t best = 0;
         double best_lp = log_prob_.empty() ? 0.0 : log_prob_[0];
@@ -236,8 +202,8 @@ private:
     std::vector<double> xs_, ys_;
     std::size_t blocks_ = 0;
 
-    std::vector<double> log_prob_;  // log P(r_{t-1}=r | data), r=0..R-1
-    std::vector<double> sum_y_;     // sufficient stat: sum of the r observations in hypothesis r's run
+    std::vector<double> log_prob_;  // log P(r_{t-1}=r | data)
+    std::vector<double> sum_y_;     // sum of hypothesis r's observations
 
     double estimate_ = 0.0;
     double p_changepoint_ = 1.0;

@@ -1,12 +1,7 @@
-// ARL0 calibration for the Kalman-filter change detectors.
-//
-// Detectors are only comparable at a matched in-control average run length,
-// and ARL0 has to be bootstrapped on the actual pseudo-observation stream
-// rather than read off a classical formula, since rank/PIT feedback breaks the
-// iid assumption those need. Runs each detector's real update() path on
-// stationary streams at several rho, sweeps its threshold, and reports the
-// smallest one meeting the target in the worst case over rho -- worst-case
-// because the true rho is unknown in live use.
+// ARL0 calibration for the Kalman-filter change detectors: sweeps each
+// detector's threshold on stationary streams at several rho and reports the
+// smallest one meeting the target in the worst case over rho.
+// See notes/studies/kalman_changepoint_results.md.
 //
 // Usage: ./calibrate_arl0 [target_arl0_blocks]   (default 1000)
 
@@ -25,15 +20,13 @@
 
 namespace {
 
-// Mean blocks-between-alarms at threshold h, pooled over independent seeds.
-// A negative return means no alarms were seen at all: a lower bound on ARL0,
-// not a point estimate.
+// Mean blocks-between-alarms, pooled over seeds. Negative = no alarms seen,
+// i.e. a lower bound on ARL0 rather than a point estimate.
 double measure_arl0(const std::function<std::unique_ptr<DependenceEstimator>()>& make_detector,
                      double rho, long ticks_per_seed, int n_seeds, unsigned seed0) {
     long total_alarms = 0;
     for (int s = 0; s < n_seeds; ++s) {
         auto est = make_detector();
-        // Cross-cast once per seed, not once per tick in the loop below.
         auto* det = dynamic_cast<ChangeDetector*>(est.get());
         std::mt19937 rng(seed0 + static_cast<unsigned>(s));
         std::normal_distribution<double> z(0.0, 1.0);
@@ -86,9 +79,9 @@ double calibrate(const char* label,
 
 int main(int argc, char** argv) {
     const double target = (argc > 1) ? std::atof(argv[1]) : 1000.0;
-    const long ticks_per_seed = 100000;  // 5000 blocks/seed at block=20
+    const long ticks_per_seed = 100000;
     const int n_seeds = 6;
-    const std::vector<double> rhos = {0.0, 0.3, 0.6, 0.8};  // spans the DGP suite's stationary levels
+    const std::vector<double> rhos = {0.0, 0.3, 0.6, 0.8};
     const KalmanLocalLevel::Config kalman_cfg{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2};
 
     calibrate(
@@ -107,9 +100,7 @@ int main(int argc, char** argv) {
         },
         {5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0}, target, ticks_per_seed, n_seeds, rhos);
 
-    // The BOCPD variants sweep alarm_prob_threshold rather than h; ARL0 rises
-    // monotonically in it just the same. hazard_rate stays fixed -- what is
-    // calibrated is the alarm rule, not the posterior underneath it.
+    // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(
         "kalman_bocpd",
         [&](double thresh) -> std::unique_ptr<DependenceEstimator> {
@@ -120,9 +111,6 @@ int main(int argc, char** argv) {
         },
         {0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 0.9}, target, ticks_per_seed, n_seeds, rhos);
 
-    // Held to the same false-alarm target as every other detector even though
-    // its hazard expects change every ~10 blocks: how rarely a detector cries
-    // wolf when nothing is happening is a hazard-independent question.
     calibrate(
         "kalman_bocpd_fast",
         [&](double thresh) -> std::unique_ptr<DependenceEstimator> {

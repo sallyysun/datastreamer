@@ -32,8 +32,6 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
     if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, N);
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
-    // period 400 matches the live server (app/main.cpp) so offline vs online
-    // oscillate RMSE is directly comparable.
     if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
     return nullptr;
 }
@@ -71,8 +69,7 @@ int main(int argc, char** argv) {
         ests.push_back(std::move(e));
     }
 
-    // Non-owning pointers so per-tick alarm state can be logged; estimate()
-    // stays Spearman-only, so alarms need their own channel.
+    // estimate() is Spearman-only, so alarms need their own channel.
     std::vector<ChangeDetector*> detectors(keys.size(), nullptr);
     for (std::size_t e = 0; e < keys.size(); ++e) {
         detectors[e] = dynamic_cast<ChangeDetector*>(ests[e].get());
@@ -101,7 +98,6 @@ int main(int argc, char** argv) {
         for (auto& at : alarm_traces) at.vals.push_back(detectors[at.est_index]->alarmed_this_block() ? 1 : 0);
     }
 
-    // Written relative to this directory (run the harness from experiments/).
     const std::string path = "results/experiment_" + scenario + ".csv";
     std::ofstream out(path);
     if (!out.is_open()) {
@@ -136,9 +132,7 @@ int main(int argc, char** argv) {
     }
     std::printf("wrote %s\n", path.c_str());
 
-    // Only `jump` has a single known changepoint, so only it gets a detection
-    // delay; the others get a raw alarm count, since "delay" has no well-defined
-    // reference instant there.
+    // Only `jump` has a single known changepoint, so only it gets a delay.
     if (!alarm_traces.empty()) {
         std::printf("\nchangepoint detection (%s):\n", scenario.c_str());
         const bool has_known_jump = (scenario == "jump");

@@ -8,24 +8,14 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Two-sided CUSUM on KalmanLocalLevel's standardized innovations, which are
-// ~iid N(0,1) under the model. The filter absorbs gradual drift; this detects
-// what it cannot absorb. On alarm it calls the filter's reset().
-//
-//   S+_t = max(0, S+_{t-1} + e_t - k)
-//   S-_t = max(0, S-_{t-1} - e_t - k)
-//   alarm when either exceeds h
-//
-// k = delta/2 is the reference value for a design shift delta: e_t - delta/2 is
-// the log-likelihood-ratio increment for N(0,1) vs N(delta,1). (delta, h) are
-// set in registry.hpp, where h is calibrated against a target ARL0 by
-// experiments/calibrate_arl0.cpp.
+// Two-sided CUSUM on KalmanLocalLevel's innovations; resets the filter on alarm.
+// See notes/studies/kalman_changepoint_results.md.
 class KalmanCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         KalmanLocalLevel::Config kalman;
-        double delta = 1.0;   // design shift size, in standardized-innovation units
-        double h = 5.0;       // alarm threshold
+        double delta = 1.0;   // design shift size, in innovation SDs
+        double h = 5.0;       // alarm threshold; calibrate via calibrate_arl0.cpp
     };
 
     KalmanCusumDetector(Config config, const char* name)
@@ -35,7 +25,7 @@ public:
         const std::size_t before = filter_.blocks();
         filter_.update(x, y);
         alarmed_ = false;
-        if (filter_.blocks() == before) return;  // block not yet closed -- nothing new to test
+        if (filter_.blocks() == before) return;
 
         const double e = filter_.standardized_innovation();
         const double k = config_.delta / 2.0;
@@ -63,8 +53,6 @@ public:
         blocks_since_alarm_ = 0;
     }
 
-    // sizeof(*this) already covers filter_'s fixed-size fields; only its
-    // heap-allocated block buffers need adding.
     std::size_t store_bytes() const override {
         return sizeof(*this) + 2 * config_.kalman.block * sizeof(double);
     }
