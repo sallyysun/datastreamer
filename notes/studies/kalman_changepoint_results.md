@@ -9,6 +9,322 @@ mean anything, and the results — including two corrections to claims that did 
 Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
 `experiments/` — see [§9](#9-reproduction).
 
+[§0](#0-primer) is a from-scratch primer on the machinery. It assumes expectation, variance, the
+Gaussian, Bayes' rule and likelihood, and builds everything else — copulas, Spearman's $\rho$, the
+Fisher transform, state-space models, the Kalman filter, CUSUM, GLR, BOCPD and $\mathrm{ARL}_0$ —
+from those. Readers who already have this can start at §1.
+
+---
+
+## 0. Primer
+
+### 0.1 The problem
+
+Two price series move together. *How* together, and does it change over time?
+
+**Definition (copula).** For a random vector $(X, Y)$ with continuous marginal CDFs $F_X, F_Y$, Sklar's
+theorem gives a unique function $C : [0,1]^2 \to [0,1]$ with
+
+$$
+F_{X,Y}(x,y) \;=\; C\bigl(F_X(x),\, F_Y(y)\bigr).
+$$
+
+$C$ is the **copula**: the joint distribution of the *ranks* $U = F_X(X)$, $V = F_Y(Y)$, each uniform
+on $[0,1]$. It is exactly the dependence, with the marginals divided out. This matters because the
+two change on different timescales — volatility moves for its own reasons, and we want to track how
+the assets co-move without that contaminating the answer.
+
+**Definition (Spearman's $\rho$).** The linear correlation of the ranks:
+
+$$
+\rho_S \;=\; 12 \int_0^1\!\!\int_0^1 uv \; \mathrm dC(u,v) \; - \; 3
+\;=\; \operatorname{corr}\bigl(F_X(X),\, F_Y(Y)\bigr).
+$$
+
+Every estimator in this codebase reports $\rho_S$ regardless of what it fits internally, so a
+parametric MLE and a nonparametric rank estimator are directly comparable. For the Gaussian copula
+with correlation $\rho$, $\rho_S = \frac{6}{\pi}\arcsin(\rho/2)$.
+
+**Streaming** means: one pass, $O(1)$ work per tick, memory bounded independent of how long the
+stream runs. No storing history, no second look. An estimator that needs the last $10^4$ points is
+disqualified however good it is.
+
+**The central tension.** Averaging over more data reduces variance but means reacting late when the
+truth moves. Formally, with $\hat\theta_t$ an estimate of a moving $\theta_t$:
+
+$$
+\underbrace{\mathbb E\bigl[(\hat\theta_t - \theta_t)^2\bigr]}_{\text{MSE}}
+\;=\;
+\underbrace{\operatorname{Var}(\hat\theta_t)}_{\downarrow \text{ with memory}}
+\;+\;
+\underbrace{\bigl(\mathbb E[\hat\theta_t] - \theta_t\bigr)^2}_{\text{lag bias, } \uparrow \text{ with memory}} .
+$$
+
+Everything in this document is one answer to "how should memory be chosen?"
+
+### 0.2 Forgetting, and why an optimal memory exists
+
+The standard streaming device is the **exponentially weighted moving average**: for observations
+$y_1,\dots,y_t$ and a rate $\alpha \in (0,1]$,
+
+$$
+\hat\theta_t \;=\; (1-\alpha)\,\hat\theta_{t-1} \;+\; \alpha\, y_t
+\;=\; \alpha \sum_{j=0}^{t-1} (1-\alpha)^j \, y_{t-j} \;+\; (1-\alpha)^t \hat\theta_0 .
+$$
+
+Weights decay geometrically, so the estimator forgets at a fixed rate and needs $O(1)$ state.
+
+**Definition (effective sample size).** The number of equally-weighted points carrying the same
+variance as the weighted average, $\text{ESS} = (\sum_j w_j)^2 / \sum_j w_j^2$. For the EWMA above,
+
+$$
+\text{ESS} \;=\; \frac{2-\alpha}{\alpha} \;\approx\; \frac{2}{\alpha} \quad (\alpha \ll 1).
+$$
+
+So $\alpha = 0.01$ means "about 200 points of memory". If the observations have variance $\sigma^2$
+and the truth drifts at rate $\dot\theta$ per step, then to first order
+
+$$
+\mathrm{MSE}(\text{ESS}) \;\approx\; \underbrace{\frac{\sigma^2}{\text{ESS}}}_{\text{variance}}
+\;+\; \underbrace{\left(\frac{\dot\theta \cdot \text{ESS}}{2}\right)^{\!2}}_{\text{lag bias}} ,
+$$
+
+a U-shape in $\text{ESS}$ with an interior minimum. This one expression explains most of §5: a
+cumulative estimator ($\text{ESS} = t \to \infty$, first term $\to 0$) wins `constant` and is
+catastrophic on `drift`; a short-memory one is the reverse.
+
+⚠️ **The convention differs by estimator.** For Xiao and the parametric MLEs, $\lambda$ is a
+*retention* factor, so larger $\lambda$ = longer memory ($\alpha = 1-\lambda$). For Hermite,
+$\lambda$ is the *update weight*, so smaller $\lambda$ = longer memory ($\alpha = \lambda$). Both
+reduce to the same $\text{ESS} = (2-\alpha)/\alpha$. Getting this backwards silently inverts an
+experiment — see the header of `src/estimators/registry.hpp`.
+
+### 0.3 Blocks, and the Fisher transform
+
+Two obstacles stop us from filtering $\hat\rho_S$ tick by tick.
+
+**Obstacle 1: $\rho$ is bounded and heteroscedastic.** It lives in $[-1,1]$, so its sampling noise
+must shrink as $|\rho| \to 1$ — a Gaussian noise model is simply false near the ends. The
+**Fisher transformation** fixes this:
+
+$$
+z \;=\; \operatorname{atanh} \rho \;=\; \tfrac12 \log\frac{1+\rho}{1-\rho}
+\;\in\; \mathbb R,
+\qquad
+\rho = \tanh z .
+$$
+
+$z$ is unbounded, and its sampling variance is approximately constant in $\rho$ — which is exactly
+what a linear-Gaussian model needs.
+
+**Obstacle 2: one tick is not enough.** So aggregate: every $m$ ticks (a **block**) compute the
+block's empirical $\hat\rho_S$ and transform it. Standard theory gives the variance in closed form,
+
+$$
+\sigma_v^2 \;\approx\; \frac{1.06}{m-3}
+$$
+
+(the Fieller–Hartley–Pearson approximation for a Fisher-$z$'d *Spearman* correlation, ~6% wider than
+Pearson's $1/(m-3)$). That $\sigma_v^2$ is **known rather than estimated** is the structural gift of
+this whole approach: it pins the denominator of the signal-to-noise ratio, leaving one scalar to
+choose instead of two.
+
+Blocking is not free — see §6.1 — but it buys a model that is *exactly* linear-Gaussian, so the
+optimal filter is available in closed form rather than needing an EKF/UKF.
+
+### 0.4 State-space models and the Kalman filter
+
+**Definition (linear-Gaussian state-space model).** A hidden state evolving by a linear rule,
+observed through linear noise:
+
+$$
+z_t = z_{t-1} + \omega_t, \quad \omega_t \sim \mathcal N(0, \sigma_\omega^2)
+\qquad \text{(state / transition)}
+$$
+$$
+y_t = z_t + v_t, \quad\;\; v_t \sim \mathcal N(0, \sigma_v^2)
+\qquad\;\;\, \text{(observation)}
+$$
+
+with $\omega_t, v_t$ independent. This particular one — a random walk seen in noise — is the
+**local-level model**. Here $z_t = \operatorname{atanh}\rho_t$ is the true dependence and $y_t$ is
+the block measurement of §0.3. The two variances say everything: $\sigma_\omega^2$ is *how fast we
+believe the world changes*, $\sigma_v^2$ is *how noisy our measurement is*.
+
+#### The idea in one paragraph
+
+Carry a **belief**, not a number: a mean $\hat z$ and a variance $P$ saying how sure you are. Waiting
+makes you less sure ($P$ grows by $\sigma_\omega^2$). A measurement makes you more sure. Combining
+belief and measurement is Bayes' rule for two Gaussians, which weights each by its **precision**
+(inverse variance) — the more confident party wins.
+
+**Definition (Kalman recursion).** Per block:
+
+$$
+\begin{aligned}
+\textbf{predict:} \quad & \hat z_{t|t-1} = \hat z_{t-1}, && P_{t|t-1} = P_{t-1} + \sigma_\omega^2 \\
+\textbf{innovation:} \quad & e_t = y_t - \hat z_{t|t-1}, && F_t = P_{t|t-1} + \sigma_v^2 \\
+\textbf{gain:} \quad & K_t = P_{t|t-1} / F_t && \\
+\textbf{update:} \quad & \hat z_t = \hat z_{t|t-1} + K_t e_t, && P_t = (1-K_t) P_{t|t-1}
+\end{aligned}
+$$
+
+Read the update as: *new estimate = old estimate + gain × surprise.*
+
+- $e_t$, the **innovation**, is the part of the measurement the model did not predict — the surprise.
+  If the model is correct, $e_t \sim \mathcal N(0, F_t)$ and the standardized innovations
+  $e_t/\sqrt{F_t}$ are i.i.d. standard normal. **That is what every detector in §3 monitors**: a real
+  change makes the filter wrong in a systematic direction, so surprises stop looking like noise.
+- $K_t \in (0,1)$, the **gain**, is the fraction of the surprise we act on:
+  $K_t = P_{t|t-1}/(P_{t|t-1} + \sigma_v^2)$ — the prior's share of total precision. Uncertain
+  filter ($P \gg \sigma_v^2$) $\Rightarrow K \to 1$, follow the data. Confident filter
+  $\Rightarrow K \to 0$, ignore a noisy read. Cold-start is handled automatically.
+
+#### Worked example
+
+Take $\sigma_v^2 = 0.05$ (so $m \approx 24$) and $\sigma_\omega^2 = 0.01$, starting from a vague
+prior $\hat z_0 = 0$, $P_0 = 1$.
+
+| | $P_{t\mid t-1}$ | $F_t$ | $K_t$ | $y_t$ | $e_t$ | $\hat z_t$ | $P_t$ |
+|---|---|---|---|---|---|---|---|
+| block 1 | $1.0000 + 0.01 = 1.0100$ | $1.0600$ | $0.9528$ | $0.70$ | $+0.7000$ | $0.6670$ | $0.0476$ |
+| block 2 | $0.0476 + 0.01 = 0.0576$ | $0.1076$ | $0.5355$ | $0.60$ | $-0.0670$ | $0.6311$ | $0.0268$ |
+| block 3 | $0.0268 + 0.01 = 0.0368$ | $0.0868$ | $0.4238$ | $0.75$ | $+0.1189$ | $0.6815$ | $0.0212$ |
+
+Block 1 knows nothing, so it takes 95% of the measurement. By block 3 it is confident and takes 42%.
+$P$ falls toward a fixed point where the $\sigma_\omega^2$ added each step exactly balances what the
+measurement removes — here $q = 0.01/0.05 = 0.2$, so $K \to (\sqrt{0.04 + 0.8} - 0.2)/2 = 0.3583$,
+equivalent to an EWMA with $\lambda = 0.642$ and $\text{ESS} \approx 4.6$ blocks.
+
+#### Steady state, and why this generalizes everything else
+
+$P_t$ converges. Write $q = \sigma_\omega^2/\sigma_v^2$ (the **signal-to-noise ratio**); the limiting
+gain solves a quadratic with the closed form
+
+$$
+K \;=\; \frac{\sqrt{q^2 + 4q} \; - \; q}{2}.
+$$
+
+At that fixed point $K_t$ is a constant $K$, and the update collapses to
+
+$$
+\hat z_t \;=\; \hat z_{t-1} + K(y_t - \hat z_{t-1}) \;=\; (1-K)\,\hat z_{t-1} + K y_t ,
+$$
+
+which is exactly the EWMA of §0.2 with $\alpha = K$, i.e. $\boxed{\lambda = 1 - K}$. **Every
+fixed-$\lambda$ estimator in this codebase is this filter at steady state** — they are not analogous,
+they are the same recursion. This is "Bridge 1" (§3.3, verified numerically in §4.1). The filter's
+extra content is the *transient*: it starts uncertain and tightens, whereas a fixed $\lambda$ is
+born at its final memory and can never change it.
+
+### 0.5 Detection: from likelihood ratios to four detectors
+
+**Definition (log-likelihood ratio).** Two competing explanations of the data, $H_0$ (no change) and
+$H_1$ (change), compared by
+
+$$
+\Lambda_t \;=\; \log \frac{p(y_{1:t} \mid H_1)}{p(y_{1:t} \mid H_0)} .
+$$
+
+Large $\Lambda_t$ means $H_1$ explains the data better. Every detector below is a way of computing
+or approximating this online. All of them run on the standardized innovations $e_t/\sqrt{F_t}$,
+which are i.i.d. $\mathcal N(0,1)$ under $H_0$ — so "has something changed?" becomes "have these
+stopped looking like standard normal noise?"
+
+**CUSUM** (Page 1954). Detect a mean shift of known size $\delta$. Under $H_1$ the innovations have
+mean $\delta$ instead of $0$, and the per-observation log-LR is $\delta(e_t/\sqrt{F_t} - \delta/2)$.
+Accumulate it, flooring at zero so evidence for "no change" cannot bank credit:
+
+$$
+S_t^{\pm} = \max\Bigl(0,\; S_{t-1}^{\pm} \pm \frac{e_t}{\sqrt{F_t}} - k\Bigr),
+\qquad k = \frac{\delta}{2},
+\qquad \text{alarm when } \max(S^+_t, S^-_t) > h .
+$$
+
+Two copies catch increases and decreases. The floor is what makes it a *detector* rather than a
+random walk: it forgets accumulated non-evidence.
+
+**GLR** (Willsky & Jones 1976; Lai 1995). We rarely know $\delta$. The generalized likelihood ratio
+maximises it out, and also over the unknown changepoint time $\tau$:
+
+$$
+g_t \;=\; \max_{t-N \le \tau \le t-d} \; \max_{\delta} \; \log\frac{p(y \mid \tau, \delta)}{p(y \mid H_0)} .
+$$
+
+The inner maximum is available in closed form, leaving a matched filter over candidate lags. The
+window $N$ is what makes it $O(N)$ per step rather than $O(t)$ — "window-limited" GLR.
+
+**BOCPD** (Adams & MacKay 2007). Fully Bayesian, and structurally different: instead of testing a
+hypothesis, carry a posterior over the **run length** $r_t$ = number of blocks since the last change.
+
+$$
+p(r_t \mid y_{1:t}) \;\propto\; \sum_{r_{t-1}} \underbrace{p(r_t \mid r_{t-1})}_{\text{hazard}} \;
+\underbrace{p(y_t \mid r_{t-1}, y^{(r)})}_{\text{predictive}} \; p(r_{t-1} \mid y_{1:t-1}),
+$$
+
+with a constant hazard $H$ (change probability per block, so run lengths are geometric with mean
+$1/H$). Each run length carries its own conjugate posterior over $z$, and the reported estimate
+averages over them. **This is why it wins `jump`** (§6.2): after a break the short-run hypotheses
+gain mass, so the estimator effectively uses only post-break data — long memory before, short memory
+after, which no fixed $\lambda$ can do.
+
+⚠️ Under a constant hazard, $P(r_t = 0) = H$ *identically* — the marginal likelihood cancels — so it
+carries no information and cannot be an alarm signal. That bug is §7.1; the fix is to threshold
+$P(r_t \le c)$ for $c > 0$.
+
+**Definition (average run length, $\mathrm{ARL}_0$).** The expected number of blocks to a false alarm
+when nothing is changing:
+
+$$
+\mathrm{ARL}_0 \;=\; \mathbb E[\,T_{\text{alarm}} \mid \text{no change}\,].
+$$
+
+A threshold with no $\mathrm{ARL}_0$ attached is meaningless — any detector looks fast if allowed to
+cry wolf. Comparing detectors requires first tuning each threshold to a *common* $\mathrm{ARL}_0$
+(here 1000 blocks, §3.7), and only then comparing detection delay. This is the frequentist criterion
+applied even to the Bayesian detectors, so all four sit on one axis.
+
+### 0.6 Reading the results
+
+**RMSE** is against the *known* true $\rho_S$ path, which the simulator supplies:
+
+$$
+\mathrm{RMSE} \;=\; \sqrt{\frac{1}{T - t_0}\sum_{t=t_0}^{T} \bigl(\hat\rho_{S,t} - \rho_{S,t}\bigr)^2},
+$$
+
+with $t_0 = 500$ discarded as burn-in. Lower is better; it mixes variance and lag-bias exactly as
+§0.1 describes.
+
+Every headline number is a mean over 20 random seeds with its standard error
+$\mathrm{SE} = s/\sqrt{n}$. Two numbers differing by less than a couple of SEs are not distinguishable.
+Single-seed numbers are for development only — §7 records two real bugs that a single seed hid.
+
+⚠️ **"Best in column" means best among the shipped configurations, not best achievable.** A model can
+look bad because its $\lambda$ was set for a different scenario. §5.4 tunes each family fairly and
+reverses one of the apparent results. Always check there before quoting a ranking.
+
+### 0.7 Symbols
+
+| Symbol | Meaning |
+| --- | --- |
+| $\rho$, $\rho_S$ | copula (linear) correlation; Spearman's rank correlation — all estimators report $\rho_S$ |
+| $m$ | block size in ticks |
+| $z_t = \operatorname{atanh}\rho_t$ | latent state: Fisher-transformed dependence |
+| $y_t$ | observation: Fisher-$z$'d block Spearman estimate |
+| $\sigma_\omega^2$ | state (process) variance — how fast we believe dependence moves |
+| $\sigma_v^2 \approx 1.06/(m-3)$ | observation variance — known in closed form |
+| $q = \sigma_\omega^2/\sigma_v^2$ | signal-to-noise ratio |
+| $\hat z_t$, $P_t$ | filtered mean and variance (the belief) |
+| $e_t$, $F_t$ | innovation (surprise) and its variance |
+| $K_t$, $K$ | Kalman gain; steady-state gain $K = (\sqrt{q^2+4q}-q)/2$ |
+| $\lambda$, $\alpha$ | forgetting parameter and rate; $\lambda = 1-K$ at steady state |
+| $\text{ESS} = (2-\alpha)/\alpha$ | effective sample size — memory length in points |
+| $h$, $k$, $\delta$ | detector threshold; CUSUM slack; assumed jump size |
+| $N$, $d$ | GLR window length and minimum lag |
+| $H$, $r_t$ | BOCPD hazard rate and run length |
+| $\mathrm{ARL}_0$ | expected blocks to a false alarm under no change |
+| $\tau$ | true changepoint time |
+
 ---
 
 ## 1. Summary of findings
