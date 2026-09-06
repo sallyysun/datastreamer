@@ -2,7 +2,8 @@
 
 Companion to [change_detection.md](change_detection.md), which laid out the design space and build
 order. This document reports what was actually **built and measured** against that plan: the
-local-level Kalman filter, three detectors on top of it (CUSUM, window-limited GLR, BOCPD), the
+local-level Kalman filter, three detectors on top of it (CUSUM, window-limited GLR, and BOCPD —
+Bayesian Online Changepoint Detection), the
 $\mathrm{ARL}_0$ calibration and multi-seed replication infrastructure needed to make their numbers
 mean anything, and the results — including two corrections to claims that did not survive scrutiny.
 
@@ -254,8 +255,9 @@ $$
 The inner maximum is available in closed form, leaving a matched filter over candidate lags. The
 window $N$ is what makes it $O(N)$ per step rather than $O(t)$ — "window-limited" GLR.
 
-**BOCPD** (Adams & MacKay 2007). Fully Bayesian, and structurally different: instead of testing a
-hypothesis, carry a posterior over the **run length** $r_t$ = number of blocks since the last change.
+**BOCPD** — **B**ayesian **O**nline **C**hangepoint **D**etection (Adams & MacKay 2007). Fully
+Bayesian, and structurally different: instead of testing a hypothesis, carry a posterior over the
+**run length** $r_t$ = number of blocks since the last change.
 
 $$
 p(r_t \mid y_{1:t}) \;\propto\; \sum_{r_{t-1}} \underbrace{p(r_t \mid r_{t-1})}_{\text{hazard}} \;
@@ -512,6 +514,13 @@ Restricting $j \le W$ (Lai 1995) makes this $O(W)$ per block — the unbounded $
 $O(t)$ and **not streaming-admissible**.
 
 ### 3.6 BOCPD
+
+**BOCPD** = **B**ayesian **O**nline **C**hangepoint **D**etection (Adams & MacKay 2007). *Online* in
+the streaming sense — one pass, each observation seen once, no revisiting history — as opposed to
+retrospective/offline segmentation, which sees the whole series before deciding where the breaks
+were. *Bayesian* because it maintains a posterior distribution rather than testing a hypothesis:
+CUSUM and GLR ask "is there enough evidence to declare a change?", BOCPD asks "given everything so
+far, how likely is each possible time-since-last-change?" and never has to declare anything at all.
 
 Run length $r_t$ = observations since the last changepoint, constant hazard $H$. Each hypothesis
 carries a conjugate Normal posterior on its segment mean $\mu$ (known $\sigma_v^2$, prior
