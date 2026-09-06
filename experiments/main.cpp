@@ -71,13 +71,8 @@ int main(int argc, char** argv) {
         ests.push_back(std::move(e));
     }
 
-    // Non-owning ChangeDetector pointers so per-tick alarm state can be logged
-    // -- the diagnostic a changepoint detector needs that estimate() alone
-    // can't give (estimate() stays Spearman-only so every estimator is
-    // comparable in one space, same convention as CopulaSelector::selected()
-    // on the other branch). ChangeDetector is a common interface over
-    // kalman_cusum and kalman_glr so this loop doesn't need one dynamic_cast
-    // per detector type.
+    // Non-owning pointers so per-tick alarm state can be logged; estimate()
+    // stays Spearman-only, so alarms need their own channel.
     std::vector<ChangeDetector*> detectors(keys.size(), nullptr);
     for (std::size_t e = 0; e < keys.size(); ++e) {
         detectors[e] = dynamic_cast<ChangeDetector*>(ests[e].get());
@@ -141,11 +136,9 @@ int main(int argc, char** argv) {
     }
     std::printf("wrote %s\n", path.c_str());
 
-    // Changepoint report. `jump` has a single known changepoint at N/2, so
-    // detection delay is well defined there; other scenarios only get a raw
-    // alarm count (drift/stochastic have no single instant to measure delay
-    // against, oscillate changes direction every period so "delay" would be
-    // ambiguous by construction, not just unmeasured).
+    // Only `jump` has a single known changepoint, so only it gets a detection
+    // delay; the others get a raw alarm count, since "delay" has no well-defined
+    // reference instant there.
     if (!alarm_traces.empty()) {
         std::printf("\nchangepoint detection (%s):\n", scenario.c_str());
         const bool has_known_jump = (scenario == "jump");

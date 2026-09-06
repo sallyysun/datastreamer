@@ -1,16 +1,12 @@
-// ARL0 calibration for the Kalman-filter change detectors (kalman_cusum,
-// kalman_glr, kalman_bocpd).
+// ARL0 calibration for the Kalman-filter change detectors.
 //
-// change_detection.md Part VI is explicit that no detector number is a thesis
-// result until it is compared at a MATCHED in-control average run length
-// (ARL0), and that ARL0 must be bootstrapped on the ACTUAL pseudo-observation
-// stream -- not read off a classical formula, since rank/PIT feedback breaks
-// the iid assumption those formulas need. This is that bootstrap: run each
-// detector's real update() path on a stationary Gaussian-copula stream at
-// several rho, sweep its threshold h, and report the smallest h that meets a
-// target ARL0 in the WORST case over rho (since the true rho is unknown in
-// live use, the calibrated threshold must be safe across the range this
-// project's DGP suite actually exercises).
+// Detectors are only comparable at a matched in-control average run length,
+// and ARL0 has to be bootstrapped on the actual pseudo-observation stream
+// rather than read off a classical formula, since rank/PIT feedback breaks the
+// iid assumption those need. Runs each detector's real update() path on
+// stationary streams at several rho, sweeps its threshold, and reports the
+// smallest one meeting the target in the worst case over rho -- worst-case
+// because the true rho is unknown in live use.
 //
 // Usage: ./calibrate_arl0 [target_arl0_blocks]   (default 1000)
 
@@ -29,18 +25,15 @@
 
 namespace {
 
-// Mean blocks-between-alarms at threshold h, pooled over several independent
-// seeds at a fixed simulation horizon. Negative return = no alarms were
-// observed at all -- a LOWER BOUND on ARL0, not a point estimate (conflating
-// the two was a bug caught in the scratch version of this check).
+// Mean blocks-between-alarms at threshold h, pooled over independent seeds.
+// A negative return means no alarms were seen at all: a lower bound on ARL0,
+// not a point estimate.
 double measure_arl0(const std::function<std::unique_ptr<DependenceEstimator>()>& make_detector,
                      double rho, long ticks_per_seed, int n_seeds, unsigned seed0) {
     long total_alarms = 0;
     for (int s = 0; s < n_seeds; ++s) {
         auto est = make_detector();
-        // ChangeDetector is a diagnostics-only interface, orthogonal to
-        // DependenceEstimator (see change_detector.hpp); cross-cast once per
-        // seed here rather than once per tick in the hot loop below.
+        // Cross-cast once per seed, not once per tick in the loop below.
         auto* det = dynamic_cast<ChangeDetector*>(est.get());
         std::mt19937 rng(seed0 + static_cast<unsigned>(s));
         std::normal_distribution<double> z(0.0, 1.0);
@@ -114,12 +107,9 @@ int main(int argc, char** argv) {
         },
         {5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0}, target, ticks_per_seed, n_seeds, rhos);
 
-    // kalman_bocpd sweeps alarm_prob_threshold, not h -- same "smallest
-    // threshold meeting the target" search, since ARL0 also rises
-    // monotonically with a stricter probability threshold. hazard_rate is
-    // fixed at the config default (1/1000, matching this target already);
-    // what's being calibrated here is the ALARM RULE built on top of that
-    // posterior, not the posterior itself.
+    // The BOCPD variants sweep alarm_prob_threshold rather than h; ARL0 rises
+    // monotonically in it just the same. hazard_rate stays fixed -- what is
+    // calibrated is the alarm rule, not the posterior underneath it.
     calibrate(
         "kalman_bocpd",
         [&](double thresh) -> std::unique_ptr<DependenceEstimator> {
@@ -130,14 +120,9 @@ int main(int argc, char** argv) {
         },
         {0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7, 0.9}, target, ticks_per_seed, n_seeds, rhos);
 
-    // kalman_bocpd_fast: hazard_rate=1/10 matches oscillate's true half-period
-    // (10 blocks) -- see notes/todo.md for the sweep that found this, and why
-    // it's a principled choice (tied to a real DGP timescale) rather than a
-    // value picked purely to minimize oscillate RMSE. Same false-alarm
-    // target (1000 stationary blocks) as every other detector here, even
-    // though this one's hazard itself expects change every ~10 blocks --
-    // "how rarely do you cry wolf when nothing is happening" is a fair,
-    // hazard-independent question to hold every detector to.
+    // Held to the same false-alarm target as every other detector even though
+    // its hazard expects change every ~10 blocks: how rarely a detector cries
+    // wolf when nothing is happening is a hazard-independent question.
     calibrate(
         "kalman_bocpd_fast",
         [&](double thresh) -> std::unique_ptr<DependenceEstimator> {

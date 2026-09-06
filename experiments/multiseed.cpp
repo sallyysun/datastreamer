@@ -1,13 +1,8 @@
 // Multi-seed replication with error bars.
 //
-// notes/todo.md has carried "no number is a thesis result until multi-seed
-// with error bars" as a standing caveat since before this Kalman/CUSUM/GLR/
-// BOCPD line of work started, and every RMSE and every detector statistic
-// produced by ./experiment and calibrate_arl0.cpp so far is a single seed=42
-// point estimate. This is that replication: same keys, same scenarios, same
-// N and burn-in as experiment.cpp (so the numbers are directly comparable to
-// what is already written up), run across several seeds, reported as
-// mean +/- standard error.
+// Same keys, scenarios, N and burn-in as main.cpp, so the numbers are directly
+// comparable to a single-seed ./experiment run -- but repeated across seeds and
+// reported as mean +/- standard error. Writes results/multiseed_<scenario>.csv.
 //
 // Usage: ./multiseed <scenario> [n_seeds] [base_seed]   (defaults: 10, 42)
 //   scenario in {constant, drift, jump, stochastic, oscillate}

@@ -11,70 +11,40 @@
 #include "change_detector.hpp"
 #include "estimator.hpp"
 
-// Bayesian Online Changepoint Detection (Adams & MacKay 2007) on blockwise
-// Fisher-z'd Spearman's rho -- the Bayesian gold standard change_detection.md
-// calls for (build order step 6), and the answer to the open question left by
-// kalman_cusum.hpp / kalman_glr.hpp: does a SOFT run-length posterior avoid
-// the hard-reset RMSE cost those two detect-and-restart methods paid on
-// `jump`/`oscillate` (see notes/todo.md)?
+// Bayesian Online Changepoint Detection (Adams & MacKay 2007) on the same
+// blockwise Fisher-z'd Spearman observation as KalmanLocalLevel.
+// Methodology and results: notes/studies/kalman_changepoint_results.md.
 //
-// Model: y_t = atanh(windowed Spearman rho) every `block` ticks -- the same
-// observation as KalmanLocalLevel -- with KNOWN sigma_v^2 ~ 1.06/(block-3).
-// The per-segment mean mu=atanh(rho) is unknown with a conjugate Normal prior
-// N(mu0, tau0^2). This is the roadmap's NIW-on-normal-scores construction
-// SPECIALIZED to known observation variance: this whole Kalman/CUSUM/GLR line
-// already treats sigma_v^2 as known (it has a closed form), so there is no
-// reason to carry Normal-Inverse-Gamma machinery for a variance nobody needs
-// estimated here.
+// The per-segment mean mu=atanh(rho) has a conjugate Normal prior N(mu0,
+// tau0^2) with sigma_v^2 known -- the NIW construction specialized to known
+// observation variance, since sigma_v^2 has a closed form here.
 //
-// Run-length recursion (Adams & MacKay eq. 2-4), constant hazard H = 1/(mean
-// segment length in blocks). r_{t-1}=r means "r observations belong to the
-// current run as of the previous tick" (r=0 is the always-available fresh-
-// prior hypothesis, sufficient stats identically empty). At each tick, EVERY
-// hypothesis r contributes its own predictive likelihood L(y_t | r's stats)
-// to BOTH possible next states: growth (r_t=r+1, weight 1-H) and reset
-// (r_t=0, weight H, summed over every r -- a break could follow any prior
-// hypothesis, each entering with evidence proportional to how well it
-// explained the run so far). This is exact Bayesian model averaging: after
-// normalizing, the r_t=0 bucket's PROBABILITY comes from a sum across every
-// r_{t-1}, but its STATS reset to empty regardless of which r contributed the
-// mass. Computed in log-space (log-sum-exp) throughout to avoid the
-// underflow that many-observation predictive densities can produce.
+// Run-length recursion under a constant hazard H, where r_{t-1}=r means "r
+// observations belong to the current run as of the previous tick" (r=0 is the
+// fresh-prior hypothesis, stats empty). Each hypothesis contributes its own
+// predictive likelihood to both successors: growth (r_t=r+1, weight 1-H) and
+// reset (r_t=0, weight H, summed over all r). The r_t=0 bucket takes
+// probability from every r but its stats reset to empty. Kept in log-space
+// (log-sum-exp) to avoid underflow, and truncated at `max_run_length` so the
+// cost stays O(max_run_length) per block.
 //
-// Truncated at `max_run_length` blocks (probability mass beyond it is
-// dropped and the array renormalized) so this stays O(max_run_length) per
-// block -- the same bounded-window trade already made for kalman_glr.hpp;
-// an unbounded run-length array is not streaming-admissible.
-//
-// estimate() is the RUN-LENGTH-WEIGHTED POSTERIOR MEAN of mu (Bayesian model
-// averaging over "how long has the current regime been running"), mapped
-// through tanh. There is no hard reset anywhere in this class -- unlike
-// kalman_cusum/kalman_glr, nothing here ever throws away the filter's state
-// on an alarm; the "soft mixing" IS the whole mechanism.
+// estimate() is the run-length-weighted posterior mean of mu mapped through
+// tanh. Nothing here ever resets the state on an alarm -- the soft mixing is
+// the mechanism.
 class KalmanBocpdDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         std::size_t block = 20;
-        double hazard_rate = 1.0 / 1000.0;  // H; matches the ARL0=1000-block target used to
-                                             // calibrate kalman_cusum/kalman_glr, so all three
-                                             // detectors share the same "expected time between
-                                             // changes" operating point.
-        double prior_mu0 = 0.0;             // prior mean of mu=atanh(rho) at a fresh run
+        double hazard_rate = 1.0 / 1000.0;  // H = 1 / mean segment length, in blocks
+        double prior_mu0 = 0.0;             // prior mean of mu = atanh(rho) at a fresh run
         double prior_tau0_sq = 1.0;         // prior variance of mu at a fresh run
-        std::size_t max_run_length = 150;   // truncation bound, in blocks (3000 ticks at block=20)
-        // alarmed_this_block() fires when P(r_t <= short_run_cutoff | data)
-        // exceeds this. NOT built on raw P(r_t=0): under a TRULY constant
-        // hazard, P(r_t=0|data) is a fixed point of the recursion and equals
-        // exactly `hazard_rate` on EVERY tick, independent of the data (the
-        // one-step marginal likelihood common to the reset and growth
-        // branches cancels algebraically in the normalization) -- verified
-        // directly (flat at 0.0010 = 1/1000 across a real jump). The
-        // detectable signal instead lives in how (1-H) redistributes across
-        // the *growth* hypotheses r=1..short_run_cutoff, which genuinely
-        // does concentrate near small r right after a real change (confirmed
-        // via the MAP run length correctly collapsing to 1 at a synthetic
-        // jump). short_run_cutoff=2 means "posterior belief the current run
-        // is at most 2 blocks old."
+        std::size_t max_run_length = 150;   // truncation bound, in blocks
+        // The alarm thresholds P(r_t <= short_run_cutoff | data), NOT raw
+        // P(r_t=0 | data): under a constant hazard the latter equals
+        // hazard_rate identically on every tick, independent of the data,
+        // because the one-step marginal likelihood common to the reset and
+        // growth branches cancels in the normalization. The usable signal is
+        // how (1-H) redistributes across the growth hypotheses.
         std::size_t short_run_cutoff = 2;
         double alarm_prob_threshold = 0.5;
         std::size_t burn_in_blocks = 2;
@@ -169,17 +139,11 @@ public:
         for (std::size_t r = 0; r < log_prob_.size() && r <= config_.short_run_cutoff; ++r) {
             p_short_run_ += std::exp(log_prob_[r]);
         }
-        // Suppress alarms while the run-length array is itself still shorter
-        // than short_run_cutoff+2: with too few blocks of history, EVERY
-        // active hypothesis satisfies r<=short_run_cutoff trivially (there
-        // has not been time for a longer-run alternative to even exist), so
-        // P(short run) is deterministically ~1 regardless of data -- verified
-        // directly: 100% spurious alarm at blocks 0-1 on a stationary stream
-        // across 200 seeds, independent of sigma_omega2 or any real evidence.
-        // This guard applies after EVERY reset() (including a genuine
-        // detect-and-... well, there is no hard reset here, but external
-        // reset() calls between harness runs hit it too), not just at
-        // startup, which is exactly where it needs to apply.
+        // With fewer than short_run_cutoff+2 blocks of history every active
+        // hypothesis satisfies r <= short_run_cutoff trivially (no longer-run
+        // alternative has had time to exist), so P(short run) is ~1 regardless
+        // of the data. Suppress alarms until there is enough history for the
+        // comparison to mean anything.
         const bool long_enough_history = blocks_ > config_.short_run_cutoff + 1;
         alarmed_ = long_enough_history && (p_short_run_ > config_.alarm_prob_threshold);
         if (alarmed_) ++alarm_count_;

@@ -9,33 +9,20 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Window-limited GLR on KalmanLocalLevel's standardized innovations
-// (change_detection.md Part III Level 2). Where kalman_cusum.hpp assumes a
-// KNOWN design shift size delta, GLR is the honest version for an UNKNOWN
-// post-change size nu: it is a matched filter built from the filter's own
-// step response, maximized over the unknown jump time tau within a bounded
-// window (Lai 1995) so it stays O(window) per step, not O(t) -- the
-// unbounded sup-over-all-tau GLR is explicitly NOT streaming-admissible.
+// Window-limited GLR on KalmanLocalLevel's standardized innovations. Where
+// kalman_cusum.hpp assumes a known shift size, this handles an unknown one by
+// matched-filtering the filter's own step response: a unit jump at tau
+// contributes rho_s(tau) = (1-K)^{s-tau} to the innovation at s >= tau, K
+// being the steady-state gain.
 //
-// The step response, derived and Monte-Carlo verified against this exact
-// filter (see scratchpad verification in the commit this file lands in): a
-// unit level jump at time tau contributes
-//     rho_s(tau) = (1-K)^{s-tau},   s >= tau
-// to the standardized innovation e_s, where K is the filter's STEADY-STATE
-// Kalman gain (Bridge 1, kalman_local_level.hpp) -- geometric decay, because
-// each new observation absorbs a further fraction K of whatever the filter
-// hasn't yet caught up to. This is exactly "CUSUM, but the SSM tells you
-// what a change looks like" (change_detection.md).
+//     A(j) = sum_{i=0}^{j} (1-K)^i * e_{t-i}
+//     N(j) = sum_{i=0}^{j} (1-K)^{2i}          (precomputed)
+//     g_t  = max_j A(j)^2 / N(j) > h  =>  alarm; j* estimates tau,
+//                                          nu_hat = A(j*)/N(j*)
 //
-// GLR statistic, evaluated over a rolling window of the last `window` blocks
-// (candidate jump lags j = window - tau in [min_lag, window-1]):
-//     A(j)  = sum_{i=0}^{j} (1-K)^i * e_{t-i}          (matched-filter accumulator)
-//     N(j)  = sum_{i=0}^{j} (1-K)^{2i}                 (deterministic, precomputed once)
-//     g(j)  = A(j)^2 / N(j)
-//     g_t   = max_j g(j) > h  =>  alarm, best lag j* estimates tau, nu_hat = A(j*)/N(j*)
-// A(j) at time t is built from A(j-1) at time t-1 by the recurrence
-// A_t(j) = e_t + (1-K) * A_{t-1}(j-1) -- a shift-register of `window`
-// accumulators updated once per block, O(window) per block by construction.
+// A(j) updates by the shift-register recurrence A_t(j) = e_t + (1-K)A_{t-1}(j-1).
+// Limiting j to `window` (Lai 1995) keeps this O(window) per block; the
+// unbounded sup-over-tau GLR is O(t) and not streaming-admissible.
 class KalmanGlrDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {

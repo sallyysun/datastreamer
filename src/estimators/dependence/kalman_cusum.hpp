@@ -8,37 +8,18 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Innovation CUSUM wrapped around KalmanLocalLevel (change_detection.md Part III
-// Level 1 + Part I Bridge 2). The Kalman filter already ABSORBS gradual drift --
-// that is the point of Bridge 1 -- so what is left to detect is what the filter
-// CANNOT absorb: a genuine level jump. This runs a classical two-sided CUSUM on
-// the filter's standardized innovations e_t/sqrt(F_t), which are ~iid N(0,1)
-// under the model (Basseville & Nikiforov). On alarm it calls the filter's
-// reset() -- the dedicated change-detection hook already in the interface
-// (estimator.hpp) -- so the next block starts from a flat prior instead of
-// dragging a stale state through the jump.
+// Two-sided CUSUM on KalmanLocalLevel's standardized innovations, which are
+// ~iid N(0,1) under the model. The filter absorbs gradual drift; this detects
+// what it cannot absorb. On alarm it calls the filter's reset().
 //
-//   S+_t = max(0, S+_{t-1} + e_t - k)     accumulates evidence of an upward jump
-//   S-_t = max(0, S-_{t-1} - e_t - k)     accumulates evidence of a downward jump
+//   S+_t = max(0, S+_{t-1} + e_t - k)
+//   S-_t = max(0, S-_{t-1} - e_t - k)
 //   alarm when either exceeds h
 //
-// k = delta/2 is the reference value for a design shift of size delta (in
-// standardized-innovation units): e_t - delta/2 is exactly the log-likelihood-
-// ratio increment for testing e_t ~ N(0,1) vs e_t ~ N(delta,1) (Part II of
-// change_detection.md -- CUSUM = the Viterbi/max recursion over a 2-state
-// absorbing chain with a known post-change mean).
-//
-// (delta, h) are set in registry.hpp; h is bootstrap-calibrated against a
-// target ARL0 there (see experiments/calibrate_arl0.cpp and notes/todo.md) --
-// not read off a classical CUSUM table, per change_detection.md Part VI.
-//
-// Confirmed NOT to need the "efficient score" fix in change_detection.md Part
-// IV.2 (the marginal/dependence confound, distinction #2): the observation
-// this filter is built on is a windowed Spearman's rho, a RANK statistic, so
-// it is invariant to any monotone marginal transformation by construction --
-// verified directly (a large location+scale jump on both marginals, copula
-// held exactly constant, produced zero alarms and a CUSUM statistic that
-// never left the noise floor).
+// k = delta/2 is the reference value for a design shift delta: e_t - delta/2 is
+// the log-likelihood-ratio increment for N(0,1) vs N(delta,1). (delta, h) are
+// set in registry.hpp, where h is calibrated against a target ARL0 by
+// experiments/calibrate_arl0.cpp.
 class KalmanCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
@@ -82,18 +63,14 @@ public:
         blocks_since_alarm_ = 0;
     }
 
-    // sizeof(*this) already covers filter_'s fixed-size fields (it is a value
-    // member, not a pointer) -- only its heap-allocated block buffers need
-    // adding, same convention as KalmanLocalLevel::store_bytes() itself.
+    // sizeof(*this) already covers filter_'s fixed-size fields; only its
+    // heap-allocated block buffers need adding.
     std::size_t store_bytes() const override {
         return sizeof(*this) + 2 * config_.kalman.block * sizeof(double);
     }
 
     const char* name() const override { return name_; }
 
-    // Change-detection diagnostics -- not part of DependenceEstimator, read the
-    // same way copula::CopulaFit exposes lower_tail()/upper_tail(): free once
-    // computed, meant to be read once per closed block (see alarmed_this_block()).
     bool alarmed_this_block() const override { return alarmed_; }
     std::size_t alarm_count() const { return alarm_count_; }
     std::size_t blocks_since_alarm() const { return blocks_since_alarm_; }
