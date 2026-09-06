@@ -253,8 +253,25 @@ taken instead — a deliberate conservatism-for-margin trade, applied uniformly.
 
 `experiments/multiseed.cpp` runs the full estimator set across $n$ seeds (20 used throughout here),
 reporting RMSE and — for every `ChangeDetector` — alarm count, false alarms before the jump, and
-detection delay as mean $\pm$ standard error, to `results/multiseed_<scenario>.csv`. Scoring matches
-`./experiment` exactly ($N=5000$, burn-in 500) so numbers are directly comparable.
+detection delay as mean $\pm$ standard error, to `results/multiseed_<scenario>[_<family>].csv`.
+Scoring matches `./experiment` exactly ($N=5000$, burn-in 500) so numbers are directly comparable.
+Both harnesses take `COPULA=gaussian|clayton|gumbel|t`; `run_multiseed_grid.sh` sweeps the full
+$5 \times 4$ grid used in §10.
+
+⚠️ **Correction — what multi-seed actually covered.** §8 of this document previously claimed
+multi-seed covered "this detector line only", with the Xiao/Hermite/`gaussian_mle` families left
+single-seed. **That was wrong when written.** `multiseed.cpp` has always shared its `keys` list with
+`main.cpp`, so those families were multi-seeded from the first run; the numbers in §5.1 were never
+single-seed. The genuinely uncovered cases were narrower and different in kind:
+
+- `xiao_win` — registered in `registry.hpp` but absent from *both* harnesses' `keys` lists, so it
+  had never been run at all, at any number of seeds (§7, bug 5). Now in both, and in §5.1.
+- The 8 parametric-copula keys and the three non-Gaussian DGP families — single-seed only, because
+  they lived on an unmerged branch. Now covered at 20 seeds in §10.
+
+This correction is recorded rather than silently edited for the same reason as §5.4: a caveat that
+overstates a limitation is still a wrong statement about what the harness did, and the next reader
+would otherwise re-run work that was already done.
 
 ---
 
@@ -627,7 +644,7 @@ make calibrate_arl0        # ./calibrate_arl0 -- ARL0 threshold calibration
 for s in constant drift jump stochastic oscillate; do ./multiseed $s 20; done
 ./calibrate_arl0 1000
 
-./run_multiseed_grid.sh 20 42   # all 5 scenarios x all 4 DGP families (~25 min)
+./run_multiseed_grid.sh 20 42   # all 5 scenarios x all 4 DGP families (~50 min, measured)
 ```
 
 Both binaries take `COPULA=gaussian|clayton|gumbel|t` to choose the DGP family (default
@@ -637,8 +654,11 @@ Outputs land in `results/` (gitignored): `experiment_<scenario>[_<family>].csv` 
 plus per-detector alarm columns) and `multiseed_<scenario>[_<family>].csv` (mean/SE summaries).
 
 Implementation: `src/estimators/dependence/kalman_local_level.hpp`, `kalman_cusum.hpp`,
-`kalman_glr.hpp`, `kalman_bocpd.hpp`, `change_detector.hpp`; configs and their calibration rationale
-in `src/estimators/registry.hpp`.
+`kalman_glr.hpp`, `kalman_bocpd.hpp`, `change_detector.hpp`; the §10 parametric estimators in
+`dependence/parametric_copula.hpp` and `dependence/copula_selector.hpp` with the family math in
+`estimators/copula_family.hpp`; the non-Gaussian DGP in
+`src/streamgenerator/datasource/copula.hpp`. Configs and their calibration rationale in
+`src/estimators/registry.hpp`.
 
 ---
 
