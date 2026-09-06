@@ -31,9 +31,9 @@ F_{X,Y}(x,y) \;=\; C\bigl(F_X(x),\, F_Y(y)\bigr).
 $$
 
 $C$ is the **copula**: the joint distribution of the *ranks* $U = F_X(X)$, $V = F_Y(Y)$, each uniform
-on $[0,1]$. It is exactly the dependence, with the marginals divided out. This matters because the
-two change on different timescales — volatility moves for its own reasons, and we want to track how
-the assets co-move without that contaminating the answer.
+on $[0,1]$ — the dependence with the marginals divided out. That separation matters because the two
+move on different timescales: volatility changes for its own reasons, and should not contaminate a
+reading of co-movement.
 
 **Definition (Spearman's $\rho$).** The linear correlation of the ranks:
 
@@ -46,12 +46,11 @@ Every estimator in this codebase reports $\rho_S$ regardless of what it fits int
 parametric MLE and a nonparametric rank estimator are directly comparable. For the Gaussian copula
 with correlation $\rho$, $\rho_S = \frac{6}{\pi}\arcsin(\rho/2)$.
 
-**Streaming** means: one pass, $O(1)$ work per tick, memory bounded independent of how long the
-stream runs. No storing history, no second look. An estimator that needs the last $10^4$ points is
-disqualified however good it is.
+**Streaming** means one pass, $O(1)$ per tick, memory bounded independent of stream length. An
+estimator needing the last $10^4$ points is disqualified however accurate it is.
 
-**The central tension.** Averaging over more data reduces variance but means reacting late when the
-truth moves. Formally, with $\hat\theta_t$ an estimate of a moving $\theta_t$:
+**The central tension.** More data lowers variance but reacts late when the truth moves. With
+$\hat\theta_t$ estimating a moving $\theta_t$:
 
 $$
 \underbrace{\mathbb E\bigl[(\hat\theta_t - \theta_t)^2\bigr]}_{\text{MSE}}
@@ -105,8 +104,8 @@ experiment — see the header of `src/estimators/registry.hpp`.
 Two obstacles stop us from filtering $\hat\rho_S$ tick by tick.
 
 **Obstacle 1: $\rho$ is bounded and heteroscedastic.** It lives in $[-1,1]$, so its sampling noise
-must shrink as $|\rho| \to 1$ — a Gaussian noise model is simply false near the ends. The
-**Fisher transformation** fixes this:
+must shrink as $|\rho| \to 1$ — a Gaussian noise model is false near the ends. The **Fisher
+transformation** fixes this:
 
 $$
 z \;=\; \operatorname{atanh} \rho \;=\; \tfrac12 \log\frac{1+\rho}{1-\rho}
@@ -125,13 +124,12 @@ $$
 \sigma_v^2 \;\approx\; \frac{1.06}{m-3}
 $$
 
-(the Fieller–Hartley–Pearson approximation for a Fisher-$z$'d *Spearman* correlation, ~6% wider than
-Pearson's $1/(m-3)$). That $\sigma_v^2$ is **known rather than estimated** is the structural gift of
-this whole approach: it pins the denominator of the signal-to-noise ratio, leaving one scalar to
-choose instead of two.
+(Fieller–Hartley–Pearson, for a Fisher-$z$'d *Spearman* correlation — ~6% wider than Pearson's
+$1/(m-3)$). $\sigma_v^2$ being **known rather than estimated** is the structural gift here: it pins
+the denominator of the signal-to-noise ratio, leaving one scalar to choose instead of two.
 
-Blocking is not free — see §6.1 — but it buys a model that is *exactly* linear-Gaussian, so the
-optimal filter is available in closed form rather than needing an EKF/UKF.
+Blocking is not free (§6.1), but it buys an *exactly* linear-Gaussian model, so the optimal filter is
+closed-form rather than an EKF/UKF.
 
 ### 0.4 State-space models and the Kalman filter
 
@@ -598,6 +596,52 @@ This correction is recorded rather than silently edited for the same reason as �
 overstates a limitation is still a wrong statement about what the harness did, and the next reader
 would otherwise re-run work that was already done.
 
+### 3.9 Slow vs `_fast`, and the priors
+
+Each `_fast` variant differs from its sibling in **one number** — a prior belief about how often the
+world changes. Nothing about compute speed.
+
+**Kalman.** The knob is $\sigma_\omega^2$. Everything else follows from Bridge 1: form
+$q = \sigma_\omega^2/\sigma_v^2$, get the steady-state gain in closed form, read off the equivalent
+memory. At $m = 20$, so $\sigma_v^2 = 1.06/17 = 0.0623$:
+
+| key | $\sigma_\omega^2$ | $q$ | $K$ | $\lambda = 1-K$ | $\mathrm{ESS}$ |
+| --- | --- | --- | --- | --- | --- |
+| `kalman` | $10^{-4}$ | 0.0016 | 0.0393 | 0.9607 | 50 blocks ≈ **999 ticks** |
+| `kalman_fast` | $10^{-2}$ | 0.1604 | 0.3282 | 0.6718 | 5.1 blocks ≈ **102 ticks** |
+
+A $100\times$ larger $\sigma_\omega^2$ says "the truth wanders $100\times$ more per block", so the
+filter trusts its prior less: gain $0.039 \to 0.328$, memory $999 \to 102$ ticks. Note the
+compression — $100\times$ in $\sigma_\omega^2$ buys only $\approx 10\times$ in memory, because
+$K \approx \sqrt{q}$ for small $q$.
+
+**BOCPD.** The knob is the hazard $H$, which is a *geometric prior on run length*,
+$p(r) = H(1-H)^{r}$, with mean $1/H$:
+
+| key | $H$ | prior mean run length |
+| --- | --- | --- |
+| `kalman_bocpd` | $1/1000$ | 1000 blocks ≈ **20 000 ticks** |
+| `kalman_bocpd_fast` | $1/10$ | 10 blocks ≈ **200 ticks** |
+
+Mathematically this is *not* the same knob. $\sigma_\omega^2$ sets a fixed memory; $H$ sets a prior
+that the posterior can override, so BOCPD's effective memory moves with the evidence — long while a
+segment holds, short right after a break. That is precisely the §6.2 distinction, and why the
+detector thresholds also differ (0.15 vs 0.95): a model expecting frequent change finds short runs
+likelier, so it needs a higher bar for the same $\mathrm{ARL}_0$.
+
+**Priors.** All are deliberately vague, and all are one line in the code:
+
+| Where | Prior | Value |
+| --- | --- | --- |
+| `KalmanLocalLevel` | $\hat z_0$, $P_0$ | $0$ (i.e. $\rho = 0$, independence), $P_0 = 1$ |
+| `KalmanBocpd`, per fresh run | $\mu \sim \mathcal N(\mu_0, \tau_0^2)$ | $\mu_0 = 0$, $\tau_0^2 = 1$ |
+| `CopulaFit` | accumulated information $H_0$ | $1.0$ — one pseudo-observation, so the first step cannot divide by zero |
+
+$P_0 = 1$ against $\sigma_v^2 \approx 0.062$ makes the prior ~16× wider than a single observation, so
+the first block is taken almost at face value ($K_1 = 0.94$ for both Kalman variants) and the filter
+converges to its configured memory within a handful of blocks. The `_fast`/slow distinction is
+therefore about the *steady state*, not the start: both begin equally credulous.
+
 ---
 
 ## 4. Verification
@@ -806,16 +850,13 @@ estimators* on `oscillate`, which is how that default was caught.
 
 ### 6.2 Why BOCPD's win is structural and the Kalman filter's was not
 
-A fixed-$\lambda$ estimator must commit to one memory length: long memory gives low variance while a
-regime is stable but slow adaptation after a break; short memory does the reverse. Any single
-$\lambda$ is one point on that trade-off, which is why sweeping $\lambda$ per scenario (§5.4) closed
-the `oscillate` gap entirely — `kalman_fast` was simply at a better point on the *same* curve than
-`xiao_ew`'s default, not on a better curve.
+A fixed-$\lambda$ estimator commits to one memory length — one point on the variance/adaptation
+trade-off. Sweeping $\lambda$ moves along that curve, which is why §5.4 erased `kalman_fast`'s
+`oscillate` advantage: it was at a better *point* than `xiao_ew`'s default, not on a better curve.
 
-BOCPD is not on that curve at all. Its run-length posterior *switches* effective memory length based
-on evidence: long while the segment persists, collapsing to short the moment the data stop fitting.
-No fixed $\lambda$ can do that at any tuning, which is exactly why this gap survives fair tuning and
-the other did not.
+BOCPD is not on the curve. Its run-length posterior *switches* effective memory on evidence — long
+while a segment persists, short the moment the data stop fitting. No fixed $\lambda$ does that at any
+tuning, which is why this gap survived fair tuning and the other did not.
 
 ### 6.3 The tuning sweeps are a direct measurement of Part 0's prediction
 
@@ -844,17 +885,9 @@ $\alpha = 1-\lambda$; Hermite: $\alpha = \lambda$ — the mirror-image conventio
 | `oscillate` | $\lambda = 0.95$ | $\lambda = 0.05$ | $\approx 39$ ticks | large, continuous |
 
 **Two independent estimator families land on the same $\mathrm{ESS}$ in each regime** — 199 ticks on
-`jump`, 39 ticks on `oscillate` — despite having different internals, different bin/basis
-representations, and reciprocal parameter conventions. That is the theory's central claim confirmed
-quantitatively: the optimum is set by the data-generating process, not the estimator, and it shortens
-by a factor of ~5 as $\dot\theta$ goes from "rare jump" to "continuously oscillating".
-
-It also sharpens why §6.2's BOCPD result matters. Part 0's boxed conclusion — *no fixed $\lambda$
-dominates, so the estimator must set its own memory* — is a statement about a curve every
-fixed-$\lambda$ estimator is stuck on. The `oscillate` correction in §5.4 shows `kalman_fast` was
-merely at a **better point on that same curve** than `xiao_ew`'s default, which is why sweeping
-$\lambda$ erased its advantage entirely. BOCPD is the one estimator here that is not on the curve at
-all, and correspondingly the one whose advantage survived.
+`jump`, 39 ticks on `oscillate` — despite different internals, representations, and reciprocal
+parameter conventions. The theory's central claim, confirmed quantitatively: the optimum is set by
+the data-generating process, not the estimator, and shortens ~5× as $\dot\theta$ grows.
 
 ### 6.4 Why hard reset costs RMSE
 
@@ -865,7 +898,7 @@ score *worse* than the `kalman_fast` (0.0880) they wrap. BOCPD, which never rese
 entirely — direct support for treating detect-and-restart and adaptive forgetting as one dial at
 different decision hardness (change_detection.md Part V), with soft mixing the better setting here.
 
-### 6.4 Practical guidance
+### 6.5 Practical guidance
 
 | Regime | Best choice | RMSE |
 | --- | --- | --- |
@@ -1045,7 +1078,11 @@ best achievable — §5.4's fair-tuning caveat applies here unchanged.
 | copula_select     | 0.0277 | 0.2592 | 0.1487 | 0.0154 | 0.2465 | 0.1302 | 0.0168 | 0.2433 | 0.1287 | **0.0131** | 0.2983 | 0.1490 |
 | copula_select_ew  | 0.0402 | 0.0724 | 0.0617 | 0.0341 | 0.0653 | 0.0636 | 0.0417 | 0.0683 | 0.0681 | 0.0465 | 0.0778 | 0.0618 |
 
-Full five-scenario tables per family are in `results/multiseed_<scenario>[_<family>].csv`.
+All 22 × 5 × 4 cells, colour-coded, are in `results/multiseed_heatmap.png`
+(`python3 plot_multiseed_heatmap.py`); the raw numbers are in
+`results/multiseed_<scenario>[_<family>].csv`. Colour there is normalised *within* each column,
+since absolute RMSE spans 0.012 (`constant`) to 0.44 (`oscillate`) and a global scale shows nothing;
+the clipped `drift`/`oscillate` columns are outlined for the §10.1 reason.
 
 ### 10.3 What the grid shows
 
@@ -1060,33 +1097,29 @@ families — the whole column order barely moves, which is itself the marginal-i
 §4.4 showing up at the level of the leaderboard.
 
 **2. Correct specification pays, but misspecification is wildly asymmetric.** §8 predicted
-`gaussian_mle_ew` would "be expected to lose" off-Gaussian. Directionally right, but the effect is
-mild: it wins `stochastic` on Gaussian ($0.0558$), and off-family it degrades only to $0.0671$
-(Clayton) / $0.0592$ (Gumbel) / $0.0680$ ($t$) — never catastrophic, still mid-pack. The Gaussian
-copula is a forgiving wrong answer *in $\rho_S$ space*. `clayton_mle` is not: on Gumbel data it
-posts $0.1589$ `constant` (10× its own on-family $0.0154$) and on Gaussian $0.1257$. Gumbel-on-
-Clayton is bad but half as bad ($0.0790$). The practical reading: **fitting Clayton to
-non-Clayton data is the one genuinely dangerous choice here**, and it is dangerous because Clayton's
-lower-tail structure is actively wrong for upper-tail data, not merely uninformative.
+`gaussian_mle_ew` would "be expected to lose" off-Gaussian. Directionally right, but mild: it wins
+`stochastic` on Gaussian ($0.0558$) and degrades only to $0.0671$ / $0.0592$ / $0.0680$ off-family —
+still mid-pack. The Gaussian copula is a forgiving wrong answer *in $\rho_S$ space*. `clayton_mle` is
+not: $0.1589$ on Gumbel `constant`, 10× its own on-family $0.0154$. Gumbel-on-Clayton is half as bad
+($0.0790$). **Fitting Clayton to non-Clayton data is the one genuinely dangerous choice here** —
+dangerous because its lower-tail structure is actively wrong for upper-tail data, not merely
+uninformative.
 
-**3. `copula_select` recovers the generating family, cumulatively.** Compare the selector against
-the *correct* family's MLE, on each family's own data: Clayton $0.0154$ vs $0.0154$; Gumbel $0.0168$
-vs $0.0168$; $t$ $0.0131$ vs $0.0131$ — exact matches on `constant`, and near-exact on `jump`
-($0.2465$/$0.2465$, $0.2433$/$0.2428$). Online GoF selection works and costs essentially nothing
-when it is right. But `copula_select_ew` is *worse* than the right family's `_ew` on Clayton `drift`
-($0.1039$ vs $0.0717$): under forgetting, the selector is choosing on a short window and churns.
-Selection and forgetting interact badly, which is a concrete open problem, not a tuning detail.
+**3. `copula_select` recovers the generating family, cumulatively.** Against the *correct* family's
+MLE on that family's own data: Clayton $0.0154$/$0.0154$, Gumbel $0.0168$/$0.0168$, $t$
+$0.0131$/$0.0131$ on `constant`, near-exact on `jump`. Online GoF selection works, and costs nothing
+when right. But `copula_select_ew` loses to the right family's `_ew` on Clayton `drift` ($0.1039$ vs
+$0.0717$) — under forgetting it chooses on a short window and churns. Selection and forgetting
+interact badly: an open problem, not a tuning detail.
 
 **4. `xiao_win` — measured for the first time — adds nothing over `windowed_rank`.** They agree to
-~0.5% on every family and scenario ($0.0275$ vs $0.0271$, $0.1183$ vs $0.1170$, …). That is the
-expected result (both are exact sliding windows of the same length; Xiao's binning is the only
-difference) and it is mild evidence the binning is not costing accuracy. It does cost less storage —
-5824 B vs 8000 B — so it is the better of the two, marginally. Not a thesis result on its own; worth
-recording so the next person does not re-run it.
+~0.5% everywhere ($0.0275$ vs $0.0271$; $0.1183$ vs $0.1170$), as expected for two exact sliding
+windows differing only in Xiao's binning — mild evidence the binning costs no accuracy. It does use
+less storage (5824 B vs 8000 B), so it is marginally the better of the two. Recorded so the next
+person need not re-run it.
 
-**5. The grid found a real bug** (§7, `gaussian_mle` NaN latch). That is now the second bug this
-document's replication tier has caught that single-seed runs missed, after the BOCPD burn-in alarms.
-Both were invisible at one seed and obvious at twenty.
+**5. The grid found a real bug** (§7, `gaussian_mle` NaN latch) — the second the replication tier has
+caught that single-seed runs missed, after the BOCPD burn-in alarms.
 
 ### 10.4 What this does *not* settle
 
