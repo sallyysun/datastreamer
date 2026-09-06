@@ -12,6 +12,104 @@ survey does not:
 
 ---
 
+# Part 0 — The setup
+
+Stated plainly, because the rest of this doc assumes it.
+
+## What forgetting is
+
+Every estimator in `src/estimators/dependence/` maintains a running summary and updates it once
+per tick. Adding forgetting means the summary is a **weighted** average in which recent
+observations count more:
+
+$$
+\hat\theta_t=(1-\alpha)\,\hat\theta_{t-1}+\alpha\,(\text{new observation}),
+\qquad \alpha\in(0,1)
+$$
+
+Unrolled, observation $t-k$ carries weight $\alpha(1-\alpha)^k$ — geometric decay. Nothing is
+ever deleted; old data just fades. This is what makes the estimators *streaming*: the whole past
+is compressed into fixed-size state, so cost per tick is O(1) and memory is bounded no matter how
+long the stream runs.
+
+The useful summary of "how much data am I effectively using" is the **effective sample size**:
+
+$$
+\mathrm{ESS}\approx\frac{2-\alpha}{\alpha}\ \approx\ \frac{2}{\alpha}\ \ \text{for small }\alpha .
+$$
+
+⚠️ In this codebase $\alpha$ is spelled differently per estimator, which is the mirror-image
+convention `registry.hpp` warns about:
+
+| Estimator | Config $\lambda$ | Relation to $\alpha$ | Configured value | ESS |
+| --- | --- | --- | --- | --- |
+| Xiao | retention | $\alpha = 1-\lambda$ | $\lambda=0.99$ | $\approx 200$ |
+| Hermite | update weight | $\alpha = \lambda$ | $\lambda=0.01$ | $\approx 100$ |
+
+Same mechanism, reciprocal spelling. $\lambda=0$ means *cumulative* — no forgetting, ESS grows
+with $t$.
+
+## Why no single $\lambda$ works
+
+The tension is a bias-variance trade-off, and both halves scale with ESS in opposite directions.
+
+**Variance.** Averaging $\mathrm{ESS}$ effective observations of noise $\sigma^2$ gives
+
+$$
+\operatorname{Var}(\hat\theta_t)\ \approx\ \frac{\sigma^2}{\mathrm{ESS}} .
+$$
+
+Longer memory ⇒ smaller variance. In a stationary world, more memory is always better, and
+cumulative ($\mathrm{ESS}\to t$) wins outright.
+
+**Lag.** But the estimator is an average over the last $\sim\mathrm{ESS}$ ticks, so it reports
+roughly where $\theta$ *was*, about $\mathrm{ESS}/2$ ticks ago. If $\theta$ is moving at rate
+$\dot\theta$, that is a systematic error
+
+$$
+\text{bias}\ \approx\ \dot\theta\cdot\frac{\mathrm{ESS}}{2},
+$$
+
+and after a step change of size $\Delta$ the estimator needs $\sim\mathrm{ESS}$ ticks to catch up.
+Longer memory ⇒ larger bias. Putting the two together,
+
+$$
+\mathrm{MSE}(\mathrm{ESS})\ \approx\ \underbrace{\frac{\sigma^2}{\mathrm{ESS}}}_{\text{variance}}
+\;+\;\underbrace{\Big(\dot\theta\,\frac{\mathrm{ESS}}{2}\Big)^{2}}_{\text{lag}} .
+$$
+
+**This is the whole thesis in one line.** The minimising $\mathrm{ESS}$ depends on $\dot\theta$ —
+how fast dependence is currently moving. Fast-moving ⇒ short memory; quiet ⇒ long memory.
+
+## Why that is a problem rather than a tuning exercise
+
+If $\dot\theta$ were a constant you would simply solve for the optimal ESS once and hard-code it.
+It is not. Real dependence is quiet for long stretches and then moves abruptly, so the optimal
+memory length is **itself time-varying** — and any fixed $\lambda$ is the right answer only for
+whichever regime you happened to tune it on.
+
+The offline harness shows exactly this: cumulative variants win on `constant`, forgetting variants
+win on `jump`, and no configured $\lambda$ wins both. The crossover is set by rate of change
+versus memory length, exactly as the MSE expression predicts.
+
+$$
+\boxed{\text{No fixed }\lambda\text{ dominates}\ \Longrightarrow\ \text{the estimator must set its own memory.}}
+$$
+
+## The two ways to do that
+
+- **Gradually** — let $\lambda_t$ move with the data. Small prediction errors ⇒ lengthen memory
+  (buy efficiency); a spike ⇒ shorten it (buy adaptation). This is the *variable forgetting factor*
+  (VFF).
+- **Abruptly** — watch for a change and, on detection, discard history and restart. The `reset()`
+  hook in `estimator.hpp:16` exists for exactly this.
+
+The roadmap frames these as competing options. Part V shows they are the same architecture at
+different decision hardness — but the setup above is what both are trying to solve, and it is why
+everything that follows is about **memory**, not about correlation formulas.
+
+---
+
 # Part I — Two bridges
 
 Both of these are identities, not analogies, and both shorten the work.
@@ -87,13 +185,45 @@ CUSUM $\to$ SR $\to$ BOCPD $\to$ HMM one ladder rather than four unrelated citat
 
 # Part II — The detector design space
 
-Every method in the roadmap's survey list is the same sequential recursion. Only three things vary:
+Every detector runs the same loop: *at each tick, ask how much better the data looks if a change
+had happened; accumulate that; alarm when it gets big.* What separates the named methods is how
+they answer two questions — both of which are about things you do not know.
 
-| Knob | Options | Who is who |
+## Question 1 — when did it change?
+
+- **Take the best guess.** Try every possible change time, keep whichever fits best.
+  → **CUSUM**, **GLR**. (Formally: $\max$ over $\tau$ — max-product / Viterbi.)
+- **Average over all of them.** Give each possible change time a probability and add them up.
+  → **Shiryaev-Roberts**, **BOCPD**. (Formally: $\sum$ over $\tau$ — forward filtering.)
+
+## Question 2 — what did it change *to*?
+
+- **Assume you already know** — e.g. "I am watching for $\rho$ jumping to 0.8." → **CUSUM**.
+- **Fit it** — whatever value fits best. → **GLR**.
+- **Average over the possibilities** with a prior. → **BOCPD**.
+
+## The methods are just the combinations
+
+| | Guess the change time | Average over change times |
 | --- | --- | --- |
-| **Unknown change time $\tau$** | $\max$ over $\tau$ / $\sum$ over $\tau$ | CUSUM, GLR $=\max$ (Viterbi). SR, BOCPD $=\sum$ (forward filter). |
-| **Unknown post-change $\theta_1$** | known plug-in / maximize / integrate against prior | CUSUM $=$ known. GLR $=$ maximize. SR-$r$, BOCPD $=$ integrate. |
-| **Input statistic** | raw observation / score / log-LR / kernel embedding | Page-Hinkley, sequential score test, CUSUM, MMD. |
+| **Know the new $\rho$** | CUSUM | Shiryaev-Roberts |
+| **Fit the new $\rho$** | GLR | — |
+| **Average over new $\rho$** | — | BOCPD |
+
+So it is one accumulator loop with two flags: `max`/`sum` for the time, and
+`known`/`fit`/`average` for the value. Six named methods, one implementation.
+
+**Question 1 is also the frequentist/Bayesian split**, exactly: treating $\tau$ as a fixed
+unknown you maximise over is frequentist (CUSUM is minimax-optimal under Lorden's criterion);
+treating it as a random variable with a hazard prior you average over is Bayesian. Nothing
+philosophical is at stake — it is $\max$ versus $\sum$ in the same recursion.
+
+## A third knob: what you feed the loop
+
+Raw estimates / prediction errors (innovations) / likelihood scores / kernel embeddings.
+This one matters more for results than either question above — it is the difference between a
+detector that chatters under drift and one that does not (Part III, Level 1) — and it is where
+Page-Hinkley (raw observations), the sequential score test, and MMD differ from each other.
 
 **Why this matters for the thesis.** The claim is not "we benchmarked ten detectors" (which answers
 to *it depends*), it is "the design space has three axes; here is which cell wins for copulas and
