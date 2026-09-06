@@ -535,6 +535,7 @@ html { scroll-behavior: smooth; }
   <p class="rail-title">Contents</p>
   <ol>
     <li><a href="#claim"><span class="num">—</span><span>The claim</span></a></li>
+    <li><a href="#p0"><span class="num">0</span><span>The setup</span></a></li>
     <li><a href="#p1"><span class="num">I</span><span>Two bridges</span></a></li>
     <li><a href="#p2"><span class="num">II</span><span>The detector design space</span></a></li>
     <li><a href="#p3"><span class="num">III</span><span>The SSM ladder</span></a></li>
@@ -582,6 +583,145 @@ html { scroll-behavior: smooth; }
     <strong>Second</strong>, it develops the state-space view, which is the missing link between the
     exponential forgetting already implemented in <code>src/estimators/dependence/</code> and the
     detectors we want to add. They are not two branches. One contains the other.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════════ PART 0 -->
+<section class="part" id="p0">
+  <p class="part-label">Part 0</p>
+  <h2>The setup</h2>
+  <p class="deck">Stated plainly, because everything after this assumes it.</p>
+
+  <h3>What forgetting is</h3>
+  <p>
+    Every estimator in <code>src/estimators/dependence/</code> keeps a running summary and updates it
+    once per tick. Adding forgetting means that summary is a <strong>weighted</strong> average in
+    which recent observations count more:
+  </p>
+
+  <div class="eq">
+    <i>θ̂</i><sub>t</sub> = (1 − <i>α</i>) <i>θ̂</i><sub>t−1</sub> + <i>α</i> · (new observation),
+    <span class="sep"></span><i>α</i> ∈ (0,1)
+  </div>
+
+  <p>
+    Unrolled, the observation from <i>k</i> ticks ago carries weight
+    <i>α</i>(1−<i>α</i>)<sup>k</sup> — geometric decay. Nothing is ever deleted; old data just fades.
+    That is what makes these estimators <em>streaming</em>: the entire past is compressed into
+    fixed-size state, so cost per tick is O(1) and memory stays bounded however long the stream runs.
+  </p>
+
+  <p>The useful summary of “how much data am I effectively using” is the <strong>effective sample size</strong>:</p>
+
+  <div class="eq">
+    ESS ≈
+    <span class="frac"><span>2 − <i>α</i></span><span><i>α</i></span></span>
+    <span class="sep"></span>≈<span class="sep" style="width:.8em"></span>
+    <span class="frac"><span>2</span><span><i>α</i></span></span>
+    <span class="sep" style="width:1em"></span>
+    <span style="font-family:var(--font-display);font-size:.92rem">for small <i>α</i></span>
+  </div>
+
+  <div class="warn">
+    <p class="claim-label">⚠ The mirror-image convention</p>
+    <p style="margin-bottom:14px">
+      <i>α</i> is spelled differently per estimator — this is what <code>registry.hpp</code> warns
+      about, and getting it backwards silently inverts an experiment.
+    </p>
+    <div class="tablewrap" style="margin:0;border-top-color:var(--alarm)">
+      <table>
+        <thead>
+          <tr><th>Estimator</th><th>Config <i>λ</i> means</th><th>Relation</th><th>Configured</th><th>ESS</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Xiao</td><td>retention</td><td><i>α</i> = 1 − <i>λ</i></td><td><i>λ</i> = 0.99</td><td>≈ 200</td></tr>
+          <tr><td>Hermite</td><td>update weight</td><td><i>α</i> = <i>λ</i></td><td><i>λ</i> = 0.01</td><td>≈ 100</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin:14px 0 0">
+      Same mechanism, reciprocal spelling. <i>λ</i> = 0 means <em>cumulative</em> — no forgetting, ESS
+      grows with <i>t</i>.
+    </p>
+  </div>
+
+  <h3>Why no single λ works</h3>
+  <p>
+    It is a bias–variance trade-off, and both halves scale with ESS in <em>opposite</em> directions.
+  </p>
+
+  <h4>Variance — longer memory is better</h4>
+  <p>Averaging ESS effective observations of noise <i>σ</i><sup>2</sup> gives</p>
+  <div class="eq">
+    Var(<i>θ̂</i><sub>t</sub>) ≈
+    <span class="frac"><span><i>σ</i><sup>2</sup></span><span>ESS</span></span>
+  </div>
+  <p>
+    So in a stationary world more memory is always better, and the cumulative variants
+    (ESS → <i>t</i>) win outright.
+  </p>
+
+  <h4>Lag — shorter memory is better</h4>
+  <p>
+    But an average over the last ~ESS ticks reports roughly where <i>θ</i> <em>was</em>, about ESS/2
+    ticks ago. If <i>θ</i> moves at rate <i>θ̇</i>, that is a systematic error of
+    <i>θ̇</i> · ESS/2 — and after a step change the estimator needs ~ESS ticks to catch up.
+    Together:
+  </p>
+
+  <div class="claim">
+    <p class="claim-label">The whole thesis in one line</p>
+    <div class="eq" style="padding:10px 0">
+      MSE(ESS) ≈
+      <span class="frac"><span><i>σ</i><sup>2</sup></span><span>ESS</span></span>
+      <span class="sep" style="width:1.2em"></span>+<span class="sep" style="width:1.2em"></span>
+      ( <i>θ̇</i> ·
+      <span class="frac"><span>ESS</span><span>2</span></span>
+      )<sup>2</sup>
+    </div>
+    <p style="margin:0">
+      The <strong>variance</strong> term falls with memory; the <strong>lag</strong> term grows with
+      it. The minimising ESS depends on <i>θ̇</i> — how fast dependence is moving <em>right now</em>.
+      Fast ⇒ short memory. Quiet ⇒ long memory.
+    </p>
+  </div>
+
+  <h3>Why that is a problem, not a tuning exercise</h3>
+  <p>
+    If <i>θ̇</i> were constant you would solve for the optimal ESS once and hard-code it. It is not.
+    Real dependence is quiet for long stretches and then moves abruptly, so the optimal memory length
+    is <strong>itself time-varying</strong> — and any fixed <i>λ</i> is the right answer only for
+    whichever regime you happened to tune it on.
+  </p>
+  <p>
+    The offline harness shows exactly this: cumulative variants win on <code>constant</code>,
+    forgetting variants win on <code>jump</code>, and no configured <i>λ</i> wins both. The crossover
+    is set by rate of change versus memory length — precisely what the MSE expression predicts.
+  </p>
+
+  <div class="claim">
+    <p class="claim-label">Consequence</p>
+    <p style="font-family:var(--font-display);font-size:1.08rem;font-weight:600;margin:0;line-height:1.4">
+      No fixed <i>λ</i> dominates ⟹ the estimator must set its own memory.
+    </p>
+  </div>
+
+  <h3>The two ways to do that</h3>
+  <ul>
+    <li>
+      <strong>Gradually</strong> — let <i>λ</i><sub>t</sub> move with the data. Small prediction
+      errors ⇒ lengthen memory (buy efficiency); a spike ⇒ shorten it (buy adaptation). The
+      <em>variable forgetting factor</em>.
+    </li>
+    <li>
+      <strong>Abruptly</strong> — watch for a change and, on detection, discard history and restart.
+      The <code>reset()</code> hook in <code>estimator.hpp</code> exists for exactly this.
+    </li>
+  </ul>
+  <p>
+    The roadmap frames these as competing options. Part V shows they are the same architecture at
+    different decision hardness. But the setup above is what both are trying to solve — and it is why
+    everything that follows is about <strong>memory</strong>, not about correlation formulas.
   </p>
 </section>
 

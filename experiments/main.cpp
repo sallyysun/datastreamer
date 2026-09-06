@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "../src/estimators/dependence/change_detector.hpp"
 #include "../src/estimators/registry.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
@@ -31,8 +32,6 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
     if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, N);
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
-    // period 400 matches the live server (app/main.cpp) so offline vs online
-    // oscillate RMSE is directly comparable.
     if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
     return nullptr;
 }
@@ -57,7 +56,9 @@ int main(int argc, char** argv) {
     CopulaSource source(*dependence, seed);
 
     const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
-                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew"};
+                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
+                                           "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+                                           "kalman_bocpd", "kalman_bocpd_fast"};
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);
@@ -66,6 +67,21 @@ int main(int argc, char** argv) {
             return 1;
         }
         ests.push_back(std::move(e));
+    }
+
+    // estimate() is Spearman-only, so alarms need their own channel.
+    std::vector<ChangeDetector*> detectors(keys.size(), nullptr);
+    for (std::size_t e = 0; e < keys.size(); ++e) {
+        detectors[e] = dynamic_cast<ChangeDetector*>(ests[e].get());
+    }
+    struct AlarmTrace {
+        std::string column;
+        std::size_t est_index;
+        std::vector<int> vals;
+    };
+    std::vector<AlarmTrace> alarm_traces;
+    for (std::size_t e = 0; e < keys.size(); ++e) {
+        if (detectors[e]) alarm_traces.push_back({keys[e] + "_alarm", e, {}});
     }
 
     std::vector<double> true_s(N);
@@ -79,17 +95,24 @@ int main(int argc, char** argv) {
             ests[e]->update(s.x, s.y);
             series[e].est.push_back(ests[e]->estimate());
         }
+        for (auto& at : alarm_traces) at.vals.push_back(detectors[at.est_index]->alarmed_this_block() ? 1 : 0);
     }
 
-    // Written relative to this directory (run the harness from experiments/).
     const std::string path = "results/experiment_" + scenario + ".csv";
     std::ofstream out(path);
+    if (!out.is_open()) {
+        std::fprintf(stderr, "cannot open '%s' for writing (does results/ exist? run: mkdir -p results)\n",
+                     path.c_str());
+        return 1;
+    }
     out << "t,true_rho_s";
     for (const auto& k : keys) out << "," << k;
+    for (const auto& at : alarm_traces) out << "," << at.column;
     out << "\n";
     for (std::size_t t = 0; t < N; ++t) {
         out << t << "," << true_s[t];
         for (const auto& sr : series) out << "," << sr.est[t];
+        for (const auto& at : alarm_traces) out << "," << at.vals[t];
         out << "\n";
     }
 
@@ -108,5 +131,34 @@ int main(int argc, char** argv) {
                     series[e].name.c_str(), ests[e]->store_bytes(), rmse);
     }
     std::printf("wrote %s\n", path.c_str());
+
+    // Only `jump` has a single known changepoint, so only it gets a delay.
+    if (!alarm_traces.empty()) {
+        std::printf("\nchangepoint detection (%s):\n", scenario.c_str());
+        const bool has_known_jump = (scenario == "jump");
+        const std::size_t jump_t = N / 2;
+        for (const auto& at : alarm_traces) {
+            std::size_t total = 0, before_jump = 0;
+            long first_after = -1;
+            for (std::size_t t = 0; t < N; ++t) {
+                if (!at.vals[t]) continue;
+                ++total;
+                if (has_known_jump) {
+                    if (t < jump_t) ++before_jump;
+                    else if (first_after < 0) first_after = static_cast<long>(t);
+                }
+            }
+            std::printf("  %-16s alarms=%3zu", at.column.c_str(), total);
+            if (has_known_jump) {
+                std::printf("   false_alarms_before_jump=%zu", before_jump);
+                if (first_after >= 0) {
+                    std::printf("   detection_delay=%ld ticks", first_after - static_cast<long>(jump_t));
+                } else {
+                    std::printf("   detection_delay=never");
+                }
+            }
+            std::printf("\n");
+        }
+    }
     return 0;
 }

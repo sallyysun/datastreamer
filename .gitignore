@@ -4,5 +4,7 @@
 /server
 /consumer
 /experiments/experiment
+/experiments/calibrate_arl0
+/experiments/multiseed
 __pycache__/
 /experiments/results/
