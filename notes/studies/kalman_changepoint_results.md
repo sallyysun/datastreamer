@@ -484,269 +484,177 @@ EWMA and SR are frequentist tests bolted onto a Bayesian filter. The ARL₀ cali
 
 ### 3.1 The observation
 
-All four detectors share one observation channel. Every $m$ ticks (a *block*), compute the empirical
-Spearman correlation $\hat\rho^S$ of the block's $m$ pairs and Fisher-transform it:
+Every $m$ ticks (a **block**), take the block's empirical Spearman correlation and
+Fisher-transform it:
 
-$$
-y_t = \operatorname{atanh}\left(\hat\rho^S_t\right),
-\qquad
-\sigma_v^2 \;\approx\; \frac{1.06}{m-3}.
-$$
+$$y_t = \operatorname{atanh}\big(\hat\rho^S_t\big), \qquad \sigma_v^2 \approx \frac{1.06}{m-3}$$
 
-The variance is the classical Fieller–Hartley–Pearson approximation for a Fisher-$z$'d Spearman
-correlation — inflated ~6% over Pearson's $1/(n-3)$. That $\sigma_v^2$ is **known in closed form** is
-the key structural gift: it pins the denominator of the signal-to-noise ratio, leaving a *single*
-scalar to choose.
+All five detectors share this one channel. §0.9 covers why.
 
-*Why blockwise rather than per-tick:* the per-tick normal-score product $z_xz_y$ has mean $\rho$ and
-variance $1+\rho^2$, and the link $\rho = \tanh z$ is nonlinear — an exact per-tick Kalman filter
-does not exist without an EKF/UKF. Blockwise, the model is exactly linear-Gaussian. §6.1 quantifies
-what this convenience costs.
+**Why blockwise and not per-tick.** The per-tick normal-score product $z_xz_y$ has mean ρ and
+variance $1+\rho^2$, and $\rho = \tanh z$ is nonlinear — so an exact per-tick Kalman filter
+doesn't exist without an EKF or UKF. Blockwise, the model is *exactly* linear-Gaussian. §6.1
+prices that convenience.
 
-*Marginal invariance (free).* $\hat\rho^S$ is a rank statistic, so it is invariant to any monotone
-transformation of either marginal. This makes the efficient-score refinement of
-change_detection.md Part IV.2 unnecessary for this detector line — verified in §4.4.
+**Marginal invariance comes free.** $\hat\rho^S$ is a rank statistic, so it is invariant to
+any monotone transform of either marginal. That makes the efficient-score refinement of
+change_detection.md Part IV.2 unnecessary here — verified in §4.4.
 
-### 3.2 The local-level Kalman filter
+### 3.2 The filter
 
-State $z_t = \operatorname{atanh}\rho_t$; the model is a random walk observed in noise:
+State $z_t = \operatorname{atanh}\rho_t$, local-level model, recursion exactly as §0.10.
+Reported estimate is $\hat\rho_t = \tanh\hat z_t$. Two configurations:
 
-$$
-z_t = z_{t-1} + \omega_t, \qquad \omega_t \sim \mathcal N(0, \sigma_\omega^2)
-$$
-$$
-y_t = z_t + v_t, \qquad\;\; v_t \sim \mathcal N(0, \sigma_v^2)
-$$
+| Key | $\sigma_\omega^2$ | Steady-state gain | Equivalent λ |
+| --- | --- | --- | --- |
+| `kalman` | $10^{-4}$ | slow | long memory |
+| `kalman_fast` | $10^{-2}$ | $K \approx 0.36$ | $\lambda \approx 0.64$ |
 
-Per closed block, the recursion is:
+The precision-weighted gain handles cold start automatically — the principled version of the
+ad-hoc `hermite_ew` cold-start patch.
 
-$$
-\begin{aligned}
-\text{predict:} \quad & \hat z_{t|t-1} = \hat z_{t-1}, \qquad P_{t|t-1} = P_{t-1} + \sigma_\omega^2 \\
-\text{innovation:} \quad & e_t = y_t - \hat z_{t|t-1}, \qquad F_t = P_{t|t-1} + \sigma_v^2 \\
-\text{gain:} \quad & K_t = \frac{P_{t|t-1}}{F_t} = \frac{P_{t|t-1}}{P_{t|t-1} + \sigma_v^2} \\
-\text{update:} \quad & \hat z_t = \hat z_{t|t-1} + K_t e_t, \qquad P_t = (1-K_t)P_{t|t-1}
-\end{aligned}
-$$
+### 3.3 Bridge 1
 
-and the reported estimate is $\hat\rho_t = \tanh \hat z_t$.
-
-The gain is a precision-weighted average — Gaussian Bayes' rule. When the filter is uncertain
-($P_{t|t-1} \gg \sigma_v^2$) it moves to the data; when confident it ignores noisy reads. This
-handles cold-start automatically, which is the principled version of the ad-hoc `hermite_ew`
-cold-start patch.
-
-### 3.3 Bridge 1: the filter generalizes every fixed-$\lambda$ estimator
-
-At steady state $P_t \to P^\ast$ and $K_t \to K$, and the update collapses to
-
-$$
-\hat z_t = (1-K)\hat z_{t-1} + K y_t,
-$$
-
-an EWMA with $\lambda = 1-K$, where
-
-$$
-K = \frac{\sqrt{q^2+4q}-q}{2},
-\qquad
-q = \frac{\sigma_\omega^2}{\sigma_v^2}.
-$$
-
-Since $K$ depends only on the ratio $q$, and $\sigma_v^2$ is known, choosing $\sigma_\omega^2$ *is*
-choosing $\lambda$ — but $\sigma_\omega^2$ is a physical quantity ("how fast does dependence actually
-drift?") that data can in principle speak to, whereas $\lambda$ is an arbitrary constant. Estimating
-$\sigma_\omega^2$ online is the variable-forgetting-factor problem (still open).
+$K$ depends only on $q = \sigma_\omega^2/\sigma_v^2$, and $\sigma_v^2$ is known. **So choosing
+$\sigma_\omega^2$ *is* choosing λ.** The difference is what the parameter means:
+$\sigma_\omega^2$ is physical — *how fast does dependence actually drift* — and data can speak
+to it. λ is an arbitrary constant and cannot be estimated. Estimating $\sigma_\omega^2$ online
+is the VFF problem, still open. Derivation in §0.10, verified numerically in §4.1.
 
 ### 3.4 Innovation CUSUM
 
-CUSUM is **[Page 1954]**; the innovation-based form used here follows
-**[Basseville & Nikiforov 1993]**. It is exactly minimax-optimal for Lorden's worst-case delay
-criterion — worst case over both change time and pre-change history — **[Lorden 1971]**,
-**[Moustakides 1986]**.
+**[Page 1954]** ⚠️, innovation form from **[Basseville & Nikiforov 1993]** ⚠️. Exactly
+minimax-optimal for Lorden's worst-case delay — **[Lorden 1971]** ⚠️, **[Moustakides 1986]** ⚠️.
 
-Under the model the standardized innovations are white:
-$\tilde e_t = e_t/\sqrt{F_t} \sim \mathcal N(0,1)$ i.i.d. The filter absorbs gradual drift; what it
-*cannot* absorb shows up as a departure from standard normal. Two one-sided CUSUMs:
+The filter absorbs gradual drift; what it *can't* absorb shows up as innovations that stop
+looking standard normal. Two one-sided sums catch increases and decreases:
 
 $$
-S^{+}_t = \max\left(0,\; S^{+}_{t-1} + \tilde e_t - k\right),
-\qquad
-S^{-}_t = \max\left(0,\; S^{-}_{t-1} - \tilde e_t - k\right),
+S^{\pm}_t = \max\big(0,\; S^{\pm}_{t-1} \pm \tilde e_t - k\big),
+\qquad k = \delta/2,
+\qquad \text{alarm when } \max(S^+, S^-) > h
 $$
 
-alarm when either exceeds $h$, with reference value $k = \delta/2$. The increment
-$\tilde e_t - \delta/2$ is exactly the log-likelihood-ratio for
-$\mathcal N(0,1)$ vs $\mathcal N(\delta,1)$ — CUSUM as the max-product (Viterbi) recursion over a
-two-state absorbing chain. On alarm, the filter's `reset()` is called.
+The increment is exactly the log-LR for $\mathcal N(0,1)$ vs $\mathcal N(\delta,1)$. **The floor
+at zero is what makes it a detector** rather than a random walk — it refuses to bank credit for
+evidence of *no* change. On alarm it calls the filter's `reset()`.
 
 ### 3.5 Window-limited GLR
 
-CUSUM assumes a *known* shift size $\delta$. GLR handles unknown size by matched-filtering the
-filter's own **step response** (**[Willsky & Jones 1976]**; the window-limited form that makes it
-streaming-admissible is **[Lai 1995]**). For this filter a unit jump at $\tau$ contributes
-
-$$
-\varrho_s(\tau) = (1-K)^{\,s-\tau}, \qquad s \ge \tau,
-$$
-
-derived from the bias recursion $b_s = (1-K)b_{s-1} + K\nu$, giving
-$e_s = \nu(1-K)^{s-\tau}$. The statistic over candidate lags $j$:
+CUSUM needs a known shift size δ. GLR maximises δ out, matched-filtering the filter's own step
+response (**[Willsky & Jones 1976]** ⚠️; window-limited form **[Lai 1995]** ⚠️). A unit jump at
+τ contributes $\varrho_s(\tau) = (1-K)^{s-\tau}$, so over candidate lags $j$:
 
 $$
 A(j) = \sum_{i=0}^{j} (1-K)^i \tilde e_{t-i},
 \qquad
 N(j) = \sum_{i=0}^{j} (1-K)^{2i},
 \qquad
-g_t = \max_{j} \frac{A(j)^2}{N(j)},
+g_t = \max_{j} \frac{A(j)^2}{N(j)}
 $$
 
-with $\hat\nu = A(j^\ast)/N(j^\ast)$ estimating the jump size. Accumulators update by the
-shift-register recurrence $A_t(j) = \tilde e_t + (1-K)A_{t-1}(j-1)$, and $N(j)$ is precomputed once.
-Restricting $j \le W$ (Lai 1995) makes this $O(W)$ per block — the unbounded $\sup_\tau$ GLR is
-$O(t)$ and **not streaming-admissible**.
+$A$ updates by a shift register, $N$ is precomputed. **Capping $j \le W$ is what makes it
+streaming-admissible** — the unbounded $\sup_\tau$ GLR is $O(t)$ per step.
 
 ### 3.6 BOCPD
 
-**BOCPD** = **B**ayesian **O**nline **C**hangepoint **D**etection (Adams & MacKay 2007). *Online* in
-the streaming sense — one pass, each observation seen once, no revisiting history — as opposed to
-retrospective/offline segmentation, which sees the whole series before deciding where the breaks
-were. *Bayesian* because it maintains a posterior distribution rather than testing a hypothesis:
-CUSUM and GLR ask "is there enough evidence to declare a change?", BOCPD asks "given everything so
-far, how likely is each possible time-since-last-change?" and never has to declare anything at all.
+**[Adams & MacKay 2007]** ⚠️. Structurally different from the others: instead of testing a
+hypothesis, it carries a posterior over the **run length** $r_t$ — blocks since the last change.
+CUSUM asks *is there enough evidence to declare a change?*; BOCPD asks *how likely is each
+possible time-since-change?* and never declares anything.
 
-Run length $r_t$ = observations since the last changepoint, constant hazard $H$. Each hypothesis
-carries a conjugate Normal posterior on its segment mean $\mu$ (known $\sigma_v^2$, prior
-$\mathcal N(\mu_0,\tau_0^2)$), so with $n$ observations summing to $S_y$:
+Each hypothesis keeps a conjugate Normal posterior on its segment mean. With constant hazard $H$
+and $L(r)$ the predictive density of $y_t$ under hypothesis $r$:
 
-$$
-\tau_n^2 = \left(\frac{1}{\tau_0^2} + \frac{n}{\sigma_v^2}\right)^{-1},
-\qquad
-\mu_n = \tau_n^2\left(\frac{\mu_0}{\tau_0^2} + \frac{S_y}{\sigma_v^2}\right),
-\qquad
-y \mid \text{data} \sim \mathcal N\!\left(\mu_n,\; \tau_n^2 + \sigma_v^2\right).
-$$
+$$P(r_t = 0,\, y_{1:t}) = H \sum_r P(r_{t-1}=r,\,y_{1:t-1})\,L(r)$$
+$$P(r_t = r{+}1,\, y_{1:t}) = (1-H)\,P(r_{t-1}=r,\,y_{1:t-1})\,L(r)$$
 
-The recursion, with $L(r)$ the predictive density of $y_t$ under hypothesis $r$:
+In log-space with log-sum-exp, truncated at $R_{\max}$ for $O(R_{\max})$ per block. The estimate
+is the run-length-weighted posterior mean — Bayesian model averaging.
 
-$$
-P(r_t = 0,\, y_{1:t}) = H \sum_r P(r_{t-1}=r,\,y_{1:t-1})\,L(r)
-$$
-$$
-P(r_t = r+1,\, y_{1:t}) = (1-H)\,P(r_{t-1}=r,\,y_{1:t-1})\,L(r)
-$$
+**There is no reset anywhere. The soft mixing *is* the mechanism**, which is why §11 finds it
+escapes the reset cost entirely.
 
-computed in log-space with log-sum-exp, truncated at $r \le R_{\max}$ for $O(R_{\max})$ per block.
-The estimate is the **run-length-weighted posterior mean** (Bayesian model averaging):
-
-$$
-\hat\rho_t = \tanh\left(\sum_r P(r_t = r \mid \text{data})\,\mu_{n(r)}\right).
-$$
-
-There is no hard reset anywhere — the soft mixing *is* the mechanism.
-
-> ⚠️ **$P(r_t=0)$ is useless as an alarm signal under a constant hazard.** Writing
-> $S = \sum_r P(r_{t-1}=r)L(r)$, the reset branch carries mass $H\cdot S$ and the growth branches
-> total $(1-H)\cdot S$ — the same $S$. It cancels in normalization, giving
+> ⚠️ **$P(r_t=0)$ is useless as an alarm under a constant hazard.** Write
+> $S = \sum_r P(r_{t-1}=r)L(r)$. The reset branch carries $H\cdot S$, the growth branches
+> $(1-H)\cdot S$ — the same $S$, which cancels in normalization:
 > $$P(r_t = 0 \mid \text{data}) = \frac{HS}{HS + (1-H)S} = H$$
-> **identically, on every tick, independent of the data.** Verified empirically (flat at exactly
-> $0.0010 = 1/1000$ across a real jump). The detectable signal lives in how $(1-H)$ redistributes
-> *within* the growth branch, so the alarm rule instead thresholds
-> $P(r_t \le c \mid \text{data})$ with cutoff $c = 2$.
+> **identically, every tick, whatever the data.** Confirmed empirically: flat at exactly
+> $0.0010 = 1/1000$ straight through a real jump. The signal lives in how $(1-H)$ redistributes
+> *within* the growth branch, so the alarm thresholds $P(r_t \le 2)$ instead.
 
 ### 3.7 $\mathrm{ARL}_0$ calibration
 
-change_detection.md Part VI: detectors are only comparable at matched in-control average run length,
-and because of rank/PIT feedback $\mathrm{ARL}_0$ must be **bootstrapped on the actual
-pseudo-observation stream**, not read off a formula. `experiments/calibrate_arl0.cpp` runs each
-detector's real `update()` path on stationary Gaussian-copula streams at
-$\rho \in \{0.0, 0.3, 0.6, 0.8\}$ (6 seeds $\times$ 5000 blocks per cell), sweeps the threshold, and
-selects the smallest one whose **worst case over $\rho$** clears a target of 1000 blocks. Worst-case
-selection matters because the true $\rho$ is unknown in live use.
+**Detectors are only comparable at matched in-control run length.** And because of rank/PIT
+feedback (distinction 3), ARL₀ has to be *bootstrapped on the actual stream*, not read off a
+formula.
 
-Where the bare-minimum threshold sat exactly at the target with no margin, the next grid point was
-taken instead — a deliberate conservatism-for-margin trade, applied uniformly.
+`calibrate_arl0.cpp` runs each detector's real `update()` path on stationary Gaussian-copula
+streams at $\rho \in \{0, 0.3, 0.6, 0.8\}$ (6 seeds × 5000 blocks per cell), sweeps the
+threshold, and takes the smallest one whose **worst case over ρ** clears 1000 blocks.
+Worst-case because the true ρ is unknown in live use. Where the minimum threshold sat exactly
+on target with no margin, the next grid point was taken instead.
 
 ### 3.8 Multi-seed replication
 
-`experiments/multiseed.cpp` runs the full estimator set across $n$ seeds (20 used throughout here),
-reporting RMSE and — for every `ChangeDetector` — alarm count, false alarms before the jump, and
-detection delay as mean $\pm$ standard error, to `results/multiseed_<scenario>[_<family>].csv`.
-Scoring matches `./experiment` exactly ($N=5000$, burn-in 500) so numbers are directly comparable.
-Both harnesses take `COPULA=gaussian|clayton|gumbel|t`; `run_multiseed_grid.sh` sweeps the full
-$5 \times 4$ grid used in §10.
+`multiseed.cpp` runs the full estimator set across 20 seeds, reporting RMSE and — for every
+`ChangeDetector` — alarm count, false alarms before the jump, and detection delay as mean ± SE.
+Scoring matches `./experiment` exactly ($N=5000$, burn-in 500).
 
-⚠️ **Correction — what multi-seed actually covered.** §8 of this document previously claimed
-multi-seed covered "this detector line only", with the Xiao/Hermite/`gaussian_mle` families left
-single-seed. **That was wrong when written.** `multiseed.cpp` has always shared its `keys` list with
-`main.cpp`, so those families were multi-seeded from the first run; the numbers in §5.1 were never
-single-seed. The genuinely uncovered cases were narrower and different in kind:
+⚠️ **Correction.** §8 once claimed multi-seed covered "this detector line only", leaving
+Xiao/Hermite/`gaussian_mle` single-seed. **That was wrong when written** — `multiseed.cpp` has
+always shared its `keys` list with `main.cpp`, so those were multi-seeded from the first run.
+The genuinely uncovered cases were different: `xiao_win`, which was in neither harness and had
+never run at all (§7), and the parametric-copula keys plus non-Gaussian families, which lived
+on an unmerged branch. Both now covered.
 
-- `xiao_win` — registered in `registry.hpp` but absent from *both* harnesses' `keys` lists, so it
-  had never been run at all, at any number of seeds (§7, bug 5). Now in both, and in §5.1.
-- The 8 parametric-copula keys and the three non-Gaussian DGP families — single-seed only, because
-  they lived on an unmerged branch. Now covered at 20 seeds in §10.
+Recorded rather than silently edited: a caveat that *overstates* a limitation is still a wrong
+statement about what the harness did, and the next reader would re-run work already done.
 
-This correction is recorded rather than silently edited for the same reason as §5.4: a caveat that
-overstates a limitation is still a wrong statement about what the harness did, and the next reader
-would otherwise re-run work that was already done.
+### 3.9 Slow vs `_fast`
 
-### 3.9 Slow vs `_fast`, and the priors
+Each `_fast` variant differs by **one number** — a prior about how often the world changes.
+Nothing to do with compute speed.
 
-Each `_fast` variant differs from its sibling in **one number** — a prior belief about how often the
-world changes. Nothing about compute speed.
+**Kalman.** The knob is $\sigma_\omega^2$. At $m=20$, so $\sigma_v^2 = 0.0623$:
 
-**Kalman.** The knob is $\sigma_\omega^2$. Everything else follows from Bridge 1: form
-$q = \sigma_\omega^2/\sigma_v^2$, get the steady-state gain in closed form, read off the equivalent
-memory. At $m = 20$, so $\sigma_v^2 = 1.06/17 = 0.0623$:
-
-| key | $\sigma_\omega^2$ | $q$ | $K$ | $\lambda = 1-K$ | $\mathrm{ESS}$ |
+| key | $\sigma_\omega^2$ | $q$ | $K$ | $\lambda$ | ESS |
 | --- | --- | --- | --- | --- | --- |
 | `kalman` | $10^{-4}$ | 0.0016 | 0.0393 | 0.9607 | 50 blocks ≈ **999 ticks** |
 | `kalman_fast` | $10^{-2}$ | 0.1604 | 0.3282 | 0.6718 | 5.1 blocks ≈ **102 ticks** |
 
-A $100\times$ larger $\sigma_\omega^2$ says "the truth wanders $100\times$ more per block", so the
-filter trusts its prior less: gain $0.039 \to 0.328$, memory $999 \to 102$ ticks. Note the
-compression — $100\times$ in $\sigma_\omega^2$ buys only $\approx 10\times$ in memory, because
-$K \approx \sqrt{q}$ for small $q$.
+100× more $\sigma_\omega^2$ says the truth wanders 100× more per block, so the filter trusts
+its prior less. Note the compression: 100× in $\sigma_\omega^2$ buys only ~10× in memory,
+because $K \approx \sqrt{q}$ for small $q$.
 
-**BOCPD.** The knob is the hazard $H$, which is a *geometric prior on run length*,
-$p(r) = H(1-H)^{r}$, with mean $1/H$:
+**BOCPD.** The knob is the hazard $H$ — a geometric prior on run length with mean $1/H$:
 
 | key | $H$ | prior mean run length |
 | --- | --- | --- |
 | `kalman_bocpd` | $1/1000$ | 1000 blocks ≈ **20 000 ticks** |
 | `kalman_bocpd_fast` | $1/10$ | 10 blocks ≈ **200 ticks** |
 
-Mathematically this is *not* the same knob. $\sigma_\omega^2$ sets a fixed memory; $H$ sets a prior
-that the posterior can override, so BOCPD's effective memory moves with the evidence — long while a
-segment holds, short right after a break. That is precisely the §6.2 distinction, and why the
-detector thresholds also differ (0.15 vs 0.95): a model expecting frequent change finds short runs
-likelier, so it needs a higher bar for the same $\mathrm{ARL}_0$.
+**These are not the same knob.** $\sigma_\omega^2$ fixes a memory; $H$ sets a prior the
+posterior can override, so BOCPD's effective memory moves with the evidence. That is the §6.2
+distinction, and why the thresholds differ too (0.15 vs 0.95) — a model expecting frequent
+change finds short runs likelier, so it needs a higher bar for the same ARL₀.
 
-**Priors.** All are deliberately vague, and all are one line in the code:
-
-| Where | Prior | Value |
-| --- | --- | --- |
-| `KalmanLocalLevel` | $\hat z_0$, $P_0$ | $0$ (i.e. $\rho = 0$, independence), $P_0 = 1$ |
-| `KalmanBocpd`, per fresh run | $\mu \sim \mathcal N(\mu_0, \tau_0^2)$ | $\mu_0 = 0$, $\tau_0^2 = 1$ |
-| `CopulaFit` | accumulated information $H_0$ | $1.0$ — one pseudo-observation, so the first step cannot divide by zero |
-
-$P_0 = 1$ against $\sigma_v^2 \approx 0.062$ makes the prior ~16× wider than a single observation, so
-the first block is taken almost at face value ($K_1 = 0.94$ for both Kalman variants) and the filter
-converges to its configured memory within a handful of blocks. The `_fast`/slow distinction is
-therefore about the *steady state*, not the start: both begin equally credulous.
+**Priors** are all deliberately vague: $\hat z_0 = 0$ (independence) with $P_0 = 1$;
+BOCPD's $\mu_0 = 0$, $\tau_0^2 = 1$; `CopulaFit` starts with one pseudo-observation of
+information so the first step can't divide by zero. $P_0 = 1$ against $\sigma_v^2 \approx 0.062$
+makes the prior ~16× wider than one observation, so the first block is taken almost at face
+value ($K_1 = 0.94$ for both variants). **The fast/slow split is about steady state, not the
+start** — both begin equally credulous.
 
 ---
 
 ## 4. Verification
 
-Each component was checked against an independent reference before being built on.
+Each component checked against an independent reference before anything was built on it.
 
-### 4.1 Bridge 1 identity — exact
+**4.1 Bridge 1 is exact.** Steady-state gain vs closed form, $m=20$:
 
-Steady-state gain vs the closed form, stationary stream, $m=20$:
-
-| $\sigma_\omega^2$ | $q$ | $K$ (filter) | $K$ (closed form) | difference |
+| $\sigma_\omega^2$ | $q$ | $K$ (filter) | $K$ (closed form) | diff |
 | --- | --- | --- | --- | --- |
 | $10^{-5}$ | 0.00044 | 0.02084 | 0.02084 | 0.00000 |
 | $10^{-4}$ | 0.00443 | 0.06441 | 0.06441 | 0.00000 |
@@ -754,25 +662,21 @@ Steady-state gain vs the closed form, stationary stream, $m=20$:
 | $10^{-2}$ | 0.44340 | 0.48012 | 0.48012 | 0.00000 |
 | $10^{-1}$ | 4.43396 | 0.84063 | 0.84063 | 0.00000 |
 
-### 4.2 GLR step response — matches theory through the noise
+**4.2 GLR step response matches theory.** 2000 seeds, real block-Spearman noise, jump
+$0.2 \to 0.85$. Theory says consecutive post-jump blocks decay by $(1-K) = 0.672$. Measured:
+0.678, 0.652, 0.690, 0.690, 0.657, 0.735, 0.626, 0.683.
 
-Monte Carlo, 2000 seeds, real block-Spearman noise, jump $\rho: 0.2 \to 0.85$. Theoretical decay
-ratio $(1-K) = 0.672$; empirical ratios between consecutive post-jump blocks: 0.678, 0.652, 0.690,
-0.690, 0.657, 0.735, 0.626, 0.683 — consistent at every lag.
+**4.3 BOCPD recovers a jump.** Tracks $0.19 \to 0.85$ within two blocks, no reset.
+$P(r_t \le 2)$ spikes $0.0015 \to 0.53 \to 0.9999$ then returns to baseline; MAP run length
+collapses to 1 exactly at the changepoint.
 
-### 4.3 BOCPD jump recovery
+**4.4 Marginal invariance holds (distinction 2).** Applied a large purely-marginal shift
+($x \mapsto 5x+100$, $y \mapsto 0.1y-50$, both monotone) with the copula held *exactly*
+constant. **Zero alarms.** The CUSUM statistic never left the noise floor (peak 3.19 vs
+threshold 3.5); the estimate stayed at 0.468 against a true $\rho^S$ of 0.483.
 
-Point estimate tracks $0.19 \to 0.85$ within two blocks of a synthetic jump with no reset;
-$P(r_t \le 2)$ spikes $0.0015 \to 0.53 \to 0.9999$ then returns to baseline. MAP run length collapses
-to 1 exactly at the changepoint.
-
-### 4.4 Marginal invariance (distinction #2) — confirmed, no fix needed
-
-Applied a large purely-marginal shift ($x \mapsto 5x+100$, $y \mapsto 0.1y-50$, both monotone) with
-the copula held *exactly* constant. Result: **zero alarms** before or after; the CUSUM statistic
-never left the noise floor (peak 3.19 vs threshold 3.5); the estimate stayed at 0.468 against a true
-$\rho^S$ of 0.483. This is a structural property of the rank-based observation, so it transfers to
-every detector in this line without a separate check.
+This is structural to the rank-based observation, so it transfers to every detector in this
+line without a separate check. ⚠️ It does *not* clear the marginals for real data — see §0.5.
 
 ---
 
@@ -782,11 +686,13 @@ every detector in this line without a separate check.
 
 20 seeds, $N=5000$, burn-in 500, mean $\pm$ SE. **Bold** = best in column.
 
-⚠️ Every row here is at its **configured** setting, so "best in column" means best among these
-configurations — *not* best achievable. §5.4 shows the distinction matters: a well-tuned Xiao
-reaches 0.1826 on `oscillate`, far below the 0.2695 bolded here. Read this table as "what the
-shipped configs do", and §5.4 as "what each family can do". Conflating the two is exactly the
-mistake §5.4 corrects.
+⚠️ Every row is at its **shipped** setting, so "best in column" means best *among these
+configs*, not best achievable. A tuned Xiao reaches 0.1826 on `oscillate` against the 0.2695
+bolded here. This table = what the shipped configs do. §5.4 = what each family can do.
+Conflating them is the mistake §5.4 corrects.
+
+`kalman_ewma_chart` and `kalman_sr` are not in this table — they were added later; their `jump`
+numbers are in [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump).
 
 | Model | `constant` | `drift` | `jump` | `stochastic` | `oscillate` |
 | --- | --- | --- | --- | --- | --- |
@@ -814,21 +720,19 @@ mistake §5.4 corrects.
 | `kalman_bocpd` | 1.45±0.20 | 0.10±0.07 | 31.9±3.4 | 17/20 |
 | `kalman_bocpd_fast` | 0.85±0.22 | 0.10±0.07 | **25.7±3.3** | 9/20 |
 
-Note the trade `kalman_bocpd_fast` makes: fastest mean delay *when* it fires, but it detects in fewer
-than half the seeds. Detection **speed** and detection **reliability** are separate axes.
+**Speed and reliability are separate axes.** `kalman_bocpd_fast` has the fastest mean delay
+*when* it fires — and fires in fewer than half the seeds.
 
-*Why the fast hazard detects less reliably.* A high hazard raises the stationary baseline of the
-alarm statistic, because "the run is short" is already a priori common. Measured on a stationary
-stream:
+Why: a high hazard raises the alarm statistic's stationary baseline, because "the run is short"
+is already common a priori.
 
 | hazard | baseline $P(r_t \le 2)$ | at the jump | ratio |
 | --- | --- | --- | --- |
 | $1/1000$ | 0.0014 – 0.0027 (flat) | $\to 0.53 \to 0.9999$ | ~330× |
 | $1/10$ | 0.14 – 0.26 (noisy) | $\to 0.99 \to 0.9999$ | ~6× |
 
-Calibration must then push the threshold far higher (0.95 vs 0.15) to hold the same
-$\mathrm{ARL}_0$, which leaves a genuine jump much less headroom to clear it. Same evidence, thinner
-margin — hence the missed seeds.
+Calibration then has to push the threshold far higher (0.95 vs 0.15) to hold the same ARL₀,
+leaving a real jump much less headroom. **Same evidence, thinner margin** — hence the misses.
 
 ### 5.2b Alarm rates across all scenarios
 
@@ -841,11 +745,11 @@ Alarms per 5000-tick run (250 blocks), 20 seeds:
 | `kalman_bocpd` | 0.35±0.13 | 0.30±0.18 | 1.45±0.20 | 0.40±0.13 | 17.00±0.98 |
 | `kalman_bocpd_fast` | 0.10±0.10 | 0.20±0.09 | 0.85±0.22 | 0.20±0.12 | 4.40±0.56 |
 
-All four are appropriately quiet on `constant`/`drift`/`stochastic` (consistent with the calibrated
-$\mathrm{ARL}_0 \approx 2000$ blocks against a 250-block run), fire about once on `jump`, and fire
-repeatedly on `oscillate` — correctly, since each half-period genuinely *is* a large change. That
-`drift` produces almost no alarms is the intended division of labour: the filter absorbs gradual
-drift, so there is nothing left for the detector to flag.
+Quiet on `constant`/`drift`/`stochastic`, about one alarm on `jump`, many on `oscillate` —
+correctly, since each half-period genuinely *is* a large change.
+
+**`drift` producing almost no alarms is the intended division of labour**: the filter absorbs
+gradual drift, so nothing is left for the detector to flag.
 
 ### 5.3 Calibrated thresholds
 
@@ -858,12 +762,16 @@ Target $\mathrm{ARL}_0 = 1000$ blocks, worst case over $\rho$.
 | `kalman_bocpd` | $P(r\le2)$ threshold | 0.10 | **0.15** | 1875 | 1.9× |
 | `kalman_bocpd_fast` | $P(r\le2)$ threshold | 0.90 | **0.95** | 2143 | 2.1× |
 
-$\mathrm{ARL}_0$ rises roughly exponentially in the threshold, as CUSUM theory predicts (e.g.
-`kalman_cusum`: $h=1 \to 7$ blocks; $h=2.5 \to 150$; $h=3.5 \to 2143$; $h=5 \to \ge 30{,}000$).
+ARL₀ rises roughly exponentially in the threshold, as CUSUM theory predicts —
+`kalman_cusum`: $h=1 \to 7$ blocks, $2.5 \to 150$, $3.5 \to 2143$, $5 \to \ge 30{,}000$.
+
+⚠️ `kalman_ewma_chart` ($L$) and `kalman_sr` ($h$) have **not** been calibrated. Their
+thresholds are textbook defaults, so §11's comparison is not yet at matched ARL₀.
 
 ### 5.4 Fair per-family tuning — the correction
 
-Each family's own forgetting parameter swept on the same scenario, 20 seeds:
+Each family's own forgetting parameter swept on the same scenario, 20 seeds. This is what
+§5.1 cannot show.
 
 **`oscillate`** (period 400):
 
@@ -900,9 +808,8 @@ Hazard is BOCPD's analog of $\sigma_\omega^2$ — and no single value is optimal
 | $1/2$ | 0.1387 | 0.1661 | 0.1449 | 0.2285 |
 | $1/1.4$ | 0.1572 | 0.1859 | 0.1622 | **0.2278** |
 
-`kalman_bocpd_fast` uses $H = 1/10$, chosen to match `oscillate`'s true half-period (10 blocks)
-rather than the numerically optimal $\approx 1/1.4$ — a principled setting tied to a real DGP
-timescale, not one fitted to the test scenario.
+`kalman_bocpd_fast` uses $H = 1/10$ — `oscillate`'s true half-period — rather than the
+numerically optimal ≈ 1/1.4. **Tied to a real DGP timescale, not fitted to the test scenario.**
 
 ---
 
@@ -1161,51 +1068,47 @@ the clipped `drift`/`oscillate` columns are outlined for the §10.1 reason.
 
 ### 10.3 What the grid shows
 
-**1. BOCPD's `jump` win is family-robust — the strongest result in this document.** `kalman_bocpd`
-is best in column on `jump` for *all four* families: $0.0598$ / $0.0602$ / $0.0589$ / $0.0633$. The
-margin over the best fixed-$\lambda$ nonparametric is 25–30% everywhere. §6.2 argued this is
-structural — no fixed $\lambda$ can be long-memory before a break and short-memory after — and the
-argument never used Gaussianity. The grid is the evidence: the win survives tail dependence
-(Clayton, lower), tail dependence (Gumbel, upper) and heavy joint tails ($t_4$), which is what a
-distribution-free structural claim should do. Note the ranking is otherwise remarkably stable across
-families — the whole column order barely moves, which is itself the marginal-invariance property of
-§4.4 showing up at the level of the leaderboard.
+**1. BOCPD's `jump` win survives every family — the strongest result here.** Best in column
+on `jump` for all four: 0.0598 / 0.0602 / 0.0589 / 0.0633, beating the best fixed-λ
+nonparametric by 25–30% everywhere. §6.2 argued this is structural, and that argument never
+used Gaussianity. The grid is the evidence: it holds under lower-tail dependence (Clayton),
+upper-tail (Gumbel) and heavy joint tails ($t_4$).
 
-**2. Correct specification pays, but misspecification is wildly asymmetric.** §8 predicted
-`gaussian_mle_ew` would "be expected to lose" off-Gaussian. Directionally right, but mild: it wins
-`stochastic` on Gaussian ($0.0558$) and degrades only to $0.0671$ / $0.0592$ / $0.0680$ off-family —
-still mid-pack. The Gaussian copula is a forgiving wrong answer *in $\rho_S$ space*. `clayton_mle` is
-not: $0.1589$ on Gumbel `constant`, 10× its own on-family $0.0154$. Gumbel-on-Clayton is half as bad
-($0.0790$). **Fitting Clayton to non-Clayton data is the one genuinely dangerous choice here** —
-dangerous because its lower-tail structure is actively wrong for upper-tail data, not merely
-uninformative.
+The whole column order barely moves across families — that is §4.4's marginal invariance
+showing up at the level of the leaderboard.
 
-**3. `copula_select` recovers the generating family, cumulatively.** Against the *correct* family's
-MLE on that family's own data: Clayton $0.0154$/$0.0154$, Gumbel $0.0168$/$0.0168$, $t$
-$0.0131$/$0.0131$ on `constant`, near-exact on `jump`. Online GoF selection works, and costs nothing
-when right. But `copula_select_ew` loses to the right family's `_ew` on Clayton `drift` ($0.1039$ vs
-$0.0717$) — under forgetting it chooses on a short window and churns. Selection and forgetting
-interact badly: an open problem, not a tuning detail.
+**2. Misspecification is wildly asymmetric.** `gaussian_mle_ew` degrades only mildly
+off-family (0.0558 → 0.0671 / 0.0592 / 0.0680) and stays mid-pack. **The Gaussian copula is a
+forgiving wrong answer in ρ-space.** `clayton_mle` is not: 0.1589 on Gumbel `constant`, 10× its
+own on-family 0.0154. Gumbel-on-Clayton is half as bad (0.0790).
 
-**4. `xiao_win` — measured for the first time — adds nothing over `windowed_rank`.** They agree to
-~0.5% everywhere ($0.0275$ vs $0.0271$; $0.1183$ vs $0.1170$), as expected for two exact sliding
-windows differing only in Xiao's binning — mild evidence the binning costs no accuracy. It does use
-less storage (5824 B vs 8000 B), so it is marginally the better of the two. Recorded so the next
-person need not re-run it.
+**Fitting Clayton to non-Clayton data is the one genuinely dangerous choice** — its lower-tail
+structure is actively wrong for upper-tail data, not merely uninformative.
 
-**5. The grid found a real bug** (§7, `gaussian_mle` NaN latch) — the second the replication tier has
-caught that single-seed runs missed, after the BOCPD burn-in alarms.
+**3. `copula_select` finds the right family — cumulatively.** It matches the correct family's
+MLE exactly on that family's own data (Clayton 0.0154, Gumbel 0.0168, $t$ 0.0131 on `constant`).
+Costs nothing when right.
 
-### 10.4 What this does *not* settle
+But `copula_select_ew` loses to the right family's `_ew` on Clayton `drift` (0.1039 vs 0.0717).
+Under forgetting it chooses on a short window and churns. **Selection and forgetting interact
+badly — an open problem, not a tuning detail.**
 
-- Only `constant`/`jump`/`stochastic` support cross-family reading (§10.1). Extending
-  `drift`/`oscillate` needs a rotated or mixture Archimedean construction that can represent
-  negative dependence.
-- $\nu=4$ is fixed for both the $t$ DGP and `t_mle`, so the $t$ column is a matched-$\nu$ best case
-  and overstates how well `t_mle` would do against unknown tail weight.
-- The detectors are still calibrated on Gaussian innovations only (§3.7). The $\mathrm{ARL}_0$
-  thresholds were never re-derived per family; that the alarm counts stay sane off-family is
-  encouraging but is not calibration.
+**4. `xiao_win`, measured for the first time, adds nothing over `windowed_rank`.** They agree
+to ~0.5% (0.0275 vs 0.0271; 0.1183 vs 0.1170), as two exact sliding windows differing only in
+Xiao's binning should. It uses less storage (5824 B vs 8000 B), so it is marginally better.
+Recorded so nobody re-runs it.
+
+**5. The grid found a real bug** — the `gaussian_mle` NaN latch (§7). Second one the
+replication tier caught that single seeds missed.
+
+### 10.4 What this does not settle
+
+- **Only `constant`/`jump`/`stochastic` read across families** (§10.1). `drift`/`oscillate`
+  need a rotated or mixture Archimedean construction that can represent negative dependence.
+- **$\nu=4$ is fixed** for both the $t$ DGP and `t_mle`, so that column is a matched-ν best
+  case and overstates `t_mle` against unknown tail weight.
+- **Detectors are calibrated on Gaussian innovations only** (§3.7). Thresholds were never
+  re-derived per family. Alarm counts staying sane off-family is encouraging, not calibration.
 
 ---
 
