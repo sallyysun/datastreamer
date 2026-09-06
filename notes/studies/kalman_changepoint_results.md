@@ -288,6 +288,12 @@ every detector in this line without a separate check.
 
 20 seeds, $N=5000$, burn-in 500, mean $\pm$ SE. **Bold** = best in column.
 
+⚠️ Every row here is at its **configured** setting, so "best in column" means best among these
+configurations — *not* best achievable. §5.4 shows the distinction matters: a well-tuned Xiao
+reaches 0.1826 on `oscillate`, far below the 0.2695 bolded here. Read this table as "what the
+shipped configs do", and §5.4 as "what each family can do". Conflating the two is exactly the
+mistake §5.4 corrects.
+
 | Model | `constant` | `drift` | `jump` | `stochastic` | `oscillate` |
 | --- | --- | --- | --- | --- | --- |
 | `xiao` | 0.0128±0.0015 | 0.3893±0.0027 | 0.3199±0.0020 | 0.1539±0.0140 | 0.4107±0.0003 |
