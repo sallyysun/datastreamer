@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -53,12 +54,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    CopulaSource source(*dependence, seed);
+    // Copula family selected by env var COPULA=gaussian|clayton|gumbel|t (default
+    // gaussian, which reproduces the original Gaussian-copula construction).
+    const char* copula_env = std::getenv("COPULA");
+    const std::string family = copula_env ? copula_env : "gaussian";
+    auto copula = dgp::make_copula(family);
+    CopulaSource source(*dependence, *copula, seed);
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "hermite", "hermite_ew",
-                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-                                           "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd", "kalman_bocpd_fast"};
+    const std::vector<std::string>& keys = all_estimator_keys();
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);
@@ -98,7 +101,9 @@ int main(int argc, char** argv) {
         for (auto& at : alarm_traces) at.vals.push_back(detectors[at.est_index]->alarmed_this_block() ? 1 : 0);
     }
 
-    const std::string path = "results/experiment_" + scenario + ".csv";
+    // Non-Gaussian families get a family suffix so a Gaussian run is not clobbered.
+    const std::string suffix = (copula->name() == std::string("gaussian")) ? "" : ("_" + std::string(copula->name()));
+    const std::string path = "results/experiment_" + scenario + suffix + ".csv";
     std::ofstream out(path);
     if (!out.is_open()) {
         std::fprintf(stderr, "cannot open '%s' for writing (does results/ exist? run: mkdir -p results)\n",
@@ -116,8 +121,8 @@ int main(int argc, char** argv) {
         out << "\n";
     }
 
-    std::printf("scenario=%s  N=%zu  (RMSE vs true Spearman, after burn-in %zu)\n",
-                scenario.c_str(), N, burn);
+    std::printf("scenario=%s  copula=%s  N=%zu  (RMSE vs true Spearman, after burn-in %zu)\n",
+                scenario.c_str(), copula->name(), N, burn);
     for (std::size_t e = 0; e < series.size(); ++e) {
         double se = 0.0;
         std::size_t cnt = 0;

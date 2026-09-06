@@ -36,10 +36,19 @@ Leave `--rate 0` for estimation — throttling can desync the two legs of the pa
 Offline harness runs from **inside** `experiments/`:
 
 ```bash
-cd experiments && make && ./experiment jump
+cd experiments && make && ./experiment jump          # single seed, per-tick CSV
+make multiseed && ./multiseed jump 20                # 20 seeds, mean±SE
+./run_multiseed_grid.sh 20 42                        # every scenario × every family (~50 min)
 ```
 
-Scenarios: `constant drift jump stochastic oscillate`. Writes `results/experiment_<scenario>.csv`.
+Scenarios: `constant drift jump stochastic oscillate`. DGP copula family via
+`COPULA=gaussian|clayton|gumbel|t` (default `gaussian`) — non-Gaussian families get a filename
+suffix, so `results/experiment_<scenario>[_<family>].csv` and likewise `multiseed_…`.
+
+**No number is a thesis result until it comes from `./multiseed`, not `./experiment`.** Both read
+`all_estimator_keys()` from `registry.hpp`, so registering an estimator there is enough to get it
+measured — a key that is registered but not in that list is silently never run, which is how
+`xiao_win` went unmeasured until 2026-09.
 
 ## The estimator contract
 
@@ -51,16 +60,16 @@ Scenarios: `constant drift jump stochastic oscillate`. Writes `results/experimen
 - **`reset()` is the change-detection hook** — a detector wrapper calls it to restart.
 - **`store_bytes()` is a thesis metric**, not diagnostics. Streaming-admissibility is a claim we
   measure, so keep it honest.
-- New estimators are registered by string key in `src/estimators/registry.hpp` and picked up by
-  the harness's `keys` list in `experiments/main.cpp`.
+- New estimators are registered by string key in `src/estimators/registry.hpp` and added to
+  `all_estimator_keys()` in the same file — both harnesses read that one list.
 
-⚠️ **The forgetting parameter is a mirror-image knob across estimators** — for Xiao, larger λ =
-longer memory; for Hermite, smaller λ = longer memory. Read the comment block at the top of
-`registry.hpp` before touching any λ. Getting this backwards silently inverts an experiment.
+⚠️ **The forgetting parameter is a mirror-image knob across estimators** — for Xiao (and the
+parametric copula MLEs, which follow Xiao's convention), larger λ = longer memory; for Hermite,
+smaller λ = longer memory. Read the comment block at the top of `registry.hpp` before touching any
+λ. Getting this backwards silently inverts an experiment.
 
-⚠️ `registry.hpp` configs must stay **identical** to the live consumer's, or offline and online
-RMSE stop being comparable. (The header comment points at `src/device/dependence_monitor.hpp`,
-which no longer exists — the live path is `src/consumer/`.)
+⚠️ `registry.hpp` configs must stay **identical** to the live consumer's (`src/consumer/`), or
+offline and online RMSE stop being comparable.
 
 ## Conventions
 
@@ -89,5 +98,6 @@ Read the note, don't re-derive it.
 
 - This is research code with a thesis attached: correctness of the *statistics* matters more than
   code elegance, and a claim in a note is not a result until the harness produces it.
-- Match the existing comment density — headers here carry substantial explanatory comments
-  explaining *why*, and that is deliberate.
+- Keep source nearly comment-free: a short file header pointing at the note that explains it, plus
+  comments only for a non-obvious *why* (guards, clamps, units, traps). Derivations and rationale go
+  in `notes/`, not in the `.hpp`.

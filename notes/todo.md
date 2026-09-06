@@ -62,18 +62,16 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   revisit only if replay / at-least-once is needed.
 
 ### Client (see "Client vision" above)
-- ⬜ **React topic-picker viewer** — `client/src` has no subscribe/subscription code yet;
-  the WS side still broadcasts a single `ticks` topic.
+- ✅ **React topic-picker viewer** — landed in "Client vision" (#6): topic-aware WS +
+  subscription picker with adaptive panels, browser stays a strict viewer.
 
 ### Estimators
-- ⬜ **Validate C++ estimators against the reference submodules** (`external/hermiter` in R,
-  `external/onlineNPCORR` in Python) on shared inputs.
+- ✅ **Validate C++ estimators against the reference submodules** (`external/hermiter` in R,
+  `external/onlineNPCORR` in Python) on shared inputs — cross-validation harness landed (#5).
 - ✅ **Hermite scope vs `external/hermiter`:** we port only the *online bivariate Spearman's rho*
   path. Not ported (not needed for this thesis): univariate pdf/cdf/quantile, Kendall's tau,
   consistent merging of sub-estimators, batch mode. The old quadrature-vs-closed-form `W`
   difference is closed — `integral_matrix` is analytic (IBP symmetry + column recurrence).
-- ⬜ **Parametric goodness-of-fit** (choose parametric vs nonparametric online) + **rank-PIT**
-  transform for non-Gaussian real marginals (currently standardization, exact for Gaussian).
 - ✅ **Change detection + restart, step 1: innovation CUSUM** (`dependence/kalman_cusum.hpp`,
   key `kalman_cusum`; build order step 3 in
   [change_detection.md](studies/change_detection.md)). Two one-sided CUSUMs on
@@ -303,6 +301,46 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   Exposes `innovation()` / `innovation_variance()` / `standardized_innovation()` /
   `kalman_gain()` — the exact quantities an innovation-CUSUM (`change_detection.md` Part III
   Level 1) needs, and the next thing to build on top of this.
+- ✅ **Other parametric copula families** — Clayton / Gumbel / Student-t online MLE
+  (`dependence/parametric_copula.hpp`, family math in `copula_family.hpp`; keys
+  `clayton_mle`, `gumbel_mle`, `t_mle` + `_ew`). Fisher-preconditioned natural gradient
+  (empirical Fisher, since Clayton/Gumbel have no closed-form Fisher); each reports Spearman's
+  rho via `spearman_from_param` (`rho_S = 12 E[UV] - 3` by quadrature on the density).
+  Clayton/Gumbel are positive-dependence only; the t copula's nu is a fixed hyper-parameter.
+- ✅ **Parametric-vs-nonparametric goodness-of-fit selection** — `CopulaSelector`
+  (`dependence/copula_selector.hpp`, keys `copula_select` + `_ew`). Scores Gaussian / Clayton /
+  Gumbel / t + a binned nonparametric density by forgetting-weighted **prequential**
+  log-likelihood (shared marginals ⇒ marginal term cancels, so it is a like-for-like copula
+  comparison) and reports the winner's Spearman rho. Verified: picks the generating family on
+  matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
+- ✅ **Non-Gaussian copula DGP** — `dgp::Copula` (`src/streamgenerator/datasource/copula.hpp`,
+  generator-side counterpart to the estimator-side `copula_family.hpp`): Gaussian / Clayton /
+  Gumbel / Student-t samplers, each calibrated to the SAME target Spearman rho_S per step via
+  `param_from_spearman` (bisection on the estimator-side `spearman_from_param`, so generator and
+  estimator agree by construction — samplers verified: empirical rho_S matches the reported
+  ground truth to ≤0.006 across families/targets, incl. negative-target clamping for the
+  positive-dependence-only Archimedean families). Wired into both the offline harness
+  (`COPULA=gaussian|clayton|gumbel|t ./experiment <scenario>`, family-suffixed CSV output) and
+  the live server (`COPULA` env var alongside `DEPENDENCE`).
+  **Result (`experiments/analysis.ipynb`, "DGP family comparison"):** the misspecification
+  signature is now measurable — each parametric MLE is strongest on its OWN generating family and
+  weak elsewhere (e.g. `clayton_mle` worst on `gaussian`/`gumbel` data, best on `clayton`), and
+  `copula_select` is the best-or-tied cumulative estimator on every family without knowing which
+  generated the data. Caveat: Spearman rho is a rank statistic blind to tail dependence, so this
+  RMSE gap likely understates the real family separation — a tail-dependence metric is the
+  natural follow-up (see below).
+- ⬜ **Tail-dependence metric** (e.g. empirical upper/lower tail-dependence coefficients) to
+  complement the Spearman-rho comparison above — rho_S can't see the very thing (tail behaviour)
+  that actually distinguishes Clayton/Gumbel/t from Gaussian, so the misspecification RMSE gaps
+  measured are likely a lower bound on the real difference.
+- ⬜ **Same-rho_S, different-shape changepoint scenario** — now unlocked by the `Copula`
+  abstraction (switch family mid-stream at constant target rho_S): the roadmap distinction #1
+  case a scalar rho detector structurally cannot see. Also unlocks the tail-asymmetry
+  pairs-trading angle (roadmap `application_2.md`).
+- ⬜ **rank-PIT** transform for non-Gaussian real marginals (currently online standardization,
+  exact only for Gaussian; the parametric copula estimators inherit this marginal convention).
+- ➖ Estimating the Student-t **degrees of freedom** nu online — left as a fixed hyper-parameter;
+  online nu estimation is a separate problem, not needed for the misspecification comparison.
 
 ### Experiments / device
 - ✅ **Multi-seed replication + error bars**, for the Kalman/CUSUM/GLR/BOCPD line
@@ -310,10 +348,12 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
   as `./experiment` so results are directly comparable; reports RMSE and, for every `ChangeDetector`,
   alarm count / false-alarms-before-jump / detection delay as mean±SE, written to
-  `results/multiseed_<scenario>.csv`. Still single-seed (only `./experiment`, not this) for every
-  estimator OUTSIDE this detector line (Xiao/Hermite/gaussian_mle families, and everything on the
-  parametric-copula branch) — this closes the caveat for the Kalman-filter work specifically, not
-  the whole harness.
+  `results/multiseed_<scenario>[_<family>].csv`.
+  ⚠️ **Correction:** this entry originally claimed multi-seed covered "the Kalman/CUSUM/GLR/BOCPD
+  line" only, with the Xiao/Hermite/`gaussian_mle` families left single-seed. That was wrong —
+  `multiseed.cpp` always shared its `keys` list with `main.cpp`, so those families were multi-seeded
+  from the start. The genuinely uncovered cases were `xiao_win` (registered but in neither harness's
+  `keys`) and the parametric-copula branch; both are now covered — see the grid item below.
   **Not just a formality — it caught a real bug the single-seed check missed:** the first
   `kalman_bocpd` ARL0 calibration and harness run both looked plausible in isolation (7% ARL0
   margin, 2 false alarms in one `jump` run), but running 20 seeds showed the SAME ~2.1 false alarms
@@ -322,6 +362,17 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   the corrected, now-verified numbers. This is the concrete case for why this item was worth doing
   now rather than deferring it: a single well-chosen seed's plausible-looking numbers do not
   substitute for it.
+- ✅ **Full multi-seed grid across DGP families** (`experiments/run_multiseed_grid.sh`, run:
+  `./run_multiseed_grid.sh 20 42`). Both harnesses now read `COPULA=gaussian|clayton|gumbel|t`, so
+  the 5 scenarios × 4 families × 22 estimators are all covered at 20 seeds with error bars. Closes
+  the two genuine coverage gaps: `xiao_win`, which was registered in `registry.hpp` but absent from
+  both `keys` lists and so had never been run at all, and the 8 parametric-copula keys
+  (`clayton_mle`/`gumbel_mle`/`t_mle`/`copula_select` + `_ew`), which were single-seed and
+  Gaussian-DGP only. Results and the misspecification reading in
+  [kalman_changepoint_results.md](studies/kalman_changepoint_results.md) §10.
+  `multiseed.cpp` also rejects an unknown `COPULA` up front, because `dgp::make_copula` silently
+  falls back to Gaussian on a typo — which in a scripted grid would mislabel a whole family's
+  results rather than fail.
 - ✅ **$\mathrm{ARL}_0$ calibration** for `kalman_cusum`, `kalman_glr`, and `kalman_bocpd`
   (`experiments/calibrate_arl0.cpp`, run:
   `make calibrate_arl0 && ./calibrate_arl0 [target_blocks]` — calibrates all three detectors in one
