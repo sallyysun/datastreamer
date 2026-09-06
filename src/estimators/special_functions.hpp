@@ -3,25 +3,13 @@
 #include <cmath>
 #include <numbers>
 
-// Minimal special-function support for the parametric copula estimators.
-//
-// Kept deliberately small: only what the Clayton / Gumbel / Student-t copula
-// likelihoods need -- the standard normal CDF (for the marginal PIT shared with
-// GaussianCopulaMLE) and the Student-t density / CDF / quantile (for the t
-// copula's normal-score analogue). The t routines are built on the regularized
-// incomplete beta function via the Numerical-Recipes continued fraction; this is
-// the same machinery R's pt()/qt() use, and is verified against known quantiles
-// in the estimator test.
+// Normal and Student-t density/CDF/quantile support for the copula estimators.
 namespace special {
 
-// Standard normal CDF. Phi(z) = 1/2 erfc(-z / sqrt(2)).
 inline double normal_cdf(double z) {
     return 0.5 * std::erfc(-z * std::numbers::sqrt2 / 2.0);
 }
 
-// Standard normal quantile (inverse CDF), Acklam's rational approximation
-// (relative error < 1.2e-9). Used to recover normal scores from pseudo-obs for
-// the Gaussian-copula member of the selector.
 inline double normal_ppf(double p) {
     if (p <= 0.0) return -1.0e300;
     if (p >= 1.0) return 1.0e300;
@@ -53,8 +41,6 @@ inline double normal_ppf(double p) {
            (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1.0);
 }
 
-// Continued fraction for the incomplete beta function (Lentz's method).
-// Numerical Recipes 6.4 `betacf`.
 inline double betacf(double a, double b, double x) {
     constexpr int kMaxIt = 300;
     constexpr double kEps = 3.0e-14;
@@ -91,7 +77,6 @@ inline double betacf(double a, double b, double x) {
     return h;
 }
 
-// Regularized incomplete beta I_x(a, b). Numerical Recipes 6.4 `betai`.
 inline double betai(double a, double b, double x) {
     if (x <= 0.0) return 0.0;
     if (x >= 1.0) return 1.0;
@@ -103,29 +88,25 @@ inline double betai(double a, double b, double x) {
     return 1.0 - front * betacf(b, a, 1.0 - x) / b;
 }
 
-// Student-t density with nu degrees of freedom.
 inline double t_pdf(double t, double nu) {
     const double logc = std::lgamma((nu + 1.0) / 2.0) - std::lgamma(nu / 2.0)
                         - 0.5 * std::log(nu * std::numbers::pi);
     return std::exp(logc - (nu + 1.0) / 2.0 * std::log1p(t * t / nu));
 }
 
-// Student-t CDF with nu degrees of freedom, via the incomplete beta.
 inline double t_cdf(double t, double nu) {
     const double x = nu / (nu + t * t);
     const double ib = 0.5 * betai(nu / 2.0, 0.5, x);
     return (t >= 0.0) ? 1.0 - ib : ib;
 }
 
-// Student-t quantile (inverse CDF). Monotone bisection -- robust and only used
-// off the hot path (once per observation for the t copula's normal scores).
 inline double t_ppf(double p, double nu) {
     if (p <= 0.0) return -1.0e300;
     if (p >= 1.0) return 1.0e300;
     if (p == 0.5) return 0.0;
 
     double lo = -1.0e4, hi = 1.0e4;
-    for (int it = 0; it < 80; ++it) {  // 1e4 / 2^80 is far below double precision
+    for (int it = 0; it < 80; ++it) {
         const double mid = 0.5 * (lo + hi);
         if (t_cdf(mid, nu) < p) {
             lo = mid;

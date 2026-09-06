@@ -45,9 +45,10 @@ Scenarios: `constant drift jump stochastic oscillate`. DGP copula family via
 `COPULA=gaussian|clayton|gumbel|t` (default `gaussian`) — non-Gaussian families get a filename
 suffix, so `results/experiment_<scenario>[_<family>].csv` and likewise `multiseed_…`.
 
-**No number is a thesis result until it comes from `./multiseed`, not `./experiment`.** Both share
-the same `keys` list — add a new estimator to *both* `main.cpp` and `multiseed.cpp`, or it silently
-goes unmeasured (this is exactly how `xiao_win` sat registered-but-never-run).
+**No number is a thesis result until it comes from `./multiseed`, not `./experiment`.** Both read
+`all_estimator_keys()` from `registry.hpp`, so registering an estimator there is enough to get it
+measured — a key that is registered but not in that list is silently never run, which is how
+`xiao_win` went unmeasured until 2026-09.
 
 ## The estimator contract
 
@@ -59,8 +60,8 @@ goes unmeasured (this is exactly how `xiao_win` sat registered-but-never-run).
 - **`reset()` is the change-detection hook** — a detector wrapper calls it to restart.
 - **`store_bytes()` is a thesis metric**, not diagnostics. Streaming-admissibility is a claim we
   measure, so keep it honest.
-- New estimators are registered by string key in `src/estimators/registry.hpp` and picked up by
-  the `keys` lists in **both** `experiments/main.cpp` and `experiments/multiseed.cpp`.
+- New estimators are registered by string key in `src/estimators/registry.hpp` and added to
+  `all_estimator_keys()` in the same file — both harnesses read that one list.
 
 ⚠️ **The forgetting parameter is a mirror-image knob across estimators** — for Xiao (and the
 parametric copula MLEs, which follow Xiao's convention), larger λ = longer memory; for Hermite,

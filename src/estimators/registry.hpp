@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "copula_family.hpp"
 #include "dependence/copula_selector.hpp"
@@ -154,4 +155,20 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             CopulaSelector::Config{.lambda = 0.99, .burn_in = 100, .nu = 4.0}, "copula_select_ew");
     }
     return nullptr;
+}
+
+// Every key above, in report order. The harnesses share this rather than each
+// keeping a copy: a key registered but missing from a harness's list is not an
+// error, just a silently absent row, which is how xiao_win went unmeasured.
+inline const std::vector<std::string>& all_estimator_keys() {
+    static const std::vector<std::string> keys = {
+        "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
+        "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
+        "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+        "kalman_bocpd", "kalman_bocpd_fast",
+        "clayton_mle", "clayton_mle_ew",
+        "gumbel_mle", "gumbel_mle_ew",
+        "t_mle", "t_mle_ew",
+        "copula_select", "copula_select_ew"};
+    return keys;
 }

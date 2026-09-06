@@ -150,14 +150,7 @@ int main(int argc, char** argv) {
     }
     const std::string family_name = dgp::make_copula(family)->name();
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
-                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-                                           "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd", "kalman_bocpd_fast",
-                                           "clayton_mle", "clayton_mle_ew",
-                                           "gumbel_mle", "gumbel_mle_ew",
-                                           "t_mle", "t_mle_ew",
-                                           "copula_select", "copula_select_ew"};
+    const std::vector<std::string>& keys = all_estimator_keys();
     std::vector<bool> is_detector(keys.size(), false);
     for (std::size_t e = 0; e < keys.size(); ++e) {
         auto probe = make_estimator(keys[e]);

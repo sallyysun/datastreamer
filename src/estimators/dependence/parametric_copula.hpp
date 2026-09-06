@@ -8,30 +8,11 @@
 #include "../special_functions.hpp"
 #include "estimator.hpp"
 
-// Online MLE for the non-Gaussian parametric copula families (Clayton / Gumbel /
-// Student-t), the sibling of GaussianCopulaMLE. Same design as that estimator:
-//   * Marginals standardized online with cumulative Welford moments (marginal
-//     scale is stationary -> NOT forgotten); pseudo-observations u = Phi(z_x),
-//     v = Phi(z_y). Exact PIT for Gaussian marginals, matching the codebase's
-//     current marginal convention (rank-PIT is a separate open item).
-//   * The dependence parameter is fitted in an UNCONSTRAINED coordinate phi
-//     (theta = e^phi for Clayton; theta = 1 + e^phi for Gumbel; rho = tanh(phi)
-//     for t/Gaussian) by a Fisher-preconditioned natural-gradient step. Unlike
-//     the Gaussian case, Clayton/Gumbel have no tidy closed-form Fisher, so the
-//     preconditioner is the EMPIRICAL Fisher H = lambda*H + s_phi^2 (accumulated
-//     squared score). This is the standard online-Newton surrogate and reduces
-//     to ~1/n Robbins-Monro under cumulative weighting (lambda = 1). lambda in
-//     (0,1) forgets with ESS ~ 1/(1-lambda); lambda = 0 (sentinel) = cumulative.
-//   * estimate() maps the fitted parameter to Spearman's rho via
-//     copula::spearman_from_param, so it is comparable to every other estimator.
-//
-// See copula_family.hpp for the density/score math and the positive-dependence /
-// fixed-nu scope notes.
+// Online MLE for the Clayton / Gumbel / Student-t copulas, fitted in an
+// unconstrained coordinate phi by an empirical-Fisher natural-gradient step.
+// Derivation: notes/studies/roadmap.md.
 namespace copula {
 
-// Online single-parameter copula fit on pseudo-observations (u,v). Shared by the
-// standalone ParametricCopulaMLE and by the GoF selector (copula_selector.hpp),
-// so the two score copulas identically.
 class CopulaFit {
 public:
     CopulaFit(Family family, double nu, double lambda)
@@ -50,15 +31,15 @@ public:
         switch (family_) {
             case Family::Clayton:
                 score_p = Clayton::score(u, v, p);
-                dpar_dphi = p;  // dtheta/dphi = theta
+                dpar_dphi = p;
                 break;
             case Family::Gumbel:
                 score_p = Gumbel::score(u, v, p);
-                dpar_dphi = p - 1.0;  // dtheta/dphi = theta - 1
+                dpar_dphi = p - 1.0;
                 break;
             case Family::StudentT:
                 score_p = StudentT::score(u, v, p, nu_);
-                dpar_dphi = 1.0 - p * p;  // drho/dphi = 1 - rho^2
+                dpar_dphi = 1.0 - p * p;
                 break;
             case Family::Gaussian:
             default:
@@ -67,16 +48,15 @@ public:
                 break;
         }
         const double score_phi = score_p * dpar_dphi;
-        if (!std::isfinite(score_phi)) return;  // skip pathological pseudo-obs
+        if (!std::isfinite(score_phi)) return;
 
         const double decay = (lambda_ > 0.0) ? lambda_ : 1.0;
         info_ = decay * info_ + score_phi * score_phi;
         double step = score_phi / info_;
-        step = std::clamp(step, -kMaxStep, kMaxStep);  // guard early over-steps
+        step = std::clamp(step, -kMaxStep, kMaxStep);
         phi_ += step;
     }
 
-    // Copula log-density at the current parameter (the prequential score term).
     double logpdf_uv(double u, double v) const {
         const double p = param();
         switch (family_) {
@@ -106,16 +86,16 @@ public:
     Family family() const { return family_; }
 
 private:
-    static constexpr double kPriorInfo = 1.0;  // weak prior so the first step is damped
-    static constexpr double kMaxStep = 0.5;    // cap on |delta phi| per update
+    static constexpr double kPriorInfo = 1.0;
+    static constexpr double kMaxStep = 0.5;
 
     double init_phi() const {
         switch (family_) {
-            case Family::Clayton:  return std::log(0.5);   // theta0 = 0.5
-            case Family::Gumbel:   return std::log(0.5);   // theta0 = 1.5
-            case Family::StudentT: return 0.0;             // rho0 = 0
+            case Family::Clayton:  return std::log(0.5);
+            case Family::Gumbel:   return std::log(0.5);
+            case Family::StudentT: return 0.0;
             case Family::Gaussian:
-            default:               return 0.0;             // rho0 = 0
+            default:               return 0.0;
         }
     }
 
@@ -128,14 +108,13 @@ private:
 
 }  // namespace copula
 
-// Standalone estimator wrapping the marginal PIT + a single CopulaFit.
 class ParametricCopulaMLE : public DependenceEstimator {
 public:
     struct Config {
         copula::Family family = copula::Family::Clayton;
-        double nu = 4.0;           // degrees of freedom (Student-t only)
-        double lambda = 0.0;       // forgetting for the dependence info; 0 => cumulative
-        std::size_t burn_in = 50;  // samples before reporting an estimate
+        double nu = 4.0;
+        double lambda = 0.0;
+        std::size_t burn_in = 50;
     };
 
     ParametricCopulaMLE(Config config, const char* name)

@@ -61,14 +61,7 @@ int main(int argc, char** argv) {
     auto copula = dgp::make_copula(family);
     CopulaSource source(*dependence, *copula, seed);
 
-    const std::vector<std::string> keys = {"xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
-                                           "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-                                           "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-                                           "kalman_bocpd", "kalman_bocpd_fast",
-                                           "clayton_mle", "clayton_mle_ew",
-                                           "gumbel_mle", "gumbel_mle_ew",
-                                           "t_mle", "t_mle_ew",
-                                           "copula_select", "copula_select_ew"};
+    const std::vector<std::string>& keys = all_estimator_keys();
     std::vector<std::unique_ptr<DependenceEstimator>> ests;
     for (const auto& k : keys) {
         auto e = make_estimator(k);

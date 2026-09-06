@@ -11,45 +11,18 @@
 #include "../../estimators/copula_family.hpp"
 #include "../../estimators/special_functions.hpp"
 
-// Copula families for the SYNTHETIC DGP (server-side and offline harness). This
-// is the generator counterpart to src/estimators/copula_family.hpp (which holds
-// the *estimator*-side density/score/Spearman math): here we SAMPLE from each
-// family so the stream can carry non-Gaussian dependence and the parametric /
-// nonparametric estimators can finally be compared under misspecification.
-//
-// Design (the point of the abstraction):
-//   * The Dependence still supplies a scalar knob d in (-1,1) per step, exactly
-//     as before. We treat it as the Gaussian-equivalent linear correlation, so
-//     the TARGET Spearman rho_S is the same closed form the code already used:
-//         rho_S* = (6/pi) asin(d/2).
-//   * Every family then hits that SAME target rho_S by inverting its own
-//     rho_S(param) map (param_from_spearman below, bisection on the estimator-
-//     side forward map -- so generator and estimator agree by construction).
-//     Result: at each step all families share one ground-truth rho_S trajectory
-//     and differ only in SHAPE (tail dependence / asymmetry). That is what makes
-//     "same rho_S, different copula" changepoints and the parametric-vs-
-//     nonparametric comparison possible.
-//   * The Gaussian family is left BIT-IDENTICAL to the old inline construction
-//     (rho = d, correlated normals), so existing Gaussian results are unchanged.
-//
-// Marginals stay standard normal for every family (we sample (u,v) from the
-// copula, then return normal scores z_i = Phi^{-1}(u_i)) -- a meta-Gaussian
-// construction. This keeps the marginal/return pipeline and the estimators'
-// standardisation assumption untouched; only the dependence structure changes.
-//
-// Limitation: Clayton and Gumbel are POSITIVE-dependence only. A negative target
-// rho_S is clamped to the family's achievable range (~independence), and the
-// ground truth reported is the ACHIEVED rho_S, not the (unreachable) target.
+// Copula families for the synthetic DGP -- the generator counterpart to
+// estimators/copula_family.hpp. Every family targets the same Spearman path
+// rho_S = (6/pi) asin(d/2) and differs only in tail shape, so misspecification
+// is isolated from the dependence trajectory. Notes: notes/studies/roadmap.md.
 namespace dgp {
 
 struct CopulaDraw {
-    double z1;     // standard-normal score of series X
-    double z2;     // standard-normal score of series Y
-    double rho_s;  // true (achieved) Spearman's rho of this draw
+    double z1;
+    double z2;
+    double rho_s;
 };
 
-// Invert a target Spearman rho_S to a family parameter by bisection on the
-// monotone estimator-side forward map copula::spearman_from_param.
 inline double param_from_spearman(copula::Family family, double target, double nu = 4.0) {
     using copula::Family;
     double lo = 0.0, hi = 0.0;
@@ -77,7 +50,6 @@ struct Copula {
     virtual const char* name() const = 0;
 };
 
-// Shared helpers.
 namespace detail {
 inline double target_spearman(double d) {
     const double rho = std::clamp(d, -0.999, 0.999);
@@ -88,7 +60,6 @@ inline double to_normal_score(double u) {
 }
 }  // namespace detail
 
-// --------------------------- Gaussian (baseline) ---------------------------
 class GaussianCopula : public Copula {
 public:
     CopulaDraw sample(double d, std::mt19937& rng) override {
@@ -103,13 +74,11 @@ private:
     std::normal_distribution<double> normal_{0.0, 1.0};
 };
 
-// --------------------------- Clayton (lower tail) --------------------------
 class ClaytonCopula : public Copula {
 public:
     CopulaDraw sample(double d, std::mt19937& rng) override {
         const double target = detail::target_spearman(d);
         const double th = param_from_spearman(copula::Family::Clayton, target);
-        // Conditional inversion sampler for the Clayton copula.
         const double u1 = unif_(rng);
         const double w = unif_(rng);
         const double u2 = std::pow(
@@ -123,19 +92,16 @@ private:
     std::uniform_real_distribution<double> unif_{0.0, 1.0};
 };
 
-// --------------------------- Gumbel (upper tail) ---------------------------
 class GumbelCopula : public Copula {
 public:
     CopulaDraw sample(double d, std::mt19937& rng) override {
         const double target = detail::target_spearman(d);
         const double th = param_from_spearman(copula::Family::Gumbel, target);
         double u1, u2;
-        if (th <= 1.0 + 1e-9) {  // independence limit
+        if (th <= 1.0 + 1e-9) {
             u1 = unif_(rng);
             u2 = unif_(rng);
         } else {
-            // Archimedean frailty sampling: M ~ positive-stable(1/theta),
-            // U_i = exp(-(E_i / M)^{1/theta}).
             const double m = positive_stable(1.0 / th, rng);
             const double e1 = exp_(rng), e2 = exp_(rng);
             u1 = std::exp(-std::pow(e1 / m, 1.0 / th));
@@ -147,8 +113,6 @@ public:
     const char* name() const override { return "gumbel"; }
 
 private:
-    // Positive (maximally-skewed) alpha-stable with Laplace transform exp(-t^alpha),
-    // alpha in (0,1), via Chambers-Mallows-Stuck.
     double positive_stable(double alpha, std::mt19937& rng) {
         const double u = std::uniform_real_distribution<double>(1e-12, std::numbers::pi)(rng);
         const double w = exp_(rng);
@@ -161,7 +125,6 @@ private:
     std::exponential_distribution<double> exp_{1.0};
 };
 
-// --------------------------- Student-t (both tails) ------------------------
 class StudentTCopula : public Copula {
 public:
     explicit StudentTCopula(double nu) : nu_(nu) {}
@@ -170,7 +133,7 @@ public:
         const double rho = param_from_spearman(copula::Family::StudentT, target, nu_);
         const double z1 = normal_(rng);
         const double z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng);
-        const double s = std::sqrt(chi2_(rng) / nu_);  // t = z / sqrt(chi2_nu / nu)
+        const double s = std::sqrt(chi2_(rng) / nu_);
         const double u1 = special::t_cdf(z1 / s, nu_);
         const double u2 = special::t_cdf(z2 / s, nu_);
         const double achieved = copula::spearman_from_param(copula::Family::StudentT, rho, nu_);
@@ -181,15 +144,14 @@ public:
 private:
     double nu_;
     std::normal_distribution<double> normal_{0.0, 1.0};
-    std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};  // chi^2_nu = Gamma(nu/2, 2)
+    std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};
 };
 
-// Factory: COPULA=gaussian|clayton|gumbel|t (default gaussian).
 inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 4.0) {
     if (name == "clayton") return std::make_unique<ClaytonCopula>();
     if (name == "gumbel")  return std::make_unique<GumbelCopula>();
     if (name == "t" || name == "student_t") return std::make_unique<StudentTCopula>(nu);
-    return std::make_unique<GaussianCopula>();  // default / "gaussian"
+    return std::make_unique<GaussianCopula>();
 }
 
 }  // namespace dgp

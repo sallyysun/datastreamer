@@ -10,44 +10,22 @@
 #include "objective.hpp"
 #include "special_functions.hpp"
 
-// Parametric copula families for the parametric branch of the estimator bank
-// (companion to the Gaussian-copula MLE already in objective.hpp). Each family
-// exposes, on pseudo-observations (u, v) in (0,1)^2:
-//   * log_density(u, v, param)  -- the copula log-density log c(u,v; param);
-//   * score(u, v, param)        -- d/dparam log c, the MLE score in the family's
-//                                  NATURAL parameter (theta for the Archimedean
-//                                  families, rho for the t copula). Verified
-//                                  against central finite differences in the test.
-// and every family shares one Spearman conversion:
-//   * spearman_from_param(param) via  rho_S = 12 * E[U V] - 3
-//                                    = 12 * integral u v c(u,v) du dv - 3,
-//     evaluated by tensor Gauss-Legendre on the density. Using the density (not
-//     the CDF) makes the same formula work for Clayton, Gumbel AND t, so every
-//     estimator still reports Spearman's rho and stays comparable to the
-//     nonparametric branch. See registry.hpp for the forgetting conventions.
-//
-// Scope / assumptions:
-//   * Clayton and Gumbel are single-parameter and capture POSITIVE dependence
-//     only (theta -> lower bound => independence). Under negatively-dependent
-//     data the MLE collapses to rho_S ~ 0 -- that is correct misspecification
-//     behaviour, and exactly what the GoF selector is meant to reveal.
-//   * The t copula's degrees of freedom nu are a FIXED hyper-parameter (not
-//     estimated online -- estimating nu from a stream is a separate problem);
-//     only the correlation rho is fitted.
+// Parametric copula families: log-density, score in the family's natural
+// parameter, and a shared Spearman conversion by Gauss-Legendre on the density.
+// Clayton/Gumbel are positive-dependence only; the t copula's nu is fixed.
+// Derivations: notes/studies/roadmap.md.
 namespace copula {
 
 enum class Family { Gaussian, Clayton, Gumbel, StudentT };
 
-// --- Gauss-Legendre nodes on (0,1), generated once (Numerical Recipes gauleg) ---
 struct GaussLegendre {
-    std::vector<double> x;  // nodes in (0,1)
-    std::vector<double> w;  // weights
+    std::vector<double> x;
+    std::vector<double> w;
 
     explicit GaussLegendre(int n) : x(n), w(n) {
         constexpr double kEps = 1.0e-14;
         const int m = (n + 1) / 2;
         for (int i = 0; i < m; ++i) {
-            // Initial guess for the i-th root of the Legendre polynomial on [-1,1].
             double z = std::cos(std::numbers::pi * (i + 0.75) / (n + 0.5));
             double z1 = 0.0, pp = 0.0;
             do {
@@ -61,19 +39,15 @@ struct GaussLegendre {
                 z1 = z;
                 z = z1 - p1 / pp;
             } while (std::fabs(z - z1) > kEps);
-            // Map [-1,1] -> [0,1].
             x[i] = 0.5 * (1.0 - z);
             x[n - 1 - i] = 0.5 * (1.0 + z);
-            const double weight = 1.0 / ((1.0 - z * z) * pp * pp);  // *2 for [-1,1], *0.5 for scale
+            const double weight = 1.0 / ((1.0 - z * z) * pp * pp);
             w[i] = weight;
             w[n - 1 - i] = weight;
         }
     }
 };
 
-// ----------------------------- Clayton -----------------------------
-// c(u,v;theta) = (1+theta) (uv)^{-(1+theta)} (u^{-theta}+v^{-theta}-1)^{-(2+1/theta)},
-// theta > 0. Lower-tail dependence.
 struct Clayton {
     static constexpr double kMinParam = 1.0e-3;
     static constexpr double kMaxParam = 50.0;
@@ -85,14 +59,10 @@ struct Clayton {
                - (2.0 + 1.0 / theta) * std::log(S);
     }
 
-    // C(u,v) = (u^{-theta} + v^{-theta} - 1)^{-1/theta}. Used for the (smooth,
-    // bounded) CDF form of the Spearman integral.
     static double cdf(double u, double v, double theta) {
         return std::pow(std::pow(u, -theta) + std::pow(v, -theta) - 1.0, -1.0 / theta);
     }
 
-    // dl/dtheta = 1/(1+theta) - (log u + log v) + (1/theta^2) log S
-    //             - (2 + 1/theta) * S'/S,   S' = -(u^{-theta} log u + v^{-theta} log v).
     static double score(double u, double v, double theta) {
         const double a = std::pow(u, -theta);
         const double b = std::pow(v, -theta);
@@ -105,10 +75,6 @@ struct Clayton {
     }
 };
 
-// ----------------------------- Gumbel ------------------------------
-// x=-log u, y=-log v, w=x^theta+y^theta, A=w^{1/theta}, theta >= 1.
-// c = C(u,v) (xy)^{theta-1}/(uv) w^{1/theta-2} (A+theta-1),  C=exp(-A).
-// Upper-tail dependence.
 struct Gumbel {
     static constexpr double kMinParam = 1.0;
     static constexpr double kMaxParam = 30.0;
@@ -122,14 +88,11 @@ struct Gumbel {
                + (1.0 / theta - 2.0) * std::log(w) + std::log(A + theta - 1.0);
     }
 
-    // C(u,v) = exp(-((-log u)^theta + (-log v)^theta)^{1/theta}).
     static double cdf(double u, double v, double theta) {
         const double x = -std::log(u), y = -std::log(v);
         return std::exp(-std::pow(std::pow(x, theta) + std::pow(y, theta), 1.0 / theta));
     }
 
-    // Derivative w.r.t. theta with intermediates w' = x^theta log x + y^theta log y,
-    // L = log w, A' = A [ w'/(theta w) - L/theta^2 ].
     static double score(double u, double v, double theta) {
         const double x = -std::log(u);
         const double y = -std::log(v);
@@ -148,9 +111,6 @@ struct Gumbel {
     }
 };
 
-// ----------------------------- Gaussian ----------------------------
-// Wraps GaussianCopulaObjective (normal scores) in the (u,v) interface the fit
-// and selector use, so every family is scored uniformly. Natural parameter rho.
 struct Gaussian {
     static constexpr double kMinParam = -0.999;
     static constexpr double kMaxParam = 0.999;
@@ -165,9 +125,6 @@ struct Gaussian {
     }
 };
 
-// ----------------------------- Student-t ---------------------------
-// Normal-score analogue with t scores x = t_nu^{-1}(u), y = t_nu^{-1}(v).
-// Correlation rho fitted; nu fixed. Symmetric tail dependence.
 struct StudentT {
     static constexpr double kMinParam = -0.999;
     static constexpr double kMaxParam = 0.999;
@@ -177,7 +134,6 @@ struct StudentT {
         const double y = special::t_ppf(v, nu);
         const double d = 1.0 - rho * rho;
         const double Q = x * x - 2.0 * rho * x * y + y * y;
-        // log bivariate-t joint density minus the two marginal t log-densities.
         const double log_joint =
             std::lgamma((nu + 2.0) / 2.0) - std::lgamma(nu / 2.0)
             - std::log(nu * std::numbers::pi) - 0.5 * std::log(d)
@@ -187,7 +143,6 @@ struct StudentT {
         return log_joint - log_mx - log_my;
     }
 
-    // dl/drho = rho/d - ((nu+2)/(nu d^2 g))(rho Q - x y d),  g = 1 + Q/(nu d).
     static double score(double u, double v, double rho, double nu) {
         const double x = special::t_ppf(u, nu);
         const double y = special::t_ppf(v, nu);
@@ -198,16 +153,8 @@ struct StudentT {
     }
 };
 
-// --------- Spearman's rho from the family parameter via quadrature ----------
-// rho_S = 12 * integral_0^1 integral_0^1 u v c(u,v; param) du dv - 3.
-// Built once into a monotone lookup table per (family, param range) and linearly
-// interpolated; rho_S(param) is smooth and monotone so this is accurate and O(1).
 namespace detail {
 
-// rho_S = 12 integral u v c(u,v) - 3, integrating the DENSITY. Fine for the
-// smooth Gaussian / t densities; avoid it for the Archimedean families whose
-// density has boundary singularities that bias low-order quadrature (use the CDF
-// form below there instead).
 template <typename Density>
 double spearman_integral(Density&& c) {
     static const GaussLegendre gl(48);
@@ -224,9 +171,6 @@ double spearman_integral(Density&& c) {
     return 12.0 * integral - 3.0;
 }
 
-// rho_S = 12 integral C(u,v) - 3, integrating the (smooth, bounded) CDF. The
-// accurate form for the Archimedean families -- their CDF has no boundary
-// singularity, so Gauss-Legendre converges fast.
 template <typename Cdf>
 double spearman_integral_cdf(Cdf&& C) {
     static const GaussLegendre gl(64);
@@ -240,7 +184,6 @@ double spearman_integral_cdf(Cdf&& C) {
     return 12.0 * integral - 3.0;
 }
 
-// A monotone table param -> rho_S over [lo, hi] with a forward linear lookup.
 struct SpearmanTable {
     std::vector<double> param;
     std::vector<double> rho_s;
@@ -258,13 +201,12 @@ struct SpearmanTable {
 }  // namespace detail
 
 inline double spearman_from_param(Family family, double param, double nu = 4.0) {
-    constexpr int kGrid = 96;  // table resolution; interpolation is linear
+    constexpr int kGrid = 96;
     switch (family) {
         case Family::Clayton: {
             static const detail::SpearmanTable table = [] {
                 detail::SpearmanTable t;
                 for (int k = 0; k <= kGrid; ++k) {
-                    // Geometric spacing: rho_S changes fast for small theta.
                     const double frac = static_cast<double>(k) / kGrid;
                     const double th = Clayton::kMinParam
                         * std::pow(Clayton::kMaxParam / Clayton::kMinParam, frac);
@@ -279,9 +221,6 @@ inline double spearman_from_param(Family family, double param, double nu = 4.0) 
         case Family::Gumbel: {
             static const detail::SpearmanTable table = [] {
                 detail::SpearmanTable t;
-                // Geometric spacing in (theta - 1): rho_S rises steeply and convexly
-                // near the independence limit theta = 1, so a linear grid there would
-                // make interpolation badly underestimate (cf. Clayton's geometric grid).
                 const double gap_min = 1.0e-3, gap_max = Gumbel::kMaxParam - 1.0;
                 for (int k = 0; k <= kGrid; ++k) {
                     const double frac = static_cast<double>(k) / kGrid;
@@ -295,9 +234,6 @@ inline double spearman_from_param(Family family, double param, double nu = 4.0) 
             return std::clamp(table.lookup(std::clamp(param, Gumbel::kMinParam, Gumbel::kMaxParam)), -1.0, 1.0);
         }
         case Family::StudentT: {
-            // rho_S depends on nu, so cache the table keyed on nu (nu is fixed per
-            // run in practice) -- rebuilding this quadrature per estimate() call
-            // would be prohibitively slow given the t-quantile evaluations.
             static double cached_nu = -1.0;
             static detail::SpearmanTable table;
             if (nu != cached_nu) {
@@ -315,7 +251,6 @@ inline double spearman_from_param(Family family, double param, double nu = 4.0) 
         }
         case Family::Gaussian:
         default:
-            // Closed form for the Gaussian copula.
             return std::clamp(6.0 / std::numbers::pi * std::asin(param / 2.0), -1.0, 1.0);
     }
 }
