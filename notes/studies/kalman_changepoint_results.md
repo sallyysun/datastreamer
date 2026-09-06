@@ -1134,7 +1134,91 @@ caught that single-seed runs missed, after the BOCPD burn-in alarms.
 
 ---
 
-## 11. References
+## 11. The reset is the cost: why detection loses to plain forgetting on `jump`
+
+Added 2026-09-06, after registering `kalman_ewma_chart` and `kalman_sr`.
+
+### 11.1 The comparison is controlled
+
+All four detectors wrap `KalmanLocalLevel` at `sigma_omega2 = 1e-2` — **the same
+configuration as `kalman_fast`**. So `kalman_fast` vs any detector is the same base
+filter with and without an alarm mechanism, not fast-vs-slow.
+
+`jump`, Gaussian DGP, 20 seeds:
+
+| estimator | RMSE | alarms/run | delay (ticks) | misses |
+| --- | --- | --- | --- | --- |
+| `kalman_fast` | **0.0880** | 0.00 | — | — |
+| `kalman_ewma_chart` | 0.1042 | 0.60 | 74.0 | 8 |
+| `kalman_glr` | 0.1110 | 0.90 | 49.6 | 3 |
+| `kalman_sr` | 0.1139 | 1.00 | 51.6 | 1 |
+| `kalman_cusum` | 0.1146 | 1.10 | 46.4 | 1 |
+| `kalman_bocpd` | 0.0598 | 1.45 | 31.9 | 3 |
+
+Adding a detector costs 18–30% RMSE, **monotonically in alarm count** — order the
+hard-reset rows by alarms and the RMSE ordering follows exactly.
+
+### 11.2 Per-tick trace: the reset destroys a nearly-converged estimate
+
+Jump at $t=2500$, $\rho_s: 0.191 \to 0.786$. Gap % is the fraction of the jump
+still unclosed.
+
+| ticks after | blocks | `kalman_fast` | gap | `kalman_cusum` | gap |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.0 | 0.167 | 104% | 0.167 | 104% |
+| 20 | 1.0 | 0.410 | 63% | 0.410 | 63% |
+| 40 | 2.0 | 0.517 | 45% | 0.517 | 45% |
+| 60 | 3.0 | 0.679 | **18%** | **0.000** | **132%** |
+| 80 | 4.0 | 0.641 | 24% | 0.000 | 132% |
+| 100 | 5.0 | 0.699 | 15% | 0.688 | 16% |
+| 140 | 7.0 | 0.747 | 6% | 0.751 | 6% |
+
+The steady-state gain is $K \approx 0.36$ per block, so the unaided filter closes
+$\approx 37\%$ of the gap per block and the gap decays as $0.64^n$. By block 3 it has
+covered 82% of the jump on its own.
+
+That is exactly when the detector fires — and `reset()` sends the estimate to
+**0.000**, a 132% gap, *worse than before the jump*. It sits there two blocks, then
+returns to 0.688, roughly where the unaided filter already was when the alarm rang.
+Forty ticks at $\hat\rho=0$ against a truth of 0.786 is $\approx 0.62$ squared error
+per tick, which accounts for the whole RMSE gap.
+
+**The detector is not wrong about *when*.** Three blocks after a real change is
+respectable. The problem is *what the alarm does*: `reset()` to an empty buffer
+teleports the estimator to ignorance, not to the new truth, and it must then
+re-accumulate at the same rate the filter was already converging.
+
+### 11.3 BOCPD is the control
+
+`kalman_bocpd` alarms **most** (1.45/run) and has the **best** RMSE (0.0598),
+breaking the monotone pattern outright. It never hard-resets — it reweights a
+distribution over run lengths. The cost is not detecting; it is *committing*.
+
+This is the hard-decision/soft-decision axis of
+[change_detection.md](change_detection.md) appearing directly in RMSE.
+
+### 11.4 Open — the obvious next test
+
+Candidate fix: make `reset()` inflate the state covariance (the standard adaptive
+filtering "covariance bump") or re-seed from the current estimate, rather than
+clearing state. That keeps the alarm's information — *distrust the past* — without
+discarding the estimate. **Untested.**
+
+A cheap mechanism check: run a detector with `reset()` made a no-op. If RMSE returns
+to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
+
+### 11.5 ⚠️ What this does not establish
+
+- **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
+  spread of alarm rates is what makes the monotone relationship visible — it reads as
+  a natural experiment, not a designed one. Not a thesis result until
+  `calibrate_arl0` puts all four at matched $\mathrm{ARL}_0$.
+- `jump` + Gaussian only; the other 19 grid files are unexamined.
+- `kalman_fast`'s $\lambda$ was not tuned against these scenarios either.
+
+---
+
+## 12. References
 
 - Adams, R. P. & MacKay, D. J. C. (2007). *Bayesian Online Changepoint Detection.*
 - Page, E. S. (1954). *Continuous inspection schemes.* — CUSUM.
