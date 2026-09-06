@@ -21,7 +21,7 @@ against the open items in [todo.md](../todo.md), [roadmap.md](roadmap.md) and
 
 | Paper | Why | Open item |
 | --- | --- | --- |
-| **Gregory (2019)**, *A streaming algorithm for bivariate empirical copulas* | Adapts Greenwald–Khanna to give a space-efficient, queryable approximation to the bivariate empirical copula. A genuine **streaming nonparametric baseline** — a third design point beside our windows (`windowed_rank`, `xiao_win`) and exponential decay (`xiao_ew`). Uncited. | new estimator |
+| **Gregory (2019)**, *A streaming algorithm for bivariate empirical copulas* | Read in full — see [§Gregory](#gregory-2019-read-in-full) below. Distribution-free streaming empirical copula with error bounds, but **cumulative: no forgetting**. | rank-PIT, `store_bytes`, contribution |
 | **Roberts (2000)**, *Control Chart Tests Based on Geometric Moving Averages* | The EWMA control chart: the canonical detector built on exactly the recursion our fixed-$\lambda$ estimators already are. Uncited (the "Roberts" in the notes is Shiryaev–Roberts). | detector ladder |
 | **Fantazzini (2009)**, *Effects of misspecified marginals and copulas on VaR* | Finds that with skewness in the data and **symmetric marginals**, estimated elliptical copula correlations are negatively biased by **up to 70% of true value**. That is marginal misspecification corrupting the *copula* parameter — precisely the risk our Welford standardization runs. Strongest single argument for rank-PIT. Uncited. | rank-PIT |
 | **Pereira et al. (2026)**, *Bootstrap-enhanced Fisher scoring for state-space models* | Bootstrap approximation of the Fisher information for SSM parameter MLE; targets small samples and misspecification. Directly the machinery for estimating $\sigma_\omega^2$ online. Uncited. | VFF / §8 |
@@ -66,6 +66,45 @@ Wang (2010) Fisher scoring interpolation (relevant only if the empirical-Fisher 
 `ParametricCopulaMLE` is ever questioned), and the philosophy items.
 
 ---
+
+## Gregory (2019) — read in full
+
+**What it is.** $L+1$ coupled $\varepsilon$-approximate quantile summaries: one $S_{(1)}$ over the
+first margin, with a sub-summary $S^i_{(2)}$ hanging off each of its tuples. `Insert` places into
+both; `Combine` runs every $\lfloor 1/(2\varepsilon)\rfloor$ elements and merges sub-summaries
+alongside their parent tuples. Queries return $\varepsilon'$-accurate empirical copula values.
+Worst-case space is quadratic in $1/\varepsilon$ and log-squared in $n$ — worse than 1-D
+Greenwald–Khanna's $O(\varepsilon^{-1}\log \varepsilon n)$. Higher dimensions only via pair-copula /
+vine constructions.
+
+**It does not forget.** No occurrence of *forget*, *decay*, *sliding*, *window*, *exponential*,
+*time-varying* or *drift* in the body. The summary is explicitly over the whole stream
+($n = \sum_i g^i_{(1)}$ counts from inception) and `Combine` only merges tuples — it never ages or
+down-weights. The one appearance of "non-stationary" is a **bibliography entry he does not act on**:
+Arandjelović, Pham & Venkatesh (2015), *The adaptable buffer algorithm for high quantile estimation
+in non-stationary data streams* (IJCNN).
+
+**Consequences for this thesis:**
+
+1. **It is the $\lambda = 0$ column.** Structurally cumulative, so it would behave like `xiao` /
+   `hermite`: best-in-class on `constant`, poor on everything that moves. Not a flaw in the
+   algorithm — it has no memory dial at all, and the memory dial is this thesis.
+2. **It gives two things nothing here has**: a distribution-free marginal transform (the rank-PIT
+   open item) and a *proven error bound*.
+3. **He names Xiao as the weaker alternative.** From his introduction: Xiao (2017) "doesn't provide
+   any theoretical error bounds on the summarized statistical approximations." That is a direct
+   criticism of the estimator this project benchmarks against, and belongs in related work.
+4. **The gap is the contribution.** Streaming empirical copula **+ forgetting** does not exist.
+   Implementing Gregory as-is reproduces published work (one more baseline row); adding an
+   exponentially-weighted or adaptable-buffer variant of his structure is a methodological
+   contribution, and it is the same efficiency↔adaptation question the rest of the thesis asks,
+   relocated into the marginal transform.
+5. ⚠️ **Cost to the streaming-admissibility claim.** $O(\varepsilon^{-2}\log^2 n)$ is sublinear but
+   *growing*, where every current estimator is flat. `store_bytes` would show it climbing. The trade
+   — distribution-freeness and error bounds for non-constant memory — must be stated, not buried.
+
+**Next**: Arandjelović et al. (2015), the forgetting-capable quantile sketch Gregory points at and
+declines to use. Not currently in the library.
 
 ## What to read next, in order
 
