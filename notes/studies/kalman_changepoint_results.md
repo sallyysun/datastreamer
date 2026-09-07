@@ -114,12 +114,22 @@ LAYER 3  HOW DO I HANDLE CHANGE?
 **The biggest gap is a hole in the middle of the matrix.** Every detector wraps
 `KalmanLocalLevel`. None has ever been put on `xiao`, `hermite`, or an MLE.
 
-|              | Fixed forgetting | VFF | CUSUM | GLR | EWMA | SR | BOCPD |
+|              | Fixed forgetting (EWMA smoothing) | VFF | CUSUM | GLR | EWMA chart | SR | BOCPD |
 | ------------ | ---------------- | --- | ----- | --- | ---- | -- | ----- |
 | **Xiao**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Hermite**  | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **MLEs**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | **Kalman**   | ✓ | ⬜ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+CUSUM, GLR, the EWMA chart, SR and BOCPD have all been **run and measured** — every one of
+them on `KalmanLocalLevel`, and only there.
+
+**The empty rows are not a wiring gap.** All five detectors watch
+`filter_.standardized_innovation()` — a surprise with a *known* scale, $e_t/\sqrt{F_t}$, which
+is $\mathcal N(0,1)$ when the model holds. The Kalman filter emits that for free. Xiao, Hermite
+and the MLEs emit **only $\hat\rho$** — no innovation, no $F_t$, no scale. Putting CUSUM on them
+means first *inventing* the residual (successive estimates against their sampling variance, say)
+and then calibrating its null. A design problem, not plumbing.
 
 So every detection result here is **conditional on one layer-2 choice**. We cannot yet
 say whether detection helps *estimators in general*, only whether it helps the Kalman
