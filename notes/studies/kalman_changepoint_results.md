@@ -243,6 +243,14 @@ $$z = \operatorname{atanh}\rho = \tfrac12\log\frac{1+\rho}{1-\rho} \in \mathbb R
 $z$ is unbounded and its variance is roughly constant in ρ, which is what a linear-Gaussian
 model needs.
 
+⚠️ **Approximately, not exactly.** Fisher-$z$ is a variance-stabilising *normalising* transform,
+normal only asymptotically, and $m=20$ is not asymptotic. Block Spearman is a rank statistic on
+discrete support. The approximation is weakest near $|\rho| \to 1$ and at small $m$. Two things
+limit the damage: the Kalman filter remains the minimum-MSE **linear** estimator without
+normality (it just stops being *the* optimal filter), and ARL₀ is bootstrapped on the real
+stream rather than read off a Gaussian formula (§3.7). A particle filter is the honest version
+— see §0.3, untested.
+
 **One tick isn't enough.** So aggregate: every $m$ ticks (a **block**), compute the block's
 $\hat\rho_S$ and transform it. The variance is known in closed form:
 
@@ -252,8 +260,9 @@ $$\sigma_v^2 \approx \frac{1.06}{m-3}$$
 Pearson's $1/(m-3)$. **$\sigma_v^2$ being known rather than estimated is the structural
 gift**: it pins the noise scale, leaving one parameter to choose instead of two.
 
-Blocking costs lag and a noise floor (§6.1), but buys an exactly linear-Gaussian model — so
-the optimal filter is closed-form, no EKF or UKF needed.
+Blocking costs lag and a noise floor (§6.1), but buys a model close enough to linear-Gaussian
+that the filter is closed-form — no EKF or UKF required to *run* it, though one may be required
+to do it justice.
 
 ### 0.10 State-space models and the Kalman filter
 
@@ -485,9 +494,9 @@ $$y_t = \operatorname{atanh}\big(\hat\rho^S_t\big), \qquad \sigma_v^2 \approx \f
 All five detectors share this one channel. §0.9 covers why.
 
 **Why blockwise and not per-tick.** The per-tick normal-score product $z_xz_y$ has mean ρ and
-variance $1+\rho^2$, and $\rho = \tanh z$ is nonlinear — so an exact per-tick Kalman filter
-doesn't exist without an EKF or UKF. Blockwise, the model is *exactly* linear-Gaussian. §6.1
-prices that convenience.
+variance $1+\rho^2$, and $\rho = \tanh z$ is nonlinear — so a per-tick Kalman filter needs an
+EKF or UKF. Blockwise, the model is *approximately* linear-Gaussian, which is enough for a
+closed-form filter. §6.1 prices that convenience; §0.9 states what the approximation costs.
 
 **Marginal invariance comes free.** $\hat\rho^S$ is a rank statistic, so it is invariant to
 any monotone transform of either marginal. That makes the efficient-score refinement of
