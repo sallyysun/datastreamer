@@ -101,6 +101,12 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .window = 30, .min_lag = 1, .h = 10.0},
             "kalman_glr");
     }
+    if (key == "hermite_pit") {
+        return std::make_unique<HermiteEstimator>(
+            HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                     .rank_pit_window = 500},
+            "hermite_pit");
+    }
     if (key == "hermite_vff") {
         return std::make_unique<HermiteEstimator>(
             HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
@@ -207,7 +213,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "gaussian_mle_vff", "kalman_vff",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

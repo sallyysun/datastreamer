@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include "estimator.hpp"
+#include "marginal_rank_pit.hpp"
 
 // Online Hermite-series estimator of Spearman's rho.
 //
@@ -32,6 +33,10 @@ public:
         // WEIGHT, so shortening memory means raising it — the mirror image of the
         // MLE/Xiao retention convention. See the registry.hpp header.
         double vff_rate = 0.0;
+        // Marginals by rank-PIT + probit instead of Welford standardization.
+        // Standardization is exact only for Gaussian margins; ranks are exact for
+        // any continuous margin and are invariant to monotone marginal change.
+        std::size_t rank_pit_window = 0;   // 0 keeps standardization
     };
 
     HermiteEstimator(Config config, const char* name)
@@ -48,8 +53,17 @@ public:
         update_moments(x, y);
         if (n_ < 2) return; // Need at least 2 samples to compute covariance
 
-        const Eigen::VectorXd hx = hermite_functions(standardize(x, mean_x_, var_x_));
-        const Eigen::VectorXd hy = hermite_functions(standardize(y, mean_y_, var_y_));
+        double sx, sy;
+        if (config_.rank_pit_window > 0) {
+            sx = RankPit::probit(pit_x_.transform(x));
+            sy = RankPit::probit(pit_y_.transform(y));
+            if (pit_x_.size() < 30) return;   // no usable rank scale yet
+        } else {
+            sx = standardize(x, mean_x_, var_x_);
+            sy = standardize(y, mean_y_, var_y_);
+        }
+        const Eigen::VectorXd hx = hermite_functions(sx);
+        const Eigen::VectorXd hy = hermite_functions(sy);
 
         const double w = (config_.lambda > 0.0)
             ? lambda_
@@ -122,6 +136,8 @@ public:
         surprise_n_ = 0;
         lambda_ = config_.lambda;
         fast_ = slow_ = 0.0;
+        pit_x_.reset();
+        pit_y_.reset();
     }
 
     double kendall() const {
@@ -132,7 +148,8 @@ public:
 
     std::size_t store_bytes() const override {
         const std::size_t dim = static_cast<std::size_t>(config_.order + 1);
-        return (2 * dim + dim * dim + 6) * sizeof(double);
+        return (2 * dim + dim * dim + 6) * sizeof(double)
+             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0);
     }
 
     const char* name() const override {
@@ -250,6 +267,8 @@ private:
 
     static constexpr std::size_t kSurpriseBurnIn = 200;
 
+    RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
+    RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     double lambda_ = config_.lambda;
     double fast_ = 0.0;
     double slow_ = 0.0;
