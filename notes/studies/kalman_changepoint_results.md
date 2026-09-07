@@ -1125,7 +1125,7 @@ Added 2026-09-07. VFF is the layer-3 rival to explicit detection — adapt the m
 continuously instead of alarming and restarting. Built for all three estimator families,
 not just the filter.
 
-### 10.1 The mechanism, three lines each
+### 9.1 The mechanism, three lines each
 
 **Kalman** — standardized innovations have variance 1 under a correct model, so a
 sustained excess means the filter is under-modelling change:
@@ -1157,7 +1157,7 @@ lambda_ = config_.lambda * std::pow(fast_ / slow_, config_.vff_rate);  // weight
 ⚠️ Note the mirror image: for the MLE λ is *retention* so shortening memory **lowers** it;
 for Hermite λ is the *update weight* so shortening **raises** it. Same trap as `registry.hpp`.
 
-### 10.2 Results (20 seeds)
+### 9.2 Results (20 seeds)
 
 | scenario | `hermite_ew` → `_vff` | `gaussian_mle_ew` → `_vff` | `kalman_fast` → `kalman_vff` |
 | --- | --- | --- | --- |
@@ -1167,7 +1167,7 @@ for Hermite λ is the *update weight* so shortening **raises** it. Same trap as 
 | `oscillate` | 0.3490 → **0.3469** | 0.3508 → **0.3175** | 0.3166 → **0.2690** |
 | **mean** | 0.1381 → 0.1365 (−1.2%) | 0.1313 → 0.1296 (−1.3%) | 0.1420 → **0.1199 (−15.6%)** |
 
-### 10.3 What it means
+### 9.3 What it means
 
 **VFF is insurance against bad tuning, not a free upgrade.** It recovers 15.6% on the
 Kalman filter, whose two shipped configs sit an order of magnitude apart in
@@ -1179,7 +1179,7 @@ which were already near a good operating point.
 which is what [§10](#10-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
 predicted. No reset, so nothing to throw away.
 
-### 10.4 ⚠️ What this does not establish
+### 9.4 ⚠️ What this does not establish
 
 - **`vff_rate` is itself a hand-picked constant** (0.05 / 0.05 / 0.5). The knob moved up a
   level rather than disappearing. Whether VFF is genuinely tuning-free needs a sweep.
@@ -1189,7 +1189,7 @@ predicted. No reset, so nothing to throw away.
 - **The MLE variant is worse on `constant` and `drift`.** The score-drift signal appears to
   over-react on slow regimes. Not diagnosed.
 
-### 10.5 A harness trap worth recording
+### 9.5 A harness trap worth recording
 
 `hermite_vff`, `gaussian_mle_vff` and `kalman_vff` were added to `all_estimator_keys()`
 while their `make_estimator` branches were missing. `make_estimator` returns `nullptr` for
