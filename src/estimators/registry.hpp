@@ -86,6 +86,12 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     }
     // Detector thresholds below are calibrated by calibrate_arl0.cpp; re-run it
     // if block, sigma_omega2 or hazard_rate changes.
+    if (key == "kalman_vff") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2,
+                                     .vff_rate = 0.05},
+            "kalman_vff");
+    }
     if (key == "kalman_cusum") {
         return std::make_unique<KalmanCusumDetector>(
             KalmanCusumDetector::Config{
@@ -180,7 +186,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-        "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+        "kalman", "kalman_fast", "kalman_vff", "kalman_cusum", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",

@@ -16,6 +16,15 @@ public:
         std::size_t block = 50;          // ticks per Spearman block; needs > 3
         double sigma_omega2 = 1e-3;      // process noise
         std::size_t burn_in_blocks = 2;
+
+        // Variable forgetting. When vff_rate > 0, sigma_omega2 adapts instead of
+        // staying fixed: standardized innovations must have variance 1 under a
+        // correct model, so a sustained excess means the filter is under-modelling
+        // change. Same statistic the detectors threshold, used continuously
+        // instead. Section 0.3 / 9.4.
+        double vff_rate = 0.0;           // 0 disables; ~0.05 is a slow adaptation
+        double vff_min = 1e-5;
+        double vff_max = 1e0;
     };
 
     KalmanLocalLevel(Config config, const char* name)
@@ -34,7 +43,7 @@ public:
         const double m = static_cast<double>(config_.block);
         const double sigma_v2 = 1.06 / std::max(m - 3.0, 1.0);
 
-        const double P_pred = P_ + config_.sigma_omega2;
+        const double P_pred = P_ + sigma_omega2_;
         const double F = P_pred + sigma_v2;
         const double K = P_pred / F;
         const double innovation = y_obs - z_;
@@ -46,6 +55,18 @@ public:
         last_F_ = F;
         last_K_ = K;
         ++blocks_;
+
+        if (config_.vff_rate > 0.0) {
+            // C_ tracks E[e~^2], which is 1 when sigma_omega2 is right. The
+            // multiplicative update keeps sigma_omega2 positive without a clamp
+            // doing the work.
+            const double e2 = (innovation * innovation) / std::max(F, 1e-12);
+            C_ += config_.vff_rate * (e2 - C_);
+            if (blocks_ > config_.burn_in_blocks) {
+                sigma_omega2_ *= std::pow(std::max(C_, 1e-6), config_.vff_rate);
+                sigma_omega2_ = std::clamp(sigma_omega2_, config_.vff_min, config_.vff_max);
+            }
+        }
 
         xs_.clear();
         ys_.clear();
@@ -65,6 +86,8 @@ public:
         last_innovation_ = 0.0;
         last_F_ = kPriorVariance;
         last_K_ = 0.0;
+        sigma_omega2_ = config_.sigma_omega2;
+        C_ = 1.0;
     }
 
     std::size_t store_bytes() const override {
@@ -72,6 +95,8 @@ public:
     }
 
     const char* name() const override { return name_; }
+
+    double sigma_omega2() const { return sigma_omega2_; }
 
     // Valid only for the block that just closed; gate on blocks().
     double innovation() const { return last_innovation_; }
@@ -122,6 +147,8 @@ private:
     }
 
     Config config_;
+    double sigma_omega2_ = config_.sigma_omega2;
+    double C_ = 1.0;
     const char* name_;
 
     std::vector<double> xs_, ys_;
