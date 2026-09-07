@@ -8,7 +8,7 @@ $\mathrm{ARL}_0$ calibration and multi-seed replication infrastructure needed to
 mean anything, and the results — including two corrections to claims that did not survive scrutiny.
 
 Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
-`experiments/` — see [§9](#9-reproduction).
+`experiments/` — see [§11](#11-reproduction).
 
 [§0](#0-orientation) is a from-scratch primer on the machinery. It assumes expectation, variance, the
 Gaussian, Bayes' rule and likelihood, and builds everything else — copulas, Spearman's $\rho$, the
@@ -61,10 +61,10 @@ Mostly **layer 3**, on one layer 2 choice, tested against several layer 1 choice
 
 | Layer | Question | Sections |
 | --- | --- | --- |
-| **1 — assume** | Which family generated the data? | [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families) |
+| **1 — assume** | Which family generated the data? | [§8](#8-misspecification-the-multi-seed-grid-across-dgp-families) |
 | **2 — estimate** | How do we track ρ as it moves? | §0.10, §3.1–3.3, §3.9, §4.1, §5.1, §6.1 |
-| **3 — handle change** | Forget, or detect and restart? | §0.11, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
-| *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §8, [§9](#9-reproduction) |
+| **3 — handle change** | Forget, or detect and restart? | §0.11, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
+| *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §10, [§11](#11-reproduction) |
 
 **The headline is a layer-3 result:** on a jump, continuous adaptation *beat* explicit
 detection — the restart discarded a nearly-converged estimate.
@@ -77,7 +77,7 @@ detection — the restart discarded a nearly-converged estimate.
 LAYER 1  WHAT DO I ASSUME?
   ✓ Nonparametric    xiao, xiao_ew, xiao_win, hermite, hermite_ew, windowed_rank
   ✓ Parametric       gaussian_mle, clayton_mle, gumbel_mle, t_mle, copula_select
-  ✓ DGP families     gaussian, clayton, gumbel, t          (all four, §10)
+  ✓ DGP families     gaussian, clayton, gumbel, t          (all four, §8)
   ✗ Marginals        rank-PIT never built — standardization only
 
 LAYER 2  HOW DO I ESTIMATE?
@@ -93,7 +93,7 @@ LAYER 2  HOW DO I ESTIMATE?
 LAYER 3  HOW DO I HANDLE CHANGE?
   ✓ Detectors        CUSUM, GLR, EWMA chart, Shiryaev-Roberts, BOCPD
   ✓ Hard reset       the only alarm response tested
-  ✗ Covariance bump  proposed in §11.4, never built
+  ✗ Covariance bump  proposed in §9.4, never built
   ✗ No-restart       detector as a signal without restarting — never tried
 ```
 
@@ -109,7 +109,7 @@ LAYER 3  HOW DO I HANDLE CHANGE?
 
 So every detection result here is **conditional on one layer-2 choice**. We cannot yet
 say whether detection helps *estimators in general*, only whether it helps the Kalman
-filter — and [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
+filter — and [§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
 says that for a jump, it does not.
 
 **Where the particle filter would go.** Layer 2, replacing the Kalman filter, not
@@ -121,9 +121,9 @@ tick instead of O(1) — affordable under the relaxed budget, and untested.
 **Three gaps that matter most**
 
 1. **Detectors on non-Kalman estimators** — closes the empty matrix above.
-2. **VFF** — it is the direct rival to detection in layer 3, and §11 says the rival is
+2. **VFF** — it is the direct rival to detection in layer 3, and §9 says the rival is
    currently winning. Not having built it means the comparison is incomplete.
-3. **Alarm response other than hard reset** — §11 shows the reset *is* the cost, so the
+3. **Alarm response other than hard reset** — §9 shows the reset *is* the cost, so the
    fix belongs here.
 
 ### 0.4 The copula, and what ρ throws away
@@ -445,13 +445,13 @@ aggregation is a floor it cannot be tuned past.
 **4. Hard detect-and-restart costs accuracy.** `kalman_cusum` and `kalman_glr` are *worse*
 than the filter they wrap, on both `jump` and `oscillate`. By alarm time the filter has
 already adapted; the reset throws that away.
-[§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces it
+[§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces it
 tick by tick.
 
 **5. The Gaussian copula is a forgiving wrong answer.** `gaussian_mle_ew` degrades mildly
 off-family (`stochastic`: 0.0558 → 0.0592–0.0680). `clayton_mle` on Gumbel data is 10×
 worse than on its own (0.1589 vs 0.0154). `copula_select` recovers the true family when run
-cumulatively, but churns under forgetting (§10.3).
+cumulatively, but churns under forgetting (§8.3).
 
 **6. Four bugs were found by verification, not by reading the code** ([§7](#7-bugs-found-and-fixed)).
 Two showed up only because the replication tier existed — BOCPD burn-in alarms and a NaN
@@ -473,7 +473,7 @@ latch in `gaussian_mle`. Both invisible at one seed, unmistakable across twenty.
 Baselines compared against: `xiao`, `xiao_ew`, `xiao_win`, `hermite`, `hermite_ew`,
 `windowed_rank`, `gaussian_mle`, `gaussian_mle_ew`, plus `clayton_mle`, `gumbel_mle`,
 `t_mle`, `copula_select` and their `_ew` variants. §5 compares the 13 Gaussian-DGP ones;
-[§10](#10-misspecification-the-multi-seed-grid-across-dgp-families) runs all of them
+[§8](#8-misspecification-the-multi-seed-grid-across-dgp-families) runs all of them
 across all four families.
 
 **One thing worth flagging.** `kalman` and the BOCPD variants are Bayesian; CUSUM, GLR,
@@ -574,7 +574,7 @@ $$P(r_t = r{+}1,\, y_{1:t}) = (1-H)\,P(r_{t-1}=r,\,y_{1:t-1})\,L(r)$$
 In log-space with log-sum-exp, truncated at $R_{\max}$ for $O(R_{\max})$ per block. The estimate
 is the run-length-weighted posterior mean — Bayesian model averaging.
 
-**There is no reset anywhere. The soft mixing *is* the mechanism**, which is why §11 finds it
+**There is no reset anywhere. The soft mixing *is* the mechanism**, which is why §9 finds it
 escapes the reset cost entirely.
 
 > ⚠️ **$P(r_t=0)$ is useless as an alarm under a constant hazard.** Write
@@ -603,7 +603,30 @@ on target with no margin, the next grid point was taken instead.
 `ChangeDetector` — alarm count, false alarms before the jump, and detection delay as mean ± SE.
 Scoring matches `./experiment` exactly ($N=5000$, burn-in 500).
 
-⚠️ **Correction.** §8 once claimed multi-seed covered "this detector line only", leaving
+**Does it actually change anything?** Measured on `jump`, seed 42 alone against the 20-seed
+mean:
+
+| estimator | seed 42 | 20 seeds | off by |
+| --- | --- | --- | --- |
+| `xiao_ew` | 0.0782 | 0.0798 | −1.2 SE |
+| `hermite_ew` | 0.0798 | 0.0815 | −1.3 SE |
+| `gaussian_mle_ew` | 0.0760 | 0.0745 | +1.3 SE |
+| `kalman_fast` | 0.0921 | 0.0880 | +2.9 SE |
+| `kalman_cusum` | 0.1177 | 0.1146 | +1.2 SE |
+| `kalman_sr` | 0.1177 | 0.1139 | +1.6 SE |
+| **`kalman_ewma_chart`** | **0.0921** | **0.1042** | **−3.5 SE** |
+| `kalman_bocpd` | 0.0640 | 0.0598 | +1.9 SE |
+
+Most land within 1–2 SE and the ranking survives. **`kalman_ewma_chart` does not, and it flips
+the conclusion.** On seed 42 it scores 0.0921 — identical to the bare `kalman_fast` it wraps —
+so a single seed says the EWMA detector is free. Across 20 seeds it costs 18%. The cause is in
+[§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump): it misses 8 of
+20 jumps, so its per-seed spread is wide and seed 42 is a lucky one.
+
+**This is the same failure mode as the BOCPD burn-in bug** (§7): one seed looking plausible
+while the effect is systematic.
+
+⚠️ **Correction.** §10 once claimed multi-seed covered "this detector line only", leaving
 Xiao/Hermite/`gaussian_mle` single-seed. **That was wrong when written** — `multiseed.cpp` has
 always shared its `keys` list with `main.cpp`, so those were multi-seeded from the first run.
 The genuinely uncovered cases were different: `xiao_win`, which was in neither harness and had
@@ -694,7 +717,7 @@ bolded here. This table = what the shipped configs do. §5.4 = what each family 
 Conflating them is the mistake §5.4 corrects.
 
 `kalman_ewma_chart` and `kalman_sr` are not in this table — they were added later; their `jump`
-numbers are in [§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump).
+numbers are in [§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump).
 
 | Model | `constant` | `drift` | `jump` | `stochastic` | `oscillate` |
 | --- | --- | --- | --- | --- | --- |
@@ -768,7 +791,7 @@ ARL₀ rises roughly exponentially in the threshold, as CUSUM theory predicts �
 `kalman_cusum`: $h=1 \to 7$ blocks, $2.5 \to 150$, $3.5 \to 2143$, $5 \to \ge 30{,}000$.
 
 ⚠️ `kalman_ewma_chart` ($L$) and `kalman_sr` ($h$) have **not** been calibrated. Their
-thresholds are textbook defaults, so §11's comparison is not yet at matched ARL₀.
+thresholds are textbook defaults, so §9's comparison is not yet at matched ARL₀.
 
 ### 5.4 Fair per-family tuning — the correction
 
@@ -886,7 +909,7 @@ By alarm time (~46 ticks on `jump`) the filter has already partly adapted. `rese
 discards that and restarts from a flat prior, so the estimator re-climbs ground it had
 covered. `kalman_cusum` (0.1146) and `kalman_glr` (0.1110) both score worse than the
 `kalman_fast` (0.0880) they wrap. BOCPD never resets and avoids it entirely.
-[§11](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces
+[§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces
 this tick by tick.
 
 ### 6.5 Practical guidance
@@ -961,50 +984,7 @@ identically.
 
 ---
 
-## 8. Limitations
-
-- **Only one layer-2 choice.** Every detector wraps the Kalman filter. Nothing here says
-  whether detection helps estimators *in general* — see §0.3.
-- **Detection delay is only half-measured.** ARL₀ calibration controls false alarms.
-  Delay is reported but never compared against the Lorden/KL optimal-delay bound.
-- **$\sigma_\omega^2$, hazard and $m$ are hand-picked.** Estimating them online (VFF) is
-  the obvious next step and is what §3.3's parameterization makes possible.
-- **Nothing runs live.** All results are offline; none of this is in `src/consumer/`.
-- ~~Single DGP family~~ — superseded by
-  [§10](#10-misspecification-the-multi-seed-grid-across-dgp-families).
-
----
-
-## 9. Reproduction
-
-```bash
-cd experiments
-mkdir -p results
-
-make                    # ./experiment      single seed + per-tick CSV
-make multiseed          # ./multiseed       error bars
-make calibrate_arl0     # ./calibrate_arl0  threshold calibration
-
-for s in constant drift jump stochastic oscillate; do ./multiseed $s 20; done
-./calibrate_arl0 1000
-
-./run_multiseed_grid.sh 20 42            # 5 scenarios x 4 families, ~12 min
-./run_multiseed_grid_parallel.sh 20 42   # same, across all cores, ~3 min
-```
-
-`COPULA=gaussian|clayton|gumbel|t` picks the DGP family (default `gaussian`). Non-Gaussian
-families get a filename suffix so runs don't clobber each other. Outputs land in `results/`
-(gitignored).
-
-Code: `src/estimators/dependence/` — `kalman_local_level.hpp`, `kalman_cusum.hpp`,
-`kalman_glr.hpp`, `kalman_ewma_chart.hpp`, `kalman_shiryaev_roberts.hpp`, `kalman_bocpd.hpp`,
-`change_detector.hpp`. Parametric estimators in `parametric_copula.hpp` and
-`copula_selector.hpp`, family math in `estimators/copula_family.hpp`, the DGP in
-`src/streamgenerator/datasource/copula.hpp`. Configs in `registry.hpp`.
-
----
-
-## 10. Misspecification: the multi-seed grid across DGP families
+## 8. Misspecification: the multi-seed grid across DGP families
 
 Everything above is Gaussian-copula. This section runs the same 20-seed protocol over all four DGP
 families — Gaussian, Clayton, Gumbel, Student-$t$ ($\nu=4$) — and all 22 registered estimators
@@ -1012,7 +992,7 @@ families — Gaussian, Clayton, Gumbel, Student-$t$ ($\nu=4$) — and all 22 reg
 registered in `registry.hpp` but present in neither harness's `keys` list and so had **never been
 run**, and the 8 parametric-copula keys, which were single-seed and Gaussian-DGP only.
 
-### 10.1 ⚠️ Cross-family RMSE is only comparable on three of the five scenarios
+### 8.1 ⚠️ Cross-family RMSE is only comparable on three of the five scenarios
 
 Clayton and Gumbel are **positive-dependence-only** families. `dgp::make_copula` maps the dependence
 knob $d$ to a target $\rho_S$, but the Archimedean parameter is floored at independence, so the
@@ -1032,7 +1012,7 @@ $0.2010$ on Clayton `oscillate` vs $0.3484$ on Gaussian) **purely because the ta
 sd $0.225$ against $0.410$. That is a measurement artifact, not robustness. Read those two columns
 *down* (which estimator wins on this family) and never *across* (which family is easier).
 
-### 10.2 RMSE by DGP family (20 seeds, $N=5000$, burn-in 500)
+### 8.2 RMSE by DGP family (20 seeds, $N=5000$, burn-in 500)
 
 Best in column in **bold**. As in §5.1, "best" means best among these shipped configurations, not
 best achievable — §5.4's fair-tuning caveat applies here unchanged.
@@ -1066,9 +1046,9 @@ All 22 × 5 × 4 cells, colour-coded, are in `results/multiseed_heatmap.png`
 (`python3 plot_multiseed_heatmap.py`); the raw numbers are in
 `results/multiseed_<scenario>[_<family>].csv`. Colour there is normalised *within* each column,
 since absolute RMSE spans 0.012 (`constant`) to 0.44 (`oscillate`) and a global scale shows nothing;
-the clipped `drift`/`oscillate` columns are outlined for the §10.1 reason.
+the clipped `drift`/`oscillate` columns are outlined for the §8.1 reason.
 
-### 10.3 What the grid shows
+### 8.3 What the grid shows
 
 **1. BOCPD's `jump` win survives every family — the strongest result here.** Best in column
 on `jump` for all four: 0.0598 / 0.0602 / 0.0589 / 0.0633, beating the best fixed-λ
@@ -1103,9 +1083,9 @@ Recorded so nobody re-runs it.
 **5. The grid found a real bug** — the `gaussian_mle` NaN latch (§7). Second one the
 replication tier caught that single seeds missed.
 
-### 10.4 What this does not settle
+### 8.4 What this does not settle
 
-- **Only `constant`/`jump`/`stochastic` read across families** (§10.1). `drift`/`oscillate`
+- **Only `constant`/`jump`/`stochastic` read across families** (§8.1). `drift`/`oscillate`
   need a rotated or mixture Archimedean construction that can represent negative dependence.
 - **$\nu=4$ is fixed** for both the $t$ DGP and `t_mle`, so that column is a matched-ν best
   case and overstates `t_mle` against unknown tail weight.
@@ -1114,11 +1094,11 @@ replication tier caught that single seeds missed.
 
 ---
 
-## 11. The reset is the cost: why detection loses to plain forgetting on `jump`
+## 9. The reset is the cost: why detection loses to plain forgetting on `jump`
 
 Added 2026-09-06, after registering `kalman_ewma_chart` and `kalman_sr`.
 
-### 11.1 The comparison is controlled
+### 9.1 The comparison is controlled
 
 The two detectors added here are the EWMA control chart (**[Roberts 1959]** ✓) and Shiryaev–Roberts
 (**[Shiryaev 1963]** ⚠️; asymptotically optimal for Pollak's conditional-average delay criterion,
@@ -1140,7 +1120,7 @@ filter with and without an alarm mechanism, not fast-vs-slow.
 Adding a detector costs 18–30% RMSE, **monotonically in alarm count** — order the
 hard-reset rows by alarms and the RMSE ordering follows exactly.
 
-### 11.2 Per-tick trace: the reset destroys a nearly-converged estimate
+### 9.2 Per-tick trace: the reset destroys a nearly-converged estimate
 
 Jump at $t=2500$, $\rho_s: 0.191 \to 0.786$. Gap % is the fraction of the jump
 still unclosed.
@@ -1170,7 +1150,7 @@ respectable. The problem is *what the alarm does*: `reset()` to an empty buffer
 teleports the estimator to ignorance, not to the new truth, and it must then
 re-accumulate at the same rate the filter was already converging.
 
-### 11.3 BOCPD is the control
+### 9.3 BOCPD is the control
 
 `kalman_bocpd` (**[Adams & MacKay 2007]** ⚠️) alarms **most** (1.45/run) and has the **best** RMSE
 (0.0598), breaking the monotone pattern outright. It never hard-resets — it reweights a
@@ -1179,7 +1159,7 @@ distribution over run lengths. The cost is not detecting; it is *committing*.
 This is the hard-decision/soft-decision axis of
 [change_detection.md](change_detection.md) appearing directly in RMSE.
 
-### 11.4 Open — the obvious next test
+### 9.4 Open — the obvious next test
 
 Candidate fix: make `reset()` inflate the state covariance (the standard adaptive
 filtering "covariance bump") or re-seed from the current estimate, rather than
@@ -1189,7 +1169,7 @@ discarding the estimate. **Untested.**
 A cheap mechanism check: run a detector with `reset()` made a no-op. If RMSE returns
 to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
-### 11.5 ⚠️ What this does not establish
+### 9.5 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
   spread of alarm rates is what makes the monotone relationship visible — it reads as
@@ -1197,6 +1177,49 @@ to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
   `calibrate_arl0` puts all four at matched $\mathrm{ARL}_0$.
 - `jump` + Gaussian only; the other 19 grid files are unexamined.
 - `kalman_fast`'s $\lambda$ was not tuned against these scenarios either.
+
+---
+
+## 10. Limitations
+
+- **Only one layer-2 choice.** Every detector wraps the Kalman filter. Nothing here says
+  whether detection helps estimators *in general* — see §0.3.
+- **Detection delay is only half-measured.** ARL₀ calibration controls false alarms.
+  Delay is reported but never compared against the Lorden/KL optimal-delay bound.
+- **$\sigma_\omega^2$, hazard and $m$ are hand-picked.** Estimating them online (VFF) is
+  the obvious next step and is what §3.3's parameterization makes possible.
+- **Nothing runs live.** All results are offline; none of this is in `src/consumer/`.
+- ~~Single DGP family~~ — superseded by
+  [§8](#8-misspecification-the-multi-seed-grid-across-dgp-families).
+
+---
+
+## 11. Reproduction
+
+```bash
+cd experiments
+mkdir -p results
+
+make                    # ./experiment      single seed + per-tick CSV
+make multiseed          # ./multiseed       error bars
+make calibrate_arl0     # ./calibrate_arl0  threshold calibration
+
+for s in constant drift jump stochastic oscillate; do ./multiseed $s 20; done
+./calibrate_arl0 1000
+
+./run_multiseed_grid.sh 20 42            # 5 scenarios x 4 families, ~12 min
+./run_multiseed_grid_parallel.sh 20 42   # same, across all cores, ~3 min
+```
+
+`COPULA=gaussian|clayton|gumbel|t` picks the DGP family (default `gaussian`). Non-Gaussian
+families get a filename suffix so runs don't clobber each other. Outputs land in `results/`
+(gitignored).
+
+Code: `src/estimators/dependence/` — `kalman_local_level.hpp`, `kalman_cusum.hpp`,
+`kalman_glr.hpp`, `kalman_ewma_chart.hpp`, `kalman_shiryaev_roberts.hpp`, `kalman_bocpd.hpp`,
+`change_detector.hpp`. Parametric estimators in `parametric_copula.hpp` and
+`copula_selector.hpp`, family math in `estimators/copula_family.hpp`, the DGP in
+`src/streamgenerator/datasource/copula.hpp`. Configs in `registry.hpp`.
 
 ---
 
