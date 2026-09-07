@@ -49,6 +49,20 @@ LAYER 2:  HOW DO I ESTIMATE?                         ├── EWMA chart
                 State-space: Kalman / EKF / UKF / particle
 ```
 
+⚠️ **"EWMA" means two different things in this document.**
+
+| | Layer | What it is |
+| --- | --- | --- |
+| **EWMA smoothing** | 2/3 | the `_ew` variants — *fixed forgetting*, an **estimator** |
+| **EWMA control chart** | 3 | `kalman_ewma_chart` — watches innovations, a **detector** |
+
+Same recursion, opposite jobs: one tracks ρ, the other alarms on it.
+
+⚠️ **State-space is not "nonparametric" as such.** It sits on a different axis. The filter
+assumes *no copula family* — it consumes Spearman's ρ, which is why it lands under layer 1
+nonparametric. But it is parametric about **how ρ moves**: random walk, Gaussian noise, two
+variances. Nonparametric in the copula, parametric in the dynamics.
+
 **Estimator choice and adaptation strategy are separate axes.** Pick a layer-2 estimator,
 then pick a layer-3 strategy; any combination is legal. §0.3 shows which ones actually exist.
 
@@ -82,7 +96,7 @@ LAYER 1  WHAT DO I ASSUME?
 
 LAYER 2  HOW DO I ESTIMATE?
   ✓ Sliding window   windowed_rank
-  ✓ Fixed forgetting every _ew variant
+  ✓ Fixed forgetting every _ew variant (EWMA smoothing — same thing)
   ✓ Linear-Gaussian  kalman, kalman_fast
   ⬜ VFF              forgetting rate never made adaptive
   ⬜ EKF / UKF        never tried

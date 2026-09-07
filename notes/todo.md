@@ -438,3 +438,27 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
 - ⬜ **Adaptive-forgetting / VFF literature**, promoted by the §11 reset-cost finding: the fix
   candidate (inflate state covariance on alarm rather than clearing state) is standard there.
   Haykin, *Adaptive Filter Theory*; the Paleologu et al. variable-forgetting-factor RLS line.
+
+### Fisher scoring for the copula MLEs — efficiency
+Both are $O(1)$ and neither changes the estimator's interface. Current update in
+`parametric_copula.hpp`:
+```cpp
+info_ = decay * info_ + score_phi * score_phi;   // empirical Fisher
+double step = score_phi / info_;
+step = std::clamp(step, -kMaxStep, kMaxStep);
+```
+- ⬜ **Use the expected Fisher information, not the squared score.** `score_phi * score_phi`
+  is the *observed* information from a single observation — a very noisy curvature estimate.
+  The Gaussian copula's expected information is closed-form; deriving it for Clayton/Gumbel is
+  the work. Better-conditioned steps at no runtime cost. This is exactly what
+  **Pereira, Costa & Gonçalves (2026)** ✓ do — they replace observed information with a
+  bootstrap approximation of the expected one and report better standard errors and numerical
+  stability in small samples. Their method is batch, but the *motivation* transfers directly.
+- ⬜ **Polyak–Ruppert averaging.** Keep a running mean of $\phi$ alongside $\phi$ itself and
+  report the mean. One extra accumulator, recovers the MLE's asymptotic efficiency, and permits
+  a larger step size than the raw iterate would tolerate.
+- ⬜ **Replace the `kMaxStep` clamp with a damped or trust-region step.** The clamp is a safety
+  hack that works; a trust region does the same job with a justification, and would not need
+  re-tuning per family.
+- ➖ Not worth doing: the update is already $O(1)$ per tick, so there is no *computational*
+  efficiency to recover — these are all statistical-efficiency changes.
