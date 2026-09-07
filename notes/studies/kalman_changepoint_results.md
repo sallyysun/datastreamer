@@ -49,18 +49,11 @@ LAYER 2:  HOW DO I ESTIMATE?                         ├── EWMA chart
                 State-space: Kalman / EKF / UKF / particle
 ```
 
-**Estimator choice and adaptation strategy are separate axes.**
+**Estimator choice and adaptation strategy are separate axes.** Pick a layer-2 estimator,
+then pick a layer-3 strategy; any combination is legal. §0.3 shows which ones actually exist.
 
-|                  | Fixed forgetting | VFF | CUSUM + restart | BOCPD |
-| ---------------- | ---------------- | --- | --------------- | ----- |
-| **Gaussian MLE** | ✓ | ⬜ | ⬜ | ⬜ |
-| **Xiao**         | ✓ | ⬜ | ⬜ | ⬜ |
-| **Hermite**      | ✓ | ⬜ | ⬜ | ⬜ |
-| **Kalman**       | ✓ | ⬜ | ✓ | ✓ |
-
-✓ built and measured, ⬜ not built. The matrix does not need filling; the point is that
-it *is* a matrix. The Kalman filter is a **layer 2** choice, not a detector — a detector
-sits on top of it and reads its innovations.
+The Kalman filter is a **layer 2** choice, not a detector — a detector sits on top of it and
+reads its innovations.
 
 ### 0.2 Where this document sits
 
