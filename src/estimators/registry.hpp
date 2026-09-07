@@ -17,6 +17,7 @@
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/kalman_shiryaev_roberts.hpp"
 #include "dependence/parametric_copula.hpp"
+#include "dependence/particle_filter.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
 
@@ -119,6 +120,18 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                                         .lambda = 0.99, .vff_rate = 0.05, .burn_in = 50},
             "gaussian_mle_vff");
     }
+    if (key == "particle") {
+        return std::make_unique<ParticleFilter>(
+            ParticleFilter::Config{.block = 20, .particles = 400, .sigma_omega2 = 1e-4,
+                                   .jump_prob = 0.01, .jump_scale = 0.5, .nu = 5.0},
+            "particle");
+    }
+    if (key == "particle_fast") {
+        return std::make_unique<ParticleFilter>(
+            ParticleFilter::Config{.block = 20, .particles = 400, .sigma_omega2 = 1e-2,
+                                   .jump_prob = 0.05, .jump_scale = 0.5, .nu = 5.0},
+            "particle_fast");
+    }
     if (key == "kalman_vff") {
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2,
@@ -213,7 +226,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

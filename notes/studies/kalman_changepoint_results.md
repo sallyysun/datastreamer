@@ -8,7 +8,7 @@ $\mathrm{ARL}_0$ calibration and multi-seed replication infrastructure needed to
 mean anything, and the results — including two corrections to claims that did not survive scrutiny.
 
 Branch: `kalman-changepoint` (off `main`). Everything here is reproducible from
-`experiments/` — see [§11](#13-reproduction).
+`experiments/` — see [§11](#14-reproduction).
 
 [§0](#0-orientation) is a from-scratch primer on the machinery. It assumes expectation, variance, the
 Gaussian, Bayes' rule and likelihood, and builds everything else — copulas, Spearman's $\rho$, the
@@ -18,7 +18,7 @@ from those. Readers who already have this can start at §1.
 ---
 
 > **Citation convention.** Inline references are highlighted as **[Author Year]** ⚠️ and collected
-> in [§12](#14-references). ⚠️ Except where noted, they are **from memory** — years, volumes and
+> in [§12](#15-references). ⚠️ Except where noted, they are **from memory** — years, volumes and
 > pages must be checked against a bibliographic database before entering `bibliography.bib`. None
 > of them are currently in the Zotero library except **[Roberts 1959]** ✓ and **[Gregory 2019]** ✓.
 
@@ -77,8 +77,8 @@ Mostly **layer 3**, on one layer 2 choice, tested against several layer 1 choice
 | --- | --- | --- |
 | **1 — assume** | Which family generated the data? | [§8](#8-misspecification-the-multi-seed-grid-across-dgp-families) |
 | **2 — estimate** | How do we track ρ as it moves? | §0.10, §3.1–3.3, §3.9, §4.1, §5.1, §6.1 |
-| **3 — handle change** | Forget, or detect and restart? | §0.11, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
-| *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §10, [§11](#13-reproduction) |
+| **3 — handle change** | Forget, or detect and restart? | §0.11, §3.4–3.7, §4.2–4.4, §5.2–5.5, §6.2, §6.4, [§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) |
+| *infrastructure* | Do the numbers mean anything? | §2, §3.8, [§7](#7-bugs-found-and-fixed), §10, [§11](#14-reproduction) |
 
 **The headline is a layer-3 result:** on a jump, continuous adaptation *beat* explicit
 detection — the restart discarded a nearly-converged estimate.
@@ -100,8 +100,8 @@ LAYER 2  HOW DO I ESTIMATE?
   ✓ Fixed forgetting every _ew variant (EWMA smoothing — same thing)
   ✓ Linear-Gaussian  kalman, kalman_fast
   ✓ VFF              Kalman, Hermite, MLE (section 10)
-  ⬜ EKF / UKF        never tried
-  ⬜ Particle filter  never tried
+  ⬜ EKF / UKF        still never tried
+  ✓ Particle filter  particle / particle_fast (section 11)
   ⬜ Coefficient      only scalar rho is ever monitored; the Hermite a_jk
     monitoring       vector is computed, then discarded
 
@@ -136,7 +136,7 @@ them on `KalmanLocalLevel`, and only there.
 | Xiao | ⬜ | $\hat\rho$ only — the residual has to be invented |
 
 So every detection result here is **conditional on one layer-2 choice**. It says detection does
-not help *the Kalman filter* on a jump ([§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)),
+not help *the Kalman filter* on a jump ([§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)),
 not that it fails in general.
 
 **Where the particle filter goes.** Layer 2, replacing the Kalman filter — not competing with
@@ -209,7 +209,7 @@ number elsewhere; full statements in [roadmap.md](roadmap.md).
 | 5 | Drift, not jumps | Real dependence mostly drifts; jumps are rare |
 
 **Distinction 3 undermines the theory**: every optimality result in
-[§12](#14-references) assumes i.i.d. pre-change data. Rank streams are not.
+[§12](#15-references) assumes i.i.d. pre-change data. Rank streams are not.
 
 ### 0.7 Three terms used later
 
@@ -471,7 +471,7 @@ aggregation is a floor it cannot be tuned past.
 **4. Hard detect-and-restart costs accuracy.** `kalman_cusum` and `kalman_glr` are *worse*
 than the filter they wrap, on both `jump` and `oscillate`. By alarm time the filter has
 already adapted; the reset throws that away.
-[§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces it
+[§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces it
 tick by tick.
 
 **5. The Gaussian copula is a forgiving wrong answer.** `gaussian_mle_ew` degrades mildly
@@ -646,7 +646,7 @@ mean:
 Most land within 1–2 SE and the ranking survives. **`kalman_ewma_chart` does not, and it flips
 the conclusion.** On seed 42 it scores 0.0921 — identical to the bare `kalman_fast` it wraps —
 so a single seed says the EWMA detector is free. Across 20 seeds it costs 18%. The cause is in
-[§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump): it misses 8 of
+[§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump): it misses 8 of
 20 jumps, so its per-seed spread is wide and seed 42 is a lucky one.
 
 **This is the same failure mode as the BOCPD burn-in bug** (§7): one seed looking plausible
@@ -743,7 +743,7 @@ bolded here. This table = what the shipped configs do. §5.4 = what each family 
 Conflating them is the mistake §5.4 corrects.
 
 `kalman_ewma_chart` and `kalman_sr` are not in this table — they were added later; their `jump`
-numbers are in [§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump).
+numbers are in [§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump).
 
 | Model | `constant` | `drift` | `jump` | `stochastic` | `oscillate` |
 | --- | --- | --- | --- | --- | --- |
@@ -935,7 +935,7 @@ By alarm time (~46 ticks on `jump`) the filter has already partly adapted. `rese
 discards that and restarts from a flat prior, so the estimator re-climbs ground it had
 covered. `kalman_cusum` (0.1146) and `kalman_glr` (0.1110) both score worse than the
 `kalman_fast` (0.0880) they wrap. BOCPD never resets and avoids it entirely.
-[§9](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces
+[§9](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces
 this tick by tick.
 
 ### 6.5 Practical guidance
@@ -1186,7 +1186,7 @@ standardization already removes — so it could never have caught this.
 - **Real returns are not tested.** `exp` and `x^3` are severe but synthetic.
 - **Distinction 3 is now live.** Ranks shift as data arrives, so the pseudo-observations are
   not i.i.d. — which is exactly the assumption every ARL₀ result in
-  [§13](#14-references) relies on. Rank-PIT fixes the marginal problem and sharpens the
+  [§13](#15-references) relies on. Rank-PIT fixes the marginal problem and sharpens the
   calibration one.
 
 ---
@@ -1248,7 +1248,7 @@ which were already near a good operating point.
 
 **It also beats detection on detection's own ground.** On `jump`, `kalman_vff` scores
 0.0993 against `kalman_cusum`'s 0.1146 — continuous adaptation over detect-and-restart,
-which is what [§10](#11-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
+which is what [§10](#12-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
 predicted. No reset, so nothing to throw away.
 
 ### 10.4 ⚠️ What this does not establish
@@ -1274,11 +1274,66 @@ crash into a message naming the key.
 
 ---
 
-## 11. The reset is the cost: why detection loses to plain forgetting on `jump`
+## 11. The particle filter: generality that mostly costs
+
+Added 2026-09-08. Layer 2. The Kalman filter is optimal only if the state moves by
+Gaussian increments — one $\sigma_\omega^2$ serving both quiet stretches and breaks. A
+particle filter carries the posterior as samples, so the increment distribution is free.
+Here it is a jump-diffusion mixture: mostly small steps, a rare large one. Long memory
+while a regime holds, an instant move when it does not, **with no detector and no reset**.
+
+Observation likelihood is Student-$t$ ($\nu=5$) rather than Gaussian, so one odd block
+cannot collapse the weights. Systematic resampling when ESS drops below half. $O(P)$ per
+block with $P = 400$.
+
+### 11.1 Results (20 seeds)
+
+| scenario | `kalman_fast` | `kalman_vff` | `particle` | `particle_fast` |
+| --- | --- | --- | --- | --- |
+| `constant` | 0.0712 | **0.0341** | 0.0872 | 0.1165 |
+| `drift` | 0.0921 | **0.0773** | 0.1199 | 0.1472 |
+| `jump` | **0.0880** | 0.0993 | 0.1099 | 0.1288 |
+| `oscillate` | 0.3166 | 0.2690 | 0.3250 | **0.2610** |
+
+**It wins only on `oscillate`**, where ρ moves fastest and the Gaussian-increment
+assumption is most wrong. Everywhere else the strictly more general model loses to the
+simpler one.
+
+### 11.2 Why generality costs here
+
+400 particles **approximate** the posterior the Kalman filter computes **exactly**. When
+the linear-Gaussian model is roughly right, that approximation is pure added variance. The
+jump component makes it worse: 1% of particles take a large step every block whether or not
+anything has happened, so the filter pays a standing variance premium for readiness it
+rarely uses.
+
+### 11.3 The same trade, three times over
+
+| Simpler, more assuming | More general | The general one wins when |
+| --- | --- | --- |
+| standardization | rank-PIT (§9) | marginals are not Gaussian |
+| fixed λ | VFF (§10) | the fixed λ was badly chosen |
+| Kalman | particle filter (§11) | ρ moves fast (`oscillate`) |
+
+Three independent mechanisms, one shape: **the assuming method wins where its assumption
+holds and loses unboundedly where it does not.** That is the efficiency↔adaptation question
+of [roadmap.md](roadmap.md), measured three separate ways.
+
+### 11.4 ⚠️ What this does not establish
+
+- **Nothing is tuned.** `particles`, `jump_prob`, `jump_scale` and `nu` are all first
+  guesses. A sweep might change the ordering; §5.4 is the warning about exactly this.
+- **The comparison is not like-for-like on cost.** $O(400)$ per block against $O(1)$.
+- **EKF and UKF are still untried** — they sit between these two and would separate "the
+  posterior is non-Gaussian" from "the transition is non-linear".
+
+---
+
+## 12. The reset is the cost: why detection loses to plain forgetting on `jump`
 
 Added 2026-09-06, after registering `kalman_ewma_chart` and `kalman_sr`.
 
-### 11.1 The comparison is controlled
+### 12.1 The comparison is controlled
 
 The two detectors added here are the EWMA control chart (**[Roberts 1959]** ✓) and Shiryaev–Roberts
 (**[Shiryaev 1963]** ⚠️; asymptotically optimal for Pollak's conditional-average delay criterion,
@@ -1300,7 +1355,7 @@ filter with and without an alarm mechanism, not fast-vs-slow.
 Adding a detector costs 18–30% RMSE, **monotonically in alarm count** — order the
 hard-reset rows by alarms and the RMSE ordering follows exactly.
 
-### 11.2 Per-tick trace: the reset destroys a nearly-converged estimate
+### 12.2 Per-tick trace: the reset destroys a nearly-converged estimate
 
 Jump at $t=2500$, $\rho_s: 0.191 \to 0.786$. Gap % is the fraction of the jump
 still unclosed.
@@ -1330,7 +1385,7 @@ respectable. The problem is *what the alarm does*: `reset()` to an empty buffer
 teleports the estimator to ignorance, not to the new truth, and it must then
 re-accumulate at the same rate the filter was already converging.
 
-### 11.3 BOCPD is the control
+### 12.3 BOCPD is the control
 
 `kalman_bocpd` (**[Adams & MacKay 2007]** ⚠️) alarms **most** (1.45/run) and has the **best** RMSE
 (0.0598), breaking the monotone pattern outright. It never hard-resets — it reweights a
@@ -1339,7 +1394,7 @@ distribution over run lengths. The cost is not detecting; it is *committing*.
 This is the hard-decision/soft-decision axis of
 [change_detection.md](change_detection.md) appearing directly in RMSE.
 
-### 11.4 Open — the obvious next test
+### 12.4 Open — the obvious next test
 
 Candidate fix: make `reset()` inflate the state covariance (the standard adaptive
 filtering "covariance bump") or re-seed from the current estimate, rather than
@@ -1349,7 +1404,7 @@ discarding the estimate. **Untested.**
 A cheap mechanism check: run a detector with `reset()` made a no-op. If RMSE returns
 to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
-### 11.5 ⚠️ What this does not establish
+### 12.5 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
   spread of alarm rates is what makes the monotone relationship visible — it reads as
@@ -1360,7 +1415,7 @@ to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
 ---
 
-## 12. Limitations
+## 13. Limitations
 
 - **Only one layer-2 choice.** Every detector wraps the Kalman filter. Nothing here says
   whether detection helps estimators *in general* — see §0.3.
@@ -1374,7 +1429,7 @@ to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
 
 ---
 
-## 13. Reproduction
+## 14. Reproduction
 
 ```bash
 cd experiments
@@ -1403,7 +1458,7 @@ Code: `src/estimators/dependence/` — `kalman_local_level.hpp`, `kalman_cusum.h
 
 ---
 
-## 14. References
+## 15. References
 
 **✓ = in the Zotero library. ⚠️ = from memory, verify before it enters `bibliography.bib`.**
 The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
