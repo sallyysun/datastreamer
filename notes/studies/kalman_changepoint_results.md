@@ -78,23 +78,23 @@ LAYER 1  WHAT DO I ASSUME?
   ✓ Nonparametric    xiao, xiao_ew, xiao_win, hermite, hermite_ew, windowed_rank
   ✓ Parametric       gaussian_mle, clayton_mle, gumbel_mle, t_mle, copula_select
   ✓ DGP families     gaussian, clayton, gumbel, t          (all four, §8)
-  ✗ Marginals        rank-PIT never built — standardization only
+  ⬜ Marginals        rank-PIT never built — standardization only
 
 LAYER 2  HOW DO I ESTIMATE?
   ✓ Sliding window   windowed_rank
   ✓ Fixed forgetting every _ew variant
   ✓ Linear-Gaussian  kalman, kalman_fast
-  ✗ VFF              forgetting rate never made adaptive
-  ✗ EKF / UKF        never tried
-  ✗ Particle filter  never tried
-  ✗ Coefficient      only scalar rho is ever monitored; the Hermite a_jk
+  ⬜ VFF              forgetting rate never made adaptive
+  ⬜ EKF / UKF        never tried
+  ⬜ Particle filter  never tried
+  ⬜ Coefficient      only scalar rho is ever monitored; the Hermite a_jk
     monitoring       vector is computed, then discarded
 
 LAYER 3  HOW DO I HANDLE CHANGE?
   ✓ Detectors        CUSUM, GLR, EWMA chart, Shiryaev-Roberts, BOCPD
   ✓ Hard reset       the only alarm response tested
-  ✗ Covariance bump  proposed in §9.4, never built
-  ✗ No-restart       detector as a signal without restarting — never tried
+  ⬜ Covariance bump  proposed in §9.4, never built
+  ⬜ No-restart       detector as a signal without restarting — never tried
 ```
 
 **The biggest gap is a hole in the middle of the matrix.** Every detector wraps
@@ -102,10 +102,10 @@ LAYER 3  HOW DO I HANDLE CHANGE?
 
 |              | Fixed forgetting | VFF | CUSUM | GLR | EWMA | SR | BOCPD |
 | ------------ | ---------------- | --- | ----- | --- | ---- | -- | ----- |
-| **Xiao**     | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Hermite**  | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **MLEs**     | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| **Kalman**   | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Xiao**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Hermite**  | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **MLEs**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Kalman**   | ✓ | ⬜ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 So every detection result here is **conditional on one layer-2 choice**. We cannot yet
 say whether detection helps *estimators in general*, only whether it helps the Kalman
