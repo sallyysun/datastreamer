@@ -28,6 +28,10 @@ public:
         int order = 20;
         double lambda = 0.0;
         std::size_t burn_in = 100; // Number of initial samples to discard
+        // Variable forgetting on the update weight. lambda here is the UPDATE
+        // WEIGHT, so shortening memory means raising it — the mirror image of the
+        // MLE/Xiao retention convention. See the registry.hpp header.
+        double vff_rate = 0.0;
     };
 
     HermiteEstimator(Config config, const char* name)
@@ -47,14 +51,47 @@ public:
         const Eigen::VectorXd hx = hermite_functions(standardize(x, mean_x_, var_x_));
         const Eigen::VectorXd hy = hermite_functions(standardize(y, mean_y_, var_y_));
 
-        const double w = (config_.lambda > 0.0) 
-            ? config_.lambda
+        const double w = (config_.lambda > 0.0)
+            ? lambda_
             : 1.0 / static_cast<double>(n_);
         
             ax_ += w * (hx - ax_);
             ay_ += w * (hy - ay_);
+
+            // The coefficient-matrix surprise, before it is absorbed. This is the
+            // Hermite analogue of a Kalman innovation, and it carries shape change
+            // that estimate()'s collapse to a scalar rho throws away.
+            const double surprise = (hx * hy.transpose() - A_).norm();
             A_ += w * (hx * hy.transpose() - A_);
+
+            if (surprise_n_ == 0) {
+                surprise_mean_ = surprise;
+            } else {
+                const double d = surprise - surprise_mean_;
+                surprise_mean_ += w * d;
+                surprise_var_ = (1.0 - w) * (surprise_var_ + w * d * d);
+            }
+            ++surprise_n_;
+            last_surprise_ = surprise;
+
+            if (config_.vff_rate > 0.0 && config_.lambda > 0.0) {
+                fast_ += 0.05 * (surprise - fast_);
+                slow_ += 0.002 * (surprise - slow_);
+                const double ratio = fast_ / std::max(slow_, 1e-12);
+                lambda_ = std::clamp(config_.lambda * std::pow(ratio, config_.vff_rate),
+                                     config_.lambda * 0.2, config_.lambda * 20.0);
+            }
     }
+
+    // Standardized coefficient-matrix surprise, for a detector to monitor. Zero
+    // until enough history exists to have a scale for it.
+    double standardized_surprise() const {
+        if (surprise_n_ < kSurpriseBurnIn) return 0.0;
+        const double sd = std::sqrt(std::max(surprise_var_, 1e-12));
+        return (last_surprise_ - surprise_mean_) / sd;
+    }
+
+    const Eigen::MatrixXd& coefficients() const { return A_; }
 
     double estimate() const override {
         if (n_ < config_.burn_in + 1) return 0.0; // Not enough data to estimate
@@ -79,6 +116,12 @@ public:
         ax_.setZero();
         ay_.setZero();
         A_.setZero();
+        last_surprise_ = 0.0;
+        surprise_mean_ = 0.0;
+        surprise_var_ = 0.0;
+        surprise_n_ = 0;
+        lambda_ = config_.lambda;
+        fast_ = slow_ = 0.0;
     }
 
     double kendall() const {
@@ -204,6 +247,17 @@ private:
     double var_y_ = 1.0;
     double m2_x_ = 0.0; // Welford accumulators (cumulative mode)
     double m2_y_ = 0.0;
+
+    static constexpr std::size_t kSurpriseBurnIn = 200;
+
+    double lambda_ = config_.lambda;
+    double fast_ = 0.0;
+    double slow_ = 0.0;
+
+    double last_surprise_ = 0.0;
+    double surprise_mean_ = 0.0;
+    double surprise_var_ = 0.0;
+    std::size_t surprise_n_ = 0;
 
     Eigen::VectorXd ax_;
     Eigen::VectorXd ay_;

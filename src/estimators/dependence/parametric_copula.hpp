@@ -15,8 +15,8 @@ namespace copula {
 
 class CopulaFit {
 public:
-    CopulaFit(Family family, double nu, double lambda)
-        : family_(family), nu_(nu), lambda_(lambda) {
+    CopulaFit(Family family, double nu, double lambda, double vff_rate = 0.0)
+        : family_(family), nu_(nu), lambda_(lambda), lambda0_(lambda), vff_rate_(vff_rate) {
         reset();
     }
 
@@ -50,6 +50,16 @@ public:
         const double score_phi = score_p * dpar_dphi;
         if (!std::isfinite(score_phi)) return;
 
+        if (vff_rate_ > 0.0 && lambda0_ > 0.0) {
+            // E[score] = 0 when theta is right. A systematically one-signed score
+            // means theta lags, so shorten memory. lambda_ is RETENTION, so
+            // shortening means lowering it.
+            score_mean_ += vff_rate_ * (score_phi - score_mean_);
+            score_var_ += vff_rate_ * (score_phi * score_phi - score_var_);
+            const double drift = (score_mean_ * score_mean_) / std::max(score_var_, 1e-12);
+            lambda_ = std::clamp(lambda0_ * std::pow(1.0 + drift, -10.0 * vff_rate_),
+                                 0.90, 0.9999);
+        }
         const double decay = (lambda_ > 0.0) ? lambda_ : 1.0;
         info_ = decay * info_ + score_phi * score_phi;
         double step = score_phi / info_;
@@ -102,6 +112,10 @@ private:
     Family family_;
     double nu_;
     double lambda_;
+    double lambda0_ = 0.0;
+    double vff_rate_ = 0.0;
+    double score_mean_ = 0.0;
+    double score_var_ = 1.0;
     double phi_ = 0.0;
     double info_ = kPriorInfo;
 };
@@ -114,11 +128,12 @@ public:
         copula::Family family = copula::Family::Clayton;
         double nu = 4.0;
         double lambda = 0.0;
+        double vff_rate = 0.0;
         std::size_t burn_in = 50;
     };
 
     ParametricCopulaMLE(Config config, const char* name)
-        : config_(config), name_(name), fit_(config.family, config.nu, config.lambda) {}
+        : config_(config), name_(name), fit_(config.family, config.nu, config.lambda, config.vff_rate) {}
 
     void update(double x, double y) override {
         ++n_;

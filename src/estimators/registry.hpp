@@ -8,6 +8,7 @@
 #include "dependence/copula_selector.hpp"
 #include "dependence/estimator.hpp"
 #include "dependence/gaussian_mle.hpp"
+#include "dependence/hermite_cusum.hpp"
 #include "dependence/hermiter.hpp"
 #include "dependence/kalman_bocpd.hpp"
 #include "dependence/kalman_cusum.hpp"
@@ -86,12 +87,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     }
     // Detector thresholds below are calibrated by calibrate_arl0.cpp; re-run it
     // if block, sigma_omega2 or hazard_rate changes.
-    if (key == "kalman_vff") {
-        return std::make_unique<KalmanLocalLevel>(
-            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2,
-                                     .vff_rate = 0.05},
-            "kalman_vff");
-    }
     if (key == "kalman_cusum") {
         return std::make_unique<KalmanCusumDetector>(
             KalmanCusumDetector::Config{
@@ -105,6 +100,31 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
                 .window = 30, .min_lag = 1, .h = 10.0},
             "kalman_glr");
+    }
+    if (key == "hermite_vff") {
+        return std::make_unique<HermiteEstimator>(
+            HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                     .vff_rate = 0.5},
+            "hermite_vff");
+    }
+    if (key == "gaussian_mle_vff") {
+        return std::make_unique<ParametricCopulaMLE>(
+            ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
+                                        .lambda = 0.99, .vff_rate = 0.05, .burn_in = 50},
+            "gaussian_mle_vff");
+    }
+    if (key == "kalman_vff") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2,
+                                     .vff_rate = 0.05},
+            "kalman_vff");
+    }
+    if (key == "hermite_cusum") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100},
+                .delta = 1.0, .h = 5.0},
+            "hermite_cusum");
     }
     if (key == "kalman_ewma_chart") {
         return std::make_unique<KalmanEwmaChartDetector>(
@@ -186,8 +206,8 @@ inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-        "kalman", "kalman_fast", "kalman_vff", "kalman_cusum", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr",
+        "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "gaussian_mle_vff", "kalman_vff",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
