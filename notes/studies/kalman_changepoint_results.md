@@ -125,22 +125,23 @@ CUSUM, GLR, the EWMA chart, SR and BOCPD have all been **run and measured** — 
 them on `KalmanLocalLevel`, and only there.
 
 **The empty rows are not a wiring gap.** All five detectors watch
-`filter_.standardized_innovation()` — a surprise with a *known* scale, $e_t/\sqrt{F_t}$, which
-is $\mathcal N(0,1)$ when the model holds. The Kalman filter emits that for free. Xiao, Hermite
-and the MLEs emit **only $\hat\rho$** — no innovation, no $F_t$, no scale. Putting CUSUM on them
-means first *inventing* the residual (successive estimates against their sampling variance, say)
-and then calibrating its null. A design problem, not plumbing.
+`standardized_innovation()` — a surprise with a known scale. Only the Kalman filter emits one.
 
-So every detection result here is **conditional on one layer-2 choice**. We cannot yet
-say whether detection helps *estimators in general*, only whether it helps the Kalman
-filter — and [§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)
-says that for a jump, it does not.
+| Estimator | Emits an innovation? | |
+| --- | --- | --- |
+| Kalman | ✓ | $e_t/\sqrt{F_t}$, standard normal under the null |
+| MLEs | ✓ | the **score**, mean zero, variance already tracked in `info_` |
+| Hermite | ✓ | the coefficient surprise $\lVert h_xh_y^\top - A\rVert$ |
+| Xiao | ⬜ | $\hat\rho$ only — the residual has to be invented |
 
-**Where the particle filter would go.** Layer 2, replacing the Kalman filter, not
-competing with the detectors. Kalman assumes the hidden state moves linearly with Gaussian
-noise. Spearman's ρ is bounded on $(-1,1)$ and its block estimate is not Gaussian near the
-edges, so a nonlinear filter is the honest version. It costs O(number of particles) per
-tick instead of O(1) — affordable under the relaxed budget, and untested.
+So every detection result here is **conditional on one layer-2 choice**. It says detection does
+not help *the Kalman filter* on a jump ([§9](#9-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump)),
+not that it fails in general.
+
+**Where the particle filter goes.** Layer 2, replacing the Kalman filter — not competing with
+the detectors. Kalman assumes the state moves linearly with Gaussian noise; ρ is bounded and its
+block estimate is not Gaussian near the edges. Costs O(particles) per tick instead of O(1).
+Affordable under the relaxed budget, untested.
 
 **Three gaps that matter most**
 
