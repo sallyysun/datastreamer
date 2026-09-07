@@ -17,10 +17,10 @@ from those. Readers who already have this can start at §1.
 
 ---
 
-> **Citation convention.** Inline references are highlighted as **[Author Year]** and collected
+> **Citation convention.** Inline references are highlighted as **[Author Year]** ⚠️ and collected
 > in [§12](#12-references). ⚠️ Except where noted, they are **from memory** — years, volumes and
 > pages must be checked against a bibliographic database before entering `bibliography.bib`. None
-> of them are currently in the Zotero library except **[Roberts 1959]** and **[Gregory 2019]**.
+> of them are currently in the Zotero library except **[Roberts 1959]** ✓ and **[Gregory 2019]** ✓.
 
 ## 0. Orientation
 
@@ -322,9 +322,9 @@ $$
 
 Large $\Lambda_t$ means $H_1$ explains the data better. Every detector below is a way of computing
 or approximating this online — they differ only in what they do with the unknown change time $\nu$:
-**maximise** over it (CUSUM **[Page 1954]**, GLR **[Willsky & Jones 1976]**), **sum** over it
-(Shiryaev–Roberts **[Shiryaev 1963]**), **smooth** it (EWMA chart **[Roberts 1959]**), or carry a
-**posterior** over it (BOCPD **[Adams & MacKay 2007]**). All of them run on the standardized innovations $e_t/\sqrt{F_t}$,
+**maximise** over it (CUSUM **[Page 1954]** ⚠️, GLR **[Willsky & Jones 1976]** ⚠️), **sum** over it
+(Shiryaev–Roberts **[Shiryaev 1963]** ⚠️), **smooth** it (EWMA chart **[Roberts 1959]** ✓), or carry a
+**posterior** over it (BOCPD **[Adams & MacKay 2007]** ⚠️). All of them run on the standardized innovations $e_t/\sqrt{F_t}$,
 which are i.i.d. $\mathcal N(0,1)$ under $H_0$ — so "has something changed?" becomes "have these
 stopped looking like standard normal noise?"
 
@@ -1120,9 +1120,9 @@ Added 2026-09-06, after registering `kalman_ewma_chart` and `kalman_sr`.
 
 ### 11.1 The comparison is controlled
 
-The two detectors added here are the EWMA control chart (**[Roberts 1959]**) and Shiryaev–Roberts
-(**[Shiryaev 1963]**; asymptotically optimal for Pollak's conditional-average delay criterion,
-**[Pollak 1985]**). All four detectors wrap `KalmanLocalLevel` at `sigma_omega2 = 1e-2` — **the same
+The two detectors added here are the EWMA control chart (**[Roberts 1959]** ✓) and Shiryaev–Roberts
+(**[Shiryaev 1963]** ⚠️; asymptotically optimal for Pollak's conditional-average delay criterion,
+**[Pollak 1985]** ⚠️). All four detectors wrap `KalmanLocalLevel` at `sigma_omega2 = 1e-2` — **the same
 configuration as `kalman_fast`**. So `kalman_fast` vs any detector is the same base
 filter with and without an alarm mechanism, not fast-vs-slow.
 
@@ -1172,7 +1172,7 @@ re-accumulate at the same rate the filter was already converging.
 
 ### 11.3 BOCPD is the control
 
-`kalman_bocpd` (**[Adams & MacKay 2007]**) alarms **most** (1.45/run) and has the **best** RMSE
+`kalman_bocpd` (**[Adams & MacKay 2007]** ⚠️) alarms **most** (1.45/run) and has the **best** RMSE
 (0.0598), breaking the monotone pattern outright. It never hard-resets — it reweights a
 distribution over run lengths. The cost is not detecting; it is *committing*.
 
@@ -1213,7 +1213,7 @@ The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
   up to 70%. The argument for rank-PIT (§0.5).
 - ✓ **[Kojadinovic & Yan 2010]** — rank-based goodness-of-fit; the batch counterpart to
   `copula_select`.
-- ✓ **[Patton 2006]**, ✓ **[Opschoor et al. 2021]** — dynamic / score-driven copulas, the
+- ✓ **[Patton 2006]**, ✓ **[Opschoor et al. 2021]** ✓ — dynamic / score-driven copulas, the
   literature this state-space framing sits beside.
 
 **Layer 2 — how we estimate**
@@ -1221,9 +1221,9 @@ The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
 - ⚠️ **[Kalman 1960]** — the filter. ⚠️ **[Harvey 1989]**, ⚠️ **[Durbin & Koopman 2001]** —
   local-level model.
 - ✓ **[Xiao 2019]** — online empirical-copula Spearman estimator.
-- ✓ **[Stephanou & Varughese 2021]**, ✓ **[hermiter 2024]** — sequential Spearman via
+- ✓ **[Stephanou & Varughese 2021]**, ✓ **[hermiter 2024]** ✓ — sequential Spearman via
   Hermite series; `external/hermiter`.
-- ✓ **[Segers 2012]**, ✓ **[Bücher & Volgushev 2013]** — weak convergence of empirical and
+- ✓ **[Segers 2012]**, ✓ **[Bücher & Volgushev 2013]** ✓ — weak convergence of empirical and
   *sequential* empirical copula processes under serial dependence, with multiplier
   bootstrap. The theory §3.7's bootstrapped ARL₀ currently substitutes for empirically.
 - ✓ **[Gregory 2019]** — streaming empirical copula with error bounds. Cumulative: no
@@ -1243,7 +1243,7 @@ The ⚠️ set is tracked as an acquisition item in [todo.md](../todo.md).
 - ✓ **[Roberts 1959]** — EWMA control chart; `kalman_ewma_chart`. In Zotero as the 2000
   Technometrics reprint.
 - ⚠️ **[Shiryaev 1963]** — the Shiryaev–Roberts statistic; `kalman_sr`.
-- ⚠️ **[Willsky & Jones 1976]** — GLR. ⚠️ **[Lai 1995]** — the window-limited form that is
+- ⚠️ **[Willsky & Jones 1976]** — GLR. ⚠️ **[Lai 1995]** ⚠️ — the window-limited form that is
   streaming-admissible.
 - ⚠️ **[Adams & MacKay 2007]** — BOCPD. Taken from the paper itself, not memory.
 
