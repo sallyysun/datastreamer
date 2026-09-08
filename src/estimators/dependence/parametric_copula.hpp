@@ -7,6 +7,7 @@
 #include "../copula_family.hpp"
 #include "../special_functions.hpp"
 #include "estimator.hpp"
+#include "marginal_rank_pit.hpp"
 
 // Online MLE for the Clayton / Gumbel / Student-t copulas, fitted in an
 // unconstrained coordinate phi by an empirical-Fisher natural-gradient step.
@@ -129,6 +130,10 @@ public:
         double nu = 4.0;
         double lambda = 0.0;
         double vff_rate = 0.0;
+        // Rank-PIT marginals instead of a Gaussian CDF of the standardized value.
+        // pseudo() is exact only for Gaussian margins; ranks are exact for any
+        // continuous margin. Section 9.
+        std::size_t rank_pit_window = 0;   // 0 keeps pseudo()
         std::size_t burn_in = 50;
     };
 
@@ -139,8 +144,15 @@ public:
         ++n_;
         update_marginals(x, y);
         if (n_ < 2) return;
-        const double u = pseudo(x, mean_x_, var_x_);
-        const double v = pseudo(y, mean_y_, var_y_);
+        double u, v;
+        if (config_.rank_pit_window > 0) {
+            u = pit_x_.transform(x);
+            v = pit_y_.transform(y);
+            if (pit_x_.size() < 30) return;   // no usable rank scale yet
+        } else {
+            u = pseudo(x, mean_x_, var_x_);
+            v = pseudo(y, mean_y_, var_y_);
+        }
         fit_.update_uv(u, v);
     }
 
@@ -183,6 +195,10 @@ private:
     }
 
     Config config_;
+    // Declared after config_: a member initializer reading config_ from above it
+    // would run before config_ exists.
+    RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
+    RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     const char* name_;
     copula::CopulaFit fit_;
     std::size_t n_ = 0;

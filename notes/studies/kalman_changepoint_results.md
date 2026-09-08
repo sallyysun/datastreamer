@@ -1157,11 +1157,23 @@ A strictly monotone transform of a marginal leaves the copula **exactly** unchan
 movement in $\hat\rho$ is pure marginal contamination. Gaussian copula, $\rho=0.6$
 (true $\rho_S = 0.5819$), 10 seeds, $N=20{,}000$, mean $|\hat\rho - \rho_S|$:
 
-| marginal $x \mapsto$ | `hermite_ew` | `hermite_pit` |
-| --- | --- | --- |
-| identity | **0.0187** | 0.0274 |
-| $e^x$ (skewed) | 0.0386 | **0.0274** |
-| $x^3$ (heavy) | 0.0695 | **0.0274** |
+| marginal $x \mapsto$ | `hermite_ew` | `hermite_pit` | `gaussian_mle_param` | `gaussian_mle_pit` | `kalman_mid` |
+| --- | --- | --- | --- | --- | --- |
+| identity | **0.0187** | 0.0274 | 0.0273 | 0.0249 | 0.0198 |
+| $e^x$ (skewed) | 0.0386 | 0.0274 | 0.0424 | 0.0249 | **0.0198** |
+| $x^3$ (heavy) | 0.0695 | 0.0274 | 0.0365 | 0.0249 | **0.0198** |
+
+**Three estimators are exactly invariant**: `hermite_pit`, `gaussian_mle_pit`, and
+`kalman_mid` — the last with no work at all, because `block_spearman()` ranks within each
+block, so the Kalman observation channel never had the marginal problem (§3.1 said so; this
+is the measurement). `kalman_mid` is also the most accurate of the invariant three.
+
+**Rank-PIT is free for the MLE and costs efficiency for Hermite.** `gaussian_mle_pit`
+(0.0249) beats the standardized `gaussian_mle_param` (0.0273) even on clean Gaussian
+marginals, whereas `hermite_pit` (0.0274) loses to `hermite_ew` (0.0187) there. The MLE's
+`pseudo()` divides by a *running* Welford variance that is noisy in its own right; a
+500-window rank is better conditioned. **So the efficiency↔robustness trade is not
+universal — it depends on what the "efficient" method is actually doing.**
 
 **`hermite_pit` is exactly constant.** Not approximately — ranks are literally unchanged by
 a monotone map, so the estimate cannot move. `hermite_ew` degrades **3.7×** under the cube
@@ -1193,8 +1205,11 @@ standardization already removes — so it could never have caught this.
 
 ### 9.4 ⚠️ What this does not establish
 
-- **Only Hermite is converted.** Xiao, the MLEs and the Kalman observation still
-  standardize. Every number in §5–§8 is still on the old marginals.
+- **Xiao is still not converted.** Hermite and the copula MLEs now have rank-PIT variants;
+  the Kalman channel never needed one. Xiao bins marginals into equiprobable cells with
+  estimated cutpoints, which is rank-*like* but not rank-exact — untested.
+- **The `_pit` variants are additions, not replacements.** Every number in §5–§8 is still
+  on the old marginals.
 - **The window is a new hyper-parameter** (500). Too short and the rank scale is noisy;
   too long and it cannot follow a genuinely changing marginal.
 - **Real returns are not tested.** `exp` and `x^3` are severe but synthetic.

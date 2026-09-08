@@ -121,6 +121,21 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                                         .lambda = 0.99, .vff_rate = 0.05, .burn_in = 50},
             "gaussian_mle_vff");
     }
+    if (key == "gaussian_mle_param") {
+        // Control: same class as gaussian_mle_pit, no rank-PIT. Isolates whether a
+        // fault is in the marginals or in ParametricCopulaMLE's Gaussian path,
+        // which no registered key had exercised before.
+        return std::make_unique<ParametricCopulaMLE>(
+            ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
+                                        .lambda = 0.99, .burn_in = 50},
+            "gaussian_mle_param");
+    }
+    if (key == "gaussian_mle_pit") {
+        return std::make_unique<ParametricCopulaMLE>(
+            ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
+                                        .lambda = 0.99, .rank_pit_window = 500, .burn_in = 50},
+            "gaussian_mle_pit");
+    }
     if (key == "kalman_mid") {
         // Matched sigma_omega2 for the EKF/UKF comparison: same process noise,
         // the only difference being the Fisher transform vs a nonlinear observation.
@@ -246,7 +261,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "kalman_mid", "ekf", "ukf",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
