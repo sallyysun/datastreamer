@@ -1397,6 +1397,29 @@ the win evaporates.
 **That is §5.4's mistake, live.** Any comparison across filter families has to fix the
 forgetting parameter first, or it measures the tuning rather than the method.
 
+### 12.4 Confirmed across all four DGP families
+
+20 seeds, full grid. `constant` / `jump`, RMSE:
+
+| estimator | gaussian | clayton | gumbel | $t$ |
+| --- | --- | --- | --- | --- |
+| `kalman_mid` | **0.0387** / **0.0840** | **0.0444** / **0.0898** | **0.0452** / **0.0877** | **0.0455** / 0.0901 |
+| `ekf` | 0.0477 / 0.0977 | 0.0530 / 0.1028 | 0.0531 / 0.1013 | 0.0548 / 0.1026 |
+| `ukf` | 0.0460 / 0.0968 | 0.0514 / 0.1021 | 0.0515 / 0.1005 | 0.0531 / 0.1019 |
+| `kalman_vff` | 0.0341 / 0.0993 | 0.0482 / 0.0993 | 0.0463 / 0.0978 | 0.0508 / **0.0948** |
+| `hermite_ew` | 0.0520 / 0.0815 | 0.0604 / 0.0897 | 0.0566 / 0.0855 | 0.0604 / 0.0902 |
+| `hermite_pit` | 0.0486 / 0.0804 | 0.0558 / 0.0869 | 0.0553 / 0.0843 | 0.0575 / 0.0878 |
+
+**The Fisher transform beats EKF/UKF in every cell.** Not a Gaussian artifact.
+
+**`hermite_pit` beats `hermite_ew` in every cell too** — consistently, though only by 2–8%,
+because these DGPs have Gaussian marginals (§9.3).
+
+⚠️ **`kalman_vff`'s advantage is partly Gaussian-specific.** On `constant` it leads at
+0.0341 on Gaussian but degrades to 0.0482–0.0508 off-family, while `kalman_mid` moves only
+0.0387→0.0455. The innovation-variance signal VFF drives on assumes a correctly specified
+noise model, and off-family that assumption weakens. Same pattern as everything else in §1.
+
 ---
 
 ## 13. The reset is the cost: why detection loses to plain forgetting on `jump`
