@@ -19,6 +19,7 @@
 #include "../src/estimators/dependence/kalman_ewma_chart.hpp"
 #include "../src/estimators/dependence/kalman_glr.hpp"
 #include "../src/estimators/dependence/kalman_shiryaev_roberts.hpp"
+#include "../src/estimators/dependence/mle_score_cusum.hpp"
 
 namespace {
 
@@ -119,6 +120,28 @@ int main(int argc, char** argv) {
                 "kalman_sr");
         },
         {2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "gaussian_mle_cusum",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<MleScoreCusumDetector>(
+                MleScoreCusumDetector::Config{
+                    .mle = GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50},
+                    .block = 20, .delta = 1.0, .h = h},
+                "gaussian_mle_cusum");
+        },
+        {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "gaussian_mle_cum_cusum",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<MleScoreCusumDetector>(
+                MleScoreCusumDetector::Config{
+                    .mle = GaussianCopulaMLE::Config{.lambda = 0.0, .burn_in = 50},
+                    .block = 20, .delta = 1.0, .h = h},
+                "gaussian_mle_cum_cusum");
+        },
+        {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
 
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(

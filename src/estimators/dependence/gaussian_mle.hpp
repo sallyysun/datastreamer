@@ -30,6 +30,18 @@ public:
     struct Config {
         double lambda = 0.0;       // forgetting for the dependence info; 0 => cumulative
         std::size_t burn_in = 50;  // samples before reporting an estimate
+
+        // What an alarm should do, in this estimator's own currency. The MLE's
+        // step size is 1/info_, so deflating info_ is the exact analogue of the
+        // Kalman filter's covariance inflation: it raises the gain without
+        // discarding theta_. Section 14.10.
+        //   deflation > 1 : info_ /= deflation, theta_ kept
+        //   deflation = 0 : reset() does nothing (the control)
+        double reset_deflation = -1.0;   // <0 keeps the hard reset
+
+        // Control for the soft reset: deflate on a fixed schedule instead of on
+        // an alarm, with no detector at all. Section 14.10.
+        std::size_t periodic_deflate_ticks = 0;   // 0 disables
     };
 
     GaussianCopulaMLE(Config config, const char* name)
@@ -49,6 +61,12 @@ public:
         const double i_theta = 1.0 + rho * rho;  // Fisher information in theta
         if (!std::isfinite(s_theta)) return;
 
+        // At the true theta the score has mean 0 and variance i_theta, so this is
+        // already a standardized innovation -- no statistic has to be invented for
+        // a detector to threshold. Evaluated BEFORE the step, so it measures the
+        // surprise in this observation rather than what is left after absorbing it.
+        last_std_score_ = s_theta / std::sqrt(i_theta);
+
         const double decay = (config_.lambda > 0.0) ? config_.lambda : 1.0;
         info_ = decay * info_ + i_theta;
         // score(.,.,rho) carries 1/(1-rho^2)^2 and drho_dtheta cancels only one
@@ -57,6 +75,10 @@ public:
         // then latch theta at NaN for the rest of the stream. Same guards, and
         // the same +-0.999 bound, as ParametricCopulaMLE.
         theta_ = std::clamp(theta_ + s_theta / info_, -kMaxTheta, kMaxTheta);
+
+        if (config_.periodic_deflate_ticks > 0 && n_ % config_.periodic_deflate_ticks == 0) {
+            info_ = std::max(info_ / config_.reset_deflation, 1e-12);
+        }
     }
 
     double estimate() const override {
@@ -68,9 +90,15 @@ public:
     }
 
     void reset() override {
+        if (config_.reset_deflation == 0.0) return;               // no-op control
+        if (config_.reset_deflation > 0.0) {                       // soft: raise the gain
+            info_ = std::max(info_ / config_.reset_deflation, 1e-12);
+            return;
+        }
         n_ = 0;
         theta_ = 0.0;
         info_ = 0.0;
+        last_std_score_ = 0.0;
         mean_x_ = mean_y_ = 0.0;
         m2_x_ = m2_y_ = 0.0;
         var_x_ = var_y_ = 1.0;
@@ -80,6 +108,10 @@ public:
     const char* name() const override { return name_; }
 
     double rho() const { return std::tanh(theta_); }  // copula (linear) correlation
+
+    // Valid only for the tick that just closed; zero during the n_ < 2 warm-up.
+    double standardized_score() const { return last_std_score_; }
+    std::size_t samples() const { return n_; }
 
 private:
     static constexpr double kMaxTheta = 3.8002;  // atanh(0.999)
@@ -107,6 +139,7 @@ private:
 
     double theta_ = 0.0;  // atanh(rho)
     double info_ = 0.0;   // accumulated Fisher information
+    double last_std_score_ = 0.0;
 
     double mean_x_ = 0.0, mean_y_ = 0.0;
     double m2_x_ = 0.0, m2_y_ = 0.0;

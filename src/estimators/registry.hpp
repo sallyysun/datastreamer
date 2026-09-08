@@ -18,6 +18,7 @@
 #include "dependence/kalman_glr.hpp"
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/kalman_shiryaev_roberts.hpp"
+#include "dependence/mle_score_cusum.hpp"
 #include "dependence/parametric_copula.hpp"
 #include "dependence/nonlinear_kalman.hpp"
 #include "dependence/particle_filter.hpp"
@@ -181,6 +182,67 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e1, .burn_in_blocks = 2},
             "kalman_q10");
+    }
+    // The MLE's score is already a standardized innovation, so this is the one
+    // detector in the set that needs no statistic invented for it. The three arms
+    // are the same alarm with the three responses of section 14.
+    if (key == "gaussian_mle_cusum") {
+        return std::make_unique<MleScoreCusumDetector>(
+            MleScoreCusumDetector::Config{
+                .mle = GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50,
+                                                 .reset_deflation = -1.0},
+                .block = 20, .delta = 1.0, .h = 4.0},
+            "gaussian_mle_cusum");
+    }
+    if (key == "gaussian_mle_cusum_noreset") {
+        return std::make_unique<MleScoreCusumDetector>(
+            MleScoreCusumDetector::Config{
+                .mle = GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50,
+                                                 .reset_deflation = 0.0},
+                .block = 20, .delta = 1.0, .h = 4.0},
+            "gaussian_mle_cusum_noreset");
+    }
+    if (key == "gaussian_mle_cusum_soft") {
+        return std::make_unique<MleScoreCusumDetector>(
+            MleScoreCusumDetector::Config{
+                .mle = GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50,
+                                                 .reset_deflation = 20.0},
+                .block = 20, .delta = 1.0, .h = 4.0},
+            "gaussian_mle_cusum_soft");
+    }
+    // Same detector on the CUMULATIVE MLE, where theta_ adapts at 1/n and so
+    // cannot chase the change away before the CUSUM sees it.
+    if (key == "gaussian_mle_cum_cusum") {
+        return std::make_unique<MleScoreCusumDetector>(
+            MleScoreCusumDetector::Config{
+                .mle = GaussianCopulaMLE::Config{.lambda = 0.0, .burn_in = 50},
+                .block = 20, .delta = 1.0, .h = 6.0},
+            "gaussian_mle_cum_cusum");
+    }
+    // Controls for the score-CUSUM's soft arm, exactly as section 14.8 did for
+    // the Kalman soft reset: does the alarm TIMING matter, and is the whole
+    // effect reachable by tuning lambda instead?
+    if (key == "gaussian_mle_periodic_defl") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50, .reset_deflation = 20.0,
+                                      .periodic_deflate_ticks = 190},
+            "gaussian_mle_periodic_defl");
+    }
+    if (key == "gaussian_mle_l95") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.95, .burn_in = 50}, "gaussian_mle_l95");
+    }
+    if (key == "gaussian_mle_l98") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.98, .burn_in = 50}, "gaussian_mle_l98");
+    }
+    if (key == "gaussian_mle_l995") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.995, .burn_in = 50}, "gaussian_mle_l995");
+    }
+    if (key == "gaussian_mle_l999") {
+        return std::make_unique<GaussianCopulaMLE>(
+            GaussianCopulaMLE::Config{.lambda = 0.999, .burn_in = 50}, "gaussian_mle_l999");
     }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
@@ -384,7 +446,9 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft",
         "kalman_cusum_inf2", "kalman_cusum_inf5", "kalman_cusum_inf10", "kalman_cusum_inf50",
-        "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
+        "gaussian_mle_cusum", "gaussian_mle_cusum_noreset", "gaussian_mle_cusum_soft",
+        "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
+        "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",

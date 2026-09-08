@@ -492,6 +492,18 @@ everywhere — but ⚠️ it does not *earn* anything either: its apparent `osci
 beaten both by inflating on a blind clock and by simply running the filter at a larger
 process noise. [§14.6–14.8](#146-the-reset-is-the-whole-cost--confirmed-and-fixed).
 
+**4d. A detector on the MLE's own score is the first one that earns its keep.** Fisher
+scoring already computes a mean-0, variance-1 innovation (`score / √info`) and nobody had
+thresholded it. At matched ARL₀ it detects **20/20** against the Kalman detectors' 17–19/20,
+at the same delay with half the SE — it sees every tick, they see one number per 20. Paired
+with information deflation instead of a reset it scores 0.0664 on `jump`, beating the best
+fixed λ by 5.0σ *and* passing both controls that killed the Kalman soft reset.
+[§14.10](#1410-the-mle-score-cusum-the-first-detector-that-earns-its-keep).
+
+**4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
+which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
+the answer is to tune (or learn) the forgetting rate instead.
+
 **4c. The forgetting rate matters ~4× more than any detector, and should be learned.** The
 `sigma_omega2 = 1e-2` every detector wraps was never swept. Sweeping it, the best value
 differs per scenario across two and a half orders of magnitude — and `kalman_vff`, choosing
@@ -1775,6 +1787,119 @@ which scenario it is in. The fixed-q row above it is an oracle; the VFF row is n
 
 So detection is free, and still buys nothing measured. The knob that does buy something is
 the forgetting rate, and the way to set it is to let the data set it.
+
+
+### 14.10 The MLE score-CUSUM: the first detector that earns its keep
+
+Every detector above wraps the Kalman filter, because it is the one estimator that hands out
+a ready-made standardized innovation. **The MLE hands out one too, and it was never used.**
+
+```text
+Fisher scoring already computes, every tick:
+    s_theta   the score            E[s] = 0 at the true theta
+    i_theta   the information      Var[s] = i_theta
+
+so                s_theta / sqrt(i_theta)
+is a mean-0, variance-1 innovation -- exactly what a CUSUM wants.
+Nothing invented, nothing re-estimated, no extra state.
+```
+
+Scores are summed over 20 ticks before thresholding: a per-tick copula score is heavy-tailed,
+a block sum is near-normal by the CLT, and `block = 20` makes the alarm rate directly
+comparable to `kalman_cusum`'s. Calibrated to the same ARL₀ = 1000 blocks, giving **h = 4.0**.
+
+#### 14.10.1 Detection quality, at matched ARL₀
+
+| `jump`, 20 seeds | hits | delay (ticks) | false alarms before |
+| --- | --- | --- | --- |
+| `kalman_cusum` | 19/20 | 46.4 ± 4.9 | 0.05 |
+| `kalman_glr` | 17/20 | 49.6 ± 6.9 | 0.00 |
+| `kalman_ewma_chart` | 18/20 | 47.9 ± 4.9 | 0.00 |
+| `kalman_sr` | 19/20 | 51.6 ± 4.4 | 0.00 |
+| **`gaussian_mle_cusum`** | **20/20** | **47.0 ± 2.2** | 0.15 |
+
+Same mean delay, but **no misses and half the standard error**. The reason is mechanical: the
+Kalman detectors see one number per 20 ticks, the score detector sees all 20. §14.3 found the
+four block detectors indistinguishable from each other; the per-tick one is the first thing
+that separates from them, and it separates on *reliability*, not speed.
+
+#### 14.10.2 The three responses reproduce on a different estimator family
+
+The MLE's step size is `1/info_`, so the analogue of covariance inflation is **information
+deflation** — `info_ /= 20`, keeping θ̂. Same idea, this estimator's own currency.
+
+| | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- |
+| `gaussian_mle_ew` (no detector) | 0.0375 | 0.0624 | 0.0745 | 0.3508 |
+| hard reset | 0.0496 | 0.0680 | 0.1107 | 0.3149 |
+| no-op control | 0.0375 | 0.0624 | 0.0745 | 0.3508 |
+| **soft (info deflation)** | 0.0379 | 0.0627 | **0.0664** | **0.2589** |
+
+The no-op row equals the no-detector row to four decimals in three of four scenarios — the
+§14.6 finding, reproduced on an estimator that shares no code with the Kalman filter. **The
+reset being the whole cost is a property of the response, not of the filter.**
+
+#### 14.10.3 The controls — and this time they pass
+
+§14.8 killed the Kalman soft reset with two controls. Both were run again here.
+
+| `jump` | RMSE | |
+| --- | --- | --- |
+| `gaussian_mle_cusum_soft` | **0.0664** | detector-timed deflation |
+| `gaussian_mle_periodic_defl` | 0.0903 | blind clock, same rate → **worse than no detector** |
+| best fixed λ (0.99) | 0.0745 | λ ∈ {0.95, 0.98, 0.99, 0.995, 0.999} swept |
+| `gaussian_mle_vff` | 0.0708 | adaptive λ, no detector |
+
+**The detector beats the best fixed λ by 5.0σ, and beats adaptive λ by 2.3σ. Blind deflation
+at the same rate is worse than doing nothing.** So the alarm timing carries real information,
+and the effect is not reachable by tuning. This is the first result in the document where a
+detector earns its keep against its own controls.
+
+The reason it works here and not for the Kalman soft reset is the shape of the change. A
+`jump` is one instant where a *lot* of information becomes stale at once. Deflating `info_`
+says exactly that — "most of what I have accumulated is about the old regime" — and it is
+true only at that instant, which is why a clock cannot substitute for a detector.
+
+#### 14.10.4 ⚠️ On `oscillate` it fails the same control as before
+
+| `oscillate` | RMSE |
+| --- | --- |
+| `gaussian_mle_cusum_soft` | 0.2589 |
+| `gaussian_mle_periodic_defl` | 0.2711 |
+| **`gaussian_mle_l95`** (λ = 0.95, no detector) | **0.1710** |
+
+Short memory beats the detector by a wide margin, exactly as `kalman_q03` did in §14.8. A
+continuously moving truth has no instant at which information goes stale, so there is nothing
+for an alarm to time.
+
+`gaussian_mle_l95`'s 0.1710 is also **the best `oscillate` number anywhere in this document** —
+better than the best tuned Kalman (0.2256, §14.8b). That is finding 3 again from the other
+side: the Kalman filter's floor is block aggregation, and a per-tick estimator does not have it.
+
+#### 14.10.5 The rule that now covers every detector result here
+
+```text
+Does the change have an INSTANT at which past information goes stale?
+
+  yes (jump)          -> a detector beats every tuning of the estimator
+                         gaussian_mle_cusum_soft  0.0664  vs  best fixed lambda 0.0745
+
+  no  (oscillate,     -> tune the forgetting rate; the detector is at best free
+       drift)            gaussian_mle_l95         0.1710  vs  detector 0.2589
+```
+
+The λ sweep behind that, for the record:
+
+| λ | ESS | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- | --- |
+| 0.95 | 20 | 0.0942 | 0.1309 | 0.1082 | **0.1710** |
+| 0.98 | 50 | 0.0553 | 0.0805 | 0.0766 | 0.2665 |
+| 0.99 | 100 | 0.0375 | 0.0624 | **0.0745** | 0.3508 |
+| 0.995 | 200 | 0.0256 | **0.0672** | 0.0905 | 0.3922 |
+| 0.999 | 1000 | **0.0142** | 0.2048 | 0.1890 | 0.4097 |
+
+Same shape as the `sigma_omega2` sweep in §14.8b, on a different estimator: the best setting
+differs per scenario across the whole range, and no single one is close to good everywhere.
 
 
 ### 14.9 ⚠️ What this does not establish

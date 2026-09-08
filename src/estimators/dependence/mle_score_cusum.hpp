@@ -1,0 +1,96 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+
+#include "change_detector.hpp"
+#include "estimator.hpp"
+#include "gaussian_mle.hpp"
+
+// Two-sided CUSUM on the Gaussian-copula MLE's own score.
+//
+// Every other detector in this document wraps the Kalman filter, which is the
+// one estimator that hands out a ready-made standardized innovation. The MLE
+// hands out one too and it was never used: at the true theta the score has mean
+// zero and variance I_theta, so s / sqrt(I_theta) is already the quantity a
+// CUSUM wants. Nothing has to be invented, and nothing has to be re-estimated.
+//
+// Scores are summed over a block of `block` ticks before being thresholded, for
+// two reasons: a per-tick copula score is heavy-tailed while a block sum is
+// close to normal by the CLT, and block = 20 makes the alarm rate directly
+// comparable to kalman_cusum's.
+//
+// See section 14.10 of notes/studies/kalman_changepoint_results.md.
+class MleScoreCusumDetector : public DependenceEstimator, public ChangeDetector {
+public:
+    struct Config {
+        GaussianCopulaMLE::Config mle;
+        std::size_t block = 20;
+        double delta = 1.0;   // design shift, in block-score SDs
+        double h = 3.5;       // alarm threshold; calibrate via calibrate_arl0.cpp
+        std::size_t burn_in_blocks = 3;
+    };
+
+    MleScoreCusumDetector(Config config, const char* name)
+        : config_(config), name_(name), inner_(config.mle, name) {}
+
+    void update(double x, double y) override {
+        inner_.update(x, y);
+        alarmed_ = false;
+
+        sum_ += inner_.standardized_score();
+        if (++in_block_ < config_.block) return;
+
+        // Each term has unit variance and the MLE step makes successive terms
+        // only weakly dependent, so the block sum is scaled by sqrt(block).
+        const double e = sum_ / std::sqrt(static_cast<double>(config_.block));
+        sum_ = 0.0;
+        in_block_ = 0;
+        if (++blocks_ <= config_.burn_in_blocks) return;
+
+        const double k = config_.delta / 2.0;
+        s_pos_ = std::max(0.0, s_pos_ + e - k);
+        s_neg_ = std::max(0.0, s_neg_ - e - k);
+
+        if (s_pos_ > config_.h || s_neg_ > config_.h) {
+            alarmed_ = true;
+            ++alarm_count_;
+            inner_.reset();
+            s_pos_ = s_neg_ = 0.0;
+        }
+    }
+
+    double estimate() const override { return inner_.estimate(); }
+
+    void reset() override {
+        inner_.reset();
+        s_pos_ = s_neg_ = 0.0;
+        sum_ = 0.0;
+        in_block_ = 0;
+        blocks_ = 0;
+        alarmed_ = false;
+        alarm_count_ = 0;
+    }
+
+    std::size_t store_bytes() const override {
+        return inner_.store_bytes() + sizeof(*this) - sizeof(inner_);
+    }
+
+    const char* name() const override { return name_; }
+
+    bool alarmed_this_block() const override { return alarmed_; }
+    std::size_t alarm_count() const { return alarm_count_; }
+
+private:
+    Config config_;
+    const char* name_;
+    GaussianCopulaMLE inner_;
+
+    double sum_ = 0.0;
+    std::size_t in_block_ = 0;
+    std::size_t blocks_ = 0;
+    double s_pos_ = 0.0, s_neg_ = 0.0;
+    bool alarmed_ = false;
+    std::size_t alarm_count_ = 0;
+};
