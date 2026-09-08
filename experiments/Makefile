@@ -19,13 +19,16 @@ calibrate_arl0:
 multiseed:
 	$(CXX) multiseed.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o multiseed
 
+probe_shape:
+	$(CXX) probe_shape.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_shape
+
 probe_score_scale:
 	$(CXX) probe_score_scale.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_score_scale
 
 clean:
-	rm -f experiment calibrate_arl0 multiseed probe_score_scale
+	rm -f experiment calibrate_arl0 multiseed probe_score_scale probe_shape
 
-.PHONY: experiment calibrate_arl0 multiseed probe_score_scale clean
+.PHONY: experiment calibrate_arl0 multiseed probe_score_scale probe_shape clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.

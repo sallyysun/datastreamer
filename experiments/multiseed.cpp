@@ -30,6 +30,9 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
     if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    // Dependence is CONSTANT; the change is in the copula's shape, injected by
+    // the gauss2t family below. Section 14.13.
+    if (scenario == "shape") return std::make_unique<ConstantDependence>(0.6);
     return nullptr;
 }
 
@@ -73,7 +76,7 @@ SeedResult run_one_seed(const std::string& scenario, const std::string& family,
     r.false_before.assign(keys.size(), 0.0);
     r.detection_delay.assign(keys.size(), -1);
 
-    const bool has_known_jump = (scenario == "jump");
+    const bool has_known_jump = (scenario == "jump" || scenario == "shape");
     const std::size_t jump_t = N / 2;
 
     for (std::size_t e = 0; e < keys.size(); ++e) {
@@ -136,7 +139,7 @@ int main(int argc, char** argv) {
     const std::size_t burn = 500;
 
     if (!make_dependence(scenario, N, base_seed)) {
-        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate)\n",
+        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate|shape)\n",
                      scenario.c_str());
         return 1;
     }
@@ -144,9 +147,12 @@ int main(int argc, char** argv) {
     // dgp::make_copula falls back to Gaussian on an unrecognised name, which would
     // silently mislabel a whole grid, so reject anything unknown up front.
     const char* copula_env = std::getenv("COPULA");
-    const std::string family = copula_env ? copula_env : "gaussian";
+    // `shape` IS a copula family change, so it fixes its own family -- COPULA
+    // would otherwise silently pick the DGP apart from the scenario it names.
+    const std::string family = (scenario == "shape") ? "gauss2t"
+                             : (copula_env ? copula_env : "gaussian");
     if (family != "gaussian" && family != "clayton" && family != "gumbel" &&
-        family != "t" && family != "student_t") {
+        family != "t" && family != "student_t" && family != "gauss2t") {
         std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t)\n", family.c_str());
         return 1;
     }
@@ -165,7 +171,7 @@ int main(int argc, char** argv) {
     std::vector<std::vector<double>> delays(keys.size());
     std::vector<int> misses(keys.size(), 0);
 
-    const bool has_known_jump = (scenario == "jump");
+    const bool has_known_jump = (scenario == "jump" || scenario == "shape");
 
     for (int s = 0; s < n_seeds; ++s) {
         const unsigned seed = base_seed + static_cast<unsigned>(s);

@@ -515,6 +515,16 @@ fails quietly.** Standardizing by the score's empirical variance instead of the 
 information (one accumulator) restores one threshold across all four.
 [§14.12](#1412-off-family-the-detection-survives-the-calibration-does-not).
 
+**4h. A shape change at constant ρ: nobody detects it, and coefficient monitoring fails
+again.** A DGP that switches Gaussian → t(4) with Spearman ρ flat to five decimals (tail
+dependence 0 → ~0.3) leaves every ρ-monitoring detector at 1–2/20, which is their false-alarm
+rate. **`hermite_cusum2` gets 0/20 — on the change it was built for**, which retires the
+"tested against the wrong hypothesis" defence. The only thing with power is
+`gaussian_mle_cusum` at 17/20, and it works by *misspecification sensitivity*, not by watching
+the dependence. **§14.12's robust fix cuts that to 10/20** — robustness to a wrong family and
+detection of a changing family are one statistic read with opposite signs, and you must pick.
+[§14.13](#1413-a-shape-change-at-constant-%CF%81--the-experiment-nobody-wins).
+
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
 the answer is to tune (or learn) the forgetting rate instead.
@@ -2118,6 +2128,107 @@ not by what the model says it should do.
 This applies to every detector in the document, not just this one: `kalman_cusum` thresholds
 $e_t/\sqrt{F_t}$ where $F_t$ comes from the *model*, and it has never been checked off-family
 the way this one now has.
+
+
+### 14.13 A shape change at constant ρ — the experiment nobody wins
+
+§14.11 ended by saying coefficient monitoring had been tested against the wrong change. Here
+is the right one.
+
+#### 14.13.1 The DGP
+
+Every family in `copula.hpp` already targets the **same** Spearman ρ for a given knob, so
+holding the knob constant and switching family changes the copula's *shape* and nothing else:
+
+```text
+t < 2500     Gaussian copula     rho_S = 0.58192,  lower tail dependence 0
+t >= 2500    t(4) copula         rho_S = 0.58192,  lower tail dependence ~0.3
+
+  the scalar every detector watches:  FLAT
+  the object it is a functional of:   changed
+```
+
+`COPULA` is ignored for this scenario — it *is* a family change, so it fixes its own DGP.
+`probe_shape.cpp` validates it before anything is read off it:
+
+| | before switch | after switch |
+| --- | --- | --- |
+| reported true ρ_S | 0.58192 | 0.58192 |
+| empirical Spearman | 0.5818 | 0.5734 |
+| empirical $P(Y<q\mid X<q)$, q = .05 | 0.309 | **0.420** |
+| same, q = .01 | 0.198 | **0.373** |
+
+⚠️ The empirical Spearman drops 0.008 across the switch although the reported truth does not.
+`spearman_from_param` for the t family is Gauss–Legendre quadrature, not exact, so the achieved
+ρ misses its target slightly. In Fisher-*z* that is 0.012 against a block innovation SD of 0.25
+— **0.05σ per block**, far below anything a detector could use — but it does mean every RMSE
+here carries a small step that is the DGP's, not the estimator's.
+
+#### 14.13.2 Result: nothing detects it
+
+20 seeds. For scale, the same detectors on a **ρ** jump manage 20/20 at delay 47.
+
+| | alarms/run | false before | hits | delay |
+| --- | --- | --- | --- | --- |
+| `kalman_cusum` (and every inflation variant) | 0.15 | 0.05 | **2/20** | 759 ± 280 |
+| `kalman_glr` | 0.10 | 0.05 | 1/20 | — |
+| `kalman_ewma_chart` / `kalman_sr` | 0.05 | 0.00 | 1/20 | — |
+| `kalman_bocpd` | 0.45 | 0.10 | 5/20 | 967 ± 383 |
+| **`hermite_cusum2`** (coefficient monitoring) | 0.20 | 0.20 | **0/20** | never |
+| `hermite_cusum` | 0.30 | 0.25 | 1/20 | — |
+| **`gaussian_mle_cusum`** | 2.85 | 0.30 | **17/20** | 702 ± 140 |
+
+**The ρ-monitoring detectors are blind, exactly as distinction 1 predicts** — 1–2 hits out of
+20, which is the false-alarm rate, not detection.
+
+**And so is coefficient monitoring: 0/20.** That is its second failure, and this time on the
+change it was *built* for. The §14.11 defence — "a fair test of the wrong hypothesis" — does
+not survive. A norm over 441 coefficients is too diffuse to see a tail-dependence change any
+better than it saw a ρ change.
+
+#### 14.13.3 The one thing with power works by a mechanism nobody designed
+
+`gaussian_mle_cusum` gets **17/20**. It is not watching ρ and it is not watching coefficients.
+It is watching **fit**: a t copula is a bad fit to a Gaussian model, and §14.12 measured exactly
+what that does — it inflates $\operatorname{Var}[s]$ from 0.93 to 1.87 at this ρ. The detector
+is thresholding a statistic it believes has variance 1, so an inflated one trips it.
+
+**Which means §14.12's robustification destroys it.**
+
+| | alarms after the switch | hits | delay |
+| --- | --- | --- | --- |
+| `gaussian_mle_cusum` (model information) | 2.55 | **17/20** | 702 ± 140 |
+| `gaussian_mle_cusum_rob` (empirical variance) | 0.65 | **10/20** | 819 ± 167 |
+
+Both are ARL₀-calibrated at h = 4.0 and both show the same 0.30 false alarms *before* the
+switch, so they are matched on the null. The difference is entirely post-switch.
+
+```text
+Var[score] / I  departing from 1
+        |
+        +--- section 14.12 reads it as:  "my family is wrong, divide it out"
+        |                                 -> one threshold works everywhere
+        |
+        +--- section 14.13 reads it as:  "my family just CHANGED, alarm"
+                                          -> 17/20 instead of 10/20
+
+  Same number. Robustness to a wrong family and detection of a changing
+  family are one statistic read with opposite signs. You cannot have both
+  from the same accumulator.
+```
+
+That is a real design decision, not a bug: **decide whether the detector's job is to survive
+misspecification or to report it.** Nothing in the document had forced that choice before.
+
+#### 14.13.4 ⚠️ What this leaves open
+
+- **17/20 at delay 702 is not a working detector.** Fifteen times slower than the same
+  machinery on a ρ jump, and no threshold in the set was calibrated *for* a shape change.
+- The obvious statistic is untried: a **tail-dependence functional** monitored directly
+  ($\hat\lambda_L$ over a window) rather than a change in ρ, in coefficients, or in fit. That
+  is the projection onto the direction this change actually moves — the §14.10 lesson applied
+  to a different change.
+- Only Gaussian → t(4) is tested, at one ρ, with one switch time.
 
 
 ### 14.9 ⚠️ What this does not establish

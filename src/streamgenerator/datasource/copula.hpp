@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <memory>
 #include <numbers>
 #include <random>
@@ -147,7 +148,39 @@ private:
     std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};
 };
 
+// Two families, one Spearman path, a switch part-way through. Because every
+// family here already targets the SAME rho_S for a given knob d, holding d
+// constant across the switch changes the copula's SHAPE -- its tail dependence --
+// while leaving rho_S flat. That is distinction 1 made into an experiment: a
+// change no rho-monitoring detector can see, by construction.
+//
+// See section 14.13 of notes/studies/kalman_changepoint_results.md.
+class SwitchingCopula : public Copula {
+public:
+    SwitchingCopula(std::unique_ptr<Copula> before, std::unique_ptr<Copula> after,
+                    std::size_t switch_tick, const char* name)
+        : before_(std::move(before)), after_(std::move(after)),
+          switch_tick_(switch_tick), name_(name) {}
+
+    CopulaDraw sample(double d, std::mt19937& rng) override {
+        return (t_++ < switch_tick_) ? before_->sample(d, rng) : after_->sample(d, rng);
+    }
+    const char* name() const override { return name_; }
+
+private:
+    std::unique_ptr<Copula> before_, after_;
+    std::size_t switch_tick_;
+    const char* name_;
+    std::size_t t_ = 0;
+};
+
 inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 4.0) {
+    // Gaussian -> t at matched Spearman rho, switching at N/2 as `jump` does.
+    if (name == "gauss2t") {
+        return std::make_unique<SwitchingCopula>(
+            std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),
+            2500, "gauss2t");
+    }
     if (name == "clayton") return std::make_unique<ClaytonCopula>();
     if (name == "gumbel")  return std::make_unique<GumbelCopula>();
     if (name == "t" || name == "student_t") return std::make_unique<StudentTCopula>(nu);
