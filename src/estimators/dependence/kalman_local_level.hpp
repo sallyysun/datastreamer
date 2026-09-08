@@ -23,6 +23,15 @@ public:
         // change. Same statistic the detectors threshold, used continuously
         // instead. Section 0.3 / 9.4.
         double vff_rate = 0.0;           // 0 disables; ~0.05 is a slow adaptation
+
+        // What an alarm should do. A hard reset discards a nearly-converged
+        // estimate — see section 14. Alternatives, both keeping z_:
+        //   inflation > 1 : widen P_ instead of clearing ("I am less sure"),
+        //                   which raises the gain so the filter moves fast to new
+        //                   data without throwing the estimate away.
+        //   inflation = 0 : reset() does nothing at all. The control that tests
+        //                   whether the reset is the whole cost.
+        double reset_inflation = -1.0;   // <0 keeps the hard reset
         double vff_min = 1e-5;
         double vff_max = 1e0;
     };
@@ -78,6 +87,11 @@ public:
     }
 
     void reset() override {
+        if (config_.reset_inflation == 0.0) return;              // no-op control
+        if (config_.reset_inflation > 0.0) {                      // soft reset
+            P_ = std::min(P_ * config_.reset_inflation, kPriorVariance);
+            return;
+        }
         xs_.clear();
         ys_.clear();
         z_ = 0.0;

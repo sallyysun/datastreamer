@@ -98,6 +98,22 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 3.5},
             "kalman_cusum");
     }
+    if (key == "kalman_cusum_noreset") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 0.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_noreset");
+    }
+    if (key == "kalman_cusum_soft") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 20.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_soft");
+    }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -298,7 +314,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-        "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
+        "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
