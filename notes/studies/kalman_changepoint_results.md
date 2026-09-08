@@ -453,6 +453,20 @@ reverses one of the apparent results. Always check there before quoting a rankin
 
 ## 1. Summary of findings
 
+**0. One trade, measured three independent ways.** Each pair below is a simpler method
+that assumes more against a general one that assumes less:
+
+| Assuming method | General method | The general one wins when |
+| --- | --- | --- |
+| standardization | rank-PIT ([§9](#9-rank-pit-the-marginals-finally-handled-properly)) | marginals are not Gaussian — 3.7× better under $x^3$, and *exactly* invariant |
+| fixed λ | VFF ([§10](#10-variable-forgetting-adaptation-without-a-detector)) | the fixed λ was badly chosen — 15.6% on Kalman, ~1% on Hermite and the MLE |
+| Kalman | particle filter ([§11](#11-the-particle-filter-generality-that-mostly-costs)) | ρ moves fast — wins `oscillate`, loses everywhere else |
+
+**In every case the assuming method wins where its assumption holds and loses unboundedly
+where it does not.** Three independent mechanisms giving the same answer is a stronger
+claim than any one of them, and it is the efficiency↔adaptation question of
+[roadmap.md](roadmap.md) stated in measurements rather than in theory.
+
 **1. Every fixed-λ estimator here *is* a Kalman filter at steady state.** Not an analogy.
 The gain matches $K = \tfrac{1}{2}(\sqrt{q^2+4q}-q)$ to five decimal places across four
 orders of magnitude in $q$, with $\lambda = 1-K$.
