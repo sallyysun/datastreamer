@@ -337,7 +337,9 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   abstraction (switch family mid-stream at constant target rho_S): the roadmap distinction #1
   case a scalar rho detector structurally cannot see. Also unlocks the tail-asymmetry
   pairs-trading angle (roadmap `application_2.md`).
-- ⬜ **rank-PIT** transform for non-Gaussian real marginals (currently online standardization,
+- ➖ **rank-PIT** — built for Hermite (`hermite_pit`) and the copula MLEs (`gaussian_mle_pit`)
+  2026-09-08, exactly invariant to monotone marginal change; the Kalman channel never needed
+  it. **Xiao still unconverted.** Original note follows: (currently online standardization,
   exact only for Gaussian; the parametric copula estimators inherit this marginal convention).
 - ➖ Estimating the Student-t **degrees of freedom** nu online — left as a fixed hyper-parameter;
   online nu estimation is a separate problem, not needed for the misspecification comparison.
@@ -462,3 +464,26 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
   re-tuning per family.
 - ➖ Not worth doing: the update is already $O(1)$ per tick, so there is no *computational*
   efficiency to recover — these are all statistical-efficiency changes.
+
+### Done 2026-09-07/08 — see [code changes 2026-09-08](code_changes/code%20changes%202026-09-08.md)
+- ✅ **VFF** for Kalman, Hermite and the copula MLEs.
+- ✅ **Particle filter**, **EKF**, **UKF** — layer 2 complete except Xiao's marginals.
+- ✅ **ARL₀ calibration** for all six detectors; `kalman_ewma_chart` moved to $L=2.5$.
+- ✅ **The reset is the whole cost.** No-op `reset()` returns RMSE to exactly `kalman_fast`;
+  covariance inflation is free everywhere and beats no detector on `oscillate`.
+- ✅ **Registry invariant guarded both ways**, and `multiseed` prints σ-from-best.
+
+### Open, in priority order
+- ⬜ **Sweep the inflation factor** (currently 20, a first guess) and alarm-match `_soft`
+  against `_noreset` — they fire 24.75 vs 28.60 on `oscillate`, so part of that 3σ gap may
+  be the alarm difference rather than the inflation.
+- ⬜ **MLE score-CUSUM.** The score is already a standardized innovation and `info_` tracks
+  its variance, so no statistic has to be invented. Fills the empty row of §0.3's matrix,
+  and is worth doing now that detection is known to be free.
+- ⬜ **Fix `hermite_cusum`.** Its surprise baseline uses the same λ as the coefficients, so a
+  sustained change washes out within a few hundred ticks. Needs a slower baseline or one
+  frozen after burn-in. Currently worse than doing nothing.
+- ⬜ **Coefficient-vector monitoring** — the O(k) idea. Catches a shape change at constant ρ,
+  which every current detector is blind to.
+- ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.
+- ⬜ **Why expected information reduces variance 5–9×.** Three hypotheses tested, all failed.

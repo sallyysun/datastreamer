@@ -453,7 +453,7 @@ reverses one of the apparent results. Always check there before quoting a rankin
 
 ## 1. Summary of findings
 
-**0. One trade, measured three independent ways.** Each pair below is a simpler method
+**0. One trade, measured four independent ways.** Each pair below is a simpler method
 that assumes more against a general one that assumes less:
 
 | Assuming method | General method | The general one wins when |
@@ -461,6 +461,7 @@ that assumes more against a general one that assumes less:
 | standardization | rank-PIT ([§9](#9-rank-pit-the-marginals-finally-handled-properly)) | marginals are not Gaussian — 3.7× better under $x^3$, and *exactly* invariant |
 | fixed λ | VFF ([§10](#10-variable-forgetting-adaptation-without-a-detector)) | the fixed λ was badly chosen — 15.6% on Kalman, ~1% on Hermite and the MLE |
 | Kalman | particle filter ([§11](#11-the-particle-filter-generality-that-mostly-costs)) | ρ moves fast — wins `oscillate`, loses everywhere else |
+| Fisher transform | EKF / UKF ([§12](#12-ekf-and-ukf-does-the-fisher-transform-earn-its-place)) | **never here** — transforming the nonlinearity away beats handling it, 3 of 4 |
 
 **In every case the assuming method wins where its assumption holds and loses unboundedly
 where it does not.** Three independent mechanisms giving the same answer is a stronger
@@ -482,11 +483,19 @@ before a break and short-memory after it. It stays best across all four DGP fami
 the *best achievable* Kalman (0.2256) by ~19%, and the Kalman curve plateaus — block
 aggregation is a floor it cannot be tuned past.
 
-**4. Hard detect-and-restart costs accuracy.** `kalman_cusum` and `kalman_glr` are *worse*
-than the filter they wrap, on both `jump` and `oscillate`. By alarm time the filter has
-already adapted; the reset throws that away.
-[§9](#14-the-reset-is-the-cost-why-detection-loses-to-plain-forgetting-on-jump) traces it
-tick by tick.
+**4. Detection is free. The *reset* was the entire cost.** ⚠️ Supersedes the earlier
+"detect-and-restart costs accuracy". A no-op `reset()` returns `kalman_cusum` to *exactly*
+`kalman_fast`'s 0.0880 — four decimals — with alarms, delay and hit rate unchanged. So the
+18–30% penalty was never the price of detecting; it was one line choosing the wrong
+response. Replacing the reset with covariance inflation (`P_ *= 20`, keep $\hat z$) is free
+everywhere and **beats having no detector at all** on `oscillate`, 0.3061 vs 0.3166 (3.0σ).
+[§14.6–14.7](#146-the-reset-is-the-whole-cost--confirmed-and-fixed).
+
+**4b. At matched ARL₀ the four hard-reset detectors are indistinguishable.** RMSE spread
+0.0036 against SEs of ~0.003; delays 46–52 against SEs of 4–7. Maximising over the change
+time (CUSUM, GLR), summing over it (Shiryaev–Roberts) and smoothing it (EWMA chart) all land
+in the same place — the empirical answer to the Lorden/Pollak distinction of §3.4. Only
+BOCPD separates, and only because it never resets.
 
 **5. The Gaussian copula is a forgiving wrong answer.** `gaussian_mle_ew` degrades mildly
 off-family (`stochastic`: 0.0558 → 0.0592–0.0680). `clayton_mle` on Gumbel data is 10×
