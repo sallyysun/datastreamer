@@ -507,6 +507,14 @@ damage — `constant` 0.1151 → 0.0615 — and created no detection power: **0/
 matched ARL₀. An omnibus norm over 441 coefficients cannot compete with a score projected onto
 the one direction the change moves. [§14.11](#1411-hermite_cusum-the-bug-is-fixed-and-the-statistic-still-has-no-power).
 
+**4g. A detector inherits its estimator's assumptions in the *threshold*, silently.** The
+score-CUSUM detects a jump 20/20 on all four DGP families — but off-family
+$\operatorname{Var}[s] \ne I$, so it fires 2.7× too often on t data and its ARL₀ is eight times
+worse than advertised. Detection power is robust to a wrong family; **calibration is not, and
+fails quietly.** Standardizing by the score's empirical variance instead of the model
+information (one accumulator) restores one threshold across all four.
+[§14.12](#1412-off-family-the-detection-survives-the-calibration-does-not).
+
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
 the answer is to tune (or learn) the forgetting rate instead.
@@ -1997,6 +2005,119 @@ to build it. Distinction 1 says the point is a change in copula *shape at consta
 **no scenario in the harness generates one**. The right next experiment is a DGP that switches
 Gaussian → t at matched Spearman ρ, where every scalar detector must be blind by construction.
 Until that exists, this is a fair test of the wrong hypothesis.
+
+
+### 14.12 Off-family: the detection survives, the *calibration* does not
+
+§14.10 is a **Gaussian**-copula score on **Gaussian** data. Off-family the score is
+misspecified, so the first question is whether anything about it still holds.
+
+#### 14.12.1 What breaks
+
+`jump`, 20 seeds, the same detector on all four DGP families:
+
+| DGP | alarms/run | false alarms before τ | hits | delay |
+| --- | --- | --- | --- | --- |
+| Gaussian | 2.65 | 0.15 | 20/20 | 47 ± 2 |
+| Clayton | 4.20 | 0.15 | 20/20 | 54 ± 4 |
+| Gumbel | 3.85 | 0.30 | 20/20 | 44 ± 3 |
+| **t** | **7.10** | **1.20** | 20/20 | 50 ± 4 |
+
+**Detection is untouched — 20/20 on every family.** What breaks is ARL₀: the detector fires
+2.7× too often on t data, and its false alarms go from 0.15 to 1.20. A threshold calibrated on
+Gaussian streams is simply the wrong threshold off-family.
+
+#### 14.12.2 Why, exactly
+
+The detector assumes $\operatorname{Var}[s] = I$ — the information matrix equality. That holds
+**only when the family is right**. Under misspecification the two come apart (the sandwich /
+QMLE result, **[White 1982]** ⚠️), and the gap is measurable directly. `probe_score_scale.cpp`
+runs the estimator on stationary streams and reports the variance of the block statistic the
+CUSUM actually sees, which should be 1:
+
+| DGP | ρ = 0.3 | ρ = 0.6 | ρ = 0.8 |
+| --- | --- | --- | --- |
+| Gaussian | 0.94 | 0.93 | 0.93 |
+| Clayton | 1.05 | 1.27 | 1.78 |
+| Gumbel | 1.08 | 1.22 | 1.41 |
+| **t** | **1.60** | **1.87** | **2.20** |
+
+So on t data at ρ = 0.8 the innovation is $\sqrt{2.20} = 1.48\times$ wider than assumed, and
+`h = 4.0` is really `h = 2.7`. That is the whole of the alarm inflation, predicted before the
+grid was run rather than after.
+
+*(The Gaussian row sits at 0.93 rather than 1.00 because each Fisher-scoring step absorbs part
+of the score it just saw, so successive scores are slightly negatively correlated. It is a
+constant across every family, so the calibration swallows it.)*
+
+#### 14.12.3 The fix is one accumulator
+
+Standardize by the score's **empirical** variance instead of by the model information — the
+sandwich correction, as an EWMA:
+
+```cpp
+score_var_ += c * (std_score * std_score - score_var_);
+std_score  /= std::sqrt(score_var_);
+```
+
+⚠️ `c` must be **much slower than the change being detected** (0.001 here, against a λ of 0.99).
+A fast scale estimate chases the signal and divides it away — the `hermite_cusum` bug of §14.11
+in a different place.
+
+**It flattens the table completely:**
+
+| DGP | before (ρ = 0.8) | after |
+| --- | --- | --- |
+| Gaussian | 0.93 | 0.91 |
+| Clayton | 1.78 | 0.89 |
+| Gumbel | 1.41 | 0.89 |
+| t | 2.20 | 0.87 |
+
+and the alarm rate with it (`_noreset`, so the response cannot feed back):
+
+| DGP | model information | robust |
+| --- | --- | --- |
+| Gaussian | 2.65 | 2.70 |
+| Clayton | 4.20 | 2.50 |
+| Gumbel | 3.85 | 2.55 |
+| t | 7.10 | **2.50** |
+
+**One number, calibrated once on Gaussian streams, now holds on all four families.**
+
+#### 14.12.4 What it costs
+
+A correctly-sized threshold is a *higher* bar off-family, so detection slows:
+
+| DGP | delay, model info | delay, robust |
+| --- | --- | --- |
+| Gaussian | 47 ± 2 (20/20) | 48 ± 2 (20/20) |
+| Clayton | 54 ± 4 (20/20) | 57 ± 4 (20/20) |
+| Gumbel | 44 ± 3 (20/20) | 53 ± 3 (19/20) |
+| t | 50 ± 4 (20/20) | 70 ± 5 (20/20) |
+
+Free on Gaussian, ~40% slower on t. **That is not a regression — the old delay was bought with
+an ARL₀ eight times worse than advertised.** Comparing the two at face value is exactly the
+error §3.7 exists to prevent.
+
+On RMSE the robust arm is best or tied-best on every off-family DGP (Clayton 0.0806, Gumbel
+0.0743, t 0.0841), so the correction is not paid for in tracking accuracy.
+
+#### 14.12.5 The general lesson
+
+```text
+a detector on an estimator's own innovation inherits the
+estimator's assumptions, in the THRESHOLD, silently.
+
+  detection power  ->  robust to a wrong family
+  calibration      ->  not robust at all, and fails quietly
+
+the fix is to standardize by what the innovation actually does,
+not by what the model says it should do.
+```
+
+This applies to every detector in the document, not just this one: `kalman_cusum` thresholds
+$e_t/\sqrt{F_t}$ where $F_t$ comes from the *model*, and it has never been checked off-family
+the way this one now has.
 
 
 ### 14.9 ⚠️ What this does not establish

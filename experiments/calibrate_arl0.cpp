@@ -167,6 +167,18 @@ int main(int argc, char** argv) {
         },
         {3.0, 5.0, 10.0, 20.0, 40.0, 80.0, 160.0, 320.0}, target, ticks_per_seed, n_seeds, rhos);
 
+    calibrate(
+        "gaussian_mle_cusum_rob",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<MleScoreCusumDetector>(
+                MleScoreCusumDetector::Config{
+                    .mle = GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50,
+                                                     .robust_score_rate = 0.001},
+                    .block = 20, .delta = 1.0, .h = h},
+                "gaussian_mle_cusum_rob");
+        },
+        {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
+
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(
         "kalman_bocpd",

@@ -42,6 +42,17 @@ public:
         // Control for the soft reset: deflate on a fixed schedule instead of on
         // an alarm, with no detector at all. Section 14.10.
         std::size_t periodic_deflate_ticks = 0;   // 0 disables
+
+        // Standardize the score by its EMPIRICAL variance instead of by the model
+        // information. Var[s] = I only when the family is right; off-family the
+        // information matrix equality fails and every ARL0-calibrated threshold is
+        // wrong by sqrt(Var[s]/I) -- up to 1.48x on t data. This is the sandwich
+        // /QMLE correction, one extra accumulator. Section 14.12.
+        //
+        // The rate must be MUCH slower than the change being detected, or the
+        // scale chases the signal and swallows it -- the hermite_cusum bug of
+        // section 14.11, in a different place.
+        double robust_score_rate = 0.0;   // 0 keeps the model information
     };
 
     GaussianCopulaMLE(Config config, const char* name)
@@ -66,6 +77,11 @@ public:
         // a detector to threshold. Evaluated BEFORE the step, so it measures the
         // surprise in this observation rather than what is left after absorbing it.
         last_std_score_ = s_theta / std::sqrt(i_theta);
+        if (config_.robust_score_rate > 0.0) {
+            const double c = config_.robust_score_rate;
+            score_var_ += c * (last_std_score_ * last_std_score_ - score_var_);
+            last_std_score_ /= std::sqrt(std::max(score_var_, 1e-6));
+        }
 
         const double decay = (config_.lambda > 0.0) ? config_.lambda : 1.0;
         info_ = decay * info_ + i_theta;
@@ -99,6 +115,7 @@ public:
         theta_ = 0.0;
         info_ = 0.0;
         last_std_score_ = 0.0;
+        score_var_ = 1.0;
         mean_x_ = mean_y_ = 0.0;
         m2_x_ = m2_y_ = 0.0;
         var_x_ = var_y_ = 1.0;
@@ -140,6 +157,7 @@ private:
     double theta_ = 0.0;  // atanh(rho)
     double info_ = 0.0;   // accumulated Fisher information
     double last_std_score_ = 0.0;
+    double score_var_ = 1.0;
 
     double mean_x_ = 0.0, mean_y_ = 0.0;
     double m2_x_ = 0.0, m2_y_ = 0.0;
