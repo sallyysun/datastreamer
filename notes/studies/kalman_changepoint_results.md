@@ -117,10 +117,16 @@ LAYER 3  HOW DO I HANDLE CHANGE?
 
 |              | Fixed forgetting (EWMA smoothing) | VFF | CUSUM | GLR | EWMA chart | SR | BOCPD |
 | ------------ | ---------------- | --- | ----- | --- | ---- | -- | ----- |
-| **Xiao**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Hermite**  | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **MLEs**     | ✓ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| **Kalman**   | ✓ | ⬜ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| **Xiao**     | ✓ | ⬜ | ✓ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Hermite**  | ✓ | ✓ | ✓ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **MLEs**     | ✓ | ✓ | ✓ | ⬜ | ⬜ | ⬜ | ⬜ |
+| **Kalman**   | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+⚠️ Updated. The CUSUM column is closed ([§14.10](#1410-the-mle-score-cusum-the-first-detector-that-earns-its-keep),
+[§14.14](#1414-xiao-and-hermite-the-same-win-without-a-likelihood)) and it took a different
+statistic per row — the MLE's score, and a per-tick rank residual for the two nonparametrics.
+The remaining gaps are GLR / EWMA chart / SR off the Kalman filter, and §14.3 found those three
+indistinguishable from CUSUM *on* it, so they are the lowest-value cells in the table.
 
 CUSUM, GLR, the EWMA chart, SR and BOCPD have all been **run and measured** — every one of
 them on `KalmanLocalLevel`, and only there.
@@ -524,6 +530,19 @@ rate. **`hermite_cusum2` gets 0/20 — on the change it was built for**, which r
 the dependence. **§14.12's robust fix cuts that to 10/20** — robustness to a wrong family and
 detection of a changing family are one statistic read with opposite signs, and you must pick.
 [§14.13](#1413-a-shape-change-at-constant-%CF%81--the-experiment-nobody-wins).
+
+**4i. The score-CUSUM win was per-tick projection, not the likelihood — and it transfers.**
+Spearman's ρ is an expectation, so one observation is an unbiased estimate of it and the
+residual against $\hat\rho$ is a per-tick innovation needing no family and no marginals.
+`xiao_cusum` gets **20/20 with zero false alarms** on `jump`, matching the MLE's reliability
+from no likelihood at all (slower: 71 vs 47 ticks). The CUSUM column of §0.3's matrix is now
+closed. [§14.14](#1414-xiao-and-hermite-the-same-win-without-a-likelihood).
+
+**4j. Any alarm response that moves the estimate moves the statistic being thresholded.** Three
+instances now: the Hermite weight boost (§14.11.4), and the hard reset under a rank residual,
+which manufactured an ARL₀ of *1 block* by sending $\hat\rho$ to 0. Responses touching only a
+confidence register (`P_`, `info_`) are safe. And ARL₀ must be calibrated with the response
+switched off, or the feedback is baked into the threshold.
 
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
@@ -2229,6 +2248,101 @@ misspecification or to report it.** Nothing in the document had forced that choi
   is the projection onto the direction this change actually moves — the §14.10 lesson applied
   to a different change.
 - Only Gaussian → t(4) is tested, at one ρ, with one switch time.
+
+
+### 14.14 Xiao and Hermite: the same win, without a likelihood
+
+§14.10's advantage was credited to two properties, and **neither is parametric**: the statistic
+is per *tick* rather than per block, and it is projected onto the direction the change moves.
+If that reading is right, a nonparametric estimator should get the same result — and Spearman's
+ρ hands over the statistic directly, because it *is* an expectation:
+
+$$\rho_S = 12\,\mathbb E\big[(F_X(x) - \tfrac12)(F_Y(y) - \tfrac12)\big]$$
+
+so **one observation is an unbiased estimate of it**, and the residual against the estimator's
+current $\hat\rho$ is a mean-zero per-tick innovation:
+
+```text
+per tick:   s_t = 12 (u_t - 1/2)(v_t - 1/2)  -  rho_hat_t
+                  \___________  ___________/     \____  ____/
+                              \/                      \/
+                one-observation estimate of rho    what we believe now
+
+  u, v from the bounded rank-PIT window -> no family assumed, no marginals assumed
+  Var[s] = 1 exactly at rho = 0; standardized by its own empirical variance elsewhere
+```
+
+The detector uses only `estimate()`, so **one class runs on any estimator**. Measured
+(`probe_rank_score.cpp`), the block statistic sits at mean 0.00–0.03 and variance 0.92–0.97
+across ρ ∈ {0, 0.3, 0.6, 0.8} for both inners — close enough that one threshold calibrates.
+
+#### 14.14.1 It works, and it confirms the reading
+
+`jump`, 20 seeds, all four at ARL₀ = 1000 blocks:
+
+| detector | statistic | hits | delay | false before τ |
+| --- | --- | --- | --- | --- |
+| `kalman_cusum` | block innovation | 19/20 | 46 ± 5 | 0.05 |
+| `gaussian_mle_cusum` | per-tick score | 20/20 | 47 ± 2 | 0.15 |
+| **`xiao_cusum`** | **per-tick rank residual** | **20/20** | 71 ± 5 | **0.00** |
+| **`hermite_scusum`** | same | **20/20** | 185 ± 92 | **0.00** |
+
+**Xiao gets the MLE's 20/20 reliability with zero false alarms, from no likelihood at all.**
+It is slower (71 vs 47) — the rank residual is a noisier per-observation read than a score that
+knows the family — but the reliability, which was the whole of §14.10's advantage over the
+block detectors, transfers intact.
+
+⚠️ **Hermite is erratic**: 20/20, but 185 ± 92 means a handful of seeds take many hundreds of
+ticks. Same statistic and nearly the same threshold as Xiao, so the difference is in
+`hermite_ew`'s $\hat\rho$, not in the detector. Unexplained.
+
+#### 14.14.2 And the reset finding reproduces a third and fourth time
+
+`_noreset` equals the bare estimator to four decimals in **all five scenarios**:
+
+| | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- |
+| `xiao_ew` | 0.0470 | 0.0669 | 0.0798 | 0.3484 |
+| `xiao_cusum_noreset` | 0.0470 | 0.0669 | 0.0798 | 0.3484 |
+| `xiao_cusum` (hard reset) | 0.0547 | 0.0732 | **0.1420** | 0.3916 |
+
+**The hard reset costs 78% on `jump` here, against 30% for the Kalman filter.** It should:
+resetting a filter discards a mean and a variance, resetting Xiao or Hermite discards the whole
+histogram or coefficient matrix *and* the marginal calibration behind it. The more state an
+estimator carries, the more a reset destroys — which is the §14.6 finding with a slope on it.
+
+#### 14.14.3 A third instance of response-feeds-back
+
+The first calibration attempt gave an **ARL₀ of 1 block** at ρ = 0.8 — the detector alarming
+essentially every block on stationary data. The statistic was fine (mean 0.03, variance 0.96).
+The response was not:
+
+```text
+alarm -> inner_->reset() -> rho_hat = 0 during the inner's burn-in
+                                 |
+         s_t = 12(u-1/2)(v-1/2) - 0  ~  rho, a sustained residual
+                                 |
+                            alarm again  -> forever
+```
+
+Worst at high ρ because the manufactured residual *is* ρ. This is the same failure as the
+Hermite boost in §14.11.4 and it is now the third place it has appeared, so it is worth stating
+as a rule:
+
+> **Any alarm response that moves the estimate moves the statistic the detector reads.**
+> Responses that touch only a *confidence* register (`P_`, `info_`) are safe; responses that
+> touch the estimate need the detector held off until the estimator is valid again.
+
+Two fixes, both kept: the detector holds its CUSUM for 200 ticks after a hard reset, and
+**ARL₀ is now calibrated with the response switched off** — it is a property of the statistic,
+and calibrating it with a feedback loop attached bakes the loop into the threshold.
+
+#### 14.14.4 ⚠️ It is blind to a shape change, by construction
+
+On the `shape` scenario of §14.13 both get **1/20**, the false-alarm rate. That is not a defect
+— the statistic is an explicit projection onto ρ, so a change orthogonal to ρ is invisible to
+it by design. It is a clean confirmation that the projection is doing what it claims, and it
+leaves §14.13's gap exactly where it was.
 
 
 ### 14.9 ⚠️ What this does not establish

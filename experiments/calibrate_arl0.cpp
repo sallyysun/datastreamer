@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "../src/estimators/dependence/change_detector.hpp"
@@ -20,6 +21,8 @@
 #include "../src/estimators/dependence/kalman_glr.hpp"
 #include "../src/estimators/dependence/kalman_shiryaev_roberts.hpp"
 #include "../src/estimators/dependence/mle_score_cusum.hpp"
+#include "../src/estimators/dependence/rank_score_cusum.hpp"
+#include "../src/estimators/registry.hpp"
 #include "../src/estimators/dependence/hermite_cusum.hpp"
 
 namespace {
@@ -178,6 +181,22 @@ int main(int argc, char** argv) {
                 "gaussian_mle_cusum_rob");
         },
         {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    for (const char* inner : {"xiao_ew", "hermite_ew"}) {
+        calibrate(
+            (std::string(inner) + " rank score-CUSUM").c_str(),
+            [&](double h) -> std::unique_ptr<DependenceEstimator> {
+                return std::make_unique<RankScoreCusumDetector>(
+                    make_estimator(inner),
+                    RankScoreCusumDetector::Config{
+                        .block = 20, .delta = 1.0, .h = h,
+                        // ARL0 is a property of the STATISTIC, so calibrate with
+                        // the response switched off; a response that feeds back
+                        // would otherwise be calibrated into the threshold.
+                        .response = RankScoreCusumDetector::Response::None}, "probe");
+            },
+            {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
+    }
 
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(

@@ -19,6 +19,7 @@
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/kalman_shiryaev_roberts.hpp"
 #include "dependence/mle_score_cusum.hpp"
+#include "dependence/rank_score_cusum.hpp"
 #include "dependence/parametric_copula.hpp"
 #include "dependence/nonlinear_kalman.hpp"
 #include "dependence/particle_filter.hpp"
@@ -263,6 +264,25 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     if (key == "gaussian_mle_l999") {
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.999, .burn_in = 50}, "gaussian_mle_l999");
+    }
+    // The section 14.10 statistic without a likelihood: a per-tick unbiased
+    // estimate of Spearman's rho, residualised against the estimator's own
+    // rho-hat. Estimator-agnostic, so the same detector runs on both. 14.14.
+    if (key == "xiao_cusum" || key == "xiao_cusum_noreset" ||
+        key == "hermite_scusum" || key == "hermite_scusum_noreset") {
+        const bool hard = (key == "xiao_cusum" || key == "hermite_scusum");
+        const bool is_xiao = (key == "xiao_cusum" || key == "xiao_cusum_noreset");
+        std::unique_ptr<DependenceEstimator> inner =
+            is_xiao ? make_estimator("xiao_ew") : make_estimator("hermite_ew");
+        return std::make_unique<RankScoreCusumDetector>(
+            std::move(inner),
+            RankScoreCusumDetector::Config{
+                .block = 20, .delta = 1.0, .h = is_xiao ? 4.5 : 5.0,
+                .response = hard ? RankScoreCusumDetector::Response::Hard
+                                 : RankScoreCusumDetector::Response::None},
+            key == "xiao_cusum" ? "xiao_cusum"
+          : key == "xiao_cusum_noreset" ? "xiao_cusum_noreset"
+          : key == "hermite_scusum" ? "hermite_scusum" : "hermite_scusum_noreset");
     }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
@@ -513,6 +533,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft",
         "kalman_cusum_inf2", "kalman_cusum_inf5", "kalman_cusum_inf10", "kalman_cusum_inf50",
         "gaussian_mle_cusum", "gaussian_mle_cusum_noreset", "gaussian_mle_cusum_soft",
+        "xiao_cusum", "xiao_cusum_noreset", "hermite_scusum", "hermite_scusum_noreset",
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",

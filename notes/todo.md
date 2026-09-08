@@ -486,17 +486,27 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
 - ✅ **`hermite_cusum` baseline fixed** (frozen Phase-I). RMSE damage gone, detection power
   still zero (0/20). The two-timescale replacement is 32× slower than the score-CUSUM. §14.11.
 
+### Done 2026-09-08 (third pass) — off-family, shape, and the nonparametric detectors
+- ✅ **Score-CUSUM off-family.** Detection survives (20/20 on all four DGPs), calibration does
+  not — 2.7× too many alarms on t. Cause measured: Var[score]/I goes 0.93 → 2.20. Fixed with
+  the sandwich correction (one EWMA); one threshold now holds on all four. §14.12.
+- ✅ **Shape-change DGP** (`shape`: Gaussian → t(4), ρ flat to 5 dp, tail 0 → ~0.3). Nothing
+  detects it. `hermite_cusum2` **0/20 on the change it was built for**. The only arm with power
+  is `gaussian_mle_cusum` (17/20) and it works by misspecification sensitivity — which §14.12's
+  robust fix cuts to 10/20. §14.13.
+- ✅ **Score-CUSUM for Xiao and Hermite** via a per-tick rank residual — no likelihood needed.
+  `xiao_cusum` 20/20 with **zero** false alarms. CUSUM column of §0.3's matrix closed. §14.14.
+
 ### Open, in priority order
-- ⬜ **A shape-change DGP: Gaussian → t at matched Spearman ρ.** §14.11 tested coefficient
-  monitoring against a ρ change, which is the change it was never for — and no scenario in
-  the harness generates the one it *is* for. Every scalar detector must be blind by
-  construction, so this is the experiment that can only be won by a coefficient detector.
-  Blocks the O(k) work below.
-- ⬜ **Score-CUSUM for Xiao and Hermite.** §14.10 shows the win comes from a per-tick,
-  correctly-projected statistic. Both have one available and neither uses it.
-- ⬜ **Learn the forgetting rate properly.** §14.8b makes this the highest-value knob in the
-  system and `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator".
-- ⬜ **Coefficient-vector monitoring** — the O(k) idea. Catches a shape change at constant ρ,
-  which every current detector is blind to.
+- ⬜ **Monitor tail dependence directly.** §14.13 is the one change nothing detects, and the
+  statistic that projects onto it has never been tried — $\hat\lambda_L$ over a window, the
+  §14.10 lesson applied to a different direction. Highest value: it is an open gap with a
+  known-good method for closing it.
+- ⬜ **Decide the misspecification question.** §14.13 shows robustness to a wrong family and
+  detection of a changing family are one statistic with opposite signs. Running both
+  accumulators at different rates would give both; untested.
+- ⬜ **Why `hermite_scusum` is erratic** (185 ± 92 vs Xiao's 71 ± 5 on the same statistic).
+- ⬜ **Learn the forgetting rate properly.** §14.8b makes it the highest-value knob and
+  `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator".
 - ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.
 - ⬜ **Why expected information reduces variance 5–9×.** Three hypotheses tested, all failed.
