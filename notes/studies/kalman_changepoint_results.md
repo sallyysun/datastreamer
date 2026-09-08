@@ -1576,7 +1576,45 @@ respectable. The problem is *what the alarm does*: `reset()` to an empty buffer
 teleports the estimator to ignorance, not to the new truth, and it must then
 re-accumulate at the same rate the filter was already converging.
 
-### 14.3 BOCPD is the control
+### 14.3 At matched ARL₀ the four hard-reset detectors are indistinguishable
+
+Re-run after calibration (§5.3), `jump`, 20 seeds:
+
+| detector | RMSE | alarms/run | delay (ticks) | detected |
+| --- | --- | --- | --- | --- |
+| `kalman_glr` | 0.1110 ± 0.0032 | 0.90 | 49.6 ± 6.9 | 17/20 |
+| `kalman_ewma_chart` | 0.1124 ± 0.0029 | 0.95 | 47.9 ± 4.9 | 18/20 |
+| `kalman_sr` | 0.1139 ± 0.0023 | 1.00 | 51.6 ± 4.4 | 19/20 |
+| `kalman_cusum` | 0.1146 ± 0.0027 | 1.10 | 46.4 ± 4.9 | 19/20 |
+| `kalman_bocpd` | **0.0598 ± 0.0022** | 1.45 | **31.9 ± 3.4** | 17/20 |
+
+**The four hard-reset detectors are within ~1σ of each other on RMSE (spread 0.0036
+against SEs of ~0.003) and well inside 1σ on delay (46–52 against SEs of 4–7).**
+
+That is the empirical answer to the Lorden-vs-Pollak question of §3.4: at matched
+false-alarm rate, maximising over the change time (CUSUM, GLR), summing over it
+(Shiryaev–Roberts) and smoothing it (EWMA chart) land in the same place on this problem.
+The optimality criteria differ; the measured behaviour does not.
+
+**Calibration also fixed the EWMA chart.** At the textbook $L=3.0$ it detected 12/20 with a
+74-tick delay; at the calibrated $L=2.5$ it detects 18/20 at 47.9. The eight misses were the
+threshold, not the method — which is what §14.5 warned about and is now closed.
+
+### 14.4 The monotone alarm cost survives calibration
+
+| alarms/run | RMSE |
+| --- | --- |
+| 0.90 (`kalman_glr`) | 0.1110 |
+| 0.95 (`kalman_ewma_chart`) | 0.1124 |
+| 1.00 (`kalman_sr`) | 0.1139 |
+| 1.10 (`kalman_cusum`) | 0.1146 |
+
+Still perfectly monotone, and now with the alarm rates set by a common ARL₀ rather than by
+arbitrary thresholds. **Every reset costs accuracy, and the cost scales with how often you
+reset.** `kalman_bocpd` alarms most (1.45) and scores best (0.0598) because it never
+resets — the soft-decision control.
+
+### 14.5 BOCPD is the control
 
 `kalman_bocpd` (**[Adams & MacKay 2007]** ⚠️) alarms **most** (1.45/run) and has the **best** RMSE
 (0.0598), breaking the monotone pattern outright. It never hard-resets — it reweights a

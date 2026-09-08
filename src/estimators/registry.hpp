@@ -222,7 +222,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<KalmanEwmaChartDetector>(
             KalmanEwmaChartDetector::Config{
                 .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
-                .r = 0.2, .L = 3.0},
+                .r = 0.2, .L = 2.5},
             "kalman_ewma_chart");
     }
     if (key == "kalman_sr") {
