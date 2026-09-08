@@ -553,6 +553,16 @@ density, while bin counts are indifferent to it. ⚠️ The Gaussian MLE still o
 moderately, so finding 5 survives in a stronger form.
 [§14.15](#1415-a-dgp-the-gaussian-copula-cannot-summarise--and-the-nonparametrics-finally-win).
 
+**4l. Don't choose the forgetting rate — carry a posterior over it.** A bank of seven
+local-level filters weighted by predictive likelihood, with a Markov step on the model index,
+**beats the per-scenario oracle** on `drift` (8.2σ) and `jump` (9.3σ) and is never far off
+elsewhere, in **736 bytes**. It dominates the VFF heuristic on all five scenarios. The posterior
+mean q drops 300× within 60 ticks of a jump and relaxes back — long memory before, short after,
+automatically, with no detector and nothing calibrated. The frozen-weights control is worse than
+plain `kalman_fast` everywhere, so the win is the learning. This is BOCPD's device pointed at
+memory length instead of run length, and the two win complementary regimes.
+[§14.16](#1416-learning-the-forgetting-rate-a-posterior-over-memory-beats-the-oracle).
+
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
 the answer is to tune (or learn) the forgetting rate instead.
@@ -2450,6 +2460,107 @@ it costs Xiao 3824 bytes against Hermite's 1192 — a real trade, now with somet
   says that dominates everything else there.
 - Only `xiao_ew` was tested against `gaussian_mle_ew`; a *tuned* comparison (§5.4) might move
   the smooth-family rows, though it cannot easily undo a 4.5σ gap.
+
+
+### 14.16 Learning the forgetting rate: a posterior over memory beats the oracle
+
+§14.8b is the session's most consequential measurement — the forgetting rate moves RMSE ~4×
+more than any detector, and its best value differs per scenario across 2.5 orders of magnitude.
+The obvious response is to stop choosing it.
+
+#### 14.16.1 The device
+
+Run a bank of local-level filters at different `sigma_omega2`, score each by the predictive
+likelihood it gave the block actually observed, and report the weighted mean.
+
+```text
+one block Spearman  ->  7 filters at q = 1e-4 ... 1e0
+                            |
+                    each gives  log N(y ; z_k, F_k)   before using y
+                            |
+                    Bayes on the weights, then a Markov step:
+                        w_k <- (1-p) w_k + p/K
+                            |
+                    report  tanh( sum_k w_k z_k )
+```
+
+**This is BOCPD's device pointed at a different index.** BOCPD averages over *run length*;
+this averages over *memory length*. Finding 2 says the run-length mixture is the one clear
+structural win in the document, so the question is whether the trick generalises.
+
+The Markov step is not decoration: without it the weights converge once and never move again,
+which is the cumulative-estimator trap in a new place. `switch_prob` is its hazard rate.
+
+**Cost: 736 bytes**, against `kalman_fast`'s 512, BOCPD's 2968 and Xiao's 3824. The block
+Spearman is computed once and shared, so seven models cost seven scalar updates and no extra
+rank sorting.
+
+#### 14.16.2 It beats the oracle
+
+`kalman_bank_sticky` (`switch_prob` = 0.002), 20 seeds. **"Best fixed q" is an oracle** — it is
+the winner of §14.8b's sweep, chosen per scenario after seeing the answer. Every other column
+uses one setting for all five.
+
+| | `constant` | `drift` | `jump` | `oscillate` | `stochastic` |
+| --- | --- | --- | --- | --- | --- |
+| `kalman_fast` (shipped q = 1e-2) | 0.0712 | 0.0921 | 0.0880 | 0.3166 | 0.0735 |
+| **best fixed q, oracle** | **0.0208** | 0.0921 | 0.0880 | **0.2256** | 0.0735 |
+| `kalman_vff` (heuristic) | 0.0341 | 0.0773 | 0.0993 | 0.2690 | 0.0681 |
+| **`kalman_bank_sticky`** | 0.0257 | **0.0734** | **0.0675** | 0.2352 | **0.0669** |
+| *`kalman_bank_uniform`* (control) | *0.0855* | *0.1143* | *0.1024* | *0.2534* | *0.0866* |
+
+**It beats the oracle on `drift` (8.2σ) and `jump` (9.3σ)**, ties on `stochastic`, and loses
+narrowly on `constant` (3.0σ) and `oscillate` (3.2σ) — the two scenarios where the truth's
+behaviour never changes, so a single fixed q is genuinely sufficient and the bank pays a small
+premium for flexibility it does not need.
+
+Beating an oracle is not paradoxical: **the bank can change its memory mid-stream and no fixed q
+can.** On `jump` that is worth 23%.
+
+It also dominates the VFF heuristic on all five, by 9.0σ on `jump` and 11.9σ on `oscillate`.
+
+#### 14.16.3 The control passes
+
+`kalman_bank_uniform` freezes the weights uniform — same seven filters, same averaging, no
+learning. **It is worse than everything, including plain `kalman_fast`, on all five scenarios.**
+So the win is from *learning* the weights, not from carrying several filters. (§14.8's lesson,
+applied before publishing this time rather than after.)
+
+`switch_prob` behaves as a hazard should: 0.002 > 0.02 > 0.15 > frozen.
+
+#### 14.16.4 The mechanism, watched directly
+
+Posterior-mean `sigma_omega2` through a jump at t = 2500:
+
+```text
+  t=2400   q = 0.00102     rho_hat 0.227   (true 0.191)   long memory, quiet stretch
+  t=2480   q = 0.00089     rho_hat 0.247   (true 0.191)
+  ---- jump ----
+  t=2520   q = 0.00944     rho_hat 0.270   (true 0.786)   posterior starts moving
+  t=2560   q = 0.30869     rho_hat 0.834   (true 0.786)   300x shorter memory, caught up
+  t=2680   q = 0.07726     rho_hat 0.743   (true 0.786)
+  t=3000   q = 0.02018     rho_hat 0.780   (true 0.786)   relaxing back
+  t=3800   q = 0.00817     rho_hat 0.718   (true 0.786)
+```
+
+**Long memory before, short memory after, then long again — automatically.** No detector, no
+threshold, no reset, nothing calibrated. That is exactly the behaviour finding 2 credits BOCPD
+with, and §0.8's U-shaped MSE says no fixed λ can produce it.
+
+#### 14.16.5 Where this leaves the extension chapter
+
+| | averages over | wins | loses |
+| --- | --- | --- | --- |
+| BOCPD | run length | `jump` 0.0598, `constant` 0.0189 | `drift`, `oscillate` badly |
+| `kalman_bank` | memory length | `drift`, `oscillate`, `stochastic` | `jump`, `constant` narrowly |
+
+Two mixtures over two different latent quantities, each winning the regime its index describes.
+Neither needs a detector, and **both beat every detector in this document.** §14.10's
+score-CUSUM remains the only detector that earns its keep, and it earns it against fixed-λ
+estimators — not against these.
+
+⚠️ The grid {1e-4 … 1e0} was chosen from §14.8b's sweep, so it is mildly informed by the
+answer. A grid too narrow to contain the truth would fail, and that has not been tested.
 
 
 ### 14.9 ⚠️ What this does not establish

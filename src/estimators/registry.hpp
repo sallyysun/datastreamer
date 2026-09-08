@@ -12,6 +12,7 @@
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermite_cusum.hpp"
 #include "dependence/hermiter.hpp"
+#include "dependence/kalman_bank.hpp"
 #include "dependence/kalman_bocpd.hpp"
 #include "dependence/kalman_cusum.hpp"
 #include "dependence/kalman_ewma_chart.hpp"
@@ -284,6 +285,26 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
           : key == "xiao_cusum_noreset" ? "xiao_cusum_noreset"
           : key == "hermite_scusum" ? "hermite_scusum" : "hermite_scusum_noreset");
     }
+    // A posterior over the forgetting rate rather than a guess at it. 14.16.
+    if (key == "kalman_bank") {
+        return std::make_unique<KalmanBank>(KalmanBank::Config{}, "kalman_bank");
+    }
+    // Sticky and flighty variants: how fast should the memory length itself be
+    // allowed to change?
+    if (key == "kalman_bank_sticky") {
+        return std::make_unique<KalmanBank>(
+            KalmanBank::Config{.switch_prob = 0.002}, "kalman_bank_sticky");
+    }
+    if (key == "kalman_bank_quick") {
+        return std::make_unique<KalmanBank>(
+            KalmanBank::Config{.switch_prob = 0.15}, "kalman_bank_quick");
+    }
+    // Control: the same averaging with the weights FROZEN uniform. Isolates
+    // "carrying several memory lengths" from "picking between them".
+    if (key == "kalman_bank_uniform") {
+        return std::make_unique<KalmanBank>(
+            KalmanBank::Config{.switch_prob = 1.0}, "kalman_bank_uniform");
+    }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -537,6 +558,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
+        "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
