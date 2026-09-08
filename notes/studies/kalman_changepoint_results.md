@@ -1457,7 +1457,7 @@ change no interface.
 
 **Verdict**
 
-- **Expected information — adopt.** Wins all four scenarios.
+- **Expected information — adopt**, but for *stability*: the mean gain is significant only on `oscillate` (§13.2), while the across-seed SE drops 5–9× everywhere.
 - **Damped step — optional.** Helps three of four; replaces the `kMaxStep` clamp with
   something that has a reason behind it and needs no per-family tuning.
 - **Polyak–Ruppert — reject.** It recovers asymptotic efficiency *for an estimator
@@ -1465,48 +1465,41 @@ change no interface.
   is tracking. Averaging the iterates only adds lag, which is why it helps `constant` and
   costs 21% on `oscillate`. Textbook-correct, wrong problem.
 
-### 13.2 ⚠️ The expected-information gain does not reproduce outside the harness
+### 13.2 Expected information buys stability, not accuracy
 
-**Do not use the einfo column above until this is resolved.**
+⚠️ **Correction to 13.1.** The einfo column was read as "wins all four scenarios". With
+error bars it wins **one**. Difference of means against the pooled SE:
 
-The formula is right. For the Gaussian copula in the Fisher-$z$ coordinate,
-$I(\rho)=(1+\rho^2)/(1-\rho^2)^2$ and $d\rho/d\phi = 1-\rho^2$, so $I(\phi)=1+\rho^2$.
-Monte Carlo over 2M draws matches $\mathbb{E}[s_\phi^2]$ to **0.4%** at every
-$\rho \in \{0, 0.2, 0.4, 0.6, 0.8, 0.9\}$ — so the gain is not a disguised step-size
-change, which was the obvious §5.4-style trap.
+| scenario | control | expected info | difference | significance |
+| --- | --- | --- | --- | --- |
+| `constant` | 0.0427 ± 0.0061 | 0.0375 ± 0.0011 | 0.0053 | 0.9σ — noise |
+| `drift` | 0.0719 ± 0.0073 | 0.0624 ± 0.0015 | 0.0094 | 1.3σ — noise |
+| `jump` | 0.0847 ± 0.0099 | 0.0745 ± 0.0011 | 0.0101 | 1.0σ — noise |
+| `oscillate` | 0.3829 ± 0.0023 | 0.3508 ± 0.0018 | 0.0321 | **11.0σ** |
 
-But a standalone probe reproducing the `constant` setup exactly — $\rho = 0.6$, $N=5000$,
-burn-in 500, the same registry keys — **disagrees with the harness in direction**:
+**The consistent effect is in the SE, not the mean.** Observed information has **5–9× the
+across-seed spread** in every scenario — 0.0061 vs 0.0011, 0.0073 vs 0.0015, 0.0099 vs
+0.0011. Same expected accuracy, far less reliable.
 
-| | harness | standalone |
-| --- | --- | --- |
-| observed information | 0.0427 (SE 0.0061) | 0.0377 |
-| expected information | 0.0375 (SE 0.0011) | 0.0393 |
+That resolves what looked like a contradiction. A standalone probe at fixed $\rho$ compared
+*means* and found the two indistinguishable at every $\rho \in \{0.3, 0.6, 0.85, 0.95\}$ —
+correctly, because the means *are* the same. The harness means merely looked separated
+because the observed-information mean is dragged around by its own variance.
 
-Standalone, observed is *better*, and a sweep over $\rho \in \{0.3, 0.6, 0.85, 0.95\}$
-finds them indistinguishable with **zero** blowups either way.
+It also explains why `oscillate` is the one genuine win: ρ sweeps its entire range there, so
+the observed score's $1/(1-\rho^2)$ factor — the same factor behind §7's NaN bug — is
+excited repeatedly, and each excitation inflates `info_` for the ~100 blocks the $\lambda=0.99$
+decay retains it.
 
-Three mechanisms were tested and all three failed:
-
-| Hypothesis | Test | Result |
-| --- | --- | --- |
-| Numerator/denominator coupling — a large score inflates its own denominator | simulated the recursion | Real (8% under-reaction at 3–4 SD) but **no RMSE effect**: with decay 0.99 the denominator averages ~100 observations |
-| Heavy-tailed scores freeze the estimator (the $1/(1-\rho^2)$ factor behind §7's NaN bug) | $t(3)$–$t(8)$ score noise | **Backwards.** Observed *wins* by up to 3.1% as tails thicken |
-| Wrong scale, so really a learning-rate change | measured $\mathbb{E}[s_\phi^2]$ | **No.** Formula correct to 0.4% |
-
-The one solid clue is the **SE**: 0.0061 against 0.0011 on `constant`. Observed information
-has 5.5× the across-seed spread, which is the signature of rare bad seeds rather than a
-uniform shift — but the standalone per-seed run found no such seeds. So the instability is
-something the harness does and the probe does not, and until that is located the ablation
-table measures the harness, not the estimator.
-
-**This is exactly the §5.4 and §12.3 failure mode a third time**, and it is only visible
-because the standalone check was run. The Polyak-Ruppert rejection is unaffected: it fails
-for a structural reason (averaging assumes convergence to a fixed point) that does not
-depend on these numbers.
+**Revised verdict: adopt expected information for variance reduction**, not for accuracy.
+For a thesis that reports mean ± SE over seeds, halving the SE is worth having on its own.
 
 ⚠️ Gaussian only. No closed form was derived for Clayton, Gumbel or $t$, so those families
 still use the observed information.
+
+⚠️ **Method note.** §13.1's table was written from point estimates alone. The significance
+test should have come first — it is the same discipline §5.4 and §12.3 record, applied to
+error bars rather than to tuning.
 
 ---
 
