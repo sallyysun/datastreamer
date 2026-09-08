@@ -32,6 +32,13 @@ public:
         //   inflation = 0 : reset() does nothing at all. The control that tests
         //                   whether the reset is the whole cost.
         double reset_inflation = -1.0;   // <0 keeps the hard reset
+
+        // Control for the soft reset: inflate on a fixed schedule instead of on
+        // an alarm. If a detector-timed inflation is no better than a blind one
+        // at the same rate, the detector's timing carries no information and the
+        // gain is just "hold P higher". Section 14.8.
+        std::size_t periodic_inflate_blocks = 0;   // 0 disables
+
         double vff_min = 1e-5;
         double vff_max = 1e0;
     };
@@ -75,6 +82,11 @@ public:
                 sigma_omega2_ *= std::pow(std::max(C_, 1e-6), config_.vff_rate);
                 sigma_omega2_ = std::clamp(sigma_omega2_, config_.vff_min, config_.vff_max);
             }
+        }
+
+        if (config_.periodic_inflate_blocks > 0 &&
+            blocks_ % config_.periodic_inflate_blocks == 0) {
+            P_ = std::min(P_ * config_.reset_inflation, kPriorVariance);
         }
 
         xs_.clear();

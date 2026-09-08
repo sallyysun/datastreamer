@@ -488,8 +488,15 @@ aggregation is a floor it cannot be tuned past.
 `kalman_fast`'s 0.0880 — four decimals — with alarms, delay and hit rate unchanged. So the
 18–30% penalty was never the price of detecting; it was one line choosing the wrong
 response. Replacing the reset with covariance inflation (`P_ *= 20`, keep $\hat z$) is free
-everywhere and **beats having no detector at all** on `oscillate`, 0.3061 vs 0.3166 (3.0σ).
-[§14.6–14.7](#146-the-reset-is-the-whole-cost--confirmed-and-fixed).
+everywhere — but ⚠️ it does not *earn* anything either: its apparent `oscillate` win is
+beaten both by inflating on a blind clock and by simply running the filter at a larger
+process noise. [§14.6–14.8](#146-the-reset-is-the-whole-cost--confirmed-and-fixed).
+
+**4c. The forgetting rate matters ~4× more than any detector, and should be learned.** The
+`sigma_omega2 = 1e-2` every detector wraps was never swept. Sweeping it, the best value
+differs per scenario across two and a half orders of magnitude — and `kalman_vff`, choosing
+its own, beats the best *fixed* value on `drift` and is second elsewhere, with no oracle.
+[§14.8b](#148b-the-process-noise-sweep-is-the-real-result-here).
 
 **4b. At matched ARL₀ the four hard-reset detectors are indistinguishable.** RMSE spread
 0.0036 against SEs of ~0.003; delays 46–52 against SEs of 4–7. Maximising over the change
@@ -1671,27 +1678,106 @@ All four scenarios, 20 seeds:
 | `kalman_cusum_soft` | 0.0712 | 0.0922 | 0.0877 | **0.3061** |
 
 **On `oscillate` the soft reset beats having no detector at all** — 0.3061 against 0.3166,
-a **3.0σ** gap. That is the regime where change is frequent enough that the alarm carries
-information the filter can use: "widen your uncertainty now" genuinely beats a fixed gain.
-Everywhere else it is exactly free.
+a **3.0σ** gap. Everywhere else it is exactly free.
 
 | alarm response | cost | benefit |
 | --- | --- | --- |
 | hard reset | always | none measured |
 | no-op | zero | none |
-| **covariance inflation** | **zero** | **helps when change is frequent** |
+| **covariance inflation** | **zero** | small, on `oscillate` only |
 
-**This reframes the extension chapter.** The question was "does detection earn its keep?",
-and under a hard reset the answer was no. Under covariance inflation it is free everywhere
-and positive where change is frequent — so detection was never the problem, the response to
-it was.
-
-⚠️ The inflation factor (20) is a first guess and unswept. `kalman_cusum_soft` fires 24.75
-times on `oscillate` against `_noreset`'s 28.60, so the two are **not alarm-matched** — part
-of that gap may be the alarm difference rather than the inflation.
+⚠️ **That `oscillate` gain does not survive its control.** §14.8 sweeps the inflation factor
+and adds the two arms this table is missing, and the gain turns out to be a tuning artefact.
+The "free everywhere" half stands.
 
 
-### 14.8 ⚠️ What this does not establish
+### 14.8 The controls: the `oscillate` gain was the wrong knob
+
+Two arms were missing from §14.7, and both are the obvious ones.
+
+```text
+soft reset says:  "on an alarm, widen P_ by 20x"
+                     |                |
+                     |                +-- does WIDENING P_ help?
+                     |                    control: widen it on a fixed schedule,
+                     |                             no detector  -> kalman_periodic_inf
+                     +-- does the TIMING help?
+                         control: don't widen P_ at all, just run the filter at a
+                                  larger process noise  -> kalman_q003 ... q10
+```
+
+Both controls beat the soft reset on `oscillate`, and it is not close.
+
+| `oscillate`, 20 seeds | RMSE | |
+| --- | --- | --- |
+| `kalman_cusum_soft` (detector-timed, ×20) | 0.3061 | the §14.7 headline |
+| `kalman_periodic_inf` (blind, every 10 blocks, ×20) | 0.2580 | **timing carries nothing** |
+| `kalman_q03` (plain filter, q = 0.3, no detector) | **0.2256** | **best of everything measured** |
+
+Blind inflation beats detector-timed inflation. On a smoothly oscillating truth there is no
+changepoint to find, so the alarms are firing on noise, and firing on noise at a slightly
+lower rate is *worse* than firing on a clock. The detector's whole contribution is negative.
+
+And the plain filter at a larger `sigma_omega2` beats both by a wide margin. The soft reset
+was a slow, roundabout way of holding `P_` higher — which is what the process noise does
+directly, and better.
+
+**The inflation sweep itself** (`oscillate`; every other scenario is flat to 4 decimals):
+
+| ×2 | ×5 | ×10 | ×20 | ×50 |
+| --- | --- | --- | --- | --- |
+| 0.3130 | 0.3092 | 0.3070 | 0.3061 | 0.3055 |
+
+Monotone and saturating. `P_` is capped at the prior variance 1.0 and its steady state here
+is ≈ 0.020, so anything past ×50 is the same arm: **`P_` → prior, `z_` kept**. That arm scores
+0.3055 while the hard reset — `P_` → prior *and* `z_` → 0 — scores 0.3477. So within the reset,
+all of the damage is from discarding `z_`, none from discarding the confidence.
+
+### 14.8b The process-noise sweep is the real result here
+
+Every detector in this document wraps a filter at `sigma_omega2 = 1e-2`. That value was never
+swept. It should have been, because it moves RMSE **4× more than any detector does**:
+
+| `sigma_omega2` | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- |
+| 1e-3 (`kalman`) | **0.0208** | 0.1274 | 0.1288 | 0.4153 |
+| 1e-2 (`kalman_fast`) | 0.0712 | **0.0921** | **0.0880** | 0.3166 |
+| 3e-2 | 0.0931 | 0.1175 | 0.1051 | 0.2592 |
+| 1e-1 | 0.1201 | 0.1498 | 0.1298 | 0.2279 |
+| 3e-1 | 0.1419 | 0.1757 | 0.1507 | **0.2256** |
+| 1e0 | 0.1566 | 0.1929 | 0.1648 | 0.2309 |
+| 1e1 | 0.1648 | 0.2024 | 0.1726 | 0.2353 |
+
+Read down each column: the best q is different in every scenario, and spans **two and a half
+orders of magnitude**. This is the efficiency ↔ adaptation trade of §0.2 in one table, with no
+detector anywhere in it. `q = 1e1` is effectively no smoothing at all (K → 1), so `oscillate`'s
+column is nearly flat past 1e-1 — with `block = 20` the truth moves too fast for smoothing to
+buy much, and 0.2256 vs 0.2353 is all that is on the table.
+
+**Against that, adaptive forgetting is the thing that works.** `kalman_vff` picks its own q:
+
+| | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- |
+| best *fixed* q, chosen per scenario | 0.0208 | 0.0921 | 0.0880 | 0.2256 |
+| `kalman_vff`, one setting for all four | 0.0341 | **0.0773** | 0.0993 | 0.2690 |
+| `kalman_fast`, one setting for all four | 0.0712 | 0.0921 | 0.0880 | 0.3166 |
+
+VFF **beats the best fixed q on `drift`**, and is second everywhere else — without being told
+which scenario it is in. The fixed-q row above it is an oracle; the VFF row is not.
+
+**What this does to the extension chapter.** Two claims from §14.7 have to be split:
+
+| claim | status |
+| --- | --- |
+| The hard reset is the whole cost of detection | ✅ stands (§14.6) |
+| Covariance inflation is free everywhere | ✅ stands |
+| Covariance inflation *earns* something on `oscillate` | ⬜ **retracted** — a blind clock and a bigger q both beat it |
+
+So detection is free, and still buys nothing measured. The knob that does buy something is
+the forgetting rate, and the way to set it is to let the data set it.
+
+
+### 14.9 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
   spread of alarm rates is what makes the monotone relationship visible — it reads as

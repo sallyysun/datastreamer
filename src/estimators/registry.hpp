@@ -114,6 +114,74 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 3.5},
             "kalman_cusum_soft");
     }
+    if (key == "kalman_cusum_inf2") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 2.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_inf2");
+    }
+    if (key == "kalman_cusum_inf5") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 5.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_inf5");
+    }
+    if (key == "kalman_cusum_inf10") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 10.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_inf10");
+    }
+    if (key == "kalman_cusum_inf50") {
+        return std::make_unique<KalmanCusumDetector>(
+            KalmanCusumDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2,
+                                                   .burn_in_blocks = 2, .reset_inflation = 50.0},
+                .delta = 1.0, .h = 3.5},
+            "kalman_cusum_inf50");
+    }
+    // No detector at all: inflate P_ on a fixed schedule at the rate the CUSUM
+    // fires. Isolates "the alarm timing was informative" from "P_ was held higher".
+    if (key == "kalman_periodic_inf") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2,
+                                     .reset_inflation = 20.0, .periodic_inflate_blocks = 10},
+            "kalman_periodic_inf");
+    }
+    // Process-noise sweep, no detector. kalman_fast is q = 1e-2, the value every
+    // detector wraps. If a plain filter at some other q beats the detectors, the
+    // detector comparison was being run at the wrong operating point. Section 14.8.
+    if (key == "kalman_q003") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 3e-2, .burn_in_blocks = 2},
+            "kalman_q003");
+    }
+    if (key == "kalman_q01") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-1, .burn_in_blocks = 2},
+            "kalman_q01");
+    }
+    if (key == "kalman_q03") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 3e-1, .burn_in_blocks = 2},
+            "kalman_q03");
+    }
+    if (key == "kalman_q1") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e0, .burn_in_blocks = 2},
+            "kalman_q1");
+    }
+    if (key == "kalman_q10") {
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e1, .burn_in_blocks = 2},
+            "kalman_q10");
+    }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -314,7 +382,9 @@ inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
-        "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft", "kalman_glr",
+        "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft",
+        "kalman_cusum_inf2", "kalman_cusum_inf5", "kalman_cusum_inf10", "kalman_cusum_inf50",
+        "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
