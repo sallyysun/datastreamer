@@ -1623,17 +1623,66 @@ distribution over run lengths. The cost is not detecting; it is *committing*.
 This is the hard-decision/soft-decision axis of
 [change_detection.md](change_detection.md) appearing directly in RMSE.
 
-### 14.4 Open — the obvious next test
+### 14.6 The reset is the *whole* cost — confirmed, and fixed
 
-Candidate fix: make `reset()` inflate the state covariance (the standard adaptive
-filtering "covariance bump") or re-seed from the current estimate, rather than
-clearing state. That keeps the alarm's information — *distrust the past* — without
-discarding the estimate. **Untested.**
+Two variants of `reset()`, everything else identical (`reset_inflation` in
+`KalmanLocalLevel::Config`):
 
-A cheap mechanism check: run a detector with `reset()` made a no-op. If RMSE returns
-to `kalman_fast`'s 0.0880, the reset cost is confirmed as the entire story.
+- **`kalman_cusum_noreset`** — `reset()` does nothing. The falsification control.
+- **`kalman_cusum_soft`** — `P_ *= 20` instead of clearing state. Keeps $\hat z$, widens
+  the uncertainty, which raises the gain so the filter moves fast toward new data.
+  *"I am less sure"* rather than *"I know nothing"*.
 
-### 14.5 ⚠️ What this does not establish
+`jump`, 20 seeds:
+
+| | RMSE | alarms | delay | detected |
+| --- | --- | --- | --- | --- |
+| `kalman_fast` (no detector) | 0.0880 ± 0.0014 | — | — | — |
+| `kalman_cusum` (hard reset) | 0.1146 ± 0.0027 | 1.10 | 46.4 | 19/20 |
+| `kalman_cusum_noreset` | **0.0880 ± 0.0014** | 1.10 | 46.4 | 19/20 |
+| `kalman_cusum_soft` | **0.0877 ± 0.0014** | 1.10 | 46.4 | 19/20 |
+
+**The reset accounts for 100% of the penalty.** Removing it returns RMSE to *exactly*
+`kalman_fast`'s 0.0880 — not approximately, to four decimals. Detection is untouched: same
+alarm count, same delay, same 19/20.
+
+**So detection is free.** The alarm — "dependence broke near tick 2546" — is a deliverable
+in its own right, and it costs nothing to have. §14.1's 18–30% penalty was never the price
+of detecting; it was the price of one line in `reset()`.
+
+### 14.7 Covariance inflation is the only response that ever helps
+
+All four scenarios, 20 seeds:
+
+| | `constant` | `drift` | `jump` | `oscillate` |
+| --- | --- | --- | --- | --- |
+| `kalman_fast` (no detector) | 0.0712 | 0.0921 | 0.0880 | 0.3166 |
+| `kalman_cusum` (hard reset) | 0.0721 | 0.0930 | 0.1146 | 0.3477 |
+| `kalman_cusum_noreset` | 0.0712 | 0.0921 | 0.0880 | 0.3166 |
+| `kalman_cusum_soft` | 0.0712 | 0.0922 | 0.0877 | **0.3061** |
+
+**On `oscillate` the soft reset beats having no detector at all** — 0.3061 against 0.3166,
+a **3.0σ** gap. That is the regime where change is frequent enough that the alarm carries
+information the filter can use: "widen your uncertainty now" genuinely beats a fixed gain.
+Everywhere else it is exactly free.
+
+| alarm response | cost | benefit |
+| --- | --- | --- |
+| hard reset | always | none measured |
+| no-op | zero | none |
+| **covariance inflation** | **zero** | **helps when change is frequent** |
+
+**This reframes the extension chapter.** The question was "does detection earn its keep?",
+and under a hard reset the answer was no. Under covariance inflation it is free everywhere
+and positive where change is frequent — so detection was never the problem, the response to
+it was.
+
+⚠️ The inflation factor (20) is a first guess and unswept. `kalman_cusum_soft` fires 24.75
+times on `oscillate` against `_noreset`'s 28.60, so the two are **not alarm-matched** — part
+of that gap may be the alarm difference rather than the inflation.
+
+
+### 14.8 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
   spread of alarm rates is what makes the monotone relationship visible — it reads as
