@@ -17,6 +17,7 @@
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/kalman_shiryaev_roberts.hpp"
 #include "dependence/parametric_copula.hpp"
+#include "dependence/nonlinear_kalman.hpp"
 #include "dependence/particle_filter.hpp"
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
@@ -119,6 +120,25 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
                                         .lambda = 0.99, .vff_rate = 0.05, .burn_in = 50},
             "gaussian_mle_vff");
+    }
+    if (key == "kalman_mid") {
+        // Matched sigma_omega2 for the EKF/UKF comparison: same process noise,
+        // the only difference being the Fisher transform vs a nonlinear observation.
+        return std::make_unique<KalmanLocalLevel>(
+            KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2},
+            "kalman_mid");
+    }
+    if (key == "ekf") {
+        return std::make_unique<NonlinearKalman>(
+            NonlinearKalman::Config{.block = 20, .sigma_omega2 = 1e-3,
+                                    .mode = NonlinearKalman::Mode::Extended},
+            "ekf");
+    }
+    if (key == "ukf") {
+        return std::make_unique<NonlinearKalman>(
+            NonlinearKalman::Config{.block = 20, .sigma_omega2 = 1e-3,
+                                    .mode = NonlinearKalman::Mode::Unscented},
+            "ukf");
     }
     if (key == "particle") {
         return std::make_unique<ParticleFilter>(
@@ -226,7 +246,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
