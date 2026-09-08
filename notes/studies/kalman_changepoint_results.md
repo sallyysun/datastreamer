@@ -500,6 +500,13 @@ with information deflation instead of a reset it scores 0.0664 on `jump`, beatin
 fixed λ by 5.0σ *and* passing both controls that killed the Kalman soft reset.
 [§14.10](#1410-the-mle-score-cusum-the-first-detector-that-earns-its-keep).
 
+**4f. `hermite_cusum`'s baseline bug is fixed, and it did not matter.** The surprise mean and
+sd were updated with the coefficient weight, so the baseline chased the change at exactly the
+speed the coefficients absorbed it. Fixing it (a frozen Phase-I baseline) removed the RMSE
+damage — `constant` 0.1151 → 0.0615 — and created no detection power: **0/20** on `jump` at
+matched ARL₀. An omnibus norm over 441 coefficients cannot compete with a score projected onto
+the one direction the change moves. [§14.11](#1411-hermite_cusum-the-bug-is-fixed-and-the-statistic-still-has-no-power).
+
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
 the answer is to tune (or learn) the forgetting rate instead.
@@ -1900,6 +1907,96 @@ The λ sweep behind that, for the record:
 
 Same shape as the `sigma_omega2` sweep in §14.8b, on a different estimator: the best setting
 differs per scenario across the whole range, and no single one is close to good everywhere.
+
+
+### 14.11 `hermite_cusum`: the bug is fixed, and the statistic still has no power
+
+#### 14.11.1 The bug
+
+`standardized_surprise()` = (surprise − mean) / sd, and **the mean and sd were being updated
+with the coefficient weight `w`**.
+
+```text
+change happens
+   |
+   +-- surprise rises                      <- the signal
+   +-- surprise_mean_ rises at rate w      <- the baseline, chasing it
+        and the coefficients absorb the change at rate w too
+
+so the numerator returns to zero at exactly the speed the estimator
+absorbs the change. The detector's reference point moves with the signal.
+```
+
+`surprise_var_` made it worse: it inflates during the change, growing the denominator as well.
+Both halves of the standardization cancel the thing being detected.
+
+**The fix** is what a control chart does — estimate the in-control mean and sd over a Phase-I
+window and then freeze them. The old behaviour is kept as `hermite_cusum_chasing`.
+
+The RMSE damage this was doing is gone: `constant` **0.1151 ± 0.0112 → 0.0615 ± 0.0055**.
+
+#### 14.11.2 But at matched ARL₀ it detects nothing
+
+Calibrated to ARL₀ = 1000 blocks like every other detector (h = 3.0), `jump`, 20 seeds:
+
+| | hits | delay (ticks) |
+| --- | --- | --- |
+| `gaussian_mle_cusum` (§14.10) | 20/20 | 47 ± 2 |
+| `hermite_cusum` (fixed) | **0/20** | never |
+| `hermite_cusum_chasing` (the bug) | 3/20 | 1467 ± 509 |
+
+The fix removed the damage without creating any power. So the bug was never the reason this
+detector did not work.
+
+#### 14.11.3 Why: the statistic is a norm over 441 dimensions
+
+The monitored quantity is $\lVert h_x h_y^\top - A \rVert$ — one observation's outer product
+against the absorbed coefficient matrix. Two things are wrong with it:
+
+1. Its size is dominated by $\lVert h_x \rVert \lVert h_y \rVert$, which says **where in the
+   margins this single point landed**, not how the two are related.
+2. It is a norm over a $(20+1)^2 = 441$-dimensional object, while a change in ρ moves
+   essentially **one** direction in that space. An omnibus norm pays for all 441.
+
+Replacing (1) with a two-timescale statistic — a fast EWMA of the coefficient matrix against
+the estimator's own, so per-observation noise cancels — fixes the first problem and leaves the
+second. Calibrated at h = 10.0:
+
+| `hermite_cusum2` | hits | delay (ticks) |
+| --- | --- | --- |
+| vs `gaussian_mle_cusum` | 4/20 vs 20/20 | **1511 ± 505** vs 47 ± 2 |
+
+**32× slower for a fifth of the hit rate.** That is the dimension penalty, measured.
+
+The MLE score is the other extreme: it is the projection onto exactly the direction the change
+moves, which is what makes it the efficient score. Between an omnibus norm and the efficient
+score there is a whole ladder, and none of it is built.
+
+#### 14.11.4 A third alarm response, and this one is harmful
+
+The Hermite analogue of covariance inflation is to forget faster for a burst — boost `w` for
+20 ticks. Unlike inflation (§14.7) and information deflation (§14.10), **it is unstable**:
+
+```text
+boost w  ->  coefficients get noisier  ->  surprise rises
+    ^                                          |
+    +------  another alarm  <-------------------+
+```
+
+97 alarms per run on `drift` against a design rate of ~5, and RMSE 0.0700 → 0.1705. The
+difference from the two that work is that `P_` and `info_` are *confidence* registers, and
+widening them does not touch the estimate; `w` is the estimate's own update rate, so boosting
+it feeds straight back into the statistic being thresholded. **Inflate the uncertainty, never
+the gain on the signal you are monitoring.**
+
+#### 14.11.5 ⚠️ What this does *not* say
+
+It does not say coefficient monitoring is useless. It says it has **no power against a change
+in ρ** — which is exactly the change a scalar detector already sees, so it was never the reason
+to build it. Distinction 1 says the point is a change in copula *shape at constant ρ*, and
+**no scenario in the harness generates one**. The right next experiment is a DGP that switches
+Gaussian → t at matched Spearman ρ, where every scalar detector must be blind by construction.
+Until that exists, this is a fair test of the wrong hypothesis.
 
 
 ### 14.9 ⚠️ What this does not establish

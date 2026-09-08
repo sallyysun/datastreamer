@@ -20,6 +20,7 @@
 #include "../src/estimators/dependence/kalman_glr.hpp"
 #include "../src/estimators/dependence/kalman_shiryaev_roberts.hpp"
 #include "../src/estimators/dependence/mle_score_cusum.hpp"
+#include "../src/estimators/dependence/hermite_cusum.hpp"
 
 namespace {
 
@@ -142,6 +143,29 @@ int main(int argc, char** argv) {
                 "gaussian_mle_cum_cusum");
         },
         {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "hermite_cusum",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<HermiteCusumDetector>(
+                HermiteCusumDetector::Config{
+                    .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100},
+                    .delta = 1.0, .h = h, .block = 20},
+                "hermite_cusum");
+        },
+        {1.0, 2.0, 3.0, 4.0, 5.0, 7.5, 10.0, 15.0, 20.0}, target, ticks_per_seed, n_seeds, rhos);
+
+    calibrate(
+        "hermite_cusum2",
+        [&](double h) -> std::unique_ptr<DependenceEstimator> {
+            return std::make_unique<HermiteCusumDetector>(
+                HermiteCusumDetector::Config{
+                    .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                       .surprise_fast_rate = 0.1},
+                    .delta = 1.0, .h = h, .block = 20},
+                "hermite_cusum2");
+        },
+        {3.0, 5.0, 10.0, 20.0, 40.0, 80.0, 160.0, 320.0}, target, ticks_per_seed, n_seeds, rhos);
 
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(

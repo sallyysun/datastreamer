@@ -473,16 +473,29 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
   covariance inflation is free everywhere and beats no detector on `oscillate`.
 - ✅ **Registry invariant guarded both ways**, and `multiseed` prints σ-from-best.
 
+### Done 2026-09-08 (second pass) — the controls
+- ✅ **Inflation factor swept**, and ⚠️ **the `oscillate` win retracted**. Monotone and
+  saturating (×2 → ×50: 0.3130 → 0.3055), but a blind clock (0.2580) and a plain filter at
+  a larger `sigma_omega2` (0.2256) both beat it. §14.8.
+- ✅ **`sigma_omega2` swept** — never done before, and it moves RMSE ~4× more than any
+  detector. Best value differs per scenario over 2.5 orders of magnitude; `kalman_vff` beats
+  the best *fixed* value on `drift` with no oracle. §14.8b.
+- ✅ **MLE score-CUSUM** — 20/20 on `jump` at matched ARL₀ against the Kalman detectors'
+  17–19/20, same delay, half the SE. Paired with information deflation it beats the best
+  fixed λ by 5.0σ **and passes both controls**. The first detector that earns its keep. §14.10.
+- ✅ **`hermite_cusum` baseline fixed** (frozen Phase-I). RMSE damage gone, detection power
+  still zero (0/20). The two-timescale replacement is 32× slower than the score-CUSUM. §14.11.
+
 ### Open, in priority order
-- ⬜ **Sweep the inflation factor** (currently 20, a first guess) and alarm-match `_soft`
-  against `_noreset` — they fire 24.75 vs 28.60 on `oscillate`, so part of that 3σ gap may
-  be the alarm difference rather than the inflation.
-- ⬜ **MLE score-CUSUM.** The score is already a standardized innovation and `info_` tracks
-  its variance, so no statistic has to be invented. Fills the empty row of §0.3's matrix,
-  and is worth doing now that detection is known to be free.
-- ⬜ **Fix `hermite_cusum`.** Its surprise baseline uses the same λ as the coefficients, so a
-  sustained change washes out within a few hundred ticks. Needs a slower baseline or one
-  frozen after burn-in. Currently worse than doing nothing.
+- ⬜ **A shape-change DGP: Gaussian → t at matched Spearman ρ.** §14.11 tested coefficient
+  monitoring against a ρ change, which is the change it was never for — and no scenario in
+  the harness generates the one it *is* for. Every scalar detector must be blind by
+  construction, so this is the experiment that can only be won by a coefficient detector.
+  Blocks the O(k) work below.
+- ⬜ **Score-CUSUM for Xiao and Hermite.** §14.10 shows the win comes from a per-tick,
+  correctly-projected statistic. Both have one available and neither uses it.
+- ⬜ **Learn the forgetting rate properly.** §14.8b makes this the highest-value knob in the
+  system and `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator".
 - ⬜ **Coefficient-vector monitoring** — the O(k) idea. Catches a shape change at constant ρ,
   which every current detector is blind to.
 - ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.

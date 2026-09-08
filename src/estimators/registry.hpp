@@ -360,9 +360,55 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     if (key == "hermite_cusum") {
         return std::make_unique<HermiteCusumDetector>(
             HermiteCusumDetector::Config{
-                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100},
-                .delta = 1.0, .h = 5.0},
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                    .reset_boost = -1.0},
+                .delta = 1.0, .h = 3.0, .block = 20},
             "hermite_cusum");
+    }
+    if (key == "hermite_cusum_noreset") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                    .reset_boost = 0.0},
+                .delta = 1.0, .h = 3.0, .block = 20},
+            "hermite_cusum_noreset");
+    }
+    if (key == "hermite_cusum_soft") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                    .reset_boost = 20.0},
+                .delta = 1.0, .h = 3.0, .block = 20},
+            "hermite_cusum_soft");
+    }
+    // The bug this replaces: baseline on the coefficient weight, so it chased
+    // the change as fast as the coefficients absorbed it. Kept as a control.
+    // Two-timescale statistic: a fast EWMA of the coefficient matrix against the
+    // estimator's own, so per-observation noise cancels and only a persistent
+    // drift of the coefficients survives. Section 14.11.
+    if (key == "hermite_cusum2") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                   .surprise_fast_rate = 0.1},
+                .delta = 1.0, .h = 10.0, .block = 20},
+            "hermite_cusum2");
+    }
+    if (key == "hermite_cusum2_noreset") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                   .reset_boost = 0.0, .surprise_fast_rate = 0.1},
+                .delta = 1.0, .h = 10.0, .block = 20},
+            "hermite_cusum2_noreset");
+    }
+    if (key == "hermite_cusum_chasing") {
+        return std::make_unique<HermiteCusumDetector>(
+            HermiteCusumDetector::Config{
+                .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
+                                                   .surprise_baseline_rate = 0.01},
+                .delta = 1.0, .h = 3.0, .block = 20},
+            "hermite_cusum_chasing");
     }
     if (key == "kalman_ewma_chart") {
         return std::make_unique<KalmanEwmaChartDetector>(
@@ -449,7 +495,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum", "gaussian_mle_cusum_noreset", "gaussian_mle_cusum_soft",
         "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
+        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

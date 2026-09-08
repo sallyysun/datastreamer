@@ -37,6 +37,32 @@ public:
         // Standardization is exact only for Gaussian margins; ranks are exact for
         // any continuous margin and are invariant to monotone marginal change.
         std::size_t rank_pit_window = 0;   // 0 keeps standardization
+
+        // Rate at which the surprise BASELINE (its mean and sd) is updated. This
+        // must not be the coefficient weight: the baseline would then chase a
+        // change at exactly the speed the coefficients absorb it, and the
+        // standardized surprise would return to zero as fast as it rose. That is
+        // the bug section 14.11 records.
+        //   0 (default) : freeze after the calibration window -- a Phase-I
+        //                 control chart, and the fix.
+        //   > 0         : an EWMA at its own, slower rate.
+        double surprise_baseline_rate = 0.0;
+
+        // Which surprise statistic the detector monitors.
+        //   0 : ||h_x h_y' - A||, the one-observation residual. Its norm is
+        //       dominated by ||h_x|| ||h_y||, i.e. by where in the margins this
+        //       single point landed, so the dependence signal is a small part of
+        //       a large number. Section 14.11 measures how little power it has.
+        //   > 0 : ||A_fast - A_slow||, this rate against the coefficient rate.
+        //       Two smoothed copies of the same matrix, so the per-observation
+        //       noise cancels and only a persistent drift survives. Costs one
+        //       extra (order+1)^2 matrix.
+        double surprise_fast_rate = 0.0;
+
+        // What an alarm should do. The Hermite analogue of covariance inflation:
+        // forget faster for a short burst instead of discarding A_. Section 14.11.
+        double reset_boost = -1.0;         // <0 hard reset; 0 no-op; >1 boost w
+        std::size_t reset_boost_ticks = 20;
     };
 
     HermiteEstimator(Config config, const char* name)
@@ -45,6 +71,7 @@ public:
         ax_(Eigen::VectorXd::Zero(config.order + 1)),
         ay_(Eigen::VectorXd::Zero(config.order + 1)),
         A_(Eigen::MatrixXd::Zero(config.order + 1, config.order + 1)),
+        A_fast_(Eigen::MatrixXd::Zero(config.order + 1, config.order + 1)),
         W_(integral_matrix(config.order)),
         z_(basis_integrals(config.order)) {}
     
@@ -65,9 +92,13 @@ public:
         const Eigen::VectorXd hx = hermite_functions(sx);
         const Eigen::VectorXd hy = hermite_functions(sy);
 
-        const double w = (config_.lambda > 0.0)
+        double w = (config_.lambda > 0.0)
             ? lambda_
             : 1.0 / static_cast<double>(n_);
+        if (boost_left_ > 0) {
+            w = std::min(1.0, w * config_.reset_boost);
+            --boost_left_;
+        }
         
             ax_ += w * (hx - ax_);
             ay_ += w * (hy - ay_);
@@ -75,15 +106,27 @@ public:
             // The coefficient-matrix surprise, before it is absorbed. This is the
             // Hermite analogue of a Kalman innovation, and it carries shape change
             // that estimate()'s collapse to a scalar rho throws away.
-            const double surprise = (hx * hy.transpose() - A_).norm();
-            A_ += w * (hx * hy.transpose() - A_);
+            const Eigen::MatrixXd outer = hx * hy.transpose();
+            double surprise = (outer - A_).norm();
+            A_ += w * (outer - A_);
+            if (config_.surprise_fast_rate > 0.0) {
+                A_fast_ += config_.surprise_fast_rate * (outer - A_fast_);
+                surprise = (A_fast_ - A_).norm();
+            }
 
-            if (surprise_n_ == 0) {
-                surprise_mean_ = surprise;
-            } else {
+            // Baseline on its own clock. Inside the calibration window it is a
+            // running mean/variance; after it, either frozen or a slow EWMA --
+            // never the coefficient weight w.
+            if (surprise_n_ < kSurpriseBurnIn) {
+                const double c = 1.0 / static_cast<double>(surprise_n_ + 1);
                 const double d = surprise - surprise_mean_;
-                surprise_mean_ += w * d;
-                surprise_var_ = (1.0 - w) * (surprise_var_ + w * d * d);
+                surprise_mean_ += c * d;
+                surprise_var_ = (1.0 - c) * (surprise_var_ + c * d * d);
+            } else if (config_.surprise_baseline_rate > 0.0) {
+                const double c = config_.surprise_baseline_rate;
+                const double d = surprise - surprise_mean_;
+                surprise_mean_ += c * d;
+                surprise_var_ = (1.0 - c) * (surprise_var_ + c * d * d);
             }
             ++surprise_n_;
             last_surprise_ = surprise;
@@ -100,7 +143,7 @@ public:
     // Standardized coefficient-matrix surprise, for a detector to monitor. Zero
     // until enough history exists to have a scale for it.
     double standardized_surprise() const {
-        if (surprise_n_ < kSurpriseBurnIn) return 0.0;
+        if (surprise_n_ <= kSurpriseBurnIn) return 0.0;
         const double sd = std::sqrt(std::max(surprise_var_, 1e-12));
         return (last_surprise_ - surprise_mean_) / sd;
     }
@@ -123,13 +166,20 @@ public:
     }
 
     void reset() override {
+        if (config_.reset_boost == 0.0) return;                    // no-op control
+        if (config_.reset_boost > 0.0) {                            // soft: forget faster
+            boost_left_ = config_.reset_boost_ticks;                // A_ and the baseline kept
+            return;
+        }
         n_ = 0;
+        boost_left_ = 0;
         mean_x_ = mean_y_ = 0.0;
         var_x_ = var_y_ = 1.0;
         m2_x_ = m2_y_ = 0.0;
         ax_.setZero();
         ay_.setZero();
         A_.setZero();
+        A_fast_.setZero();
         last_surprise_ = 0.0;
         surprise_mean_ = 0.0;
         surprise_var_ = 0.0;
@@ -148,7 +198,7 @@ public:
 
     std::size_t store_bytes() const override {
         const std::size_t dim = static_cast<std::size_t>(config_.order + 1);
-        return (2 * dim + dim * dim + 6) * sizeof(double)
+        return (2 * dim + dim * dim * (config_.surprise_fast_rate > 0.0 ? 2 : 1) + 6) * sizeof(double)
              + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0);
     }
 
@@ -270,6 +320,7 @@ private:
     RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     double lambda_ = config_.lambda;
+    std::size_t boost_left_ = 0;
     double fast_ = 0.0;
     double slow_ = 0.0;
 
@@ -281,6 +332,7 @@ private:
     Eigen::VectorXd ax_;
     Eigen::VectorXd ay_;
     Eigen::MatrixXd A_;
+    Eigen::MatrixXd A_fast_;
     Eigen::MatrixXd W_;
     Eigen::VectorXd z_;
 };
