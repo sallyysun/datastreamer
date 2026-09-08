@@ -148,6 +148,66 @@ private:
     std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};
 };
 
+// Frechet mixture: C = a M + b W + (1-a-b) Pi, mixing the comonotone, the
+// countermonotone and the independence copula. Spearman's rho is a LINEAR
+// functional of C, so rho_S = a - b exactly -- no quadrature, unlike every other
+// family here.
+//
+// This is the family the Gaussian copula cannot summarise. Its density is a
+// singular ridge on the diagonal sitting on a flat background, and a maximum
+// likelihood fit is driven by the ridge while a rank average is driven by the
+// background. Clayton, Gumbel and t are all smooth and sit close enough to the
+// Gaussian that one rho describes them (finding 5, "a forgiving wrong answer");
+// this one does not. Section 14.15.
+class FrechetCopula : public Copula {
+public:
+    CopulaDraw sample(double d, std::mt19937& rng) override {
+        const double target = detail::target_spearman(d);
+        const double w = std::fabs(target);
+        const double u = unit_(rng);
+        double v;
+        if (unit_(rng) < w) {
+            v = (target > 0.0) ? u : 1.0 - u;   // comonotone / countermonotone
+        } else {
+            v = unit_(rng);                      // independent
+        }
+        return {detail::to_normal_score(u), detail::to_normal_score(v), target};
+    }
+    const char* name() const override { return "frechet"; }
+
+private:
+    std::uniform_real_distribution<double> unit_{0.0, 1.0};
+};
+
+// The same idea without the singularity: mix a STRONG Gaussian against
+// independence rather than a degenerate one. Spearman is still linear in the
+// weight, so rho_S = p * rho_S(0.95) exactly. Separates "the Gaussian MLE cannot
+// handle a singular component" from "the Gaussian MLE cannot handle a mixture".
+class MixtureGaussianCopula : public Copula {
+public:
+    CopulaDraw sample(double d, std::mt19937& rng) override {
+        const double target = detail::target_spearman(d);
+        const double p = std::clamp(target / kComponentSpearman, -1.0, 1.0);
+        const double rho = (p >= 0.0) ? kComponentRho : -kComponentRho;
+        const double z1 = normal_(rng);
+        double z2;
+        if (unit_(rng) < std::fabs(p)) {
+            z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng);
+        } else {
+            z2 = normal_(rng);
+        }
+        return {z1, z2, std::fabs(p) * kComponentSpearman * (p >= 0.0 ? 1.0 : -1.0)};
+    }
+    const char* name() const override { return "mixgauss"; }
+
+private:
+    // rho_S of a Gaussian copula at rho = 0.95, by (6/pi) asin(rho/2).
+    static constexpr double kComponentRho = 0.95;
+    static constexpr double kComponentSpearman = 0.94506;
+    std::normal_distribution<double> normal_{0.0, 1.0};
+    std::uniform_real_distribution<double> unit_{0.0, 1.0};
+};
+
 // Two families, one Spearman path, a switch part-way through. Because every
 // family here already targets the SAME rho_S for a given knob d, holding d
 // constant across the switch changes the copula's SHAPE -- its tail dependence --
@@ -181,6 +241,8 @@ inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 
             std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),
             2500, "gauss2t");
     }
+    if (name == "frechet")  return std::make_unique<FrechetCopula>();
+    if (name == "mixgauss") return std::make_unique<MixtureGaussianCopula>();
     if (name == "clayton") return std::make_unique<ClaytonCopula>();
     if (name == "gumbel")  return std::make_unique<GumbelCopula>();
     if (name == "t" || name == "student_t") return std::make_unique<StudentTCopula>(nu);

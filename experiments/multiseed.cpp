@@ -152,8 +152,9 @@ int main(int argc, char** argv) {
     const std::string family = (scenario == "shape") ? "gauss2t"
                              : (copula_env ? copula_env : "gaussian");
     if (family != "gaussian" && family != "clayton" && family != "gumbel" &&
-        family != "t" && family != "student_t" && family != "gauss2t") {
-        std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t)\n", family.c_str());
+        family != "t" && family != "student_t" && family != "gauss2t" &&
+        family != "frechet" && family != "mixgauss") {
+        std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t|frechet|mixgauss)\n", family.c_str());
         return 1;
     }
     const std::string family_name = dgp::make_copula(family)->name();

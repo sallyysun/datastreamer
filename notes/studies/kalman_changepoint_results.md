@@ -544,6 +544,15 @@ which manufactured an ARL₀ of *1 block* by sending $\hat\rho$ to 0. Responses 
 confidence register (`P_`, `info_`) are safe. And ARL₀ must be calibrated with the response
 switched off, or the feedback is baked into the threshold.
 
+**4k. Nonparametrics finally earn their place — and Xiao and Hermite stop being the same
+estimator.** Against a Fréchet mixture (singular ridge + flat background, exact Spearman)
+`xiao_ew` beats `gaussian_mle_ew` for the first time in the project (2.7σ on `jump`, 4.3σ on
+`drift`, 4.5σ on `constant`). And Hermite *fails* there — 0.0288 against Xiao's 0.0152, worse
+than the misspecified MLE — because a smooth basis expansion cannot represent a singular
+density, while bin counts are indifferent to it. ⚠️ The Gaussian MLE still only degrades
+moderately, so finding 5 survives in a stronger form.
+[§14.15](#1415-a-dgp-the-gaussian-copula-cannot-summarise--and-the-nonparametrics-finally-win).
+
 **4e. The rule this leaves.** A detector helps exactly when the change has an *instant* at
 which past information goes stale. `jump` has one; `oscillate` and `drift` do not, and there
 the answer is to tune (or learn) the forgetting rate instead.
@@ -2343,6 +2352,104 @@ On the `shape` scenario of §14.13 both get **1/20**, the false-alarm rate. That
 — the statistic is an explicit projection onto ρ, so a change orthogonal to ρ is invisible to
 it by design. It is a clean confirmation that the projection is doing what it claims, and it
 leaves §14.13's gap exactly where it was.
+
+
+### 14.15 A DGP the Gaussian copula cannot summarise — and the nonparametrics finally win
+
+Finding 5 says the Gaussian copula is "a forgiving wrong answer". Across Clayton, Gumbel and t
+the Gaussian MLE wins once and ties twice, so **being nonparametric had never paid for itself**.
+That may be a fact about the Gaussian copula, or a fact about the family set — all four are
+smooth and all four sit in the Gaussian's neighbourhood. This tests which.
+
+#### 14.15.1 Two families outside the neighbourhood
+
+**Fréchet mixture**, $C = \alpha M + \beta W + (1-\alpha-\beta)\Pi$ — comonotone, countermonotone
+and independence mixed. Spearman's ρ is a *linear* functional of $C$, so
+$\rho_S = \alpha - \beta$ **exactly** — no quadrature, unlike every other family here.
+
+```text
+its density = a singular ridge on the diagonal  +  a flat background
+
+  maximum likelihood  is driven by the ridge
+  a rank average      is driven by the background
+
+  no single rho describes both.  Clayton/Gumbel/t have no such split.
+```
+
+**Mixture Gaussian**, a strong Gaussian (ρ = 0.95) mixed against independence. Same idea with
+the singularity removed, so it separates "cannot handle a singular component" from "cannot
+handle a mixture".
+
+`probe_family.cpp` checks all six families achieve the ρ they report; the two new ones are the
+most accurate in the set (±0.001), as an exact Spearman should be.
+
+#### 14.15.2 The crossover exists
+
+`xiao_ew` against `gaussian_mle_ew`, `jump`, 20 seeds, σ from pooled SE:
+
+| DGP | `xiao_ew` | `gaussian_mle_ew` | |
+| --- | --- | --- | --- |
+| Gaussian | 0.0798 | **0.0745** | MLE, 2.9σ |
+| Clayton | 0.0859 | 0.0866 | tie, 0.2σ |
+| Gumbel | 0.0834 | 0.0804 | tie, 1.3σ |
+| t | 0.0871 | 0.0869 | tie, 0.1σ |
+| **Fréchet** | **0.0841** | 0.0914 | **Xiao, 2.7σ** |
+| **mixgauss** | 0.0888 | 0.0932 | Xiao, 1.4σ |
+
+**The first significant win for a nonparametric estimator in the project.** It holds on `drift`
+too (0.0728 vs 0.0834, 4.3σ), and is clearest on `constant`, where nothing is adapting and bias
+shows undiluted:
+
+| `constant`, cumulative | Gaussian DGP | Fréchet DGP |
+| --- | --- | --- |
+| `xiao` | 0.0128 | **0.0152** |
+| `gaussian_mle` | 0.0129 | 0.0241 (4.5σ worse) |
+| `t_mle` | — | 0.1726 (11× worse) |
+| `copula_select` | — | 0.0707 |
+
+⚠️ **But the margin is 8–37%, not an order of magnitude.** Even against a copula with a singular
+component the Gaussian MLE only loses moderately — the 40% independent part of the mixture
+punishes ρ → 1 hard enough that the fit stays sensible. Finding 5 survives in a stronger form:
+**the Gaussian copula is forgiving even of copulas that are not remotely Gaussian.** The other
+parametrics are not — `t_mle` is 11× worse and `copula_select` 4.6× — so this is a property of
+the Gaussian family specifically, not of parametric estimation.
+
+#### 14.15.3 And Xiao and Hermite are not the same estimator after all
+
+Across all four smooth families the two track within 2–4% everywhere, which reads as two routes
+to one answer. The Fréchet family separates them:
+
+| `constant` | Gaussian DGP | Fréchet DGP |
+| --- | --- | --- |
+| `xiao` (20×20 bin counts) | 0.0128 | **0.0152** |
+| `hermite` (order-10 basis) | 0.0121 | 0.0288 — **4.7σ worse** |
+
+**A smooth orthogonal-polynomial expansion cannot represent a singular density.** Hermite's
+basis is exactly the assumption that fails, and it fails hard enough to put Hermite *behind the
+misspecified Gaussian MLE* (0.0288 vs 0.0241). Xiao's bin counts have no such problem — a
+histogram does not care whether the density it is counting is smooth.
+
+On `mixgauss`, where the singularity is gone, Hermite recovers (0.0208 vs Xiao's 0.0168, 1.7σ).
+So it is the singularity, not the mixture.
+
+```text
+       smooth copula        singular copula
+Xiao      0.0128               0.0152        bin counts: indifferent
+Hermite   0.0121               0.0288        smooth basis: breaks
+MLE       0.0129               0.0241        wrong family: degrades gracefully
+```
+
+**This is the first result that gives Xiao a reason to exist that Hermite does not share**, and
+it costs Xiao 3824 bytes against Hermite's 1192 — a real trade, now with something on both sides.
+
+#### 14.15.4 ⚠️ What this does not establish
+
+- The Fréchet mixture is **deliberately adversarial**. It is a real family and finance does use
+  mixture copulas, but nothing here says real returns look like it.
+- `oscillate` is uninformative on all six families — every row is at its shipped λ, and §14.8b
+  says that dominates everything else there.
+- Only `xiao_ew` was tested against `gaussian_mle_ew`; a *tuned* comparison (§5.4) might move
+  the smooth-family rows, though it cannot easily undo a 4.5σ gap.
 
 
 ### 14.9 ⚠️ What this does not establish
