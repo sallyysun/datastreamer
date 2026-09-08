@@ -1465,28 +1465,45 @@ change no interface.
   is tracking. Averaging the iterates only adds lag, which is why it helps `constant` and
   costs 21% on `oscillate`. Textbook-correct, wrong problem.
 
-### 13.2 ⚠️ Expected information wins, and I cannot say why
+### 13.2 ⚠️ The expected-information gain does not reproduce outside the harness
+
+**Do not use the einfo column above until this is resolved.**
 
 The formula is right. For the Gaussian copula in the Fisher-$z$ coordinate,
 $I(\rho)=(1+\rho^2)/(1-\rho^2)^2$ and $d\rho/d\phi = 1-\rho^2$, so $I(\phi)=1+\rho^2$.
-Measured against $\mathbb{E}[s_\phi^2]$ by Monte Carlo over 2M draws it matches to **0.4%**
-at every $\rho \in \{0, 0.2, 0.4, 0.6, 0.8, 0.9\}$ — so the gain is *not* a disguised
-step-size change, which was the obvious §5.4-style trap.
+Monte Carlo over 2M draws matches $\mathbb{E}[s_\phi^2]$ to **0.4%** at every
+$\rho \in \{0, 0.2, 0.4, 0.6, 0.8, 0.9\}$ — so the gain is not a disguised step-size
+change, which was the obvious §5.4-style trap.
 
-Three candidate mechanisms were tested and all three failed:
+But a standalone probe reproducing the `constant` setup exactly — $\rho = 0.6$, $N=5000$,
+burn-in 500, the same registry keys — **disagrees with the harness in direction**:
+
+| | harness | standalone |
+| --- | --- | --- |
+| observed information | 0.0427 (SE 0.0061) | 0.0377 |
+| expected information | 0.0375 (SE 0.0011) | 0.0393 |
+
+Standalone, observed is *better*, and a sweep over $\rho \in \{0.3, 0.6, 0.85, 0.95\}$
+finds them indistinguishable with **zero** blowups either way.
+
+Three mechanisms were tested and all three failed:
 
 | Hypothesis | Test | Result |
 | --- | --- | --- |
-| Numerator/denominator coupling — a large score inflates its own denominator | simulated the recursion directly | Real (8% under-reaction at 3–4 SD) but **no RMSE effect**: with decay 0.99 the denominator averages ~100 observations and the noise washes out |
-| Heavy-tailed scores freeze the estimator (the $1/(1-\rho^2)$ factor behind §7's NaN bug) | $t(3)$–$t(8)$ score noise | **Backwards.** Observed information *wins* by up to 3.1% as tails get heavier |
+| Numerator/denominator coupling — a large score inflates its own denominator | simulated the recursion | Real (8% under-reaction at 3–4 SD) but **no RMSE effect**: with decay 0.99 the denominator averages ~100 observations |
+| Heavy-tailed scores freeze the estimator (the $1/(1-\rho^2)$ factor behind §7's NaN bug) | $t(3)$–$t(8)$ score noise | **Backwards.** Observed *wins* by up to 3.1% as tails thicken |
 | Wrong scale, so really a learning-rate change | measured $\mathbb{E}[s_\phi^2]$ | **No.** Formula correct to 0.4% |
 
-**So the 12% is real, reproducible across four scenarios, and unexplained.** Recorded as
-open rather than attached to a story that does not survive testing. The plausible remaining
-candidates are the interaction with $\lambda = 0.99$ forgetting, and the fact that the
-implementation uses a *plug-in* $1+\hat\rho^2$ rather than a constant — so the denominator
-is bounded in $[1,2]$ by construction, which no amount of observed-score accumulation can
-guarantee.
+The one solid clue is the **SE**: 0.0061 against 0.0011 on `constant`. Observed information
+has 5.5× the across-seed spread, which is the signature of rare bad seeds rather than a
+uniform shift — but the standalone per-seed run found no such seeds. So the instability is
+something the harness does and the probe does not, and until that is located the ablation
+table measures the harness, not the estimator.
+
+**This is exactly the §5.4 and §12.3 failure mode a third time**, and it is only visible
+because the standalone check was run. The Polyak-Ruppert rejection is unaffected: it fails
+for a structural reason (averaging assumes convergence to a fixed point) that does not
+depend on these numbers.
 
 ⚠️ Gaussian only. No closed form was derived for Clayton, Gumbel or $t$, so those families
 still use the observed information.
