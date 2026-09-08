@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -304,4 +306,21 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "t_mle", "t_mle_ew",
         "copula_select", "copula_select_ew"};
     return keys;
+}
+
+// Every key in all_estimator_keys() must construct. A key listed without a
+// make_estimator branch returns nullptr and segfaults on first use, with no
+// diagnostic; that has happened three times. The reverse direction — a branch
+// with no list entry, so the estimator silently never runs — is checked by
+// `make check-registry`.
+inline bool check_registry() {
+    bool ok = true;
+    for (const std::string& k : all_estimator_keys()) {
+        if (!make_estimator(k)) {
+            std::fprintf(stderr, "registry: '%s' is in all_estimator_keys() but has no "
+                                 "make_estimator branch\n", k.c_str());
+            ok = false;
+        }
+    }
+    return ok;
 }

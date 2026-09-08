@@ -23,3 +23,15 @@ clean:
 	rm -f experiment calibrate_arl0 multiseed
 
 .PHONY: experiment calibrate_arl0 multiseed clean
+
+# The other direction: a make_estimator branch with no all_estimator_keys entry
+# runs never and reports nothing. Compares the two lists in registry.hpp.
+check-registry:
+	@python3 -c "import re,sys; \
+s=open('../src/estimators/registry.hpp').read(); \
+br=set(re.findall(r'key == \"([a-z0-9_]+)\"', s)); \
+ls=set(re.findall(r'\"([a-z0-9_]+)\"', re.search(r'all_estimator_keys.*?\{(.*?)\};', s, re.S).group(1))); \
+a=sorted(br-ls); b=sorted(ls-br); \
+print('branch but unlisted (never runs):', a or 'none'); \
+print('listed but no branch (segfaults):', b or 'none'); \
+sys.exit(1 if a or b else 0)"

@@ -751,6 +751,12 @@ line without a separate check. ⚠️ It does *not* clear the marginals for real
 
 20 seeds, $N=5000$, burn-in 500, mean $\pm$ SE. **Bold** = best in column.
 
+⚠️ **"Best in column" is bolded from point estimates and several are ties.** `multiseed`
+now prints distance from the best row in pooled SEs, with `~` for anything under 2σ — on
+`constant`, `xiao` (0.0128) and `gaussian_mle` (0.0129) are **0.4σ** from `hermite`'s
+0.0121, so that bold is not a ranking. Re-read every bold in this section that way until
+the table is regenerated.
+
 ⚠️ Every row is at its **shipped** setting, so "best in column" means best *among these
 configs*, not best achievable. A tuned Xiao reaches 0.1826 on `oscillate` against the 0.2695
 bolded here. This table = what the shipped configs do. §5.4 = what each family can do.
@@ -1017,6 +1023,17 @@ scripted grid a typo would have produced Gaussian results labelled as another fa
 `multiseed.cpp` now rejects unknown names up front.
 
 **6. Overclaim on `oscillate`** — documentation, corrected in §5.4.
+
+**7. Two lists that had to agree, three times over.** `registry.hpp` keeps
+`make_estimator` branches and `all_estimator_keys()` separately, and every combination of
+disagreement has now bitten: `xiao_win` had a branch and no entry (ran never, reported
+nothing); the three `_vff` keys had entries and no branch (`make_estimator` returned
+`nullptr`, the harness dereferenced it, segfault with no diagnostic); `particle` had a
+branch and no entry again.
+
+Both directions are now checked. `check_registry()` runs at the top of `main()` in both
+harnesses and refuses to start if a listed key does not construct; `make check-registry`
+compares the two lists in the source and fails on either kind of mismatch.
 
 Also fixed: `block=50` broke the within-block-constant assumption on `oscillate` (swept,
 corrected to 20), and a `%.1f` print bug made distinct calibration thresholds print

@@ -127,6 +127,8 @@ Stats mean_stderr(const std::vector<double>& v) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (!check_registry()) return 1;
+
     const std::string scenario = (argc > 1) ? argv[1] : "jump";
     const int n_seeds = (argc > 2) ? std::atoi(argv[2]) : 10;
     const unsigned base_seed = (argc > 3) ? static_cast<unsigned>(std::atoi(argv[3])) : 42;
@@ -183,7 +185,21 @@ int main(int argc, char** argv) {
 
     std::printf("scenario=%s  copula=%s  n_seeds=%d  base_seed=%u  N=%zu  burn=%zu\n\n",
                 scenario.c_str(), family_name.c_str(), n_seeds, base_seed, N, burn);
-    std::printf("%-18s %16s", "estimator", "RMSE (mean+-se)");
+    // Distance from the best row, in pooled SEs. A gap under ~2 sigma is noise,
+    // and reading point estimates without it is how the einfo ablation was
+    // misread (studies/kalman_changepoint_results.md section 13.2).
+    std::size_t best_e = 0;
+    {
+        double best = 1e300;
+        for (std::size_t e = 0; e < keys.size(); ++e) {
+            double m = 0.0;
+            for (double v : rmse[e]) m += v;
+            m /= static_cast<double>(rmse[e].size());
+            if (m < best) { best = m; best_e = e; }
+        }
+    }
+
+    std::printf("%-18s %16s %8s", "estimator", "RMSE (mean+-se)", "vs best");
     if (has_known_jump) std::printf("  %14s  %16s  %16s", "alarms/run", "false_before", "delay,ticks(hits)");
     else std::printf("  %14s", "alarms/run");
     std::printf("\n");
@@ -204,6 +220,14 @@ int main(int argc, char** argv) {
     for (std::size_t e = 0; e < keys.size(); ++e) {
         const Stats rs = mean_stderr(rmse[e]);
         std::printf("%-18s %8.4f +- %6.4f", keys[e].c_str(), rs.mean, rs.se);
+        if (e == best_e) {
+            std::printf(" %8s", "best");
+        } else {
+            const Stats bs = mean_stderr(rmse[best_e]);
+            const double sd = std::sqrt(rs.se * rs.se + bs.se * bs.se);
+            const double sigma = (sd > 0.0) ? (rs.mean - bs.mean) / sd : 0.0;
+            std::printf(" %7.1f%s", sigma, sigma < 2.0 ? "~" : " ");
+        }
 
         double a_mean = 0.0, a_se = 0.0, fb_mean = 0.0, fb_se = 0.0, d_mean = 0.0, d_se = 0.0;
         std::size_t d_n = 0;
