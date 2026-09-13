@@ -498,6 +498,44 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
   `xiao_cusum` 20/20 with **zero** false alarms. CUSUM column of §0.3's matrix closed. §14.14.
 
 ### Open, in priority order
+- ⬜ **Throughput vs arrival rate: which estimators drop data, and what it costs them.**
+  Everything measured so far assumes every tick is processed. The live pipeline
+  (`src/consumer/`) has no such guarantee — if events arrive faster than `update()` runs, the
+  ring buffer overwrites and the estimator silently sees a *thinned* stream. No result in
+  `kalman_changepoint_results.md` accounts for that, and the throughput spread is **74×**:
+
+  | | bytes | ticks/sec |
+  | --- | --- | --- |
+  | `gaussian_mle_ew` | 144 | 5,958,854 |
+  | `kalman_fast` | 512 | 4,571,357 |
+  | `kalman_bank_sticky` | 736 | 3,581,713 |
+  | `xiao_ew` | 3,824 | 1,897,512 |
+  | `hermite_ew` | 1,192 | 1,007,929 |
+  | `mle_bank` | 17,208 | 548,548 |
+  | `hermite_bank` | 22,448 | 69,139 |
+  | `xiao_bank` | 35,608 | 48,380 |
+
+  **Why it matters more than it looks.** A single liquid pair ticks at 10–1000/s, so even the
+  slowest row copes. The budget binds through the number of *pairs*: $d$ assets is $d(d-1)/2$
+  pairs sharing one core, so 100 assets is 4950 pairs and `xiao_bank` gets **10 ticks/sec each**.
+  That is the constraint the `application_2.md` vine track runs straight into.
+
+  **The experiment.** Add a `--max-rate` / drop-on-overflow mode to the harness, sweep the
+  arrival rate against each estimator's measured throughput, and plot RMSE vs rate. Hypotheses
+  worth separating:
+    1. Thinning is *benign* for rank-based estimators — a thinned sample of an i.i.d. stream is
+       still i.i.d., so Xiao/Hermite should degrade only through reduced effective sample size.
+    2. Thinning is *not* benign for anything with a block or a memory in TICKS rather than in
+       time — `block = 20` becomes 20 *surviving* ticks spanning a much longer window, so the
+       Fisher-transform variance $1.06/(m-3)$ stays right but the lag doubles, and every
+       forgetting rate silently lengthens. That would hit the Kalman line and the banks.
+    3. Dropping is not random — it is bursty and correlated with volatility, i.e. exactly when
+       dependence is changing. That breaks the i.i.d. assumption under 1 and is the interesting
+       case.
+  **This reframes the whole efficiency↔adaptation question as a budget constraint:** an
+  estimator 20% more accurate but 74× slower is *worse* in production if it sees 1/74 of the
+  data. None of the RMSE tables in the results doc price that.
+
 - ⬜ **Monitor tail dependence directly.** §14.13 is the one change nothing detects, and the
   statistic that projects onto it has never been tried — $\hat\lambda_L$ over a window, the
   §14.10 lesson applied to a different direction. Highest value: it is an open gap with a
