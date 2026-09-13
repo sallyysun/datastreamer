@@ -1313,9 +1313,10 @@ standardization already removes — so it could never have caught this.
 
 ### 9.4 ⚠️ What this does not establish
 
-- **Xiao is still not converted.** Hermite and the copula MLEs now have rank-PIT variants;
-  the Kalman channel never needed one. Xiao bins marginals into equiprobable cells with
-  estimated cutpoints, which is rank-*like* but not rank-exact — untested.
+- ~~**Xiao is still not converted.**~~ Superseded by [§14.19](#1419-rank-pit-for-xiao-already-invariant-until-the-marginal-moves):
+  Xiao's quantile binning turns out to be exactly invariant to a *static* monotone map, so
+  this table cannot separate it; the estimated cutpoints break only when the marginal moves
+  after calibration, and then permanently.
 - **The `_pit` variants are additions, not replacements.** Every number in §5–§8 is still
   on the old marginals.
 - **The window is a new hyper-parameter** (500). Too short and the rank scale is noisy;
@@ -2563,6 +2564,156 @@ estimators — not against these.
 answer. A grid too narrow to contain the truth would fail, and that has not been tested.
 
 
+### 14.19 Rank-PIT for Xiao: already invariant, until the marginal moves
+
+Added 2026-09-13. Layer 1. §9.4 left one estimator unconverted: "Xiao bins marginals into
+equiprobable cells with estimated cutpoints, which is rank-*like* but not rank-exact —
+untested." `xiao_pit` converts it. The answer turned out to be sharper than either "ranks
+help" or "ranks cost": **for a static marginal Xiao was already exact, and the estimated
+cutpoints are what breaks when the marginal moves.**
+
+#### 14.19.1 The mechanism
+
+```
+xiao_ew   x ──► [cutpoints = quantiles of ticks 1..100, then FROZEN] ──► bin i
+xiao_pit  x ──► [RankPit, rolling 500] ──► u ──► [cuts = k/20] ──► bin i
+```
+
+One `std::size_t rank_pit_window` on the config. When it is 0 nothing changes. When it is
+>0 the calibration window disappears entirely: `u` is already uniform, so the equiprobable
+cutpoints are just $k/\text{bins}$ and can be written down at construction.
+
+#### 14.19.2 Xiao was already exactly invariant to a static monotone map
+
+Section 9.2's test, same settings — Gaussian copula $\rho=0.6$ (true $\rho_S = 0.5819$),
+10 seeds, $N=20{,}000$, mean $|\hat\rho - \rho_S|$, only $x$ transformed:
+
+| marginal $x \mapsto$ | `xiao_ew` | `xiao_pit` | `hermite_ew` | `hermite_pit` |
+| --- | --- | --- | --- | --- |
+| identity | 0.0260 | 0.0242 | **0.0187** | 0.0274 |
+| $e^x$ (skewed) | 0.0260 | 0.0242 | 0.0386 | 0.0274 |
+| $x^3$ (heavy) | 0.0260 | **0.0242** | 0.0695 | 0.0274 |
+
+`xiao_ew` does not move. Not approximately — the three rows are bit-identical, for the same
+reason `hermite_pit`'s are:
+
+```
+f strictly increasing
+  sorted(f(x_1..x_100)) = f(sorted(x_1..x_100))       quantiles are equivariant
+  => cut_k becomes f(cut_k)
+  => #{cuts < f(x)} = #{f(cuts) < f(x)} = #{cuts < x}
+  => same bin, same grid, same rho-hat.               exactly
+```
+
+**So Xiao joins `kalman_mid` in the "never had the marginal problem" column**, and it gets
+there the same way — a rank-like device buried in the observation channel, not a decision
+anyone made. §9.4's suspicion was half right: Xiao is not rank-*exact*, but the gap is not
+where the transform test can see it.
+
+`xiao_pit` is nonetheless a touch better in every row (0.0242 vs 0.0260). That is not
+robustness, it is conditioning: 100 calibration points give noisy quantiles, a rolling 500
+window gives better ones. Same trade as `gaussian_mle_pit` in §9.3.
+
+#### 14.19.3 Where the frozen cutpoints do break
+
+The transform above is applied from tick 1, so the calibration window sees it. Apply a
+monotone shift **mid-stream** instead — $x \mapsto 5x+100$, $y \mapsto 0.1y-50$ at
+$t=2500$, §4.4's exact shift, copula held exactly constant — and the two part company.
+20 seeds, $N=5000$, mean $|\hat\rho - \rho_S|$:
+
+| | `xiao_ew` | `xiao_pit` | `hermite_ew` | `hermite_pit` |
+| --- | --- | --- | --- | --- |
+| $t \in [1000, 2500)$, before | 0.0406 | 0.0399 | 0.0427 | 0.0428 |
+| $t \in [3000, 5000)$, after | **1.5133** | **0.0480** | 0.1259 | 0.0488 |
+
+1.5133 is not a degradation, it is a sign flip. The per-tick trace:
+
+```
+t=2500   marginal shift, copula unchanged
+t=2559   xiao_ew -0.6215     xiao_pit -0.4751     both still unwinding the old grid
+t=2750   xiao_ew -0.9369     xiao_pit -0.0028     PIT window half refreshed
+t=3000   xiao_ew -0.9481     xiao_pit +0.3308
+t=3250   xiao_ew -0.9487     xiao_pit +0.5581     recovered (truth 0.5819)
+t=5000   xiao_ew -0.9488     xiao_pit +0.5728     still there / still there
+```
+
+Every shifted $x$ lands above the top frozen cutpoint and every shifted $y$ below the
+bottom one, so all new mass piles into the one corner cell (19, 0) — high $x$, low $y$ —
+and the grid reads it as near-perfect *negative* dependence. It never comes back:
+$\lambda = 0.99$ forgets the old counts but the cutpoints are not counts, and nothing in
+the estimator can move them. `hermite_ew` degrades 3× and recovers, because Welford's mean
+and variance do track. **Xiao's failure is the worse kind: permanent, and confidently
+wrong.**
+
+⚠️ This is a marginal change, not a copula change, so it is a *distinction 2* violation and
+no detector in this document should fire on it. The point is that `xiao_ew` reports
+$-0.95$ where the truth is $+0.58$ — a wrapped detector would see a huge change and alarm,
+correctly by its own statistic and wrongly in fact.
+
+#### 14.19.4 On the standard scenarios it changes nothing
+
+20 seeds, base seed 42, $N=5000$, burn-in 500. Gaussian marginals throughout, so §9.3's
+reading predicts a null — and it is a null:
+
+| scenario | `xiao_ew` | `xiao_pit` | diff | σ |
+| --- | --- | --- | --- | --- |
+| `constant` | 0.0470 ± 0.0011 | 0.0470 ± 0.0010 | +0.0000 | 0.03 |
+| `drift` | 0.0669 ± 0.0014 | 0.0668 ± 0.0015 | −0.0001 | 0.05 |
+| `jump` | 0.0798 ± 0.0014 | 0.0795 ± 0.0014 | −0.0003 | 0.16 |
+| `oscillate` | 0.3484 ± 0.0015 | 0.3483 ± 0.0015 | −0.0000 | 0.02 |
+| `constant`, `frechet` | 0.0617 ± 0.0015 | 0.0620 ± 0.0015 | +0.0003 | 0.15 |
+| `constant`, `mixgauss` | 0.0628 ± 0.0016 | 0.0628 ± 0.0016 | −0.0000 | 0.01 |
+
+Nothing above 0.2σ. **Rank-PIT is free for Xiao** — it costs no accuracy anywhere the
+harness looks, which is the opposite of `hermite_pit`'s 0.0187 → 0.0274 in §9.2, and it
+removes the calibration window as a failure mode. It is not free in *memory*; see below.
+
+#### 14.19.5 The bin count is not worth paying for
+
+`store_bytes()` after 3000 updates, and RMSE on `constant` (20 seeds). The grid is
+$\text{bins}^2$ doubles, so this is quadratic:
+
+| key | bins | `store_bytes` | vs `xiao` | RMSE gaussian | RMSE frechet |
+| --- | --- | --- | --- | --- | --- |
+| `xiao_b8` | 8 | 752 | 0.20× | 0.0216 ± 0.0018 | 0.0169 ± 0.0016 |
+| `xiao` | 20 | 3824 | 1.00× | 0.0128 ± 0.0015 | 0.0152 ± 0.0015 |
+| `xiao_b40` | 40 | 14064 | 3.68× | 0.0121 ± 0.0014 | 0.0151 ± 0.0016 |
+
+**40 bins is not adopted.** It buys 0.37σ on Gaussian and 0.06σ on `frechet` for 3.7× the
+store — below the 2σ bar, so by the measurement rule there is no difference to buy. Going
+the other way is a real loss: 8 bins is 3.76σ worse on Gaussian (and only 0.8σ on
+`frechet`, where the copula is singular and the grid resolution matters less than the
+discretisation does). **20 bins is the right default and the discretisation error is
+already below the sampling noise at 20.**
+
+`xiao_pit` costs 19968 bytes, 5.22× `xiao`: two `RankPit` windows of 500 doubles each,
+held twice over (sorted + FIFO). That is the real price of ranks here — not RMSE, store.
+It is still O(1) per tick and bounded, so the streaming claim survives; it is a constant,
+and a large one.
+
+#### 14.19.6 ⚠️ What this does not establish
+
+- **The static-transform test cannot separate Xiao from `xiao_pit`.** §9.2's design was
+  built for Hermite, where standardization genuinely fails. Run against a
+  quantile-binning estimator it returns an exact tie by construction. The mid-stream shift
+  is the test that has power here; §14.19.3 is the result, §14.19.2 is the control.
+- **One shift, one shape.** A single abrupt affine jump at a known time. A slow marginal
+  drift, a variance change alone, or a shift smaller than one bin width are untested — and
+  a small shift is the interesting case, because it would corrupt the grid without being
+  visible in the trace.
+- **The 500 window is inherited, not tuned.** Taken from `hermite_pit` so the two are
+  comparable. §14.19.3's recovery takes ~500 ticks by construction; a shorter window
+  recovers faster and ranks noisier, and that trade is unmeasured for Xiao.
+- **`xiao_pit` is an addition, not a replacement.** `xiao`, `xiao_ew` and `xiao_win` keep
+  the calibration window, and every number in §5–§8 and §14 is still on it. The live
+  consumer (`src/consumer/device_state.hpp`) still runs `xiao` and `xiao_ew`.
+- **No detector wraps it.** `xiao_cusum` still builds on `xiao_ew`, so §14.14's detector
+  results are unaffected and the permanent-corruption failure of §14.19.3 is still live
+  underneath them.
+- **Distinction 3 applies here too**, exactly as in §9.4: ranks shift as data arrives, so
+  the pseudo-observations are not i.i.d.
+
+
 ### 14.9 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The
@@ -2603,6 +2754,8 @@ for s in constant drift jump stochastic oscillate; do ./multiseed $s 20; done
 
 ./run_multiseed_grid.sh 20 42            # 5 scenarios x 4 families, ~12 min
 ./run_multiseed_grid_parallel.sh 20 42   # same, across all cores, ~3 min
+
+make probe_xiao_pit && ./probe_xiao_pit  # section 14.19: marginals, shift, store_bytes
 ```
 
 `COPULA=gaussian|clayton|gumbel|t` picks the DGP family (default `gaussian`). Non-Gaussian

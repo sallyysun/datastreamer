@@ -339,8 +339,15 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   pairs-trading angle (roadmap `application_2.md`).
 - ➖ **rank-PIT** — built for Hermite (`hermite_pit`) and the copula MLEs (`gaussian_mle_pit`)
   2026-09-08, exactly invariant to monotone marginal change; the Kalman channel never needed
-  it. **Xiao still unconverted.** Original note follows: (currently online standardization,
-  exact only for Gaussian; the parametric copula estimators inherit this marginal convention).
+  it. **Xiao converted 2026-09-13** (`xiao_pit`, optional `rank_pit_window` on the config).
+  Quantile binning was *already* exactly invariant to a static monotone map, so the win is
+  elsewhere: the frozen cutpoints are corrupted **permanently** by a marginal shift arriving
+  after calibration — rho-hat locks at −0.95 against a truth of +0.58 — and rank-PIT recovers
+  within one window. Free on RMSE (≤0.2σ on every scenario tried), 5.2× the store.
+  §14.19 of `studies/kalman_changepoint_results.md`.
+  Still ➖ overall: the `_pit` variants are additions, not replacements — §5–§8 and the live
+  consumer still run standardization / frozen cutpoints; the 500 window is inherited, not
+  tuned; no detector wraps a `_pit` estimator.
 - ➖ Estimating the Student-t **degrees of freedom** nu online — left as a fixed hyper-parameter;
   online nu estimation is a separate problem, not needed for the misspecification comparison.
 

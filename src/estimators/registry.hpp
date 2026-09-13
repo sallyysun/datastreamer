@@ -61,6 +61,24 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             XiaoSpearmanEstimator::Config{.bins = 20, .window = 500, .lambda = 0.0, .calibration = 100},
             "xiao_win");
     }
+    if (key == "xiao_pit") {
+        // Matched to xiao_ew in memory (lambda) and bins; only the marginal
+        // handling differs, so the pair isolates rank-PIT. Section 14.19.
+        return std::make_unique<XiaoSpearmanEstimator>(
+            XiaoSpearmanEstimator::Config{
+                .bins = 20, .window = 0, .lambda = 0.99, .rank_pit_window = 500},
+            "xiao_pit");
+    }
+    if (key == "xiao_b8") {
+        return std::make_unique<XiaoSpearmanEstimator>(
+            XiaoSpearmanEstimator::Config{.bins = 8, .window = 0, .lambda = 0.0, .calibration = 100},
+            "xiao_b8");
+    }
+    if (key == "xiao_b40") {
+        return std::make_unique<XiaoSpearmanEstimator>(
+            XiaoSpearmanEstimator::Config{.bins = 40, .window = 0, .lambda = 0.0, .calibration = 100},
+            "xiao_b40");
+    }
     if (key == "hermite") {
         return std::make_unique<HermiteEstimator>(
             HermiteEstimator::Config{.order = 10, .lambda = 0.0, .burn_in = 50}, "hermite");
@@ -549,7 +567,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
 // error, just a silently absent row, which is how xiao_win went unmeasured.
 inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
-        "xiao", "xiao_ew", "xiao_win", "hermite", "hermite_ew",
+        "xiao", "xiao_ew", "xiao_win", "xiao_pit", "xiao_b8", "xiao_b40", "hermite", "hermite_ew",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft",
         "kalman_cusum_inf2", "kalman_cusum_inf5", "kalman_cusum_inf10", "kalman_cusum_inf50",

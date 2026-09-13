@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "estimator.hpp"
+#include "marginal_rank_pit.hpp"
 
 // Streaming empirical-copula estimator of Spearman's rho (the "Xiao" branch).
 //
@@ -29,6 +30,11 @@
 //   * lambda > 0  : exponential forgetting  (counts *= lambda each step)
 //   * window > 0  : hard sliding window      (oldest cell decremented)
 //   * otherwise   : cumulative               (all history)
+//
+// rank_pit_window > 0 replaces the calibrated cutpoints with rank-PIT: each
+// marginal goes through RankPit, so the cutpoints are exactly k/bins and no
+// calibration window is needed. Section 14.19 of
+// notes/studies/kalman_changepoint_results.md.
 class XiaoSpearmanEstimator : public DependenceEstimator {
 public:
     struct Config {
@@ -36,6 +42,7 @@ public:
         std::size_t window = 0;       // >0: hard sliding window
         double lambda = 0.0;          // in (0,1): retention factor; overrides window
         std::size_t calibration = 300;
+        std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
     };
 
     XiaoSpearmanEstimator(Config config, const char* name)
@@ -43,11 +50,21 @@ public:
           name_(name),
           counts_(config.bins * config.bins, 0.0),
           row_counts_(config.bins, 0.0),
-          col_counts_(config.bins, 0.0) {
-        calibration_.reserve(config.calibration);
+          col_counts_(config.bins, 0.0),
+          pit_x_(config.rank_pit_window),
+          pit_y_(config.rank_pit_window) {
+        if (config_.rank_pit_window > 0) {
+            use_uniform_cutpoints();
+        } else {
+            calibration_.reserve(config_.calibration);
+        }
     }
 
     void update(double x, double y) override {
+        if (config_.rank_pit_window > 0) {
+            insert(pit_x_.transform(x), pit_y_.transform(y));
+            return;
+        }
         if (!calibrated_) {
             calibration_.emplace_back(x, y);
             if (calibration_.size() >= config_.calibration) {
@@ -104,14 +121,21 @@ public:
         total_ = 0.0;
         calibrated_ = false;
         calibration_.clear();
-        calibration_.reserve(config_.calibration);
+        if (config_.rank_pit_window > 0) {
+            pit_x_.reset();
+            pit_y_.reset();
+            use_uniform_cutpoints();
+        } else {
+            calibration_.reserve(config_.calibration);
+        }
     }
 
     std::size_t store_bytes() const override {
         return (counts_.size() + row_counts_.size() + col_counts_.size()) * sizeof(double)
              + (cuts_x_.size() + cuts_y_.size()) * sizeof(double)
              + window_.size() * sizeof(BinPair)
-             + calibration_.capacity() * sizeof(std::pair<double, double>);
+             + calibration_.capacity() * sizeof(std::pair<double, double>)
+             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0);
     }
 
     const char* name() const override { return name_; }
@@ -121,6 +145,15 @@ private:
         std::uint16_t i;
         std::uint16_t j;
     };
+
+    void use_uniform_cutpoints() {
+        cuts_x_.resize(config_.bins - 1);
+        for (std::size_t k = 1; k < config_.bins; ++k) {
+            cuts_x_[k - 1] = static_cast<double>(k) / static_cast<double>(config_.bins);
+        }
+        cuts_y_ = cuts_x_;
+        calibrated_ = true;
+    }
 
     void build_cutpoints() {
         std::vector<double> xs, ys;
@@ -195,4 +228,9 @@ private:
     std::vector<double> cuts_y_;
     std::deque<BinPair> window_;
     std::vector<std::pair<double, double>> calibration_;
+
+    // Declared AFTER config_: a RankPit placed before it reads an uninitialised
+    // window size (the parametric_copula.hpp bug of 2026-09).
+    RankPit pit_x_;
+    RankPit pit_y_;
 };
