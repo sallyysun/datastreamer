@@ -22,6 +22,12 @@ multiseed:
 probe_rank_score:
 	$(CXX) probe_rank_score.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_rank_score
 
+calibrate_tail:
+	$(CXX) calibrate_tail.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o calibrate_tail
+
+probe_tail:
+	$(CXX) probe_tail.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_tail
+
 probe_bank:
 	$(CXX) probe_bank.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank
 
@@ -35,9 +41,9 @@ probe_score_scale:
 	$(CXX) probe_score_scale.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_score_scale
 
 clean:
-	rm -f experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank
+	rm -f experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_tail calibrate_tail
 
-.PHONY: experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank clean
+.PHONY: experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_tail calibrate_tail clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.

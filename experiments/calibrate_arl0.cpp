@@ -22,6 +22,7 @@
 #include "../src/estimators/dependence/kalman_shiryaev_roberts.hpp"
 #include "../src/estimators/dependence/mle_score_cusum.hpp"
 #include "../src/estimators/dependence/rank_score_cusum.hpp"
+#include "../src/estimators/dependence/tail_cusum.hpp"
 #include "../src/estimators/registry.hpp"
 #include "../src/estimators/dependence/hermite_cusum.hpp"
 
@@ -197,6 +198,10 @@ int main(int argc, char** argv) {
             },
             {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 6.0}, target, ticks_per_seed, n_seeds, rhos);
     }
+
+    // tail_cusum is calibrated by its own binary (calibrate_tail.cpp): its
+    // rank-PIT window makes it ~30x slower per tick than the others, and it
+    // sweeps L rather than h.
 
     // The BOCPD variants sweep alarm_prob_threshold rather than h.
     calibrate(

@@ -1955,11 +1955,15 @@ The λ sweep behind that, for the record:
 
 | λ | ESS | `constant` | `drift` | `jump` | `oscillate` |
 | --- | --- | --- | --- | --- | --- |
-| 0.95 | 20 | 0.0942 | 0.1309 | 0.1082 | **0.1710** |
-| 0.98 | 50 | 0.0553 | 0.0805 | 0.0766 | 0.2665 |
-| 0.99 | 100 | 0.0375 | 0.0624 | **0.0745** | 0.3508 |
-| 0.995 | 200 | 0.0256 | **0.0672** | 0.0905 | 0.3922 |
-| 0.999 | 1000 | **0.0142** | 0.2048 | 0.1890 | 0.4097 |
+| 0.95 | 39 | 0.0942 | 0.1309 | 0.1082 | **0.1710** |
+| 0.98 | 99 | 0.0553 | 0.0805 | 0.0766 | 0.2665 |
+| 0.99 | 199 | 0.0375 | 0.0624 | **0.0745** | 0.3508 |
+| 0.995 | 399 | 0.0256 | **0.0672** | 0.0905 | 0.3922 |
+| 0.999 | 1999 | **0.0142** | 0.2048 | 0.1890 | 0.4097 |
+
+*(⚠️ Corrected. This column originally read 20/50/100/200/1000, i.e. $1/\alpha$. §0.8 defines
+$\mathrm{ESS} = (2-\alpha)/\alpha$, which is ~2× larger — the RMSE figures were never affected,
+but the memory lengths quoted were half what these settings actually give.)*
 
 Same shape as the `sigma_omega2` sweep in §14.8b, on a different estimator: the best setting
 differs per scenario across the whole range, and no single one is close to good everywhere.
@@ -2571,6 +2575,188 @@ answer. A grid too narrow to contain the truth would fail, and that has not been
   `calibrate_arl0` puts all four at matched $\mathrm{ARL}_0$.
 - `jump` + Gaussian only; the other 19 grid files are unexamined.
 - `kalman_fast`'s $\lambda$ was not tuned against these scenarios either.
+
+---
+
+## A. The DGP families, constructed
+
+Every family below is sampled by `src/streamgenerator/datasource/copula.hpp` and validated by
+`probe_family.cpp`, which checks each achieves the Spearman ρ it reports (all six within
+±0.005, §14.15.1).
+
+### A.0 The two facts the whole harness rests on
+
+**Spearman's ρ is a linear functional of the copula.**
+
+$$\rho_S \;=\; 12\iint_{[0,1]^2} C(u,v)\,du\,dv \;-\; 3$$
+
+Linear in $C$. So for any mixture $C = \sum_k p_k C_k$, $\rho_S(C) = \sum_k p_k \rho_S(C_k)$
+**exactly** — which is why the Fréchet and mixture families have closed-form ground truth while
+the others need quadrature.
+
+**Tail dependence is what ρ throws away.**
+
+$$\lambda_L = \lim_{q\to 0^+} P(V \le q \mid U \le q) = \lim_{q\to 0^+}\frac{C(q,q)}{q},
+\qquad
+\lambda_U = \lim_{q\to 1^-}\frac{1 - 2q + C(q,q)}{1-q}$$
+
+Two copulas can share a ρ and differ completely in λ. That gap is [§14.13](#1413-a-shape-change-at-constant-%CF%81--the-experiment-nobody-wins)'s
+experiment and [§14.17](#1417-monitoring-tail-dependence-directly)'s detector.
+
+**The harness convention.** A `Dependence` supplies a scalar knob $d$; every family inverts its
+own parameter to hit the *same* target $\rho_S = \frac{6}{\pi}\arcsin(d/2)$. So changing
+`COPULA` changes the copula's shape and leaves the dependence trajectory identical — which is
+what isolates misspecification (§8) from the path being tracked.
+
+---
+
+### A.1 Gaussian
+
+$$C(u,v;\rho) = \Phi_2\big(\Phi^{-1}(u), \Phi^{-1}(v);\rho\big)$$
+
+| | |
+| --- | --- |
+| Spearman | $\rho_S = \frac{6}{\pi}\arcsin(\rho/2)$ |
+| Kendall | $\tau = \frac{2}{\pi}\arcsin\rho$ |
+| Tail | $\lambda_L = \lambda_U = 0$ for $|\rho| < 1$ |
+
+```text
+sample:  z1 ~ N(0,1)
+         z2 = rho*z1 + sqrt(1-rho^2)*eps
+```
+
+Zero tail dependence at *every* ρ short of 1: extremes become asymptotically independent no
+matter how correlated the bulk is. That is the property the t copula breaks at matched ρ, and
+it is what makes the `shape` scenario possible.
+
+### A.2 Clayton
+
+Archimedean with generator $\varphi(t) = (t^{-\theta}-1)/\theta$:
+
+$$C(u,v;\theta) = \big(u^{-\theta} + v^{-\theta} - 1\big)^{-1/\theta}, \qquad \theta > 0$$
+
+| | |
+| --- | --- |
+| Kendall | $\tau = \dfrac{\theta}{\theta+2}$ |
+| Tail | $\lambda_L = 2^{-1/\theta}$, $\lambda_U = 0$ — **lower tail only** |
+
+```text
+sample (Marshall-Olkin, Laplace transform psi(s) = (1+s)^(-1/theta)):
+    M  ~ Gamma(1/theta, 1)
+    E1, E2 ~ Exp(1)  independent
+    u_i = (1 + E_i/M)^(-1/theta)
+```
+
+Asymmetric: crashes together, rallies apart. The finance-motivated shape.
+
+### A.3 Gumbel
+
+Archimedean with generator $\varphi(t) = (-\ln t)^{\theta}$:
+
+$$C(u,v;\theta) = \exp\Big(-\big[(-\ln u)^{\theta} + (-\ln v)^{\theta}\big]^{1/\theta}\Big),
+\qquad \theta \ge 1$$
+
+| | |
+| --- | --- |
+| Kendall | $\tau = 1 - 1/\theta$ |
+| Tail | $\lambda_U = 2 - 2^{1/\theta}$, $\lambda_L = 0$ — **upper tail only** |
+
+Sampled through a positive-stable frailty with index $1/\theta$. It is Clayton's mirror image,
+which is why `clayton_mle` on Gumbel data is 10× worse than on its own (finding 5) — the two
+disagree about *which* tail exists.
+
+### A.4 Student t
+
+$$C(u,v;\rho,\nu) = t_{2,\nu}\big(t_\nu^{-1}(u), t_\nu^{-1}(v);\rho\big)$$
+
+| | |
+| --- | --- |
+| Kendall | $\tau = \frac{2}{\pi}\arcsin\rho$ — **identical to Gaussian** |
+| Tail | $\lambda_L = \lambda_U = 2\,t_{\nu+1}\!\left(-\sqrt{\dfrac{(\nu+1)(1-\rho)}{1+\rho}}\right)$ |
+
+```text
+sample:  z ~ N2(0, R)          the same Gaussian pair
+         s ~ chi2(nu)
+         u_i = t_nu( z_i / sqrt(s/nu) )    one shared shock divides both
+```
+
+**This is the family that makes §14.13 work.** Its rank correlation depends only on $\rho$,
+exactly as the Gaussian's does, so the two can be matched on ρ to any precision — while
+$\lambda \approx 0.31$ at $\rho_S = 0.58$, $\nu = 4$ against the Gaussian's $0$. Same ρ, a
+different copula. The shared $\sqrt{\nu/s}$ divisor is the mechanism: one common shock scales
+both coordinates, so extremes arrive together.
+
+### A.5 Fréchet mixture — the adversarial family (§14.15)
+
+The **Fréchet–Hoeffding bounds** are the two most extreme copulas that exist; every copula lies
+between them:
+
+$$W(u,v) = \max(u+v-1,\,0) \;\le\; C(u,v) \;\le\; \min(u,v) = M(u,v)$$
+
+$M$ is $V = U$ (lockstep), $W$ is $V = 1-U$ (opposed), $\Pi = uv$ is independence. Mix them:
+
+$$C(u,v;\alpha,\beta) = \alpha M + \beta W + (1-\alpha-\beta)\Pi$$
+
+| | |
+| --- | --- |
+| Spearman | $\rho_S = \alpha - \beta$ — **exact**, by the linearity of A.0 |
+| Kendall | $\tau = \dfrac{(\alpha-\beta)(\alpha+\beta+2)}{3}$ |
+| Tail | $\lambda_L = \lambda_U = \alpha$ |
+
+```text
+sample:  u ~ U(0,1)
+         with prob |rho_S|:  v = u        (if rho_S > 0)
+                             v = 1 - u    (if rho_S < 0)
+         otherwise:          v ~ U(0,1)   independent
+```
+
+**Its density is a singular ridge on the diagonal plus a flat background** — a measure with an
+atom on a line, not a smooth surface. That is the point: maximum likelihood is driven by the
+ridge, a rank average by the background, and no single Gaussian ρ describes both.
+
+The derivation of $\rho_S$ takes one line and is worth seeing, because it is why this family has
+exact ground truth where Clayton/Gumbel/t need Gauss–Legendre:
+
+$$\iint M = \tfrac13,\quad \iint \Pi = \tfrac14
+\;\Longrightarrow\;
+\rho_S = 12\big[\alpha\tfrac13 + (1-\alpha)\tfrac14\big] - 3 = \alpha$$
+
+### A.6 Mixture Gaussian — the same idea, smooth
+
+$$C = p\,C_{\text{Gauss}}(\cdot;\rho = 0.95) + (1-p)\,\Pi,
+\qquad \rho_S = p \cdot \rho_S(0.95) = 0.94506\,p$$
+
+Exact again by A.0, and $\lambda_L = \lambda_U = 0$ because both components have zero tail
+dependence. It **separates "the Gaussian MLE cannot handle a singular component" from "cannot
+handle a mixture"** — and §14.15.3 shows it is the singularity: Hermite fails on A.5 and
+recovers on A.6.
+
+### A.7 `gauss2t` — the switching family (§14.13)
+
+Not a copula but a *schedule*: Gaussian for $t < 2500$, t(4) after, with the knob $d$ held
+constant throughout. Because A.1 and A.4 both target the same $\rho_S$ for a given $d$,
+
+```text
+rho_S     0.58192  ->  0.58192      flat to five decimals
+lambda_L  ~0       ->  ~0.31        the only thing that moves
+```
+
+⚠️ The achieved Spearman drops 0.008 across the switch even though the reported truth does not,
+because A.4's parameter inversion is quadrature. In Fisher-*z* that is 0.05σ per block — far
+below detection — but it does put a small step in every RMSE on this scenario.
+
+### A.8 One identity the detectors use
+
+§14.17 needs "what would a Gaussian copula at this ρ give?" for a tail probability. Two exact
+results supply it:
+
+$$\frac{\partial}{\partial\rho}\Phi_2(h,k;\rho) = \phi_2(h,k;\rho)
+\qquad\text{(the tetrachoric identity)}$$
+
+so $\Phi_2(h,h;\rho) = \Phi(h)^2 + \int_0^{\rho}\phi_2(h,h;t)\,dt$ — a one-dimensional integral
+— and at the median it closes entirely:
+
+$$\Phi_2(0,0;\rho) = \frac14 + \frac{\arcsin\rho}{2\pi}$$
 
 ---
 

@@ -9,10 +9,12 @@
 #include "copula_family.hpp"
 #include "dependence/copula_selector.hpp"
 #include "dependence/estimator.hpp"
+#include "dependence/estimator_bank.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermite_cusum.hpp"
 #include "dependence/hermiter.hpp"
 #include "dependence/kalman_bank.hpp"
+#include "dependence/tail_cusum.hpp"
 #include "dependence/kalman_bocpd.hpp"
 #include "dependence/kalman_cusum.hpp"
 #include "dependence/kalman_ewma_chart.hpp"
@@ -305,6 +307,58 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<KalmanBank>(
             KalmanBank::Config{.switch_prob = 1.0}, "kalman_bank_uniform");
     }
+    // Monitors excess tail co-occurrence over what a Gaussian at the same rho
+    // would give -- the functional section 14.13 says is missing. 14.17.
+    if (key == "tail_cusum" || key == "tail_cusum_slow") {
+        const bool slow = (key == "tail_cusum_slow");
+        return std::make_unique<TailCusumDetector>(
+            make_estimator("xiao_ew"),
+            TailCusumDetector::Config{.count_rate = slow ? 0.0005 : 0.002, .L = 4.0},
+            slow ? "tail_cusum_slow" : "tail_cusum");
+    }
+    // The section 14.16 device on a non-Kalman estimator, scored by the section
+    // 14.14 rank residual. 14.18.
+    //
+    // ⚠️ lambda is a MIRROR-IMAGE knob (see the header of this file): for Xiao and
+    // the MLE it is RETENTION, so the grid runs 0.95 (short) -> 0.999 (long); for
+    // Hermite it is the UPDATE WEIGHT, so its grid runs the other way, 0.05
+    // (short) -> 0.001 (long). Both grids span the same memory range.
+    if (key == "xiao_bank" || key == "hermite_bank" || key == "mle_bank") {
+        std::vector<std::unique_ptr<DependenceEstimator>> models;
+        if (key == "xiao_bank") {
+            for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
+                models.push_back(std::make_unique<XiaoSpearmanEstimator>(
+                    XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = lam,
+                                                  .calibration = 100}, "m"));
+        } else if (key == "hermite_bank") {
+            for (double lam : {0.05, 0.02, 0.01, 0.005, 0.001})
+                models.push_back(std::make_unique<HermiteEstimator>(
+                    HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "m"));
+        } else {
+            for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
+                models.push_back(std::make_unique<GaussianCopulaMLE>(
+                    GaussianCopulaMLE::Config{.lambda = lam, .burn_in = 50}, "m"));
+        }
+        return std::make_unique<EstimatorBank>(
+            std::move(models), EstimatorBank::Config{},
+            key == "xiao_bank" ? "xiao_bank" : key == "hermite_bank" ? "hermite_bank" : "mle_bank");
+    }
+    // Resolution sweep, to test WHY Xiao beats Hermite on a singular copula
+    // (section 14.15.3). If the mechanism is truncation of a smooth basis, raising
+    // Hermite's order must close the gap and changing Xiao's bin count must not.
+    if (key == "hermite_o20" || key == "hermite_o40") {
+        const int ord = (key == "hermite_o20") ? 20 : 40;
+        return std::make_unique<HermiteEstimator>(
+            HermiteEstimator::Config{.order = ord, .lambda = 0.0, .burn_in = 50},
+            key == "hermite_o20" ? "hermite_o20" : "hermite_o40");
+    }
+    if (key == "xiao_b8" || key == "xiao_b40") {
+        const std::size_t b = (key == "xiao_b8") ? 8 : 40;
+        return std::make_unique<XiaoSpearmanEstimator>(
+            XiaoSpearmanEstimator::Config{.bins = b, .window = 0, .lambda = 0.0,
+                                          .calibration = 100},
+            key == "xiao_b8" ? "xiao_b8" : "xiao_b40");
+    }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -558,7 +612,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
-        "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
+        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
