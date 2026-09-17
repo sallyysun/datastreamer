@@ -89,6 +89,12 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<HermiteEstimator>(
             HermiteEstimator::Config{.order = 10, .lambda = 0.01, .burn_in = 50}, "hermite_ew");
     }
+    if (key == "hermite_ew20") {
+        // Control for hermite_pit: same order and burn-in, standardized marginals.
+        // hermite_ew differs in BOTH order and marginal, so it cannot isolate rank-PIT.
+        return std::make_unique<HermiteEstimator>(
+            HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100}, "hermite_ew20");
+    }
     if (key == "windowed_rank") {
         return std::make_unique<WindowedRankEstimator>(500);
     }
@@ -621,7 +627,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
 // error, just a silently absent row, which is how xiao_win went unmeasured.
 inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
-        "xiao", "xiao_ew", "xiao_win", "xiao_pit", "xiao_b8", "xiao_b40", "hermite", "hermite_ew",
+        "xiao", "xiao_ew", "xiao_win", "xiao_pit", "xiao_b8", "xiao_b40", "hermite", "hermite_ew", "hermite_ew20",
         "windowed_rank", "gaussian_mle", "gaussian_mle_ew",
         "kalman", "kalman_fast", "kalman_cusum", "kalman_cusum_noreset", "kalman_cusum_soft",
         "kalman_cusum_inf2", "kalman_cusum_inf5", "kalman_cusum_inf10", "kalman_cusum_inf50",
