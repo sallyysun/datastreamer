@@ -34,6 +34,9 @@ probe_bank:
 probe_family:
 	$(CXX) probe_family.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_family
 
+probe_auc:
+	$(CXX) probe_auc.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_auc
+
 probe_shape:
 	$(CXX) probe_shape.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_shape
 
@@ -44,9 +47,9 @@ probe_xiao_pit:
 	$(CXX) probe_xiao_pit.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_xiao_pit
 
 clean:
-	rm -f experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail
+	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail
 
-.PHONY: experiment calibrate_arl0 multiseed probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail clean
+.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.

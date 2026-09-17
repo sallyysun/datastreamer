@@ -70,6 +70,7 @@ public:
     const char* name() const override { return name_; }
 
     bool alarmed_this_block() const override { return alarmed_; }
+    double monitor_statistic() const override { return s_; }
     std::size_t alarm_count() const { return alarm_count_; }
 
 private:

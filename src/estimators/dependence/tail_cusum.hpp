@@ -135,6 +135,7 @@ public:
 
     const char* name() const override { return name_; }
     bool alarmed_this_block() const override { return alarmed_; }
+    double monitor_statistic() const override { return std::fabs(last_z_); }
     std::size_t alarm_count() const { return alarm_count_; }
     double tail_ratio() const { return tail_ / std::max(mid_, 1e-6); }
     double chart_z() const { return last_z_; }

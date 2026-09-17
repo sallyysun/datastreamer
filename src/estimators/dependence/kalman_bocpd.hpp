@@ -140,6 +140,7 @@ public:
     const char* name() const override { return name_; }
 
     bool alarmed_this_block() const override { return alarmed_; }
+    double monitor_statistic() const override { return p_short_run_; }
     std::size_t alarm_count() const { return alarm_count_; }
     double p_changepoint() const { return p_changepoint_; }
     double p_short_run() const { return p_short_run_; }

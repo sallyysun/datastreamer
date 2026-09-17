@@ -68,6 +68,17 @@ public:
     const char* name() const override { return name_; }
 
     bool alarmed_this_block() const override { return alarmed_; }
+
+    // |z| in units of its own time-varying SD -- the quantity actually compared
+    // against L. Raw z_ is not comparable across blocks, its scale grows with
+    // chart_n_.
+    double monitor_statistic() const override {
+        if (chart_n_ == 0) return 0.0;
+        const double var = config_.r / (2.0 - config_.r)
+                         * (1.0 - std::pow(1.0 - config_.r, 2.0 * static_cast<double>(chart_n_)));
+        return std::abs(z_) / std::sqrt(var);
+    }
+
     std::size_t alarm_count() const { return alarm_count_; }
     std::size_t blocks_since_alarm() const { return blocks_since_alarm_; }
     double chart_statistic() const { return z_; }

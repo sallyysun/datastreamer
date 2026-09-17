@@ -64,6 +64,7 @@ public:
     const char* name() const override { return name_; }
 
     bool alarmed_this_block() const override { return alarmed_; }
+    double monitor_statistic() const override { return log_statistic(); }
     std::size_t alarm_count() const { return alarm_count_; }
     std::size_t blocks_since_alarm() const { return blocks_since_alarm_; }
     double log_statistic() const { return std::max(log_r_pos_, log_r_neg_); }
