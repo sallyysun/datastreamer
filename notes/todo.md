@@ -551,7 +551,23 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
   detection of a changing family are one statistic with opposite signs. Running both
   accumulators at different rates would give both; untested.
 - ⬜ **Why `hermite_scusum` is erratic** (185 ± 92 vs Xiao's 71 ± 5 on the same statistic).
+- ✅ **Memory sweep: bias²/variance against effective memory in ticks**
+  (`experiments/probe_memory.cpp`, `notes/studies/memory_sweep.md`, 40 seeds). Puts `xiao_ew`,
+  `hermite_ew` and `kalman` on one memory axis (ESS = (2−α)/α ticks, ×20 for the Kalman's block)
+  and decomposes RMSE. **Memory is worth ×2–×17 in RMSE; the estimator choice at matched memory
+  is worth 3–15 %.** The optimum moves from 36 ticks (`oscillate`) to past 30 000 (`constant`);
+  on `jump` it is 53 ticks in the recovery window and 495 in the settled one — a factor of 9.4,
+  costing 2.3–3.1× whichever way a single fixed λ is set. Three findings worth acting on:
+  **(a)** the Xiao–Hermite gap is pure variance (Hermite's is 1.11–1.63× Xiao's at matched
+  memory), so the representation costs efficiency, not bias; **(b)** `hermite_ew` has **no EWMA
+  initialisation debiasing**, so any λ ≲ 0.002 at N = 5000 measures warm-up, not memory —
+  `hermite_bank`'s longest arm (λ = 0.001) is already at that edge; **(c)** the Kalman's memory
+  is floored at one block, so `σ_ω²` above ~0.03 at `block = 20` is a dead knob.
+- ⬜ **Debias `hermite_ew`'s EWMA start** — divide by `1 − (1−λ)^t`, as Xiao's scale-invariant
+  ratio does implicitly. Cheap, but it moves every registered Hermite number, so it needs its own
+  multiseed run. See `memory_sweep.md` §6.2(b).
 - ⬜ **Learn the forgetting rate properly.** §14.8b makes it the highest-value knob and
-  `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator".
+  `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator". `memory_sweep.md`
+  §6.1 now quantifies the prize: 2.3–3.1× on the `jump` sub-windows.
 - ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.
 - ⬜ **Why expected information reduces variance 5–9×.** Three hypotheses tested, all failed.
