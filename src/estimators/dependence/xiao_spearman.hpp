@@ -43,6 +43,20 @@ public:
         double lambda = 0.0;          // in (0,1): retention factor; overrides window
         std::size_t calibration = 300;
         std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
+
+        // Variable forgetting, driven by the section 14.14 rank residual
+        //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
+        // standardized by its own slow variance so C_ tracks E[e~^2], which is 1
+        // when the memory is right. Same multiplicative rule and same unit-scale
+        // statistic as KalmanLocalLevel's vff_rate; the mirror image is that here
+        // it drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda.
+        // See notes/studies/adaptive_memory.md.
+        double vff_rate = 0.0;             // 0 disables
+        std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
+        double vff_var_rate = 0.001;       // baseline clock; must stay far slower (14.11)
+        std::size_t vff_pit_window = 500;
+        double vff_mem_min = 25.0;         // clamps, in ticks of effective memory
+        double vff_mem_max = 1000.0;
     };
 
     XiaoSpearmanEstimator(Config config, const char* name)
@@ -61,6 +75,7 @@ public:
     }
 
     void update(double x, double y) override {
+        if (config_.vff_rate > 0.0) vff_step(x, y);
         if (config_.rank_pit_window > 0) {
             insert(pit_x_.transform(x), pit_y_.transform(y));
             return;
@@ -121,6 +136,14 @@ public:
         total_ = 0.0;
         calibrated_ = false;
         calibration_.clear();
+        lambda_ = config_.lambda;
+        vff_pit_x_.reset();
+        vff_pit_y_.reset();
+        vff_c_ = 1.0;
+        vff_var_ = 1.0;
+        vff_sum_ = 0.0;
+        vff_in_block_ = 0;
+        vff_blocks_ = 0;
         if (config_.rank_pit_window > 0) {
             pit_x_.reset();
             pit_y_.reset();
@@ -135,10 +158,16 @@ public:
              + (cuts_x_.size() + cuts_y_.size()) * sizeof(double)
              + window_.size() * sizeof(BinPair)
              + calibration_.capacity() * sizeof(std::pair<double, double>)
-             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0);
+             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0)
+             + (config_.vff_rate > 0.0 ? vff_pit_x_.store_bytes() + vff_pit_y_.store_bytes() : 0);
     }
 
     const char* name() const override { return name_; }
+
+    double effective_memory_ticks() const {
+        const double alpha = 1.0 - lambda_;
+        return (alpha > 0.0) ? (2.0 - alpha) / alpha : 0.0;
+    }
 
 private:
     struct BinPair {
@@ -175,6 +204,28 @@ private:
         }
     }
 
+    void vff_step(double x, double y) {
+        // Residual against the estimate held BEFORE this observation is absorbed.
+        const double rho_hat = estimate();
+        const double u = vff_pit_x_.transform(x);
+        const double v = vff_pit_y_.transform(y);
+        if (vff_pit_x_.size() < 30) return;
+        const double s = 12.0 * (u - 0.5) * (v - 0.5) - rho_hat;
+        vff_var_ += config_.vff_var_rate * (s * s - vff_var_);
+        vff_sum_ += s * s / std::max(vff_var_, 1e-9);
+        if (++vff_in_block_ < config_.vff_block) return;
+        const double e2 = vff_sum_ / static_cast<double>(config_.vff_block);
+        vff_sum_ = 0.0;
+        vff_in_block_ = 0;
+        if (++vff_blocks_ <= kVffBurnInBlocks) return;
+
+        vff_c_ += config_.vff_rate * (e2 - vff_c_);
+        double alpha = (1.0 - lambda_) * std::pow(std::max(vff_c_, 1e-6), config_.vff_rate);
+        alpha = std::clamp(alpha, 2.0 / (config_.vff_mem_max + 1.0),
+                                  2.0 / (config_.vff_mem_min + 1.0));
+        lambda_ = 1.0 - alpha;
+    }
+
     std::size_t bin_of(const std::vector<double>& cuts, double value) const {
         return static_cast<std::size_t>(
             std::upper_bound(cuts.begin(), cuts.end(), value) - cuts.begin());
@@ -186,7 +237,7 @@ private:
         const std::size_t m = config_.bins;
 
         if (config_.lambda > 0.0) {
-            const double l = config_.lambda;
+            const double l = lambda_;
             for (auto& c : counts_) c *= l;
             for (auto& c : row_counts_) c *= l;
             for (auto& c : col_counts_) c *= l;
@@ -233,4 +284,14 @@ private:
     // window size (the parametric_copula.hpp bug of 2026-09).
     RankPit pit_x_;
     RankPit pit_y_;
+    RankPit vff_pit_x_{config_.vff_pit_window};
+    RankPit vff_pit_y_{config_.vff_pit_window};
+
+    static constexpr std::size_t kVffBurnInBlocks = 5;
+    double lambda_ = config_.lambda;
+    double vff_c_ = 1.0;
+    double vff_var_ = 1.0;
+    double vff_sum_ = 0.0;
+    std::size_t vff_in_block_ = 0;
+    std::size_t vff_blocks_ = 0;
 };

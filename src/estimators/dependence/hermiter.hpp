@@ -33,6 +33,12 @@ public:
         // WEIGHT, so shortening memory means raising it — the mirror image of the
         // MLE/Xiao retention convention. See the registry.hpp header.
         double vff_rate = 0.0;
+        // Divide the three EWMA accumulators by the weight actually accumulated,
+        // 1 - (1-w)^n. Without it a long-memory Hermite is still shrunk toward
+        // zero at t ~ ESS, which reads as a memory effect and is not one. Off by
+        // default so no registered number moves. See notes/studies/adaptive_memory.md.
+        bool debias = false;
+
         // Marginals by rank-PIT + probit instead of Welford standardization.
         // Standardization is exact only for Gaussian margins; ranks are exact for
         // any continuous margin and are invariant to monotone marginal change.
@@ -100,6 +106,7 @@ public:
             --boost_left_;
         }
         
+            wsum_ += w * (1.0 - wsum_);
             ax_ += w * (hx - ax_);
             ay_ += w * (hy - ay_);
 
@@ -156,10 +163,14 @@ public:
         // Hermite basis. u = int F_X h dx, v = int F_Y h dy, z = int h dx, so
         // (u - z/2) and (v - z/2) are the centred marginal CDF projections and
         // rho = 12 (u - z/2)^T A (v - z/2).
-        const Eigen::VectorXd u = W_ * ax_;
-        const Eigen::VectorXd v = W_ * ay_;
-        const Eigen::VectorXd Av = A_ * v;
-        const Eigen::VectorXd Az = A_ * z_;
+        // rho is not homogeneous in the accumulators (its four terms are degree
+        // 3, 2, 2 and 1 in them), so a common shrinkage does not cancel here the
+        // way it does inside Xiao's ratio.
+        const double c = (config_.debias && wsum_ > 0.0) ? 1.0 / wsum_ : 1.0;
+        const Eigen::VectorXd u = (W_ * ax_) * c;
+        const Eigen::VectorXd v = (W_ * ay_) * c;
+        const Eigen::VectorXd Av = (A_ * v) * c;
+        const Eigen::VectorXd Az = (A_ * z_) * c;
         const double rho = 12.0 * u.dot(Av) - 6.0 * u.dot(Az)
                          - 6.0 * z_.dot(Av) + 3.0 * z_.dot(Az);
         return std::clamp(rho, -1.0, 1.0);
@@ -185,6 +196,7 @@ public:
         surprise_var_ = 0.0;
         surprise_n_ = 0;
         lambda_ = config_.lambda;
+        wsum_ = 0.0;
         fast_ = slow_ = 0.0;
         pit_x_.reset();
         pit_y_.reset();
@@ -320,6 +332,7 @@ private:
     RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     double lambda_ = config_.lambda;
+    double wsum_ = 0.0;
     std::size_t boost_left_ = 0;
     double fast_ = 0.0;
     double slow_ = 0.0;
