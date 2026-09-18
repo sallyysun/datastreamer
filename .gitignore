@@ -10,3 +10,4 @@ __pycache__/
 /experiments/results/
 /experiments/probe_auc
 /experiments/probe_memory
+/experiments/probe_adaptive

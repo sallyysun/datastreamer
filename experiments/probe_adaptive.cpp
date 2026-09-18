@@ -288,14 +288,17 @@ int main() {
         std::fprintf(stderr, "cannot write results/ (run: mkdir -p results)\n");
         return 1;
     }
-    out << "family,method,scenario,param,mem_ticks,rmse,rmse_mean_seed,se_rmse\n";
-    pout << "family,scenario,method,param,rmse,known_best_mem,known_best_param,"
-            "rmse_known_best,diff_mean,diff_se,sigma\n";
+    out << "family,method,scenario,param,mem_ticks,rmse,rmse_mean_seed,se_rmse,store_bytes\n";
+    pout << "family,scenario,method,param,rmse,baseline,baseline_mem,"
+            "rmse_baseline,diff_mean,diff_se,sigma\n";
     tout << "scenario,family,method,t,mem_post,rho_hat,truth\n";
 
     const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
+    std::vector<std::vector<std::vector<double>>> all_seed(scenarios.size());
+    std::vector<std::vector<double>> all_pooled(scenarios.size());
 
-    for (const std::string& scenario : scenarios) {
+    for (std::size_t si = 0; si < scenarios.size(); ++si) {
+        const std::string& scenario = scenarios[si];
         Panel est(cfgs.size(), std::vector<std::vector<double>>(kSeeds));
         Panel mem(cfgs.size(), std::vector<std::vector<double>>(kSeeds));
         std::vector<double> truth(kN);
@@ -321,31 +324,11 @@ int main() {
             m /= static_cast<double>(kSeeds);
             out << cfgs[c].family << "," << cfgs[c].method << cfgs[c].tag << "," << scenario << ","
                 << cfgs[c].param << "," << cfgs[c].mem_ticks << "," << pooled[c] << ","
-                << m << "," << se_of(per_seed[c]) << "\n";
+                << m << "," << se_of(per_seed[c]) << "," << cfgs[c].build().est->store_bytes()
+                << "\n";
         }
-
-        // known_best: per family, the single best fixed memory on THIS scenario,
-        // chosen after seeing the answer. Same argmin as memory_sweep.csv's rmse
-        // column at window=all.
-        for (const char* fam : {"xiao", "hermite", "hermite_db", "kalman"}) {
-            std::size_t kb = cfgs.size();
-            for (std::size_t c = 0; c < cfgs.size(); ++c) {
-                if (cfgs[c].family != fam || cfgs[c].method != "fixed") continue;
-                if (kb == cfgs.size() || pooled[c] < pooled[kb]) kb = c;
-            }
-            if (kb == cfgs.size()) continue;
-            for (std::size_t c = 0; c < cfgs.size(); ++c) {
-                if (cfgs[c].family != fam || cfgs[c].method == "fixed") continue;
-                const Paired p = paired(per_seed[c], per_seed[kb]);
-                pout << fam << "," << scenario << "," << cfgs[c].method << cfgs[c].tag << ","
-                     << cfgs[c].param << "," << pooled[c] << "," << cfgs[kb].mem_ticks << ","
-                     << cfgs[kb].param << "," << pooled[kb] << "," << p.mean << ","
-                     << p.se << "," << p.sigma << "\n";
-            }
-            pout << fam << "," << scenario << ",known_best," << cfgs[kb].param << ","
-                 << pooled[kb] << "," << cfgs[kb].mem_ticks << "," << cfgs[kb].param << ","
-                 << pooled[kb] << ",0,0,0\n";
-        }
+        all_seed[si] = per_seed;
+        all_pooled[si] = pooled;
 
         for (std::size_t c = 0; c < cfgs.size(); ++c) {
             if (mem[c][0].empty()) continue;
@@ -362,6 +345,45 @@ int main() {
         }
         std::printf("scenario=%s done (%zu configs x %zu seeds)\n", scenario.c_str(),
                     cfgs.size(), kSeeds);
+    }
+
+    // Two baselines. known_best is the oracle: the best fixed memory on THIS
+    // scenario, chosen after seeing the answer -- the same argmin as
+    // memory_sweep.csv's rmse column at window=all. one_setting is the honest
+    // one: the single fixed memory with the best mean RMSE over all four,
+    // chosen once and used everywhere, which is what a practitioner has.
+    for (const char* fam : {"xiao", "hermite", "hermite_db", "kalman"}) {
+        std::size_t one = cfgs.size();
+        double one_best = 0.0;
+        for (std::size_t c = 0; c < cfgs.size(); ++c) {
+            if (cfgs[c].family != fam || cfgs[c].method != "fixed") continue;
+            double mean = 0.0;
+            for (std::size_t si = 0; si < scenarios.size(); ++si) mean += all_pooled[si][c];
+            mean /= static_cast<double>(scenarios.size());
+            if (one == cfgs.size() || mean < one_best) { one = c; one_best = mean; }
+        }
+        for (std::size_t si = 0; si < scenarios.size(); ++si) {
+            std::size_t kb = cfgs.size();
+            for (std::size_t c = 0; c < cfgs.size(); ++c) {
+                if (cfgs[c].family != fam || cfgs[c].method != "fixed") continue;
+                if (kb == cfgs.size() || all_pooled[si][c] < all_pooled[si][kb]) kb = c;
+            }
+            if (kb == cfgs.size()) continue;
+            for (std::size_t b : {kb, one}) {
+                const char* bname = (b == kb) ? "known_best" : "one_setting";
+                for (std::size_t c = 0; c < cfgs.size(); ++c) {
+                    if (cfgs[c].family != fam || cfgs[c].method == "fixed") continue;
+                    const Paired p = paired(all_seed[si][c], all_seed[si][b]);
+                    pout << fam << "," << scenarios[si] << "," << cfgs[c].method << cfgs[c].tag
+                         << "," << cfgs[c].param << "," << all_pooled[si][c] << "," << bname
+                         << "," << cfgs[b].mem_ticks << "," << all_pooled[si][b] << ","
+                         << p.mean << "," << p.se << "," << p.sigma << "\n";
+                }
+                pout << fam << "," << scenarios[si] << "," << bname << "," << cfgs[b].param
+                     << "," << all_pooled[si][b] << "," << bname << "," << cfgs[b].mem_ticks
+                     << "," << all_pooled[si][b] << ",0,0,0\n";
+            }
+        }
     }
     std::printf("wrote results/adaptive_memory{,_pairs,_traj}.csv\n");
     return 0;

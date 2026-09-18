@@ -563,11 +563,33 @@ step = std::clamp(step, -kMaxStep, kMaxStep);
   initialisation debiasing**, so any λ ≲ 0.002 at N = 5000 measures warm-up, not memory —
   `hermite_bank`'s longest arm (λ = 0.001) is already at that edge; **(c)** the Kalman's memory
   is floored at one block, so `σ_ω²` above ~0.03 at `block = 20` is a dead knob.
-- ⬜ **Debias `hermite_ew`'s EWMA start** — divide by `1 − (1−λ)^t`, as Xiao's scale-invariant
-  ratio does implicitly. Cheap, but it moves every registered Hermite number, so it needs its own
-  multiseed run. See `memory_sweep.md` §6.2(b).
+- ✅ **Does adaptive memory generalise past the Kalman?** (`experiments/probe_adaptive.cpp`,
+  `notes/studies/adaptive_memory.md`, 40 seeds, memory-matched arm grids in ticks). **The
+  mechanism generalises completely** — the Xiao, Hermite and Kalman banks all collapse memory
+  13–20× at a jump and relax back, in near-lockstep. **The RMSE win against the per-scenario
+  oracle generalises only on `jump`** (Xiao −3.3σ, Hermite −2.7σ, Kalman −16.6σ); all three lose
+  on `constant`, `drift` and `oscillate`. Against a single fixed setting used everywhere the
+  banks win **12 of 12, by 25–65 % RMSE**, which is the claim that needs no oracle.
+  ⚠️ **§14.16's 8.2σ `drift` win is retracted**: §14.8b's `σ_ω²` grid stopped at 1e-3, so its
+  "oracle" was 30 % too weak; against a properly resolved one the bank loses by 7.7σ. Cost:
+  `xiao_bank` is 52 KB against `kalman_bank`'s 736 B — the device generalises, its cheapness
+  does not.
+- ✅ **Debias `hermite_ew`'s EWMA start** — divide by `1 − (1−λ)^t`, as Xiao's scale-invariant
+  ratio does implicitly. Added as `HermiteEstimator::Config::debias`, **off by default** so no
+  registered number moves. It changes the *oracle*: raw Hermite's `constant` optimum is a
+  warm-up artifact at 341 ticks (0.0416); debiased it is 30 000 ticks (0.0195), matching Xiao.
+  ⬜ Still open: turning it on by default, which needs its own multiseed run.
 - ⬜ **Learn the forgetting rate properly.** §14.8b makes it the highest-value knob and
   `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator". `memory_sweep.md`
-  §6.1 now quantifies the prize: 2.3–3.1× on the `jump` sub-windows.
+  §6.1 now quantifies the prize: 2.3–3.1× on the `jump` sub-windows. `xiao_vff` now exists
+  (rank residual over its known null scale, `adaptive_memory.md` §5) and confirms the shape of
+  the answer: a VFF *integrates* surprise where a bank *re-weights* on it, so the VFF barely dips
+  at a jump and the bank drops 15×. Banks, not VFFs.
+- ⬜ **Re-specify `xiao_bank` / `hermite_bank` / `mle_bank` in ticks.** They carry λ grids
+  (memory 39 → 1999), which is neither matched to `kalman_bank` (22 → 999) nor warm for Hermite
+  at the long end. Nothing has been measured on them; don't quote them until they are fixed.
+- ⬜ **Per-arm predictive variance in `EstimatorBank`.** It scores arms with a variance shared
+  across arms, where `KalmanBank` uses `F_k` per arm and gets the log-determinant term. Candidate
+  explanation for the Kalman bank's `jump` win being 5× the Xiao bank's. `adaptive_memory.md` §11.
 - ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.
 - ⬜ **Why expected information reduces variance 5–9×.** Three hypotheses tested, all failed.
