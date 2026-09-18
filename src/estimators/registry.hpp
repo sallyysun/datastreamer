@@ -21,6 +21,7 @@
 #include "dependence/kalman_glr.hpp"
 #include "dependence/kalman_local_level.hpp"
 #include "dependence/kalman_shiryaev_roberts.hpp"
+#include "dependence/kalman_var_chart.hpp"
 #include "dependence/mle_score_cusum.hpp"
 #include "dependence/rank_score_cusum.hpp"
 #include "dependence/parametric_copula.hpp"
@@ -556,6 +557,34 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .r = 0.2, .L = 2.5},
             "kalman_ewma_chart");
     }
+    // Dispersion, not level: every other Kalman detector watches E[e~], this one
+    // watches E[e~^2]. The filter is deliberately the fixed-memory kalman_fast --
+    // a VFF filter would shorten its own memory and whiten the signal away. 14.20.
+    if (key == "kalman_var_chart") {
+        return std::make_unique<KalmanVarChartDetector>(
+            KalmanVarChartDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .r = 0.05, .h = 1.6},
+            "kalman_var_chart");
+    }
+    if (key == "kalman_var_chart_slow") {
+        return std::make_unique<KalmanVarChartDetector>(
+            KalmanVarChartDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .r = 0.02, .h = 1.225},
+            "kalman_var_chart_slow");
+    }
+    // Same quantity, accumulated instead of averaged. k sits between the
+    // worst-case null level of e~^2 (0.867, at rho=0.8) and the post-change one
+    // (0.911, at rho=0.6) -- a gap the rho-dependence of the null nearly fills
+    // on its own, which is the point of the measurement. 14.20.
+    if (key == "kalman_var_cusum") {
+        return std::make_unique<KalmanVarChartDetector>(
+            KalmanVarChartDetector::Config{
+                .kalman = KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
+                .h = 35.0, .cusum_k = 0.89},
+            "kalman_var_cusum");
+    }
     if (key == "kalman_sr") {
         return std::make_unique<KalmanShiryaevRobertsDetector>(
             KalmanShiryaevRobertsDetector::Config{
@@ -635,7 +664,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "xiao_cusum", "xiao_cusum_noreset", "hermite_scusum", "hermite_scusum_noreset",
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
-        "kalman_ewma_chart", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
+        "kalman_ewma_chart", "kalman_var_chart", "kalman_var_chart_slow", "kalman_var_cusum", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
         "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",

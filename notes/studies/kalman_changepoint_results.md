@@ -2718,6 +2718,107 @@ and a large one.
   the pseudo-observations are not i.i.d.
 
 
+### 14.20 Monitoring the innovation *variance*: the signal is real, the threshold cannot reach it
+
+Added 2026-09-19. §14.13's five ρ-monitors get 1–5/20 on `gauss2t` and the AUC probe said why:
+across the switch the block Fisher-*z* reading barely moves in **mean** (0.6626 → 0.6710, ρ_S
+0.5801 → 0.5857) but moves ~11% in **SD** (0.2521 → 0.2771). The filter's observation noise is
+fixed in closed form at $\sqrt{1.06/(m-3)} = 0.2497$, so post-change the assumption is simply
+wrong, and a local-level filter has **no parameter that can represent a change in its own noise
+level**. The obvious repair: monitor the second moment instead of the first.
+
+Under a correct model $\tilde e = e_t/\sqrt{F_t}$ is standard normal, so $\tilde e^2$ averages 1.
+`kalman_var_chart` is an upper one-sided EWMA of it, $C_t = (1-r)C_{t-1} + r\,\tilde e_t^2$,
+on the **fixed-memory** `kalman_fast` filter — `kalman_vff` would shorten its own memory and
+whiten the over-dispersion away, which is the §0.3 accumulator being used for the opposite
+purpose. `r = 0.05` matches the VFF rate and settles in ~60 blocks against the 125 post-change
+blocks available; `_slow` ($r=0.02$) trades settling time for separation. The baseline is
+**frozen at the model value**, never re-estimated from the monitored data — §14.11's chasing bug.
+
+#### 14.20.1 The statistic moves, and by roughly the predicted amount
+
+```text
+E[e~^2] over blocks, pooled across 40 seeds:
+
+  pre-switch  (Gaussian, rho=0.6)   0.79
+  post-switch (t(4),     rho=0.6)   0.91        +0.12, a 15% rise
+```
+
+Corrected AUC (40 seeds, matched-null, §probe_auc), beside the incumbents:
+
+| detector | hits (20 seeds) | corrected AUC |
+| --- | --- | --- |
+| `gaussian_mle_cusum` | 17/20 | 0.641 ± 0.013 |
+| `kalman_cusum` | 2/20 | 0.551 ± 0.012 |
+| **`kalman_var_chart`** | **4/20** | **0.660 ± 0.038** |
+| **`kalman_var_chart_slow`** | **5/20** | **0.709 ± 0.051** |
+| `kalman_var_cusum` | 4/20 | 0.634 ± 0.044 |
+
+**The hypothesis is confirmed at the level of the statistic and refuted at the level of the
+detector.** On AUC the variance monitor is the equal of the MLE score-CUSUM — better than every
+ρ-monitor by a wide margin, and ~0.11 above `kalman_cusum` on the identical filter. On hits at
+matched ARL₀ = 1000 it is 4–5/20, indistinguishable from the detectors it was built to beat.
+
+#### 14.20.2 Why the AUC does not convert: the ρ-dependence of the null is the whole budget
+
+The null level of $\tilde e^2$ is not 1, and worse, it is not constant in ρ:
+
+| ρ | 0.0 | 0.3 | 0.6 | 0.8 |
+| --- | --- | --- | --- | --- |
+| $E[\tilde e^2]$ under the null | 0.762 | 0.772 | 0.814 | 0.867 |
+
+```text
+  nuisance spread across rho    0.762 -> 0.867   = 0.105
+  the entire shape-change signal 0.814 -> 0.911  = 0.097
+
+  The thing we are not modelling is LARGER than the thing we are detecting.
+```
+
+Calibration is worst-case over ρ — the project convention for every other detector — so $h$ must
+clear the ρ = 0.8 null, which already sits above where the ρ = 0.6 post-change signal lands. At
+ρ = 0.6 the calibrated `kalman_var_chart` actually runs at ARL₀ ≈ 3750, not 1000. The detector is
+paying for a ρ-dependence it does not model, exactly as §14.13's ρ-monitors pay for a shape
+change they do not model.
+
+This also kills the accumulator repair before it starts. An EWMA saturates at the new level; a
+CUSUM integrates it, which is the structural reason §14.10's score-CUSUM converts and a chart
+does not. But a CUSUM of $\tilde e^2 - k$ needs $k$ above the worst-case null (0.867) and below
+the post-change mean (0.911), leaving a drift of ~0.02 per block against a calibrated $h = 35$:
+**~1700 blocks to climb, in a 125-block window.** `kalman_var_cusum` ($k = 0.89$, $h = 35$,
+worst-case ARL₀ = 1304) duly gets **4/20** — no better than the chart, and for a reason that was
+arithmetic before it was measured.
+
+#### 14.20.3 It still detects a ρ jump, weakly, and that is not a bug
+
+| `jump`, 20 seeds | hits | delay |
+| --- | --- | --- |
+| `kalman_cusum` | 19/20 | 46 ± 5 |
+| `kalman_var_chart` | 5/20 | 155 ± 92 |
+| `kalman_var_chart_slow` | 4/20 | 759 ± 578 |
+| `kalman_var_cusum` | 4/20 | 1054 ± 298 |
+
+A step in the level reaches a squared-innovation chart as a 2–3 block transient, and $r = 0.05$
+smooths a transient by construction: the peak of $C_t$ lands near 1.35 against $h = 1.6$. Squaring
+also discards the sign the CUSUM integrates. So a weak result here is the design working, not the
+implementation failing — but it does mean the variance monitor is strictly an *addition* to a
+level monitor, never a replacement.
+
+#### 14.20.4 ⚠️ What this does not establish
+
+- **The right fix is probably not a detector at all.** If the null level of $\tilde e^2$ moves
+  with ρ, the honest response is to make $\sigma_v^2$ a function of ρ̂ — the $1.06/(m-3)$
+  approximation for the variance of Fisher-*z*'d block Spearman is the thing that is wrong. A
+  detector standardized by a *correct* null would have the full 0.097 to spend instead of ~0.
+  Untried.
+- **One switch, one ρ, one block size.** The nuisance/signal ratio above is specific to
+  $m = 20$; a larger block shrinks the observation noise and may separate the two.
+- **`r` was chosen by a settling-time argument, not swept.** 0.05 and 0.02 bracket it; 0.1 and
+  0.01 are untested, and §14.11 is the standing warning that this knob can silently do the
+  detecting for you.
+- **AUC and hit rate disagree, and only the hit rate is calibrated.** The AUC of 0.66–0.70 is a
+  real threshold-free result; it is not a claim that any threshold realises it.
+
+
 ### 14.9 ⚠️ What this does not establish
 
 - **Thresholds are uncalibrated.** `L = 3.0`, `h = 5.0` are textbook defaults. The

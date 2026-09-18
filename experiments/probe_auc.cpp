@@ -45,7 +45,8 @@ constexpr std::size_t kEarlyPost = 3500;
 const std::vector<std::string>& detector_keys() {
     static const std::vector<std::string> keys = {
         "kalman_cusum", "kalman_glr", "kalman_sr", "kalman_ewma_chart", "kalman_bocpd",
-        "hermite_cusum2", "gaussian_mle_cusum", "tail_cusum"};
+        "hermite_cusum2", "gaussian_mle_cusum", "tail_cusum",
+        "kalman_var_chart", "kalman_var_chart_slow", "kalman_var_cusum"};
     return keys;
 }
 
