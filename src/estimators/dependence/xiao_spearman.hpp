@@ -46,14 +46,14 @@ public:
 
         // Variable forgetting, driven by the section 14.14 rank residual
         //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
-        // standardized by its own slow variance so C_ tracks E[e~^2], which is 1
-        // when the memory is right. Same multiplicative rule and same unit-scale
-        // statistic as KalmanLocalLevel's vff_rate; the mirror image is that here
+        // over its KNOWN null variance (see vff_step). C_ then tracks E[e~^2],
+        // which is 1 when the memory is right -- the same statistic and the same
+        // multiplicative rule as KalmanLocalLevel's vff_rate. Mirror image: here
         // it drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda.
         // See notes/studies/adaptive_memory.md.
         double vff_rate = 0.0;             // 0 disables
         std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
-        double vff_var_rate = 0.001;       // baseline clock; must stay far slower (14.11)
+        double vff_null_var = 1.0;         // section 14.14 measured 0.92-1.00
         std::size_t vff_pit_window = 500;
         double vff_mem_min = 25.0;         // clamps, in ticks of effective memory
         double vff_mem_max = 1000.0;
@@ -140,7 +140,6 @@ public:
         vff_pit_x_.reset();
         vff_pit_y_.reset();
         vff_c_ = 1.0;
-        vff_var_ = 1.0;
         vff_sum_ = 0.0;
         vff_in_block_ = 0;
         vff_blocks_ = 0;
@@ -210,9 +209,16 @@ private:
         const double u = vff_pit_x_.transform(x);
         const double v = vff_pit_y_.transform(y);
         if (vff_pit_x_.size() < 30) return;
-        const double s = 12.0 * (u - 0.5) * (v - 0.5) - rho_hat;
-        vff_var_ += config_.vff_var_rate * (s * s - vff_var_);
-        vff_sum_ += s * s / std::max(vff_var_, 1e-9);
+        const double p = 12.0 * (u - 0.5) * (v - 0.5);
+        const double s = p - rho_hat;
+
+        // Fixed null scale, not an estimated one. An EWMA of s^2 chases the very
+        // lag the VFF exists to remove (14.11's trap); E[p^2] - rho_hat^2 biases
+        // the other way, since rho_hat is the lagging quantity. Section 14.14
+        // measured Var(s) at 0.92-1.00 across the whole rho range, so 1 is a
+        // KNOWN scale to within 8% and nothing has to be estimated. This is the
+        // nonparametric stand-in for the Kalman's F.
+        vff_sum_ += s * s / config_.vff_null_var;
         if (++vff_in_block_ < config_.vff_block) return;
         const double e2 = vff_sum_ / static_cast<double>(config_.vff_block);
         vff_sum_ = 0.0;
@@ -290,7 +296,6 @@ private:
     static constexpr std::size_t kVffBurnInBlocks = 5;
     double lambda_ = config_.lambda;
     double vff_c_ = 1.0;
-    double vff_var_ = 1.0;
     double vff_sum_ = 0.0;
     std::size_t vff_in_block_ = 0;
     std::size_t vff_blocks_ = 0;

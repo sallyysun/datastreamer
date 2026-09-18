@@ -120,6 +120,10 @@ public:
 
     const char* name() const override { return name_; }
 
+    std::size_t size() const { return w_.size(); }
+    double weight(std::size_t k) const { return w_[k]; }
+    double sigma_omega2(std::size_t k) const { return config_.sigma_omega2[k]; }
+
     // The posterior-mean memory length, for diagnostics.
     double effective_sigma_omega2() const {
         double q = 0.0;
