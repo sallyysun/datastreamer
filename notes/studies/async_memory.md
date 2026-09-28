@@ -91,11 +91,10 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1), and 
 
 ## Reading
 
-1. **Fewer pairs alone: the $f^{-1/3}$ prediction holds away from $\rho=0$.** The `sync` arm's
-   optimum follows $M^*\propto f^{-1/3}$ to 0.93–1.12 on the original drift and 0.83–1.08 on
-   the away-from-zero drifts, for all five estimators over a 15× range of pair rates; it loosens
-   to 0.69–1.09 on toward-zero drifts (table in the directional section). Lower liquidity ⇒
-   longer memory in ticks, *shorter* in pairs ($m^*\propto f^{2/3}$).
+1. **Fewer pairs alone: the $f^{-1/3}$ prediction holds.** The `sync` arm's optimum follows
+   $M^*\propto f^{-1/3}$ to 0.93–1.12 across all drifts for the four well-behaved estimators, over
+   a 15× range of pair rates (`hermite_ew` excluded — startup bug, see "State-dependent noise").
+   Lower liquidity ⇒ longer memory in ticks, *shorter* in pairs ($m^*\propto f^{2/3}$).
 2. **Asynchronicity is a bias problem, not a memory problem.** Naive pairing raises the best
    achievable RMSE by 1.3–2× on `drift` and 3.5–8× on `constant`, and no memory choice recovers it.
    Its $M^*$ moves only slightly — and *shorter*, not longer.
@@ -108,11 +107,11 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1), and 
 4. **With the correction, overlap is a second rate.** Correcting removes the bias (residual
    bias ≈ the sync arm's) but divides the signal by $\bar c$, inflating variance by $\bar c^{-2}$.
    The same bias–variance calculation then gives
-   $M^*\propto f^{-1/3}\,\bar c^{-2/3}$: 0.91–1.19 on the original drift, 0.75–1.31 away from
-   zero, but only 0.63–2.52 toward zero (worst at (0.1,0.1)). Asynchronous
+   $M^*\propto f^{-1/3}\,\bar c^{-2/3}$ to 0.95–1.26 across all drifts (four estimators), and
+   to 0.92–1.17 once the measured state-dependent noise is used. Asynchronous
    overlap therefore acts like an *additional* loss of information rate, $f_\text{eff}=f\bar c^{2}$,
    on top of the loss of pairs — the answer to "does $f^{-1/3}$ still describe the shift?": yes,
-   with $f$ replaced by $f\bar c^2$, approximately, away from $\rho=0$. The price is 1.1–1.4×
+   with $f$ replaced by $f\bar c^2$, approximately. The price is 1.1–1.4×
    the matched-rate RMSE.
 
 ### Directional drifts — testing reading 3
@@ -130,8 +129,8 @@ across estimators:
 | 0.5, 0.1 | 0.80–0.85 | 0.79–0.89 | 1.06–1.71 | 1.01–1.73 |
 
 **Confirmed, in both mirror pairs.** Every "away" cell is < 1 and every "toward" cell is ≥ 1, for
-all five estimators. The low end of each "toward" range is `hermite_ew`, whose shift is much
-smaller (and on the grid edge at 0.25) — flagged, not explained. For the other four, toward-zero
+all five estimators. The low end of each "toward" range is `hermite_ew`, whose long-memory cells
+are corrupted by its startup bug (see "State-dependent noise"). For the other four, toward-zero
 $M^*$ is 2–3.5× the sync optimum, and the bias *at* that optimum is near zero: the long memory's lag
 is being used to cancel the attenuation.
 
@@ -141,18 +140,8 @@ drifts, naive `async` RMSE$^*$ is sometimes *below* the matched-rate `sync` arm 
 2.1–3.0× worse. Whether uncorrected asynchronous data helps or hurts depends on the direction of a
 dependence change the estimator does not know — so the naive arm cannot be tuned into safety.
 
-The corrected arm has no direction-dependent *bias*, but its scaling fit is not
-direction-independent. Observed / predicted $M^*$, range across estimators and arrival settings:
-
-| drift | `sync` / $f^{-1/3}$ | `corr` / $f^{-1/3}\bar c^{-2/3}$ |
-| --- | --- | --- |
-| original −0.5→0.8 | 0.93–1.12 | 0.91–1.19 |
-| away from zero (both signs) | 0.83–1.08 | 0.75–1.31 |
-| toward zero (both signs) | 0.69–1.09 | 0.63–2.52 |
-
-**Good agreement away from zero; deterioration near zero at low liquidity.** Leading candidate,
-untested: the model's constant $\sigma^2$ — Spearman noise is $\rho$-dependent and largest at
-$\rho=0$, where toward-zero drifts end. Random-overlap heterogeneity is ruled out below.
+The corrected arm has no direction-dependent *bias*. Its scaling fit is reported, together with
+the constant- vs state-dependent-noise comparison, in "State-dependent noise" below.
 
 ### Random overlaps — is $\bar c$ the right summary?
 
@@ -172,9 +161,58 @@ discards. Measured (`experiments/async_overlap.py`, 400k ticks):
 | 0.1, 0.1 | 0.663 | 0.486 | 1.11 |
 | 0.5, 0.1 | 0.859 | 0.763 | 1.04 |
 
-Heterogeneity is worth ≤ 11% in variance, ≤ $(1.11)^{1/3}\approx3.5\%$ in $M^*$: it cannot
-explain the toward-zero misses. Under burstier (bimodal-overlap) arrivals it could matter, and
+Heterogeneity is worth ≤ 11% in variance, ≤ $(1.11)^{1/3}\approx3.5\%$ in $M^*$. Under burstier (bimodal-overlap) arrivals it could matter, and
 overlap-weighting would then be the principled fix.
+
+### State-dependent noise — diagnostic
+
+Before the Hermite bug was found, all-estimator ranges showed misses up to 2.5× on toward-zero
+drifts at low liquidity. Two candidate causes: random-overlap heterogeneity (ruled out above,
+≤ 3.5%) and $\rho$-dependent estimator noise. Stated prediction beforehand: *measured
+$v_j(\rho)$ should improve toward-zero fits and leave away-from-zero fits mostly unchanged.*
+
+**Measured noise** (`experiments/async_noise.cpp`): constant-$\rho$ synchronous streams,
+$v_j(\rho)=m\,\mathrm{Var}(\hat\rho)$ at steady state, 20 seeds. $m=80$ and $m=320$ agree to a
+few percent (the $1/m$ assumption holds). For every estimator $v_j$ peaks at $\rho\approx0$ and is
+symmetric: ≈1.0–1.2 at 0, falling to 0.18–0.30 at ±0.8 (0.08 for `gaussian_mle_ew`) — a 4–11×
+range the constant-$\sigma^2$ model ignores.
+
+**Predictions** (`experiments/async_predict.py`): minimise the path-averaged heuristic MSE with
+each estimator's own kernel (EW, or flat for the window; Kalman adds half a block of delay). The
+kernel gives both the lag and the local average of $v_j$. For `corr`, noise is $v_j$ at the
+attenuated $\rho$, times the $1/\bar c$ and Spearman↔Pearson Jacobian. Constant model: the same
+machinery with $v_j$ averaged along the path. Anchored on each estimator's $(1,1)$ optimum;
+observed / predicted, range over four estimators × four arrival settings, (mean $|\log|$ error):
+
+| drift | arm | constant $v$ | state-dependent $v_j(\rho)$ |
+| --- | --- | --- | --- |
+| original | sync | 0.95–1.12 (0.041) | 0.95–1.12 (0.041) |
+| original | corr | 0.99–1.20 (0.073) | 0.99–1.10 (0.038) |
+| away | sync | 0.94–1.09 (0.027) | 0.94–1.09 (0.028) |
+| away | corr | 0.95–1.26 (0.095) | 0.92–1.17 (0.056) |
+| toward | sync | 0.93–1.07 (0.030) | 0.93–1.07 (0.031) |
+| toward | corr | 0.97–1.24 (0.094) | 0.93–1.15 (0.050) |
+
+**Reading.**
+- **The toward-zero "breakdown" was `hermite_ew`, not a property of the law.** Without it, the
+  toward-zero fits are as good as the others. The prediction as stated is **falsified**: there
+  was no toward-specific gap left to close.
+- **State-dependent noise refines the corrected-arm law uniformly** (error roughly halved in every
+  direction), because the corrected estimator works at the *attenuated* $\rho$, closer to the noise
+  peak, and pays the Jacobian. It leaves `sync` unchanged: within one path, every arrival setting
+  shares the same $v_j(\rho)$ profile, so it moves the level of $M^*$, not its $f$-scaling, and
+  anchoring cancels it.
+- So: $M^*\propto(f\bar c^2)^{-1/3}$ is the constant-noise special case; the refined statement is
+  that $M^*$ is set by information rate, overlap loss, and the local estimator noise at the
+  (attenuated) dependence level.
+
+**`hermite_ew` startup bug.** With $\lambda>0$, `HermiteEstimator` applies weight $\lambda$ from
+the first observation, so its coefficient sums start shrunk toward zero, its running mean sits on
+the first observation and its variance on 1, all decaying only over ~$1/\lambda$ observations.
+Harmless at the registry's $\lambda=0.01$ over 5,000 ticks; fatal when memory exceeds the data
+available (e.g. $m=2560$ with ~1,350 pairs): biases up to +0.76, and an $M^*$ that is not
+identified. Unbiased at full data rate (`async_noise`), which isolates it to the transient. Fix:
+weight $\max(\lambda,1/n)$ — a core-estimator change, left for a separate decision.
 
 ## Caveats
 
@@ -191,9 +229,7 @@ overlap-weighting would then be the principled fix.
 
 ## Next
 
-- Test the $\rho$-dependent-noise explanation: replace $\sigma^2$ by the path-average Spearman
-  variance at $\rho_t$ and see if the toward-zero misses close. Also why `hermite_ew` barely shifts
-  toward zero.
+- Fix the `hermite_ew` startup weighting ($\max(\lambda,1/n)$), then rerun its cells.
 - (Optional) overlap-weighted pairing, $f_\text{eff}=f\,\mathbb E[C^2]$.
 - **Phase 2 — liquidity change.** Constant $\rho$, arrival rates drop mid-run. Naive estimates
   (and any detector on them) see a spurious dependence change; test whether a forgetting $\bar c$

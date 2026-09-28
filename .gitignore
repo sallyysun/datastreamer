@@ -7,5 +7,6 @@
 /experiments/calibrate_arl0
 /experiments/multiseed
 /experiments/async_memory
+/experiments/async_noise
 __pycache__/
 /experiments/results/

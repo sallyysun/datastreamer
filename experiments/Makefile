@@ -22,7 +22,10 @@ multiseed:
 async_memory:
 	$(CXX) async_memory.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o async_memory
 
-clean:
-	rm -f experiment calibrate_arl0 multiseed async_memory
+async_noise:
+	$(CXX) async_noise.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o async_noise
 
-.PHONY: experiment calibrate_arl0 multiseed async_memory clean
+clean:
+	rm -f experiment calibrate_arl0 multiseed async_memory async_noise
+
+.PHONY: experiment calibrate_arl0 multiseed async_memory async_noise clean
