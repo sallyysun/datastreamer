@@ -11,7 +11,7 @@
 // Every memory-knob estimator is swept over one effective-sample-size grid (in pairs)
 // and scored against the true Spearman rho at every EVAL-th clock step.
 //
-// Usage: ./async_memory <constant|drift> [n_seeds] [base_seed]   (defaults: 20, 42)
+// Usage: ./async_memory <constant|drift|away_pos|toward_pos|away_neg|toward_neg> [n_seeds] [base_seed]   (defaults: 20, 42)
 // Writes results/async_memory_<scenario>.csv (long format) and prints M* per cell.
 
 #include <algorithm>
@@ -78,14 +78,24 @@ std::unique_ptr<DependenceEstimator> make_at_memory(const std::string& family, d
     return nullptr;
 }
 
+// Directional drifts test the sign argument in the note: naive M* should shorten when
+// rho drifts away from zero and lengthen when it drifts toward zero.
+std::unique_ptr<Dependence> make_dependence(const std::string& scenario) {
+    if (scenario == "constant") return std::make_unique<ConstantDependence>(0.6);
+    if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, T);
+    if (scenario == "away_pos") return std::make_unique<DriftDependence>(0.0, 0.8, T);
+    if (scenario == "toward_pos") return std::make_unique<DriftDependence>(0.8, 0.0, T);
+    if (scenario == "away_neg") return std::make_unique<DriftDependence>(0.0, -0.8, T);
+    if (scenario == "toward_neg") return std::make_unique<DriftDependence>(-0.8, 0.0, T);
+    return nullptr;
+}
+
 struct Latent {
     std::vector<double> z1, z2, rho_s;
 };
 
 Latent make_latent(const std::string& scenario, unsigned seed) {
-    std::unique_ptr<Dependence> dep;
-    if (scenario == "constant") dep = std::make_unique<ConstantDependence>(0.6);
-    else dep = std::make_unique<DriftDependence>(-0.5, 0.8, T);
+    std::unique_ptr<Dependence> dep = make_dependence(scenario);
     auto copula = dgp::make_copula("gaussian");
     std::mt19937 rng(seed);
     Latent L;
@@ -233,8 +243,9 @@ int main(int argc, char** argv) {
     const std::string scenario = (argc > 1) ? argv[1] : "drift";
     const int n_seeds = (argc > 2) ? std::atoi(argv[2]) : 20;
     const unsigned base = (argc > 3) ? static_cast<unsigned>(std::atoi(argv[3])) : 42;
-    if (scenario != "constant" && scenario != "drift") {
-        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift)\n", scenario.c_str());
+    if (!make_dependence(scenario)) {
+        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|away_pos|toward_pos|away_neg|toward_neg)\n",
+                     scenario.c_str());
         return 1;
     }
 

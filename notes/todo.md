@@ -57,7 +57,7 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
     $M^*_\text{clock}\propto f^{-1/3}$ (±10%); naive async pairing is a 1.3–2× RMSE bias problem
     no memory choice fixes; the overlap correction removes the bias and shifts
     $M^*\propto f^{-1/3}\bar c^{-2/3}$. ⬜ Phase 2: liquidity-change scenario (spurious dependence
-    change / detector false alarms); ⬜ drift toward zero; ⬜ then timestamp pairing in the consumer.
+    change / detector false alarms); ✅ drift toward/away from zero (sign argument confirmed in both mirror pairs); ⬜ then timestamp pairing in the consumer.
   - *Next: a multi-symbol DGP* — routing + pairing are in place, but the synthetic source still
     emits a single correlated pair (published as its two legs).
 - ✅ **Throttled subscriptions.** `SUBSCRIBE <topic> [max_hz]` (consumer flag `--rate N`)

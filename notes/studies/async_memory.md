@@ -84,8 +84,8 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1). Naiv
    lag $+\,(\bar c-1)\rho_t$. On this drift $\rho_t$ is mostly positive while rising, so the lag and the
    attenuation both point down; longer memory adds lag in the direction the bias already errs,
    which pushes $M^*$ down, outweighing the flatter-slope effect that pushes it up. The sign of
-   the cross-term is $\operatorname{sign}(\dot\rho\cdot\bar\rho)$: a drift *toward* zero should
-   shift $M^*$ the other way. Untested — do not quote the direction as a law.
+   the cross-term is $\operatorname{sign}(\dot\rho\cdot\bar\rho)$: a drift *toward* zero
+   shifts $M^*$ the other way — **confirmed** in both mirror pairs (below).
 4. **With the correction, overlap is a second rate.** Correcting removes the bias (residual
    bias ≈ the sync arm's) but divides the signal by $\bar c$, inflating variance by $\bar c^{-2}$.
    The same bias–variance calculation then gives
@@ -93,6 +93,38 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1). Naiv
    overlap therefore acts like an *additional* loss of information rate, $f_\text{eff}=f\bar c^{2}$,
    on top of the loss of pairs — the answer to "does $f^{-1/3}$ still describe the shift?": yes,
    with $f$ replaced by $f\bar c^2$. The price is 1.1–1.4× the matched-rate RMSE.
+
+### Directional drifts — testing reading 3
+
+The sign argument predicts naive `async` $M^*$ **shorter** than `sync` when $\rho$ drifts away from
+zero (lag and attenuation both point toward zero) and **longer** when it drifts toward zero (they
+oppose). Four linear drifts over $T$, same arrivals and seeds; `async`/`sync` $M^*$ ratio, range
+across estimators:
+
+| $(p_x,p_y)$ | `away_pos` 0→0.8 | `away_neg` 0→−0.8 | `toward_pos` 0.8→0 | `toward_neg` −0.8→0 |
+| --- | --- | --- | --- | --- |
+| 0.5, 0.5 | 0.69–0.71 | 0.67–0.71 | 1.06–2.28 | 1.05–2.39 |
+| 0.25, 0.25 | 0.72–0.76 | 0.71–0.86 | 3.19–9.64 | 1.01–3.21 |
+| 0.1, 0.1 | 0.81–0.88 | 0.75–0.91 | 3.12–7.93 | 1.00–3.66 |
+| 0.5, 0.1 | 0.80–0.85 | 0.79–0.89 | 1.06–1.71 | 1.01–1.73 |
+
+**Confirmed, in both mirror pairs.** Every "away" cell is < 1 and every "toward" cell is ≥ 1, for
+all five estimators. The low end of each "toward" range is `hermite_ew`, whose shift is much
+smaller (and on the grid edge at 0.25) — flagged, not explained. For the other four, toward-zero
+$M^*$ is 2–3.5× the sync optimum, and the bias *at* that optimum is near zero: the long memory's lag
+is being used to cancel the attenuation.
+
+**Consequence: naive pairing can look better than correct pairing, by luck.** In the toward-zero
+drifts, naive `async` RMSE$^*$ is sometimes *below* the matched-rate `sync` arm (ratios down to
+0.72–0.93, e.g. `windowed_rank`, and most estimators at (0.5, 0.1)), while in the away drifts it is
+2.1–3.0× worse. Whether uncorrected asynchronous data helps or hurts depends on the direction of a
+dependence change the estimator does not know — so the naive arm cannot be tuned into safety.
+
+The corrected arm is direction-independent: `corr` $M^*$ / $f^{-1/3}\bar c^{-2/3}$ stays within
+~±15% in the away drifts. The `sync` $f^{-1/3}$ fit is ±10% in the away drifts but loosens to
+0.7–1.1 (worst estimator, lowest liquidity) in the toward drifts. Plausible cause, untested: the
+law assumes constant noise, and toward-zero drifts end at $\rho\approx0$ where Spearman noise
+is largest.
 
 ## Caveats
 
@@ -109,8 +141,9 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1). Naiv
 
 ## Next
 
+- Why `hermite_ew` barely shifts toward zero, and whether the `sync` law's looser fit there is the
+  $\rho$-dependent noise.
 - **Phase 2 — liquidity change.** Constant $\rho$, arrival rates drop mid-run. Naive estimates
   (and any detector on them) see a spurious dependence change; test whether a forgetting $\bar c$
   fixes the estimate and whether detectors false-alarm.
-- Drift toward zero, to test the sign argument in reading 3.
 - Wire timestamp pairing into `src/consumer/` only after the above.
