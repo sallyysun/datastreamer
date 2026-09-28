@@ -6,8 +6,19 @@ both the dependence *and the rate at which information arrives* can change?
 
 Motivating paper: Chakrabarti & Sen (2022), *Copula Estimation for Nonsynchronous Financial Data*,
 Sankhyā. Harness: `experiments/async_memory.cpp`; scaling check: `experiments/async_scaling.py`.
-Deliberately scoped: Gaussian copula only, `constant` and `drift` only, no detectors, no
+Deliberately scoped: Gaussian copula only, `constant` and linear drifts only, no detectors, no
 general-copula (Kendall/regression) correction.
+
+**Status of the laws.** $M^*\propto f^{-1/3}$ is not from the paper. It is the prediction of our
+own local-linear-drift bias–variance model (processing-rate study):
+$\operatorname{MSE}(M)\approx\sigma^2/(fM)+(dM/2)^2\Rightarrow M^*=(2\sigma^2/d^2)^{1/3}f^{-1/3}$.
+The $\bar c^{-2/3}$ extension below is the same heuristic with the corrected variance
+$\sigma^2/\bar c^2$. Both are model-derived predictions checked here, not theorems; cube-root
+rates from a $1/M$ vs $M^2$ balance are generic, so the novelty is the decomposition, not the root.
+
+**Notation.** $M$ = memory in **clock ticks**; $m\approx fM$ = memory in **processed pairs**
+(the estimator's ESS knob; `M_pairs` in the CSV, $M$ = `M_clock`). The same optimum reads
+$M^*\propto f^{-1/3}$ or $m^*\propto f^{2/3}$.
 
 ## Setup
 
@@ -22,8 +33,11 @@ general-copula (Kendall/regression) correction.
   formed once both legs have a new observation; each leg's return runs from its previous paired
   observation to its latest one. Returns are scaled by $\sqrt{\text{interval}}$ so both margins
   stay exactly $N(0,1)$ — the harness's standardisation assumption still holds.
-- **Overlap.** For pair $k$, $c_k = |I^x_k\cap I^y_k|/\sqrt{|I^x_k||I^y_k|}\in[0,1]$. The paired
-  scaled returns have correlation $\theta c_k$, so naive pairing sees $\theta\,\bar c$.
+- **Overlap.** For pair $k$, $c_k = I_k/\sqrt{L^x_kL^y_k}\in[0,1]$ ($L$ = each leg's return
+  interval, $I_k$ = their common time). The paired scaled returns have correlation $\theta c_k$,
+  so pooled naive pairing sees exactly $\theta\,\bar c$ with $\bar c=\frac1n\sum_k c_k$.
+  This is **not** the paper's $m(I)/\sqrt{m_1m_2}$ (a ratio of means for *unscaled* returns); it is
+  its analogue for $\sqrt{\text{interval}}$-scaled returns, and is what every $\bar c$ below means.
 - **Arms** (same refresh times, so identical pair counts):
 
   | Arm | What | Isolates |
@@ -39,7 +53,7 @@ general-copula (Kendall/regression) correction.
   (doubling); EW knobs via $\mathrm{ESS}=(2-\alpha)/\alpha$ (mirror-image λ conventions respected),
   window $=M$, Kalman $\sigma_\omega^2$ from steady-state gain $K=2/(M/20+1)$. $M^*$ is a
   log-parabolic interpolation of the 20-seed mean RMSE curve; 68% CI by seed bootstrap.
-  $M^*_\text{clock}=M^*\times$ (clock steps per pair).
+  $M=m\times$ (clock steps per pair).
 
 Pairing cost, measured: steps per pair 2.67 / 5.72 / 14.82 / 10.22 and mean overlap
 $\bar c$ = 0.847 / 0.733 / 0.664 / 0.861 for (0.5,0.5) / (0.25,0.25) / (0.1,0.1) / (0.5,0.1).
@@ -58,7 +72,10 @@ Ratios, range across the five estimators:
 | 0.1, 0.1 | 1.02–1.12 | 0.92–1.05 | 0.91–1.19 | 1.68–1.88 | 1.33–1.41 |
 | 0.5, 0.1 | 0.93–1.03 | 0.94–1.00 | 0.92–1.09 | 1.27–1.35 | 1.12–1.15 |
 
-Predictions are anchored on each estimator's own $(1,1)$ optimum ($M^*_\text{clock}$ 636–711).
+Predictions are anchored on each estimator's own $(1,1)$ optimum ($M^*$ 636–711 ticks), so this
+tests the **scaling**, not the constant $(2\sigma^2/d^2)^{1/3}$. Rough absolute check: the $\rho_S$
+path rises 1.27 over $T$, $d\approx6.3\times10^{-5}$/tick, and $\sigma^2\approx1$ gives
+$M^*\approx790$ — the right size, not a claim.
 Example, `xiao_ew` $M^*_\text{clock}$: 664 (sync, 1,1) → 929 sync / 819 async / 1070 corr at (0.5,0.5)
 → 1820 / 1776 / 2546 at (0.1,0.1).
 
@@ -67,16 +84,18 @@ Example, `xiao_ew` $M^*_\text{clock}$: 664 (sync, 1,1) → 929 sync / 819 async 
 Every `sync` and `corr` cell has its optimum at the grid edge (longest memory), as it must when
 nothing changes. `async` sometimes shows an "interior" optimum, but its RMSE curve is flat to
 <0.001 across the top of the grid (bias ≫ variance), so that $M^*$ carries no information.
-At $M=2560$, `xiao_ew` bias: sync −0.009 / −0.012 / −0.011, **async −0.099 / −0.171 / −0.210**,
-corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1). Naive async RMSE is
+At $m=2560$, `xiao_ew` bias: sync −0.009 / −0.012 / −0.011, **async −0.099 / −0.171 / −0.210**,
+corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1), and async −0.090 at
+(0.5,0.1) — naive bias 0.09–0.21 across settings. Naive async RMSE is
 3.5–8.4× the sync RMSE across the four settings; corrected is 1.3–1.7×.
 
 ## Reading
 
-1. **Fewer pairs alone: the $f^{-1/3}$ law holds.** The `sync` arm's clock-time optimum follows
-   $M^*_\text{clock}\propto f^{-1/3}$ within ~10% for all five estimators, over a 15× range of
-   pair rates. Lower liquidity ⇒ longer memory in clock time, but *shorter* in pairs
-   ($\propto f^{2/3}$). Memory must be specified in one unit; clock time is the one the law is stated in.
+1. **Fewer pairs alone: the $f^{-1/3}$ prediction holds away from $\rho=0$.** The `sync` arm's
+   optimum follows $M^*\propto f^{-1/3}$ to 0.93–1.12 on the original drift and 0.83–1.08 on
+   the away-from-zero drifts, for all five estimators over a 15× range of pair rates; it loosens
+   to 0.69–1.09 on toward-zero drifts (table in the directional section). Lower liquidity ⇒
+   longer memory in ticks, *shorter* in pairs ($m^*\propto f^{2/3}$).
 2. **Asynchronicity is a bias problem, not a memory problem.** Naive pairing raises the best
    achievable RMSE by 1.3–2× on `drift` and 3.5–8× on `constant`, and no memory choice recovers it.
    Its $M^*$ moves only slightly — and *shorter*, not longer.
@@ -89,10 +108,12 @@ corr −0.010 / −0.017 / −0.018 at (0.5,0.5) / (0.25,0.25) / (0.1,0.1). Naiv
 4. **With the correction, overlap is a second rate.** Correcting removes the bias (residual
    bias ≈ the sync arm's) but divides the signal by $\bar c$, inflating variance by $\bar c^{-2}$.
    The same bias–variance calculation then gives
-   $M^*_\text{clock}\propto f^{-1/3}\,\bar c^{-2/3}$, which matches within ~10%. Asynchronous
+   $M^*\propto f^{-1/3}\,\bar c^{-2/3}$: 0.91–1.19 on the original drift, 0.75–1.31 away from
+   zero, but only 0.63–2.52 toward zero (worst at (0.1,0.1)). Asynchronous
    overlap therefore acts like an *additional* loss of information rate, $f_\text{eff}=f\bar c^{2}$,
    on top of the loss of pairs — the answer to "does $f^{-1/3}$ still describe the shift?": yes,
-   with $f$ replaced by $f\bar c^2$. The price is 1.1–1.4× the matched-rate RMSE.
+   with $f$ replaced by $f\bar c^2$, approximately, away from $\rho=0$. The price is 1.1–1.4×
+   the matched-rate RMSE.
 
 ### Directional drifts — testing reading 3
 
@@ -120,11 +141,40 @@ drifts, naive `async` RMSE$^*$ is sometimes *below* the matched-rate `sync` arm 
 2.1–3.0× worse. Whether uncorrected asynchronous data helps or hurts depends on the direction of a
 dependence change the estimator does not know — so the naive arm cannot be tuned into safety.
 
-The corrected arm is direction-independent: `corr` $M^*$ / $f^{-1/3}\bar c^{-2/3}$ stays within
-~±15% in the away drifts. The `sync` $f^{-1/3}$ fit is ±10% in the away drifts but loosens to
-0.7–1.1 (worst estimator, lowest liquidity) in the toward drifts. Plausible cause, untested: the
-law assumes constant noise, and toward-zero drifts end at $\rho\approx0$ where Spearman noise
-is largest.
+The corrected arm has no direction-dependent *bias*, but its scaling fit is not
+direction-independent. Observed / predicted $M^*$, range across estimators and arrival settings:
+
+| drift | `sync` / $f^{-1/3}$ | `corr` / $f^{-1/3}\bar c^{-2/3}$ |
+| --- | --- | --- |
+| original −0.5→0.8 | 0.93–1.12 | 0.91–1.19 |
+| away from zero (both signs) | 0.83–1.08 | 0.75–1.31 |
+| toward zero (both signs) | 0.69–1.09 | 0.63–2.52 |
+
+**Good agreement away from zero; deterioration near zero at low liquidity.** Leading candidate,
+untested: the model's constant $\sigma^2$ — Spearman noise is $\rho$-dependent and largest at
+$\rho=0$, where toward-zero drifts end. Random-overlap heterogeneity is ruled out below.
+
+### Random overlaps — is $\bar c$ the right summary?
+
+The derivation replaces the random $c_k$ by $\bar c$. For the **pooled** estimators run here this
+is the relevant summary, not just a convenience: pooling unit-variance pairs with correlations
+$\theta c_k$ gives attenuation exactly $\bar c$, and the pooled noise is ~$\sigma^2/n$ regardless
+of the spread of $c_k$, so the corrected variance is ~$\sigma^2/(n\bar c^2)$. ($\mathbb E[C^{-2}]$
+would appear only for per-pair $1/c_k$ correction — a worse estimator.) The *efficient* estimator
+weights pair $k$ by its information $\propto c_k^2$ (near $\theta=0$), reaching
+$f_\text{eff}=f\,\mathbb E[C^2]\ge f\bar c^2$; the gap $\operatorname{Var}(C)$ is what pooling
+discards. Measured (`experiments/async_overlap.py`, 400k ticks):
+
+| $(p_x,p_y)$ | $\bar c$ | $\mathbb E[C^2]$ | $\mathbb E[C^2]/\bar c^2$ |
+| --- | --- | --- | --- |
+| 0.5, 0.5 | 0.846 | 0.744 | 1.04 |
+| 0.25, 0.25 | 0.732 | 0.575 | 1.07 |
+| 0.1, 0.1 | 0.663 | 0.486 | 1.11 |
+| 0.5, 0.1 | 0.859 | 0.763 | 1.04 |
+
+Heterogeneity is worth ≤ 11% in variance, ≤ $(1.11)^{1/3}\approx3.5\%$ in $M^*$: it cannot
+explain the toward-zero misses. Under burstier (bimodal-overlap) arrivals it could matter, and
+overlap-weighting would then be the principled fix.
 
 ## Caveats
 
@@ -136,13 +186,15 @@ is largest.
   $\rho_S$ of a mixture of correlations is only approximately the map of the mean correlation.
 - Only the `drift` slope of the existing harness, stretched to $T=20{,}000$. The $M^*$ values are
   specific to it; the ratios are the result.
-- "The $f^{-1/3}$ processing-rate result" referenced in the handover is not on `main`; this study
-  derives and checks it independently for the `sync` arm.
+- The $f^{-1/3}$ prediction comes from the processing-rate study's local-linear-drift model (not
+  on `main`); only its scaling is checked here.
 
 ## Next
 
-- Why `hermite_ew` barely shifts toward zero, and whether the `sync` law's looser fit there is the
-  $\rho$-dependent noise.
+- Test the $\rho$-dependent-noise explanation: replace $\sigma^2$ by the path-average Spearman
+  variance at $\rho_t$ and see if the toward-zero misses close. Also why `hermite_ew` barely shifts
+  toward zero.
+- (Optional) overlap-weighted pairing, $f_\text{eff}=f\,\mathbb E[C^2]$.
 - **Phase 2 — liquidity change.** Constant $\rho$, arrival rates drop mid-run. Naive estimates
   (and any detector on them) see a spurious dependence change; test whether a forgetting $\bar c$
   fixes the estimate and whether detectors false-alarm.
