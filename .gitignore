@@ -6,5 +6,6 @@
 /experiments/experiment
 /experiments/calibrate_arl0
 /experiments/multiseed
+/experiments/async_memory
 __pycache__/
 /experiments/results/
