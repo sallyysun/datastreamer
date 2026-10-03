@@ -127,11 +127,11 @@ Total MSE of the best fixed memory ÷ oracle restart (> 1 means restart helps), 
 
 | transition | tail | $\Delta\chi(q)$ | best fixed / oracle | bank / best fixed |
 | --- | --- | --- | --- | --- |
-| **Gauss → $t_4$** | both | 0.07–0.17 | **0.77–0.99** | 1.42–1.50 |
-| Gauss → Gumbel | lower (0 → 0) | 0.08–0.09 | 0.95–1.10 | 1.29–1.50 |
+| **Gauss → $t_4$** | both | 0.07–0.17 | **0.77–0.99** | 1.36–1.52 |
+| Gauss → Gumbel | lower (0 → 0) | 0.07–0.09 | 0.95–1.10 | 1.28–1.49 |
 | Gauss → Gumbel | upper | 0.15–0.32 | 1.61–1.93 | 1.15–1.27 |
 | Gauss → Clayton | lower | 0.23–0.42 | 1.96–2.79 | 0.98–1.17 |
-| Gauss → Clayton | upper (0 → 0) | 0.17–0.19 | 2.49–3.65 | 0.95–1.12 |
+| Gauss → Clayton | upper (0 → 0) | 0.17–0.20 | 2.49–3.65 | 0.96–1.13 |
 | Clayton → Gumbel | lower / upper | 0.31–0.51 | 2.08–4.39 | 0.87–1.14 |
 | Gumbel → Clayton | lower / upper | 0.31–0.51 | 2.21–6.00 | 0.77–1.12 |
 
@@ -143,10 +143,10 @@ Total MSE of the best fixed memory ÷ oracle restart (> 1 means restart helps), 
   approximate the oracle — has nothing to recover here *for estimation*.
 - **Where the finite-$q$ jump is large (Clayton/Gumbel switches), restart is worth 1.6–6×.** That
   gap is the detector's maximum opportunity. It is not set by $\Delta\lambda$ alone: Gauss → Clayton
-  *upper* ($\lambda$ 0 → 0, $\Delta\chi$ ≈ 0.18) gains 2.5–3.7× because the post-change $\chi$ is
+  *upper* ($\lambda$ 0 → 0, $\Delta\chi$ 0.17–0.20) gains 2.5–3.7× because the post-change $\chi$ is
   small and cheap to re-learn ($v=\chi(1-\chi)$ low).
 - **The bank does not close the oracle gap.** It sits within 0.77–1.5× of the best fixed memory:
-  slightly better on the largest jumps, 40–50 % worse on Gauss → $t$ and the small jumps, where its
+  slightly better on the largest jumps, 36–52 % worse on Gauss → $t$ and the small jumps, where its
   adaptivity is pure added noise. Untuned, but no sign it is a substitute for detection.
 - **Recovery** (seed-mean estimate within 10 % of the jump): oracle 20–960 ticks; best fixed
   1,560–16,160; bank 620–8,660.
