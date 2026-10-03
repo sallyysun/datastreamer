@@ -7,5 +7,6 @@
 /experiments/calibrate_arl0
 /experiments/multiseed
 /experiments/tail_validate
+/experiments/tail_change
 __pycache__/
 /experiments/results/

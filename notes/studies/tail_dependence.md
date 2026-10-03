@@ -103,11 +103,90 @@ $|\Delta\chi(q)|/\max(\mathrm{SD}_\text{before},\mathrm{SD}_\text{after})$, rati
 - One-shot SNR between two stationary estimates is an upper bound on what a sequential,
   ARL₀-calibrated detector achieves, not a detection rate.
 
+## Step 2 — known changepoint, oracle restart vs best fixed memory
+
+Harness: `experiments/tail_change.cpp` (`make tail_change && ./tail_change 40`, ~30 s). Shared
+samplers/targets: `experiments/tail_common.hpp` (step 1 reproduces byte-identically through it).
+
+**Design.** Matched-$\rho_S$ switch at $\tau=20{,}000$, run to $T=40{,}000$; MSE scored over
+$[10{,}000, 40{,}000)$ (10k pre, 20k post) against $\chi_t(q)$. Ratio estimator only.
+$q\in\{.01,.025,.05,.10\}$; memory grid $100\cdot2^{k/2}$, $k=0..18$ (100 → 51,200) plus cumulative;
+40 seeds. Arms:
+- **fixed** — EW at each memory, never reset;
+- **oracle** — same estimator, *all* counts discarded at the true $\tau$ (holds its last value
+  until the first post-change marginal-corner event); its best memory is cumulative in every cell;
+- **bank** — `estimator_bank`'s device over 8 fixed arms (200 … 25,600), the only change being the
+  score: a Bernoulli log-likelihood of the joint event given the marginal corner, scored before
+  absorbing. Not tuned for tails.
+
+Achieved $\rho_S$ across every switch: 0.5814–0.5822 on both sides.
+
+### Result 1 — the oracle gate splits the transitions cleanly
+
+Total MSE of the best fixed memory ÷ oracle restart (> 1 means restart helps), range over $q$:
+
+| transition | tail | $\Delta\chi(q)$ | best fixed / oracle | bank / best fixed |
+| --- | --- | --- | --- | --- |
+| **Gauss → $t_4$** | both | 0.07–0.17 | **0.77–0.99** | 1.42–1.50 |
+| Gauss → Gumbel | lower (0 → 0) | 0.08–0.09 | 0.95–1.10 | 1.29–1.50 |
+| Gauss → Gumbel | upper | 0.15–0.32 | 1.61–1.93 | 1.15–1.27 |
+| Gauss → Clayton | lower | 0.23–0.42 | 1.96–2.79 | 0.98–1.17 |
+| Gauss → Clayton | upper (0 → 0) | 0.17–0.19 | 2.49–3.65 | 0.95–1.12 |
+| Clayton → Gumbel | lower / upper | 0.31–0.51 | 2.08–4.39 | 0.87–1.14 |
+| Gumbel → Clayton | lower / upper | 0.31–0.51 | 2.21–6.00 | 0.77–1.12 |
+
+- **Gauss → $t_4$ — the transition with the dramatic asymptotic change (λ 0 → 0.32) — gains
+  nothing from an oracle restart.** The best fixed memory *beats* it by 1–23 %, in both tails and at
+  every threshold, and post-change-only MSE says the same (e.g. $q=.05$ lower: 0.00163 vs 0.00217).
+  At finite $q$ the observable jump is 0.07–0.17, small enough that carrying the slightly-wrong old
+  estimate is cheaper than re-learning from a handful of tail events. A detector — which can only
+  approximate the oracle — has nothing to recover here *for estimation*.
+- **Where the finite-$q$ jump is large (Clayton/Gumbel switches), restart is worth 1.6–6×.** That
+  gap is the detector's maximum opportunity. It is not set by $\Delta\lambda$ alone: Gauss → Clayton
+  *upper* ($\lambda$ 0 → 0, $\Delta\chi$ ≈ 0.18) gains 2.5–3.7× because the post-change $\chi$ is
+  small and cheap to re-learn ($v=\chi(1-\chi)$ low).
+- **The bank does not close the oracle gap.** It sits within 0.77–1.5× of the best fixed memory:
+  slightly better on the largest jumps, 40–50 % worse on Gauss → $t$ and the small jumps, where its
+  adaptivity is pure added noise. Untuned, but no sign it is a substitute for detection.
+- **Recovery** (seed-mean estimate within 10 % of the jump): oracle 20–960 ticks; best fixed
+  1,560–16,160; bank 620–8,660.
+
+This is the third outcome the gate allowed for: **the oracle advantage exists for the easy
+transitions and disappears for Gaussian → $t$** — the asymptotically dramatic change is not
+observable quickly enough at finite thresholds to be worth restarting for.
+
+### Result 2 — the memory law holds in absolute terms; the pure $q^{-1/2}$ scaling does not
+
+For a jump of size $\Delta=\chi_b(q)-\chi_a(q)$, EW lag costs $\approx\Delta^2(m+1)/4$ integrated, and
+noise $\approx V/(qm)$ with $V=W_\text{pre}\chi_a(1-\chi_a)+W_\text{post}\chi_b(1-\chi_b)$. So
+
+$$
+M^*=\sqrt{\frac{4V}{q\,\Delta(q)^2}} .
+$$
+
+- **Observed / predicted $M^*$: 0.92–1.09 in all 40 cells** — absolute, no anchoring, no fitted
+  constant.
+- **But the stated prediction $M^*\propto q^{-1/2}$ is falsified**: fitted exponents are −0.04 to
+  −0.32. The $1/q$ (fewer tail events) is offset by $\Delta(q)$, which for tail-independent sides
+  grows as $q$ shrinks; for Gauss → $t$ the two cancel almost exactly (−0.04 / −0.05). The
+  correct statement is that memory is set by the effective information rate
+  $q\,\Delta(q)^2/v$, not by $q$.
+- (The cube-root form needs a *drift* in tail structure; it was not tested here.)
+
+### Caveats
+
+- Copula space, known margins; one $\rho_S$ level; $t$ with $\nu=4$.
+- The oracle is a *hard* restart. A soft restart (keep old counts down-weighted) could beat best
+  fixed even on Gauss → $t$; that is a better oracle to test before ruling detection out there.
+- The Gauss → $t$ conclusion is about *estimating* $\chi(q)$. Whether *knowing* the copula changed
+  is valuable in its own right (risk reporting) is a separate question the gate does not answer.
+
 ## What this sets up
 
 - Use the ratio estimator; score against $\chi(q)$; report $\chi(q)-\lambda$ separately.
-- Step 2 (known changepoint, no detector): sweep $m\times q$ through each transition; the oracle
-  restart vs best fixed memory gate. Expect Gaussian → $t$ to need long memory and to gain most from
-  restart; Clayton ↔ Gumbel to be easy.
-- Step 2 should also switch to rank-based margins (rank-PIT exists on `adaptive-memory`).
+- ~~Step 2~~ done (above). Note the step-1 expectation that Gauss → $t$ would "gain most from
+  restart" was wrong: it gains nothing.
+- Next: a soft-restart oracle; detection only for the transitions with a real oracle gap
+  (Clayton/Gumbel switches, Gauss → Clayton/Gumbel on the dependent tail); rank-based margins
+  (rank-PIT exists on `adaptive-memory`); a tail-structure drift to test the cube-root form.
 - Only one dependence level ($\rho_S=0.58$) and $\nu=4$ so far.

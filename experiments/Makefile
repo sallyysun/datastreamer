@@ -22,7 +22,10 @@ multiseed:
 tail_validate:
 	$(CXX) tail_validate.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o tail_validate
 
-clean:
-	rm -f experiment calibrate_arl0 multiseed tail_validate
+tail_change:
+	$(CXX) tail_change.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o tail_change
 
-.PHONY: experiment calibrate_arl0 multiseed tail_validate clean
+clean:
+	rm -f experiment calibrate_arl0 multiseed tail_validate tail_change
+
+.PHONY: experiment calibrate_arl0 multiseed tail_validate tail_change clean
