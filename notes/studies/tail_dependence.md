@@ -279,11 +279,11 @@ Ranges over tail × $q$; $t$ is the paired-seed $t$-statistic of best-soft vs be
 | 1.0 → 0.0 | .31–.51 | .001–.005 | 0.20–0.41 | 15–27 | 0.21–0.45 | 0.87–0.97 | 0.86–1.1 |
 
 - **The best soft restart beats the best fixed memory in all 48 cells** — by 5–20 % on the
-  smallest change (individually significant in most cells, $t$ up to 5) and by 2.4–5× on the
+  smallest change (all 8 cells the same sign, 4 of 8 individually at $t>2$, max 5.0) and by 2.4–5× on the
   largest.
 - **The hard restart is the wrong default for small changes.** For $\Delta\pi\le0.2$ it is 1.1–3.4×
   *worse* than never restarting (this reproduces step 2's Gauss → $t$ result inside one family),
-  yet a soft restart at the same moment is 1.3–5× better than it.
+  yet a soft restart at the same moment is 1.9–3.8× better than it.
 - **The handover's hypothesis is half right.** $\gamma^*$ falls monotonically with the change, and
   hard restart is near-optimal only for the largest ones (soft/hard → 0.87–0.97). But
   **"small change ⇒ $\gamma^*\approx1$" is falsified**: even $\Delta\chi\approx0.03$–0.05 wants
