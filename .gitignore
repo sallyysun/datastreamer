@@ -8,5 +8,6 @@
 /experiments/multiseed
 /experiments/tail_validate
 /experiments/tail_change
+/experiments/tail_mixture
 __pycache__/
 /experiments/results/

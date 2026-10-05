@@ -181,12 +181,81 @@ $$
 - The Gauss → $t$ conclusion is about *estimating* $\chi(q)$. Whether *knowing* the copula changed
   is valuable in its own right (risk reporting) is a separate question the gate does not answer.
 
+## Step 3a — Clayton–Gumbel mixture: feasibility at matched $\rho_S$
+
+Model (Shamiri, Hamzah & Pirmoradian 2011): $C=\pi C_\text{Clayton}(\theta)+(1-\pi)C_\text{Gumbel}(\zeta)$,
+sampled generatively (Clayton w.p. $\pi$, else Gumbel) with the step-1 samplers. Harness:
+`experiments/tail_mixture.cpp` (`make tail_mixture && ./tail_mixture [d] [seed_base]`, ~8 s).
+⚠️ The paper itself could not be read in-session (host blocked by the environment's network
+policy); everything below is checked against *our* implementations, not the paper's text.
+
+**Parameterisations.** `copula_family.hpp`: Clayton $C=(u^{-\theta}+v^{-\theta}-1)^{-1/\theta}$, $\theta>0$;
+Gumbel $C=\exp\{-[(-\ln u)^\zeta+(-\ln v)^\zeta]^{1/\zeta}\}$, $\zeta\ge1$. These give
+$\lambda_L=\pi\,2^{-1/\theta}$, $\lambda_U=(1-\pi)(2-2^{1/\zeta})$, as the handover states. Repo bounds
+$\theta\le50$, $\zeta\le30$ are respected.
+
+### What is linear in the mixture, and what is not
+
+- **Linear (exact):** anything linear in $C$ — $C(q,q)$, hence $\chi_L(q),\chi_U(q)$; $\lambda_L,\lambda_U$;
+  and **$\rho_S=12\iint C-3$**. So $\rho_S$ of the mixture *is* the weighted average of the
+  components' $\rho_S$ — not an assumption, a property of Spearman's $\rho$. Checked: closed-form
+  mixture $\chi$ vs 4M-draw MC agree to ≤ 0.008 (q = .01 upper) and typically ≤ 0.003; component
+  $\rho_S$ by 80M draws: Clayton 0.58202 ± 0.00034, Gumbel 0.58231 ± 0.00037 (target 0.58192).
+- **Not linear:** Kendall's $\tau=4E[C(U,V)]-1$ is quadratic in $C$. Off the equal-$\rho$ path it
+  differs from the weighted average by ≈ 0.011–0.013 (e.g. 0.4191 vs 0.4297). This is the concrete
+  reason to calibrate on $\rho_S$.
+
+### The constraint surface
+
+16,912 feasible $(\pi,\rho_C)$ grid points at $\rho_S=0.58192$ (all in `results/tail_mixture_feasible.csv`):
+
+| $\lambda_L$ | $\lambda_U$ range | | $\chi_L(.05)$ | $\chi_U(.05)$ range |
+| --- | --- | --- | --- | --- |
+| 0.00–0.05 | 0.43–0.56 | | 0.20–0.25 | 0.49–0.52 |
+| 0.15–0.20 | 0.33–0.38 | | 0.30–0.35 | 0.38–0.53 |
+| 0.30–0.35 | 0.20–0.27 | | 0.40–0.45 | 0.28–0.55 |
+| 0.45–0.50 | 0.06–0.14 | | 0.50–0.55 | 0.18–0.58 |
+| 0.60–0.65 | 0.00–0.01 | | 0.60–0.65 | 0.11–0.17 |
+
+- **The tails trade off almost one-for-one.** $\lambda_L+\lambda_U$ stays in a narrow band
+  (≈ 0.50–0.61): fixing $\rho_S$ fixes roughly how much total tail dependence there is, and the
+  mixture only chooses *which side* it sits on. Lower-heavy → upper-heavy is feasible; "both heavy"
+  and "both light" are not.
+- **Neither tail can be near zero unless the other is large.** At $\lambda_L<0.05$, $\lambda_U\ge0.43$.
+  No Gaussian-like (both-light) regime exists in this family at this $\rho_S$.
+- **The extreme corners are degenerate.** Max $\lambda_U=0.561$ comes from $\pi=0.42$ of a
+  near-independent Clayton ($\theta=0.012$) plus a near-comonotone Gumbel ($\zeta=22$) — a mixture of
+  noise and an almost-diagonal line. Feasible, but not a credible regime; avoid the corners.
+- In $\chi(.05)$ space the band is wider (other parameter choices move the finite-$q$ value more
+  than the limit), but the same lower-vs-upper trade-off holds.
+
+### Recommended path: hold both components at $\rho_S=0.58192$, move only $\pi$
+
+$\theta_0=1.4186$, $\zeta_0=1.7118$ (the step-1/2 Clayton and Gumbel). Then $\rho_S$ is matched
+*exactly for every* $\pi$, $\lambda_L=0.613\pi$, $\lambda_U=0.501(1-\pi)$, and
+$\Delta\chi(q)=\Delta\pi\,[\chi_C(q)-\chi_G(q)]$ — **the change magnitude is a single linear knob**.
+It also runs close to the upper edge of the $\lambda$ envelope, and as a bonus Kendall's $\tau$
+stays at 0.415 ± 0.001 along it (the two components have nearly equal $\tau$). The endpoints are
+the step-2 Clayton ↔ Gumbel switch, which anchors the new results to the old.
+
+MC-verified targets on the path ($q=.05$; all $q$ in `results/tail_mixture.txt`):
+
+| $\pi$ | 1.00 | 0.90 | 0.75 | 0.60 | 0.50 | 0.40 | 0.25 | 0.10 | 0.00 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| $\lambda_L$ / $\lambda_U$ | .61/.00 | .55/.05 | .46/.13 | .37/.20 | .31/.25 | .25/.30 | .15/.38 | .06/.45 | .00/.50 |
+| $\chi_L(.05)$ | .617 | .577 | .518 | .460 | .420 | .381 | .322 | .263 | .224 |
+| $\chi_U(.05)$ | .113 | .154 | .215 | .276 | .316 | .357 | .418 | .479 | .520 |
+
+Symmetric switches $\pi_0\to1-\pi_0$ give $\Delta\chi(.05)$ ≈ 0.08 (0.6 → 0.4), 0.20 (0.75 → 0.25),
+0.31–0.33 (0.9 → 0.1), 0.39–0.41 (1 → 0) — spanning both sides of the step-2 boundary where hard
+restart went from losing (Gauss → $t$, $\Delta\chi$ 0.07–0.17) to winning.
+
 ## What this sets up
 
 - Use the ratio estimator; score against $\chi(q)$; report $\chi(q)-\lambda$ separately.
 - ~~Step 2~~ done (above). Note the step-1 expectation that Gauss → $t$ would "gain most from
   restart" was wrong: it gains nothing.
-- Next: a soft-restart oracle; detection only for the transitions with a real oracle gap
+- Next: step 3b, the soft-restart oracle on the mixture path above; detection only for the transitions with a real oracle gap
   (Clayton/Gumbel switches, Gauss → Clayton/Gumbel on the dependent tail); rank-based margins
   (rank-PIT exists on `adaptive-memory`); a tail-structure drift to test the cube-root form.
 - Only one dependence level ($\rho_S=0.58$) and $\nu=4$ so far.

@@ -25,7 +25,10 @@ tail_validate:
 tail_change:
 	$(CXX) tail_change.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o tail_change
 
-clean:
-	rm -f experiment calibrate_arl0 multiseed tail_validate tail_change
+tail_mixture:
+	$(CXX) tail_mixture.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o tail_mixture
 
-.PHONY: experiment calibrate_arl0 multiseed tail_validate tail_change clean
+clean:
+	rm -f experiment calibrate_arl0 multiseed tail_validate tail_change tail_mixture
+
+.PHONY: experiment calibrate_arl0 multiseed tail_validate tail_change tail_mixture clean

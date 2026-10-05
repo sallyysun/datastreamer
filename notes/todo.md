@@ -351,8 +351,11 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   for SNR 3, which explains `tail_cusum`'s 0/20 in §14.13. ✅ Step 2 (`experiments/tail_change.cpp`):
   oracle restart beats best fixed memory 1.6–6× on Clayton/Gumbel switches but *loses* to it on
   Gauss → $t$ (0.77–0.99); the bank sits near best fixed; $M^*=\sqrt{4V/(q\Delta(q)^2)}$ fits all 40
-  cells to ±9 %, pure $q^{-1/2}$ falsified. ⬜ Soft-restart oracle; detection on the gapped
-  transitions; rank-based margins; tail-structure drift.
+  cells to ±9 %, pure $q^{-1/2}$ falsified. ✅ Step 3a: Clayton–Gumbel mixture
+  feasibility (`experiments/tail_mixture.cpp`) — $\rho_S$ and $\chi$ exactly linear, $\tau$ not;
+  $\lambda_L+\lambda_U$ pinned to ≈ 0.50–0.61 at $\rho_S=.58$; equal-component path (only $\pi$ moves)
+  recommended. ⬜ Step 3b: soft-restart oracle on that path; detection on the gapped transitions;
+  rank-based margins; tail-structure drift.
 - ✅ **Multi-seed replication + error bars**, for the Kalman/CUSUM/GLR/BOCPD line
   (`experiments/multiseed.cpp`, run: `make multiseed && ./multiseed <scenario> [n_seeds] [base_seed]`,
   default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
