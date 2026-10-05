@@ -250,12 +250,95 @@ Symmetric switches $\pi_0\to1-\pi_0$ give $\Delta\chi(.05)$ ≈ 0.08 (0.6 → 0.
 0.31–0.33 (0.9 → 0.1), 0.39–0.41 (1 → 0) — spanning both sides of the step-2 boundary where hard
 restart went from losing (Gauss → $t$, $\Delta\chi$ 0.07–0.17) to winning.
 
+## Step 3b — soft oracle restart: how much of the old regime to keep
+
+Harness: `experiments/tail_soft.cpp` (`make tail_soft && ./tail_soft 40 8080`, ~10 s). DGP: the 3a
+path, $\pi_0\to1-\pi_0$ for $\pi_0\in\{.55,.60,.70,.75,.90,1.0\}$ (six change sizes,
+$\Delta\chi(q)$ 0.03–0.51), same timeline as step 2, $q\in\{.01,.02,.05,.10\}$, 40 seeds.
+
+**What is reset.** The ratio estimator's entire state is two EW sums: $J$ (joint-corner events) and
+$K$ (marginal-corner events), $\hat\chi=J/K$. At the true $\tau$: $J\leftarrow\gamma J$,
+$K\leftarrow\gamma K$. $\gamma=1$ is no restart (= fixed memory), $\gamma=0$ the hard restart; in
+between the old evidence is kept but aged by $\ln(1/\gamma)/\alpha$ ticks. Every $\gamma$ is swept
+over the full memory grid; $\gamma\in\{0,.001,.0025,.005,.01,.025,.05,.1,.25,.5,.75,1\}$. A first
+run on the coarse grid $\{0,.025,.05,.1,.25,.5,.75,1\}$ (seed base 6060) put most $\gamma^*$ on its
+floor, so the grid was refined and the experiment **re-run on fresh seeds** (8080); the numbers below
+are from the re-run. Scored against $\chi_t(q)$.
+
+### Result 1 — partial forgetting beats both extremes, at every change size
+
+Ranges over tail × $q$; $t$ is the paired-seed $t$-statistic of best-soft vs best-fixed:
+
+| $\pi_0\to\pi_1$ | $\Delta\chi$ | $\gamma^*$ | soft / fixed | $t$ | hard / fixed | soft / hard | bank / fixed |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| .55 → .45 | .03–.05 | .10–.25 | 0.80–0.95 | 1.0–5.0 | 2.2–3.4 | 0.26–0.37 | 1.9–2.8 |
+| .60 → .40 | .06–.10 | .025–.10 | 0.57–0.78 | 3.2–8.7 | 1.1–1.9 | 0.41–0.53 | 1.4–1.8 |
+| .70 → .30 | .12–.21 | .005–.025 | 0.39–0.58 | 5.8–13 | 0.56–0.92 | 0.63–0.69 | 1.2–1.4 |
+| .75 → .25 | .15–.26 | .005–.025 | 0.33–0.55 | 7.7–16 | 0.44–0.79 | 0.69–0.76 | 1.1–1.4 |
+| .90 → .10 | .24–.41 | .001–.01 | 0.24–0.44 | 12–28 | 0.27–0.52 | 0.82–0.91 | 0.94–1.2 |
+| 1.0 → 0.0 | .31–.51 | .001–.005 | 0.20–0.41 | 15–27 | 0.21–0.45 | 0.87–0.97 | 0.86–1.1 |
+
+- **The best soft restart beats the best fixed memory in all 48 cells** — by 5–20 % on the
+  smallest change (individually significant in most cells, $t$ up to 5) and by 2.4–5× on the
+  largest.
+- **The hard restart is the wrong default for small changes.** For $\Delta\pi\le0.2$ it is 1.1–3.4×
+  *worse* than never restarting (this reproduces step 2's Gauss → $t$ result inside one family),
+  yet a soft restart at the same moment is 1.3–5× better than it.
+- **The handover's hypothesis is half right.** $\gamma^*$ falls monotonically with the change, and
+  hard restart is near-optimal only for the largest ones (soft/hard → 0.87–0.97). But
+  **"small change ⇒ $\gamma^*\approx1$" is falsified**: even $\Delta\chi\approx0.03$–0.05 wants
+  $\gamma^*=0.1$–0.25. And $\gamma^*$ is not a function of $\Delta\chi$ alone — at fixed $\Delta\pi$ it
+  falls as $q$ grows (e.g. $\pi_0=.70$ lower: 0.025 at $q=.01$, 0.01 at $q\ge.02$), because a larger $q$
+  means more old evidence to discount.
+- **The untuned bank is worse than fixed memory** almost everywhere (up to 2.8× on small changes);
+  its continuous adaptation is not a substitute for knowing the change.
+- At $\gamma^*$ the best post-change memory is cumulative or the longest in the grid: once the old
+  evidence is correctly discounted, there is no further reason to forget (each regime is stationary
+  here — see caveats).
+
+### Result 2 — the right quantity is retained *events*, and it follows a shrinkage law
+
+$\gamma$ is a fraction of whatever evidence happens to have accumulated
+($E[K]=q\sum_{i<\tau}\ell^i$, e.g. $q\tau$ for cumulative memory), so it mixes the change with $q$ and
+memory. The invariant is the number of old marginal-corner events kept,
+$n_0=\gamma\,E[K_\tau]$. Treating them as a prior worth $n_0$ events centred on the old $\chi$, the
+post-change estimate after $n$ new events has MSE $\approx(n_0^2\Delta^2+n\,v)/(n_0+n)^2$, minimised at
+
+$$
+n_0^*=\frac{v_\text{post}}{\Delta\chi(q)^2},\qquad v_\text{post}=\chi_\text{post}(1-\chi_\text{post}),
+$$
+
+independent of $n$. ⚠️ This was derived *after* seeing the coarse-grid run, so it is post hoc; the
+refined grid on fresh seeds is the check:
+
+- **$n_0^*$ / predicted: median 0.89, range 0.50–1.51; 47/48 cells within ×2** (the $\gamma$ grid's own
+  resolution) and 39/48 within ×1.5. Log–log slope **1.03**, $R^2=0.98$, over $n_0$ from 0.2 to 266
+  events. The prediction lies inside the seed-bootstrap range of $n_0^*$ (±1.5× slack) in 47/48.
+- Equivalently, $\gamma^*\approx\min\bigl(1,1/Z^2\bigr)$ with
+  $Z=\Delta\chi/\sqrt{v/E[K_\tau]}$ — the change **measured in standard errors of the old
+  estimate**. That is the standardized signal the handover proposed, with the old regime's evidence
+  as the denominator. $\gamma^*\approx1$ only when $Z\lesssim1$, i.e. when the change is smaller than the
+  old estimate's own noise — a change nothing could detect.
+- So the soft restart is Bayesian shrinkage: after a break, the old regime is worth about
+  $v/\Delta\chi^2$ events of prior, never more, however much of it was observed.
+
+### Caveats
+
+- **An oracle.** It knows $\tau$ *and* is scored with the best $\gamma$; $n_0^*$ needs $\Delta\chi$, which a
+  real system must estimate. These gaps are upper bounds on what a detector can recover.
+- The post-reset optimum of "cumulative memory" holds because each regime is stationary and there is
+  one change. Repeated changes would bound the useful memory again.
+- Copula space, known margins, one $\rho_S$, one mixture path. The shrinkage law itself is
+  model-free (binomial events), so it should transfer, but that is untested.
+- Raw CSVs are in the gitignored `experiments/results/`; every number here regenerates in ~10 s
+  from the committed harness and fixed seeds.
+
 ## What this sets up
 
 - Use the ratio estimator; score against $\chi(q)$; report $\chi(q)-\lambda$ separately.
 - ~~Step 2~~ done (above). Note the step-1 expectation that Gauss → $t$ would "gain most from
   restart" was wrong: it gains nothing.
-- Next: step 3b, the soft-restart oracle on the mixture path above; detection only for the transitions with a real oracle gap
+- ~~Step 3b~~ done (above): soft restart dominates; $n_0^*=v_\text{post}/\Delta\chi^2$. Next: detection only for the transitions with a real oracle gap
   (Clayton/Gumbel switches, Gauss → Clayton/Gumbel on the dependent tail); rank-based margins
   (rank-PIT exists on `adaptive-memory`); a tail-structure drift to test the cube-root form.
 - Only one dependence level ($\rho_S=0.58$) and $\nu=4$ so far.

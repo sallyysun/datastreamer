@@ -30,34 +30,10 @@ unsigned g_seed_base = 5150u;
 
 const std::vector<double> kQ = {0.01, 0.02, 0.05, 0.10};
 
-double rho_clayton(double th) { return copula::spearman_from_param(Family::Clayton, th); }
-double rho_gumbel(double ze) { return copula::spearman_from_param(Family::Gumbel, ze); }
-double C_clayton(double a, double b, double th) { return copula::Clayton::cdf(a, b, th); }
-double C_gumbel(double a, double b, double ze) { return copula::Gumbel::cdf(a, b, ze); }
-
-struct Mix {
-    double pi, theta, zeta;
-    double C(double a, double b) const { return pi * C_clayton(a, b, theta) + (1.0 - pi) * C_gumbel(a, b, zeta); }
-    double rho_s() const { return pi * rho_clayton(theta) + (1.0 - pi) * rho_gumbel(zeta); }
-    double lam_L() const { return pi * std::pow(2.0, -1.0 / theta); }
-    double lam_U() const { return (1.0 - pi) * (2.0 - std::pow(2.0, 1.0 / zeta)); }
-    double chi_L(double q) const { return C(q, q) / q; }
-    double chi_U(double q) const { return (1.0 - 2.0 * (1.0 - q) + C(1.0 - q, 1.0 - q)) / q; }
-};
-
-// Generative sampler: component chosen per draw, components are the step-1 samplers.
-class MixSampler {
-public:
-    MixSampler(const Mix& m, unsigned seed)
-        : m_(m), sel_(seed), cl_({"clayton", m.theta}, seed * 3u + 1u), gu_({"gumbel", m.zeta}, seed * 3u + 2u) {}
-    std::pair<double, double> next() { return unif_(sel_) < m_.pi ? cl_.next() : gu_.next(); }
-
-private:
-    Mix m_;
-    std::mt19937 sel_;
-    tail::Sampler cl_, gu_;
-    std::uniform_real_distribution<double> unif_{0.0, 1.0};
-};
+using tail::Mix;
+using tail::MixSampler;
+double rho_clayton(double th) { return tail::rho_clayton(th); }
+double rho_gumbel(double ze) { return tail::rho_gumbel(ze); }
 
 struct MC {
     double rho_s, rho_s_se, tau;

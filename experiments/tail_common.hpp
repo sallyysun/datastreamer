@@ -122,4 +122,34 @@ inline Corners exact_corners(const Fixed& f, const std::vector<double>& qs, std:
     return c;
 }
 
+// Clayton-Gumbel mixture (Shamiri, Hamzah & Pirmoradian 2011): pi*Clayton(theta) + (1-pi)*Gumbel(zeta).
+inline double rho_clayton(double th) { return copula::spearman_from_param(copula::Family::Clayton, th); }
+inline double rho_gumbel(double ze) { return copula::spearman_from_param(copula::Family::Gumbel, ze); }
+inline double C_clayton(double a, double b, double th) { return copula::Clayton::cdf(a, b, th); }
+inline double C_gumbel(double a, double b, double ze) { return copula::Gumbel::cdf(a, b, ze); }
+
+struct Mix {
+    double pi, theta, zeta;
+    double C(double a, double b) const { return pi * C_clayton(a, b, theta) + (1.0 - pi) * C_gumbel(a, b, zeta); }
+    double rho_s() const { return pi * rho_clayton(theta) + (1.0 - pi) * rho_gumbel(zeta); }
+    double lam_L() const { return pi * std::pow(2.0, -1.0 / theta); }
+    double lam_U() const { return (1.0 - pi) * (2.0 - std::pow(2.0, 1.0 / zeta)); }
+    double chi_L(double q) const { return C(q, q) / q; }
+    double chi_U(double q) const { return (1.0 - 2.0 * (1.0 - q) + C(1.0 - q, 1.0 - q)) / q; }
+};
+
+// Generative sampler: component chosen per draw, components are the step-1 samplers.
+class MixSampler {
+public:
+    MixSampler(const Mix& m, unsigned seed)
+        : m_(m), sel_(seed), cl_({"clayton", m.theta}, seed * 3u + 1u), gu_({"gumbel", m.zeta}, seed * 3u + 2u) {}
+    std::pair<double, double> next() { return unif_(sel_) < m_.pi ? cl_.next() : gu_.next(); }
+
+private:
+    Mix m_;
+    std::mt19937 sel_;
+    Sampler cl_, gu_;
+    std::uniform_real_distribution<double> unif_{0.0, 1.0};
+};
+
 }  // namespace tail

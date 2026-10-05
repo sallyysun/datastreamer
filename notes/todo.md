@@ -354,8 +354,12 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   cells to ±9 %, pure $q^{-1/2}$ falsified. ✅ Step 3a: Clayton–Gumbel mixture
   feasibility (`experiments/tail_mixture.cpp`) — $\rho_S$ and $\chi$ exactly linear, $\tau$ not;
   $\lambda_L+\lambda_U$ pinned to ≈ 0.50–0.61 at $\rho_S=.58$; equal-component path (only $\pi$ moves)
-  recommended. ⬜ Step 3b: soft-restart oracle on that path; detection on the gapped transitions;
-  rank-based margins; tail-structure drift.
+  recommended. ✅ Step 3b: soft-restart oracle
+  (`experiments/tail_soft.cpp`) — best soft restart beats best fixed memory in all 48 cells (5–20 % on
+  the smallest change, up to 5× on the largest) and beats hard restart on every non-extreme change;
+  optimal retained old evidence follows $n_0^*=v_\text{post}/\Delta\chi^2$ events (slope 1.03,
+  $R^2=0.98$; post hoc, checked on fresh seeds). ⬜ Detection + estimated $\Delta\chi$ to approach the
+  soft oracle; rank-based margins; tail-structure drift.
 - ✅ **Multi-seed replication + error bars**, for the Kalman/CUSUM/GLR/BOCPD line
   (`experiments/multiseed.cpp`, run: `make multiseed && ./multiseed <scenario> [n_seeds] [base_seed]`,
   default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
