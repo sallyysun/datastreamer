@@ -314,11 +314,24 @@ refined grid on fresh seeds is the check:
 - **$n_0^*$ / predicted: median 0.89, range 0.50–1.51; 47/48 cells within ×2** (the $\gamma$ grid's own
   resolution) and 39/48 within ×1.5. Log–log slope **1.03**, $R^2=0.98$, over $n_0$ from 0.2 to 266
   events. The prediction lies inside the seed-bootstrap range of $n_0^*$ (±1.5× slack) in 47/48.
-- Equivalently, $\gamma^*\approx\min\bigl(1,1/Z^2\bigr)$ with
-  $Z=\Delta\chi/\sqrt{v/E[K_\tau]}$ — the change **measured in standard errors of the old
-  estimate**. That is the standardized signal the handover proposed, with the old regime's evidence
-  as the denominator. $\gamma^*\approx1$ only when $Z\lesssim1$, i.e. when the change is smaller than the
-  old estimate's own noise — a change nothing could detect.
+- **Correction (known vs estimated $\chi_0$).** The retained state is centred on the *estimate*
+  $\hat\chi_0=J/K$, not the true $\chi_0$, so its noise adds to the squared bias:
+  MSE $=(n_0^2(\Delta^2+\operatorname{Var}\hat\chi_0)+n\,v)/(n_0+n)^2$, minimised at
+  $n_0^*=v_\text{post}/(\Delta\chi^2+\operatorname{Var}\hat\chi_0)$, i.e.
+  $\gamma^*\approx1/(1+Z^2)$ with $Z=\Delta\chi/\sqrt{v/E[K_\tau]}$ — the change **measured in
+  standard errors of the old estimate**. (The earlier $\min(1,1/Z^2)$ is the known-$\chi_0$ version and
+  is wrong for $Z\lesssim2$: at $Z^2=0.86$ a Bernoulli simulation gives $\gamma^*=0.56$, not 1.) Re-fit
+  with $\operatorname{Var}\hat\chi_0=v_\text{pre}/(q\,\text{ESS}_\tau)$ at the optimal memory: slope
+  1.06, $R^2=0.98$, median 0.91, **48/48 within ×2**. The two forms barely differ here because at the
+  optimal memory $\operatorname{Var}\hat\chi_0\ll\Delta\chi^2$ in most cells; the correction matters
+  for changes near the old estimate's noise level.
+
+![Step 3b](figures/tail_soft.png)
+
+*Figure (`experiments/plot_tail_soft.py`). A: post-change MSE relative to the best fixed memory;
+hard restart is worse than never restarting for $|\Delta\chi|\lesssim0.1$, soft restart wins every cell.
+B: empirical $n_0^*$ (bootstrap whiskers) against both predictions.*
+
 - So the soft restart is Bayesian shrinkage: after a break, the old regime is worth about
   $v/\Delta\chi^2$ events of prior, never more, however much of it was observed.
 
