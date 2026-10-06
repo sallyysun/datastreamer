@@ -328,9 +328,9 @@ refined grid on fresh seeds is the check:
 
 ![Step 3b](figures/tail_soft.png)
 
-*Figure (`experiments/plot_tail_soft.py`). A: post-change MSE relative to the best fixed memory;
-hard restart is worse than never restarting for $|\Delta\chi|\lesssim0.1$, soft restart wins every cell.
-B: empirical $n_0^*$ (bootstrap whiskers) against both predictions.*
+*Figure (`experiments/plot_tail_soft.py`). Left: post-change MSE relative to the best fixed memory,
+geometric mean over the 8 (q, tail) cells at each change size; x is the mean $|\Delta\chi|$. Right:
+empirical $n_0^*$ against $v_\text{post}/(\Delta\chi^2+\operatorname{Var}\hat\chi_0)$, all 48 cells.*
 
 - So the soft restart is Bayesian shrinkage: after a break, the old regime is worth about
   $v/\Delta\chi^2$ events of prior, never more, however much of it was observed.

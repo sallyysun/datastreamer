@@ -43,39 +43,45 @@ for name, p in (("v/dchi^2", p_old), ("v/(dchi^2+Var)", p_new)):
     s, r2, med, w2 = fit(p)
     print(f"{name:16s} slope {s:.3f}  R2 {r2:.3f}  median emp/pred {med:.2f}  within x2 {w2}/48")
 
-plt.rcParams.update({"font.size": 10, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2,
+import statistics
+groups = {}
+for r, dd, rs, rh in zip(rows, d, ratio_s, ratio_h):
+    groups.setdefault(r["pi0"], []).append((dd, rs, rh))
+gx, gs, gh = [], [], []
+for k in sorted(groups, key=float):
+    g = groups[k]
+    gx.append(statistics.mean(x[0] for x in g))
+    gs.append(statistics.geometric_mean(x[1] for x in g))
+    gh.append(statistics.geometric_mean(x[2] for x in g))
+
+plt.rcParams.update({"font.size": 11, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.spines.top": False, "axes.spines.right": False})
-fig, (a, b) = plt.subplots(1, 2, figsize=(12, 5.2), facecolor="#fcfcfb")
+fig, (a, b) = plt.subplots(1, 2, figsize=(12, 5), facecolor="#fcfcfb")
 for ax in (a, b):
-    ax.set_facecolor("#fcfcfb"); ax.grid(True, which="major", color=GRID, lw=0.8); ax.set_axisbelow(True)
+    ax.set_facecolor("#fcfcfb"); ax.grid(True, axis="y", color=GRID, lw=0.8); ax.set_axisbelow(True)
 
 a.axhline(1, color=INK2, lw=1.2, ls="--")
-a.text(0.535, 1.04, "best fixed memory (no restart)", color=INK2, ha="right", va="bottom", fontsize=9)
-a.scatter(d, ratio_h, s=42, color=HARD, edgecolor="#fcfcfb", lw=1.5, label="Hard restart (γ = 0)", zorder=3)
-a.scatter(d, ratio_s, s=42, color=SOFT, edgecolor="#fcfcfb", lw=1.5, label="Soft restart (best γ)", zorder=3)
-a.set_yscale("log"); a.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter()); a.set_yticks([0.2, 0.5, 1, 2, 3]); a.set_yticklabels(["0.2", "0.5", "1", "2", "3"])
-a.set_xlabel("Size of tail change |Δχ(q)|"); a.set_ylabel("Post-change MSE ÷ best fixed memory  (log)")
-a.set_title("A. Partial restart beats both extremes", loc="left", fontweight="bold", color=INK)
-a.text(0.06, 2.6, "hard restart worse\nthan never restarting", color=HARD, fontsize=9)
-a.text(0.12, 0.25, "soft restart\nwins all 48 cells", color=SOFT, fontsize=9)
-a.legend(frameon=False, loc="upper right")
+a.text(0.02, 1.05, "never restart", color=INK2, fontsize=10, va="bottom")
+a.plot(gx, gh, color=HARD, lw=2, marker="o", ms=8, mec="#fcfcfb", mew=1.5)
+a.plot(gx, gs, color=SOFT, lw=2, marker="o", ms=8, mec="#fcfcfb", mew=1.5)
+a.text(gx[0] + 0.01, gh[0], "throw away all old data", color=INK, fontsize=10, va="center")
+a.text(gx[-1], gs[-1] - 0.09, "keep some old data", color=INK, fontsize=10, ha="right", va="top")
+a.set_ylim(0, 3); a.set_xlim(0, 0.5)
+a.set_xlabel("Size of the change in tail dependence")
+a.set_ylabel("Error after the change\n(relative to never restarting)")
+a.set_title("Keeping some old data always wins", loc="left", fontweight="bold", color=INK)
 
 lim = (0.1, 400)
 b.plot(lim, lim, color=INK2, lw=1.2, ls="--")
-b.fill_between(lim, [x / 2 for x in lim], [x * 2 for x in lim], color=GRID, alpha=0.6, lw=0)
-b.text(300, 220, "y = x", color=INK2, fontsize=9, ha="right", va="top")
-b.text(0.13, 0.33, "×2 band", color=INK2, fontsize=9)
-b.scatter(p_old, emp, s=42, facecolor="none", edgecolor=INK2, lw=1.2, label="v₁ / Δχ²  (known χ₀)", zorder=3)
-b.errorbar(p_new, emp, yerr=[[e - l for e, l in zip(emp, lo)], [h - e for e, h in zip(emp, hi)]], fmt="none",
-           ecolor=SOFT, alpha=0.5, lw=1.2, zorder=3)
-b.scatter(p_new, emp, s=42, color=SOFT, edgecolor="#fcfcfb", lw=1.5, label="v₁ / (Δχ² + Var χ̂₀)  (corrected)", zorder=4)
+b.text(150, 80, "perfect\nprediction", color=INK2, fontsize=10, ha="left", va="top")
+b.scatter(p_new, emp, s=50, color=SOFT, edgecolor="#fcfcfb", lw=1.5, zorder=3)
 b.set_xscale("log"); b.set_yscale("log"); b.set_xlim(lim); b.set_ylim(lim)
-b.set_xlabel("Predicted optimal retained tail events n₀*"); b.set_ylabel("Empirical optimal n₀*  (oracle γ × E[K_τ])")
-b.set_title("B. Retained old evidence follows the shrinkage law", loc="left", fontweight="bold", color=INK)
-b.legend(frameon=False, loc="upper left")
+b.set_xticks([1, 10, 100]); b.set_xticklabels(["1", "10", "100"])
+b.set_yticks([1, 10, 100]); b.set_yticklabels(["1", "10", "100"])
+b.grid(True, axis="x", color=GRID, lw=0.8)
+b.set_xlabel("Old tail events to keep: formula")
+b.set_ylabel("Old tail events to keep: best in simulation")
+b.set_title("The formula predicts how much to keep", loc="left", fontweight="bold", color=INK)
 
-fig.text(0.01, 0.01, "Clayton–Gumbel mixture at ρ_S = 0.58, π₀ → 1−π₀, q ∈ {.01,.02,.05,.10}, lower & upper tail; "
-         "40 seeds, known changepoint. Whiskers: bootstrap range of empirical n₀* (γ grid is coarse, ~×2 steps).",
-         fontsize=8, color=INK2)
-fig.tight_layout(rect=(0, 0.03, 1, 1))
+fig.tight_layout()
 fig.savefig("../notes/studies/figures/tail_soft.png", dpi=160, facecolor=fig.get_facecolor())
