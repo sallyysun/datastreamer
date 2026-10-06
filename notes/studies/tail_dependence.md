@@ -250,6 +250,13 @@ Symmetric switches $\pi_0\to1-\pi_0$ give $\Delta\chi(.05)$ ≈ 0.08 (0.6 → 0.
 0.31–0.33 (0.9 → 0.1), 0.39–0.41 (1 → 0) — spanning both sides of the step-2 boundary where hard
 restart went from losing (Gauss → $t$, $\Delta\chi$ 0.07–0.17) to winning.
 
+![Mixture summary](figures/tail_mixture.png)
+
+*Figure (`experiments/plot_tail_mixture.py`). Left: along the equal-component path, $\chi_L(.05)$ and
+$\chi_U(.05)$ are linear in $\pi$ while $\rho_S$ stays at 0.58 (lines exact, dots 4M-draw Monte Carlo).
+Right: post-change MSE relative to the best fixed memory for each switch $\pi_0\to1-\pi_0$, geometric
+mean over the 8 $(q,\text{tail})$ cells.*
+
 ## Step 3b — soft oracle restart: how much of the old regime to keep
 
 Harness: `experiments/tail_soft.cpp` (`make tail_soft && ./tail_soft 40 8080`, ~10 s). DGP: the 3a
