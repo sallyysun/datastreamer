@@ -90,6 +90,9 @@ Read the note, don't re-derive it.
   order. **Two identities worth knowing before touching an estimator:** the fixed-λ estimators are
   the steady-state limit of a Kalman filter (λ = 1−K), and CUSUM/SR/BOCPD/HMM are one recursion
   over a latent chain. Published as an artifact.
+- `notes/studies/oracle_memory.md` — known-changepoint experiments are an **oracle** benchmark, not a
+  deployable estimator; optimal soft-restart weight $\gamma^*=1/(1+Z^2)$ and how online methods
+  approximate it.
 - `notes/studies/application_2.md` — covariance / hedging / vine application track.
 - `notes/todo.md` — live backlog with ✅/⬜/➖ status. Check before proposing work.
 - `notes/architecture.md`, `notes/code_changes/` — system design and dated change logs.
