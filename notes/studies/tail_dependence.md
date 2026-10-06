@@ -303,6 +303,11 @@ Ranges over tail × $q$; $t$ is the paired-seed $t$-statistic of best-soft vs be
   evidence is correctly discounted, there is no further reason to forget (each regime is stationary
   here — see caveats).
 
+![Restart comparison](figures/tail_restart.png)
+
+*Figure (`experiments/plot_tail_restart.py`). Post-change MSE relative to the best fixed memory for each
+switch; small dots are the 8 $(q,\text{tail})$ cells, large dots their geometric mean.*
+
 ### Result 2 — the right quantity is retained *events*, and it follows a shrinkage law
 
 $\gamma$ is a fraction of whatever evidence happens to have accumulated
