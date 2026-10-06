@@ -254,7 +254,7 @@ restart went from losing (Gauss → $t$, $\Delta\chi$ 0.07–0.17) to winning.
 
 *Figure (`experiments/plot_tail_mixture.py`). Left: along the equal-component path, $\chi_L(.05)$ and
 $\chi_U(.05)$ are linear in $\pi$ while $\rho_S$ stays at 0.58 (lines exact, dots 4M-draw Monte Carlo).
-Right: post-change MSE relative to the best fixed memory for each switch $\pi_0\to1-\pi_0$, geometric
+Right: total MSE (ticks 10k–40k) relative to the best fixed memory for each switch $\pi_0\to1-\pi_0$, geometric
 mean over the 8 $(q,\text{tail})$ cells.*
 
 ## Step 3b — soft oracle restart: how much of the old regime to keep
@@ -305,7 +305,7 @@ Ranges over tail × $q$; $t$ is the paired-seed $t$-statistic of best-soft vs be
 
 ![Restart comparison](figures/tail_restart.png)
 
-*Figure (`experiments/plot_tail_restart.py`). Post-change MSE relative to the best fixed memory for each
+*Figure (`experiments/plot_tail_restart.py`). Total MSE (ticks 10k–40k) relative to the best fixed memory for each
 switch; small dots are the 8 $(q,\text{tail})$ cells, large dots their geometric mean.*
 
 ### Result 2 — the right quantity is retained *events*, and it follows a shrinkage law
@@ -340,12 +340,27 @@ refined grid on fresh seeds is the check:
 
 ![Step 3b](figures/tail_soft.png)
 
-*Figure (`experiments/plot_tail_soft.py`). Left: post-change MSE relative to the best fixed memory,
+*Figure (`experiments/plot_tail_soft.py`). Left: total MSE (ticks 10k–40k, switch at 20k) relative to the best fixed memory,
 geometric mean over the 8 (q, tail) cells at each change size; x is the mean $|\Delta\chi|$. Right:
 empirical $n_0^*$ against $v_\text{post}/(\Delta\chi^2+\operatorname{Var}\hat\chi_0)$, all 48 cells.*
 
 - So the soft restart is Bayesian shrinkage: after a break, the old regime is worth about
   $v/\Delta\chi^2$ events of prior, never more, however much of it was observed.
+
+### Result 3 — one fixed $\gamma$ already captures most of the gain (no knowledge of $\Delta\chi$)
+
+Same runs, but one $\gamma$ for every cell (memory still the per-cell best, change time still known).
+Total MSE ÷ best fixed memory over the 48 cells:
+
+| $\gamma$ | 0 (hard) | 0.01 | 0.05 | 0.1 | **0.25** | 0.5 | 1 (no restart) |
+|---|---|---|---|---|---|---|---|
+| worst cell | 3.43 | 2.16 | 1.36 | 1.10 | **0.95** | 0.96 | 1.00 |
+| geometric mean | 0.73 | 0.53 | 0.55 | 0.60 | **0.71** | 0.84 | 1.00 |
+| cells beating fixed | 32 | 38 | 44 | 45 | **48** | 48 | — |
+
+$\gamma=0.25$ beats the best fixed memory in every cell without knowing the size of the change; the
+per-cell oracle $\gamma$ improves the mean further (0.45). Small $\gamma$ wins big changes but loses the
+small ones; a moderate $\gamma$ is the safe default. Still needs the change time.
 
 ### Caveats
 

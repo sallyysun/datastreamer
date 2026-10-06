@@ -68,7 +68,7 @@ a.text(gx[0] + 0.01, gh[0], "throw away all old data", color=INK, fontsize=10, v
 a.text(gx[-1], gs[-1] - 0.09, "keep some old data", color=INK, fontsize=10, ha="right", va="top")
 a.set_ylim(0, 3); a.set_xlim(0, 0.5)
 a.set_xlabel("Size of the change in tail dependence")
-a.set_ylabel("Error after the change\n(relative to never restarting)")
+a.set_ylabel("Error over the run\n(relative to never restarting)")
 a.set_title("Keeping some old data always wins", loc="left", fontweight="bold", color=INK)
 
 lim = (0.1, 400)

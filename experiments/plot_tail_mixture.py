@@ -64,7 +64,7 @@ b.set_xticks(dpi)
 b.set_xticklabels([f"{float(p):.2g}→{1 - float(p):.2g}\n{d:.2f}" for p, d in zip(sw, dchi05)], fontsize=10)
 b.set_xlim(-0.4, len(sw) - 0.6); b.set_ylim(0, 3)
 b.set_xlabel("Switch in π, smallest to largest\n(second row: size of the tail change, q = 0.05)")
-b.set_ylabel("Error after the switch\n(relative to never restarting)")
+b.set_ylabel("Error over the run\n(relative to never restarting)")
 b.set_title("Bigger switches make restarting worthwhile", loc="left", fontweight="bold", color=INK)
 
 fig.tight_layout()
