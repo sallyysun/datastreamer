@@ -333,15 +333,22 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   complement the Spearman-rho comparison above — rho_S can't see the very thing (tail behaviour)
   that actually distinguishes Clayton/Gumbel/t from Gaussian, so the misspecification RMSE gaps
   measured are likely a lower bound on the real difference.
-- ⬜ **Oracle memory benchmark** ([oracle_memory.md](studies/oracle_memory.md)). The
-  known-changepoint soft-restart experiments on tail dependence $\chi$ are an *oracle* (τ and Δχ
-  handed to the estimator), not a deployable method — frame them that way in the thesis. Derived
-  $\gamma^*=1/(1+Z^2)$, $Z=|\Delta|/SE_0$ (exact under precision weighting, independent of the
-  post-change horizon; checked numerically). Open: (a) bring the oracle code into `experiments/`
-  (needs a $\chi$ estimator — depends on the tail-dependence item above) and run it through
-  `./multiseed`; (b) plot measured optimal γ against $1/(1+Z^2)$; (c) optional, scope-dependent:
-  the online plug-in $\hat\gamma$ (bias-corrected, positive-part) as one more practical
-  approximation alongside VFF / bank / CUSUM / BOCPD.
+- ⬜ **Online adaptive memory for $\chi$ — the thesis deliverable**
+  ([oracle_memory.md](studies/oracle_memory.md)). Known-changepoint soft restart is the *oracle*
+  ($\gamma^*=1/(1+Z^2)$, derived, checked numerically); the method is an online rule that
+  estimates the evidence $Z$ from the stream and maps it to retention continuously. Build order:
+  1. Streaming $\hat\chi(q)$ estimator with an online $SE$ (depends on the tail-dependence item
+     above). **Contract decision needed first:** `estimate()` is defined to return Spearman $\rho$
+     (CLAUDE.md) — $\chi$ needs either a second method or a separate interface, not a silent
+     redefinition.
+  2. $\chi$-changing scenarios (Clayton/Gumbel/$t$; Gaussian has $\chi\equiv0$) with true $\chi_t$
+     in the CSV.
+  3. Oracle $\gamma^*$ baseline (knows $\tau$, $\Delta\chi$) — the ceiling. Port the existing
+     out-of-repo oracle code here; check measured optimum against $1/(1+Z^2)$.
+  4. Online $\hat\gamma_t$ rule with re-anchoring + null calibration (oracle_memory.md §4.1 traps
+     1–2: naïve map loses ~⅓ of memory per quiet tick; per-tick discounts compound).
+  5. Baselines: fixed λ (swept), VFF, one detect-and-hard-restart. All through `./multiseed`.
+  ➖ More changepoint detectors — out of scope; CUSUM/GLR/BOCPD on $\rho_S$ stay as prior work.
 - ⬜ **Same-rho_S, different-shape changepoint scenario** — now unlocked by the `Copula`
   abstraction (switch family mid-stream at constant target rho_S): the roadmap distinction #1
   case a scalar rho detector structurally cannot see. Also unlocks the tail-asymmetry

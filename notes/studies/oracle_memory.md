@@ -1,6 +1,7 @@
 # The oracle memory policy — what adaptation *should* do if the change were known
 
-**Status:** framing note + closed-form derivation. The oracle soft-restart experiments on the
+**Status:** thesis framing + closed-form derivation + design of the online rule (§4), which is
+the deliverable — the oracle (§1–3) is the theory it approximates. The oracle soft-restart experiments on the
 tail-dependence coefficient $\chi$ that prompted it are **not in this repo yet** (there is no $\chi$
 estimator in `src/estimators/`, and no oracle scenario in `experiments/`), so nothing below is a
 harness result. See `notes/todo.md` → "Oracle memory benchmark".
@@ -66,43 +67,83 @@ impulse $q_\tau=\Delta^2$**. So:
 - every practical method is a way of **estimating $q_t$ online** — which `change_detection.md`
   already identifies as the VFF problem.
 
-## 4. From oracle to online (extension / future work)
+## 4. The online rule — the actual deliverable
 
-In practice $\tau$ and $\Delta$ are unknown. The natural plug-in is
-$\widehat\Delta=\hat\theta_{\text{recent}}-\hat\theta_{\text{old}}$ and
-$\hat Z=|\widehat\Delta|/\widehat{SE}(\widehat\Delta)$, and the same statistic does both jobs:
-small $\hat Z$ ⇒ weak evidence of change ⇒ retain history; large $\hat Z$ ⇒ strong evidence ⇒ retain
-little. That is exactly where VFF and detect-and-soft-restart stop being separate (Part V: one dial,
-different decision hardness).
-
-Two traps to handle before using it, both of which the naïve $1/(1+\hat Z^2)$ gets wrong:
-
-- **Wrong denominator.** The oracle needs $\Delta^2/SE_0^2$; $\hat Z$ standardises by
-  $SE(\widehat\Delta)$, which also contains the recent window's noise.
-- **Upward bias.** $\mathbb E[\widehat\Delta^2]=\Delta^2+\mathrm{Var}(\widehat\Delta)$, so plugging in
-  $\widehat\Delta^2$ over-forgets under no change. The bias-corrected, positive-part form is
+The thesis is **online adaptive memory for tail-dependence estimation**: from $(U_t,V_t)$ alone,
+adapt memory as $\chi$ changes. Sections 1–3 are the oracle theory that says what such a rule should
+approximate; this section is the method. Progression:
 
 $$
-\hat\gamma=\frac{SE_0^2}{SE_0^2+\big(\widehat\Delta^2-\widehat{\mathrm{Var}}(\widehat\Delta)\big)_+}
+\text{fixed memory}\;\to\;\text{oracle } \gamma^\*\;\to\;\boxed{\text{online approximation } \hat\gamma_t}
 $$
 
-  (James–Stein shape: exactly $\gamma=1$ whenever the observed shift is within noise).
-
-Uncertainty in $\tau$ itself is a third layer; BOCPD's run-length posterior is the principled way
-to integrate over it, and is already the only estimator here that wins without resetting.
-
-## 5. Thesis framing
+The online problem is smaller than "solve changepoint detection": it is
 
 $$
-\underbrace{\text{Oracle: what SHOULD adaptation do?}}_{\text{known-changepoint experiments}}
-\;\longrightarrow\;
-\underbrace{\text{Online: can we approximate it from noisy data?}}_{\text{VFF, bank, CUSUM/GLR, BOCPD}}
+\boxed{\text{estimate the evidence } Z \text{ online well enough to approximate } \gamma^\*=1/(1+Z^2).}
 $$
 
-VFF, the multi-$\lambda$ bank and explicit detection are each one practical approximation to
-$\gamma^\*$ without knowing the latent path. Whether the thesis adds a new one (e.g. the $\hat\gamma$
-above) is a scope decision; the existing results do not depend on it.
+Two routes, both genuinely online:
 
-**Note for $\chi$ specifically:** $\hat\chi(q)$ uses only the $\approx n(1-q)$ joint exceedances, so
-$SE_0$ is large and $Z$ small at realistic window lengths — the oracle will usually say *keep a lot
-of history*. Expect soft restart to beat hard restart by more for $\chi$ than for $\rho_S$.
+- **A — continuous (VFF-style).** $(U_t,V_t)\to$ surprise $\to\alpha_t\to\hat\chi_t$. No changepoint
+  is ever declared.
+- **B — change-driven.** $(U_t,V_t)\to$ evidence $\to\hat\tau\to\hat\gamma\to\hat\chi_t$. The detector
+  says *when* to intervene; $\gamma^\*$ says *how hard*.
+
+The proposed rule sits between them: keep a reference estimate and a recent one, form
+$\widehat\Delta_t=\hat\chi^{\text{recent}}_t-\hat\chi^{\text{ref}}_t$ and its evidence $\hat Z_t$, and
+map evidence to retention $[0,\infty)\to[1,0]$ continuously, instead of thresholding it into
+{change, no change}. That is a continuous alternative to detect-and-restart (Part V's dial,
+with the setting derived rather than tuned).
+
+### 4.1 Design traps — each one breaks the naïve $\hat\gamma_t=1/(1+\hat Z_t^2)$
+
+1. **Null leakage.** With no change, $\hat Z_t^2\sim\chi^2_1$, so $1/(1+\hat Z_t^2)$ has mean $0.66$
+   (median $0.69$): the rule would discard a third of its memory on a typical *quiet* tick.
+   The bias-corrected positive-part form from §2's MSE,
+
+   $$
+   \hat\gamma_t=\frac{SE_0^2}{SE_0^2+\big(\widehat\Delta_t^2-\widehat{\mathrm{Var}}(\widehat\Delta_t)\big)_+},
+   $$
+
+   gives $\hat\gamma=1$ exactly unless $\hat Z^2>1$ — but that still fires on 32% of null ticks.
+   So the quiet-period false-forgetting rate must be **measured and calibrated**, the analogue of
+   $\mathrm{ARL}_0$ for detectors (change_detection.md Part VI). A higher evidence floor (e.g.
+   $(\hat Z^2-c)_+$) trades that against post-change delay; $c$ is the one calibration knob.
+2. **Compounding.** $\gamma^\*$ is a *one-shot* discount at $\tau$. Apply $\hat\gamma_t$ on every tick
+   while $\hat Z_t$ stays elevated (it will, for the length of the recent window) and the discounts
+   multiply — far harder than any oracle restart. Fix by **re-anchoring**: the reference must be the
+   adaptive estimate itself, so after a discount the gap $\widehat\Delta_t$ closes and the evidence
+   is spent. Equivalently, in Kalman form, inject $q_t=(\widehat\Delta_t^2-\widehat{\mathrm{Var}})_+$
+   as process noise into the state the gap is measured from; the update absorbs it.
+3. **Wrong denominator.** The oracle needs $\Delta^2/SE_0^2$; $\hat Z$ standardises by
+   $SE(\widehat\Delta)$, which includes the recent window's noise. Use the formula above, not $\hat Z$.
+4. **$SE$ of $\hat\chi$ online.** $\hat\chi(q)$ is driven by ~$n(1-q)$ joint exceedances, so its
+   $SE$ is a binomial-type quantity in the effective exceedance count — needs a streaming formula,
+   not a bootstrap.
+
+**Honest positioning.** With re-anchoring, this is innovation-based adaptive estimation of $q$
+(covariance matching, Mehra 1972 / Sage–Husa) — i.e. a VFF. The contribution is not "a new kind of
+adaptation" but **a VFF whose evidence→memory map is derived from the oracle MSE optimum and
+calibrated against a null false-forgetting rate**, applied to tail dependence, where small $Z$ makes
+the gap between soft and hard response largest. Say that plainly; it is a stronger claim than
+novelty of mechanism.
+
+## 5. Evaluation and scope
+
+Compare, multi-seed, on scenarios where **$\chi$** changes (Clayton/Gumbel/$t$ DGP — a Gaussian
+copula has $\chi=0$ for every $\rho<1$):
+
+$$
+\text{fixed forgetting (swept)}\;\text{vs}\;\text{VFF}\;\text{vs}\;\textbf{online }\hat\gamma\text{ rule}
+\;\;[\text{vs one detect-and-hard-restart}]\;\;\text{with oracle }\gamma^\*\text{ as the ceiling.}
+$$
+
+Metrics: RMSE of $\hat\chi_t$; post-change recovery; quiet-period false-forgetting rate; and the
+fraction of the fixed-λ → oracle gap the online rule closes. **Not** in scope: building more
+changepoint detectors. The existing CUSUM/GLR/BOCPD on $\rho_S$ stay as prior work;
+at most one hard-restart baseline is carried over to $\chi$.
+
+**Note for $\chi$ specifically:** $SE_0$ is large and $Z$ small at realistic window lengths, so the
+oracle will usually say *keep a lot of history*. Expect soft response to beat hard restart by more
+for $\chi$ than it did for $\rho_S$.
