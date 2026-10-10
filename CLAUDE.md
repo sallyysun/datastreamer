@@ -90,6 +90,8 @@ Read the note, don't re-derive it.
   order. **Two identities worth knowing before touching an estimator:** the fixed-λ estimators are
   the steady-state limit of a Kalman filter (λ = 1−K), and CUSUM/SR/BOCPD/HMM are one recursion
   over a latent chain. Published as an artifact.
+- `notes/studies/thesis_audit.md` — **start here**: what is implemented and run on which branch,
+  methodology reconstructed from code, gap analysis for the memory thesis (2026-10-10).
 - `notes/studies/oracle_memory.md` — the thesis deliverable: an **online** evidence→memory rule for
   tail dependence. Known-changepoint soft restart ($\gamma^*=1/(1+Z^2)$) is the oracle it
   approximates, not the endpoint.

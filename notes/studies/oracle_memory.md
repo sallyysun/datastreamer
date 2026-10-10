@@ -1,10 +1,10 @@
 # The oracle memory policy — what adaptation *should* do if the change were known
 
-**Status:** thesis framing + closed-form derivation + design of the online rule (§4), which is
-the deliverable — the oracle (§1–3) is the theory it approximates. The oracle soft-restart experiments on the
-tail-dependence coefficient $\chi$ that prompted it are **not in this repo yet** (there is no $\chi$
-estimator in `src/estimators/`, and no oracle scenario in `experiments/`), so nothing below is a
-harness result. See `notes/todo.md` → "Oracle memory benchmark".
+**Status:** ⚠️ superseded in part. The oracle soft-restart experiments on $\chi$ **are** in the repo,
+on branch `claude/tail-dependence` (`notes/studies/tail_dependence.md` step 3b, harness
+`experiments/tail_soft.cpp`), which already derives $\gamma^*\approx1/(1+Z^2)$; this note re-derived
+it without knowing that, and an earlier version of this line wrongly said the work did not exist.
+§4's online rule is out of the current thesis scope (see `thesis_audit.md` §3).
 
 ## 1. What the known-changepoint experiment is, and is not
 
