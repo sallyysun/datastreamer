@@ -8,6 +8,7 @@
 // Usage: ./probe_adaptive   -> results/adaptive_memory{,_pairs,_traj}.csv
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -284,6 +285,8 @@ int main() {
     std::ofstream out("results/adaptive_memory.csv");
     std::ofstream pout("results/adaptive_memory_pairs.csv");
     std::ofstream tout("results/adaptive_memory_traj.csv");
+    std::ofstream sout("results/adaptive_memory_seeds.csv");
+    sout << "family,method,scenario,param,seed,rmse\n";
     if (!out.is_open() || !pout.is_open() || !tout.is_open()) {
         std::fprintf(stderr, "cannot write results/ (run: mkdir -p results)\n");
         return 1;
@@ -328,6 +331,10 @@ int main() {
                 << "\n";
         }
         all_seed[si] = per_seed;
+        for (std::size_t c = 0; c < cfgs.size(); ++c)
+            for (std::size_t s = 0; s < kSeeds; ++s)
+                sout << cfgs[c].family << "," << cfgs[c].method << cfgs[c].tag << "," << scenario
+                     << "," << cfgs[c].param << "," << kBaseSeed + s << "," << per_seed[c][s] << "\n";
         all_pooled[si] = pooled;
 
         for (std::size_t c = 0; c < cfgs.size(); ++c) {
@@ -385,6 +392,24 @@ int main() {
             }
         }
     }
-    std::printf("wrote results/adaptive_memory{,_pairs,_traj}.csv\n");
+    // Per-tick cost, each config alone on one jump stream (update + estimate).
+    std::ofstream cout_("results/adaptive_memory_cost.csv");
+    cout_ << "family,method,param,ns_per_tick,store_bytes\n";
+    for (const Cfg& c : cfgs) {
+        auto dep = make_dependence("jump");
+        auto cop = dgp::make_copula("gaussian");
+        CopulaSource src(*dep, *cop, kBaseSeed);
+        std::vector<CopulaSource::Sample> xs(kN);
+        for (auto& x : xs) x = src.next();
+        Built b = c.build();
+        double sink = 0.0;
+        const auto t0 = std::chrono::steady_clock::now();
+        for (const auto& x : xs) { b.est->update(x.x, x.y); sink += b.est->estimate(); }
+        const double ns = std::chrono::duration<double, std::nano>(
+            std::chrono::steady_clock::now() - t0).count() / static_cast<double>(kN);
+        cout_ << c.family << "," << c.method << c.tag << "," << c.param << "," << ns << ","
+              << b.est->store_bytes() << (sink == 12345.0 ? " " : "") << "\n";
+    }
+    std::printf("wrote results/adaptive_memory{,_pairs,_traj,_seeds,_cost}.csv\n");
     return 0;
 }

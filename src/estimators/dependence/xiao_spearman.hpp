@@ -141,6 +141,7 @@ public:
         vff_pit_y_.reset();
         vff_c_ = 1.0;
         vff_sum_ = 0.0;
+        vff_raw_sum_ = vff_den_sum_ = 0.0;
         vff_in_block_ = 0;
         vff_blocks_ = 0;
         if (config_.rank_pit_window > 0) {
@@ -162,6 +163,13 @@ public:
     }
 
     const char* name() const override { return name_; }
+
+    // Ablation hooks (probe_vff_norm.cpp): swap the VFF's null scale per tick and
+    // read back the controller's per-block state.
+    void set_vff_null_var(double v) { config_.vff_null_var = v; }
+    double vff_c() const { return vff_c_; }
+    double vff_last_ms() const { return vff_last_ms_; }
+    double vff_last_denom() const { return vff_last_denom_; }
 
     double effective_memory_ticks() const {
         const double alpha = 1.0 - lambda_;
@@ -219,9 +227,15 @@ private:
         // KNOWN scale to within 8% and nothing has to be estimated. This is the
         // nonparametric stand-in for the Kalman's F.
         vff_sum_ += s * s / config_.vff_null_var;
+        vff_raw_sum_ += s * s;
+        vff_den_sum_ += config_.vff_null_var;
         if (++vff_in_block_ < config_.vff_block) return;
         const double e2 = vff_sum_ / static_cast<double>(config_.vff_block);
+        vff_last_ms_ = vff_raw_sum_ / static_cast<double>(config_.vff_block);
+        vff_last_denom_ = vff_den_sum_ / static_cast<double>(config_.vff_block);
         vff_sum_ = 0.0;
+        vff_raw_sum_ = 0.0;
+        vff_den_sum_ = 0.0;
         vff_in_block_ = 0;
         if (++vff_blocks_ <= kVffBurnInBlocks) return;
 
@@ -297,6 +311,8 @@ private:
     double lambda_ = config_.lambda;
     double vff_c_ = 1.0;
     double vff_sum_ = 0.0;
+    double vff_raw_sum_ = 0.0, vff_den_sum_ = 0.0;
+    double vff_last_ms_ = 0.0, vff_last_denom_ = 0.0;
     std::size_t vff_in_block_ = 0;
     std::size_t vff_blocks_ = 0;
 };
