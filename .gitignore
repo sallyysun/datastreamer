@@ -7,6 +7,10 @@
 /experiments/calibrate_arl0
 /experiments/multiseed
 /experiments/dump_copula_samples
+/experiments/tail_validate
+/experiments/tail_change
+/experiments/tail_mixture
+/experiments/tail_soft
 __pycache__/
 /experiments/results/
 /experiments/probe_auc
