@@ -378,6 +378,19 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   online nu estimation is a separate problem, not needed for the misspecification comparison.
 
 ### Experiments / device
+- ✅ **Memory trade-off: discounted bank vs fixed share vs VFF vs fixed memory, for copula
+  prediction** (`experiments/probe_memory_tradeoff.cpp`,
+  [memory_tradeoff.md](studies/memory_tradeoff.md)). One 8×8 forgetting-histogram density; 12-config
+  tuning budget per adaptive method on jump + drift; memory range 25–8000; 60 fresh seeds; excess
+  log loss vs the true copula at the true PIT. Whole-run `jump`: discounted beats fixed (−6.8
+  ×10⁻³ nats/tick), fixed share (−0.6) and VFF (−3.6). It is *worst* in the first 100 ticks after
+  the jump and wins at 100–1500 ticks. `drift` costs +1.0 vs fixed (≈ fixed share). `constant` is
+  within ~0.6 of the hindsight-best fixed memory. The Rosenblatt-driven VFF fails because its
+  $e^2$ *falls* after a jump to stronger dependence (a too-diffuse forecast reads as calibrated)
+  and its null level moves with ρ (1.06 near independence, 0.93 at ρ≈.58).
+- ⬜ **A two-sided copula-level VFF signal** (conditional-PIT uniformity, or the log score against
+  its own predicted expectation), and a `jump` toward *weaker* dependence, where $e^2>1$ should
+  make the current VFF react. Both from memory_tradeoff.md §4–5.
 - ✅ **Online tail dependence, step 1: stationary validation** (`experiments/tail_validate.cpp`,
   `notes/studies/tail_dependence.md`). Gaussian / Clayton / Gumbel / $t_4$ at matched $\rho_S=0.58$,
   copula space. Finite-threshold $\chi(q)-\lambda$ dominates (Gaussian reads 0.19 at $q=.01$ with
