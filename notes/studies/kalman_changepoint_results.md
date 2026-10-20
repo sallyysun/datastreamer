@@ -582,7 +582,8 @@ BOCPD separates, and only because it never resets.
 **5. The Gaussian copula is a forgiving wrong answer.** `gaussian_mle_ew` degrades mildly
 off-family (`stochastic`: 0.0558 → 0.0592–0.0680). `clayton_mle` on Gumbel data is 10×
 worse than on its own (0.1589 vs 0.0154). `copula_select` recovers the true family when run
-cumulatively, but churns under forgetting (§8.3).
+cumulatively. Under forgetting it was reported to churn; most of that was two bugs in
+its nonparametric candidate, now fixed (§8.5).
 
 **6. Four bugs were found by verification, not by reading the code** ([§7](#7-bugs-found-and-fixed)).
 Two showed up only because the replication tier existed — BOCPD burn-in alarms and a NaN
@@ -1130,6 +1131,13 @@ Also fixed: `block=50` broke the within-block-constant assumption on `oscillate`
 corrected to 20), and a `%.1f` print bug made distinct calibration thresholds print
 identically.
 
+**8. `NonparamCopula` (the selector's nonparametric candidate) — prior swamped the data, and a
+noisy readout.** Found 2026-10-20 while building a log-scored estimator bank. Under forgetting it
+weighted each observation by $1-\lambda$, so its total mass converged to 1 against a Laplace prior
+of mass 100 (one per cell, $10\times10$): the predictive density sat in $[0.99, 1.08]$ whatever the
+data. Separately, its Spearman readout was the uncentred $12\,E_w[u_c v_c]-3$, which absorbs
+fluctuations in the weighted marginal means. Effect and fix in §8.5.
+
 ---
 
 ## 8. Misspecification: the multi-seed grid across DGP families
@@ -1188,13 +1196,15 @@ best achievable — §5.4's fair-tuning caveat applies here unchanged.
 | t_mle             | 0.0601 | 0.3040 | 0.1533 | 0.0294 | 0.3004 | 0.1367 | 0.0258 | 0.3013 | 0.1370 | **0.0131** | 0.2997 | 0.1490 |
 | t_mle_ew          | 0.0741 | 0.0835 | 0.0727 | 0.0531 | 0.0824 | 0.0648 | 0.0526 | 0.0782 | 0.0617 | 0.0460 | 0.0781 | **0.0610** |
 | copula_select     | 0.0277 | 0.2592 | 0.1487 | 0.0154 | 0.2465 | 0.1302 | 0.0168 | 0.2433 | 0.1287 | **0.0131** | 0.2983 | 0.1490 |
-| copula_select_ew  | 0.0402 | 0.0724 | 0.0617 | 0.0341 | 0.0653 | 0.0636 | 0.0417 | 0.0683 | 0.0681 | 0.0465 | 0.0778 | 0.0618 |
+| copula_select_ew † | 0.0402 | 0.0724 | 0.0617 | 0.0341 | 0.0653 | 0.0636 | 0.0417 | 0.0683 | 0.0681 | 0.0465 | 0.0778 | 0.0618 |
 
 All 22 × 5 × 4 cells, colour-coded, are in `results/multiseed_heatmap.png`
 (`python3 plot_multiseed_heatmap.py`); the raw numbers are in
 `results/multiseed_<scenario>[_<family>].csv`. Colour there is normalised *within* each column,
 since absolute RMSE spans 0.012 (`constant`) to 0.44 (`oscillate`) and a global scale shows nothing;
 the clipped `drift`/`oscillate` columns are outlined for the §8.1 reason.
+
+† Pre-fix: this row predates the `NonparamCopula` fix (§7.8). Corrected numbers are in §8.5.
 
 ### 8.3 What the grid shows
 
@@ -1219,9 +1229,13 @@ structure is actively wrong for upper-tail data, not merely uninformative.
 MLE exactly on that family's own data (Clayton 0.0154, Gumbel 0.0168, $t$ 0.0131 on `constant`).
 Costs nothing when right.
 
-But `copula_select_ew` loses to the right family's `_ew` on Clayton `drift` (0.1039 vs 0.0717).
-Under forgetting it chooses on a short window and churns. **Selection and forgetting interact
-badly — an open problem, not a tuning detail.**
+~~But `copula_select_ew` loses to the right family's `_ew` on Clayton `drift` (0.1039 vs 0.0717).
+Under forgetting it chooses on a short window and churns. Selection and forgetting interact
+badly — an open problem, not a tuning detail.~~ **Superseded (2026-10-20), see §8.5:** that gap
+was mostly a bug in the selector's nonparametric candidate, not an interaction between selection
+and forgetting. After the fix, `copula_select_ew` posts 0.0606 on Clayton `drift`, the lowest of
+all 22 estimators there (`windowed_rank` is next at 0.0634). Clayton `drift` is a clipped path, so
+read this within the family only (§8.1).
 
 **4. `xiao_win`, measured for the first time, adds nothing over `windowed_rank`.** They agree
 to ~0.5% (0.0275 vs 0.0271; 0.1183 vs 0.1170), as two exact sliding windows differing only in
@@ -1239,6 +1253,75 @@ replication tier caught that single seeds missed.
   case and overstates `t_mle` against unknown tail weight.
 - **Detectors are calibrated on Gaussian innovations only** (§3.7). Thresholds were never
   re-derived per family. Alarm counts staying sane off-family is encouraging, not calibration.
+
+### 8.5 Correction (2026-10-20): the selector's nonparametric candidate
+
+Two bugs in `copula::NonparamCopula` (`dependence/copula_selector.hpp`), the binned $10\times10$
+density that `CopulaSelector` scores against the four parametric families (§7.8):
+
+1. **The prior swamped the data under forgetting.** Each observation was added with weight
+   $1-\lambda$, so the total converged to 1. The Laplace prior adds $\alpha=1$ per cell, i.e.
+   mass 100. At $\lambda=0.99$ the predictive density sat in $[0.99, 1.08]$ whatever the data,
+   and its mean prequential log-score was $0.004$ nats/tick (Gaussian copula, $\rho_S=0.58$,
+   isolated test). Counts now stay in observation units (total $\to 1/(1-\lambda)\approx100$),
+   which raises the score to $0.084$. The $\lambda=0$ path is unchanged.
+2. **The Spearman readout was uncentred.** $12\,E_w[u_cv_c]-3$ assumes the weighted margins are
+   exactly uniform; they are not. It is now the weighted Pearson correlation of marginal mid-ranks,
+   the same formula as `XiaoSpearmanEstimator::estimate`. In the same isolated test, RMSE of the
+   histogram's own readout fell from $0.206$ to $0.048$ at $\lambda=0.99$, and from $0.027$ to
+   $0.013$ cumulatively.
+
+**Why bug 1 cost RMSE rather than just score.** Near independence, every parametric fit's
+log-score is $\approx0$ minus estimation noise, and a flat density scores exactly $\approx0$. So
+the crippled candidate *won* there: on Clayton/Gumbel `drift`, whose path starts at
+$\rho_S\approx0$, it was selected on 22–23% of ticks (10 seeds), and it then reported through the
+noisy readout of bug 2. After the fix it is selected on ~0% of ticks in every scenario tested.
+
+**Re-run.** Full 20-seed grid (`./run_multiseed_grid.sh 20 42`), before and after, with the same
+compiler on the same machine. No other estimator's row changed. The cumulative `copula_select` is
+bit-identical, because the nonparametric candidate is never selected without forgetting.
+
+⚠️ **These are Linux/libstdc++ numbers, so do not splice them into §8.2.** The Gaussian and $t$
+samplers, and the `stochastic` path, draw from `std::normal_distribution`, whose algorithm is
+implementation-defined. libstdc++ and macOS libc++ therefore produce different streams from the
+same seed. Only the Clayton/Gumbel `constant`/`jump` columns of §8.2 (uniform and exponential
+draws only) reproduce here digit for digit. The comparison below is internally consistent; re-run
+the grid on the original machine before replacing the † row.
+
+Bold marks where the fixed `copula_select_ew` beats every other `_ew` estimator by more than one SE.
+Clayton/Gumbel `drift`/`oscillate` are clipped paths (§8.1): read those rows within the family only.
+
+| family | scenario | `copula_select_ew` before | after (± SE) | on-family MLE `_ew` | best other `_ew` |
+|---|---|---|---|---|---|
+| Gaussian | `constant` | 0.0421 | 0.0421 ± 0.0014 | 0.0399 | 0.0399 (`gaussian_mle_ew`) |
+| Gaussian | `drift` | 0.0846 | 0.0675 ± 0.0015 | 0.0613 | 0.0613 (`gaussian_mle_ew`) |
+| Gaussian | `jump` | 0.0722 | **0.0675** ± 0.0018 | 0.0748 | 0.0748 (`gaussian_mle_ew`) |
+| Gaussian | `stochastic` | 0.0640 | 0.0611 ± 0.0050 | 0.0581 | 0.0581 (`gaussian_mle_ew`) |
+| Gaussian | `oscillate` | 0.3503 | 0.3420 ± 0.0018 | 0.3515 | 0.3398 (`t_mle_ew`) |
+| Clayton | `constant` | 0.0341 | 0.0341 ± 0.0006 | 0.0339 | 0.0339 (`clayton_mle_ew`) |
+| Clayton | `drift` | 0.1039 | **0.0606** ± 0.0014 | 0.0717 | 0.0662 (`gaussian_mle_ew`) |
+| Clayton | `jump` | 0.0653 | 0.0637 ± 0.0019 | 0.0607 | 0.0607 (`clayton_mle_ew`) |
+| Clayton | `stochastic` | 0.0635 | 0.0549 ± 0.0051 | 0.0551 | 0.0551 (`clayton_mle_ew`) |
+| Clayton | `oscillate` | 0.2247 | 0.2062 ± 0.0014 | 0.2325 | 0.1954 (`t_mle_ew`) |
+| Gumbel | `constant` | 0.0417 | 0.0417 ± 0.0010 | 0.0409 | 0.0409 (`gumbel_mle_ew`) |
+| Gumbel | `drift` | 0.1083 | 0.0625 ± 0.0018 | 0.0666 | 0.0637 (`gaussian_mle_ew`) |
+| Gumbel | `jump` | 0.0683 | 0.0672 ± 0.0023 | 0.0643 | 0.0643 (`gumbel_mle_ew`) |
+| Gumbel | `stochastic` | 0.0679 | 0.0570 ± 0.0049 | 0.0584 | 0.0584 (`gumbel_mle_ew`) |
+| Gumbel | `oscillate` | 0.2261 | 0.2072 ± 0.0016 | 0.2276 | 0.1966 (`t_mle_ew`) |
+| $t$ | `constant` | 0.0462 | 0.0462 ± 0.0009 | 0.0456 | 0.0414 (`gumbel_mle_ew`) |
+| $t$ | `drift` | 0.0714 | 0.0699 ± 0.0023 | 0.0687 | 0.0687 (`t_mle_ew`) |
+| $t$ | `jump` | 0.0765 | 0.0754 ± 0.0015 | 0.0772 | 0.0678 (`gumbel_mle_ew`) |
+| $t$ | `stochastic` | 0.0623 | 0.0618 ± 0.0049 | 0.0610 | 0.0610 (`t_mle_ew`) |
+| $t$ | `oscillate` | 0.3640 | 0.3638 ± 0.0018 | 0.3649 | 0.3464 (`xiao_ew`) |
+
+**Reading.** The fix improves `copula_select_ew` in every non-`constant` cell. It is best outright
+on Gaussian `jump` and Clayton `drift`, and within one SE of the best on Clayton/Gumbel
+`stochastic` and Gumbel `drift`. Elsewhere it trails the on-family `_ew` by an ordinary selection
+cost: ~0.001–0.003 on `constant`/`jump`, and at most 0.006 (Gaussian `drift`). The §8.3 claim that
+"selection and forgetting interact badly" does not survive the fix.
+The fix does not make the nonparametric candidate competitive. With 100 cells and an effective
+sample size of ~100 it loses to a matched parametric family on prequential score, as it should.
+Its role is a fallback for shapes no family fits, and none of these DGPs has such a shape.
 
 ---
 

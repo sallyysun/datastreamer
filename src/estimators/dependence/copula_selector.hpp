@@ -25,17 +25,16 @@ public:
         total_ = 0.0;
     }
 
+    // Counts stay in observation units (total_ -> 1/(1-lambda)) so the alpha
+    // prior is weighed against the effective sample size, not against 1.
     void update_uv(double u, double v) {
         const int i = cell(u), j = cell(v);
         if (lambda_ > 0.0) {
             for (auto& c : counts_) c *= lambda_;
             total_ *= lambda_;
-            counts_[i * bins_ + j] += (1.0 - lambda_);
-            total_ += (1.0 - lambda_);
-        } else {
-            counts_[i * bins_ + j] += 1.0;
-            total_ += 1.0;
         }
+        counts_[i * bins_ + j] += 1.0;
+        total_ += 1.0;
     }
 
     double logpdf_uv(double u, double v) const {
@@ -45,18 +44,37 @@ public:
         return std::log(prob * k2);
     }
 
+    // Weighted Pearson of marginal mid-ranks, as XiaoSpearmanEstimator: the
+    // weighted margins are not exactly uniform, so an uncentred 12E[uv]-3 picks
+    // up their mean fluctuations.
     double spearman() const {
         if (total_ <= 0.0) return 0.0;
-        double e_uv = 0.0;
+        std::vector<double> rx(bins_, 0.0), ry(bins_, 0.0);
         for (int i = 0; i < bins_; ++i) {
-            const double uc = (i + 0.5) / bins_;
             for (int j = 0; j < bins_; ++j) {
-                const double vc = (j + 0.5) / bins_;
-                e_uv += counts_[i * bins_ + j] * uc * vc;
+                rx[i] += counts_[i * bins_ + j];
+                ry[j] += counts_[i * bins_ + j];
             }
         }
-        return std::clamp(12.0 * (e_uv / total_) - 3.0, -1.0, 1.0);
+        double var_x = 0.0, var_y = 0.0, cum_x = 0.0, cum_y = 0.0;
+        for (int i = 0; i < bins_; ++i) {
+            const double mx = rx[i], my = ry[i];
+            rx[i] = cum_x + mx / 2.0 - total_ / 2.0;
+            ry[i] = cum_y + my / 2.0 - total_ / 2.0;
+            cum_x += mx;
+            cum_y += my;
+            var_x += mx * rx[i] * rx[i];
+            var_y += my * ry[i] * ry[i];
+        }
+        const double denom = std::sqrt(var_x * var_y);
+        if (denom <= 0.0) return 0.0;
+        double cov = 0.0;
+        for (int i = 0; i < bins_; ++i)
+            for (int j = 0; j < bins_; ++j) cov += counts_[i * bins_ + j] * rx[i] * ry[j];
+        return std::clamp(cov / denom, -1.0, 1.0);
     }
+
+    std::size_t heap_bytes() const { return counts_.capacity() * sizeof(double); }
 
 private:
     int cell(double u) const {
@@ -142,7 +160,7 @@ public:
 
     std::size_t store_bytes() const override {
         return sizeof(*this) + score_.capacity() * sizeof(double)
-             + fits_.capacity() * sizeof(copula::CopulaFit);
+             + fits_.capacity() * sizeof(copula::CopulaFit) + nonparam_.heap_bytes();
     }
     const char* name() const override { return name_; }
 

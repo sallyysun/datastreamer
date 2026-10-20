@@ -323,6 +323,16 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   log-likelihood (shared marginals ⇒ marginal term cancels, so it is a like-for-like copula
   comparison) and reports the winner's Spearman rho. Verified: picks the generating family on
   matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
+  ⚠️ **Fixed 2026-10-20: two bugs in the nonparametric candidate (`copula::NonparamCopula`).**
+  (1) Under forgetting, its counts were weighted by 1−λ, so a total mass of ~1 faced a Laplace
+  prior of mass 100, leaving the density nearly flat. Counts are now kept in observation units.
+  (2) Its rho_S readout was uncentred; it now uses mid-rank Pearson, as Xiao does. Before the fix,
+  the flat density *won* selection near independence (22–23% of ticks on Clayton/Gumbel `drift`)
+  and reported through the noisy readout. 20-seed re-run, all four families:
+  `copula_select_ew` improves in every non-`constant` cell, e.g. Clayton `drift` 0.1039→0.0606 and
+  Gumbel `drift` 0.1083→0.0625. The "churns under forgetting" finding was mostly this bug.
+  Cumulative `copula_select` is bit-identical, so the claim below is unaffected. Table and
+  platform caveat: [kalman_changepoint_results.md](studies/kalman_changepoint_results.md) §8.5.
 - ✅ **Non-Gaussian copula DGP** — `dgp::Copula` (`src/streamgenerator/datasource/copula.hpp`,
   generator-side counterpart to the estimator-side `copula_family.hpp`): Gaussian / Clayton /
   Gumbel / Student-t samplers, each calibrated to the SAME target Spearman rho_S per step via
@@ -336,8 +346,11 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   signature is now measurable — each parametric MLE is strongest on its OWN generating family and
   weak elsewhere (e.g. `clayton_mle` worst on `gaussian`/`gumbel` data, best on `clayton`), and
   `copula_select` is the best-or-tied cumulative estimator on every family without knowing which
-  generated the data. Caveat: Spearman rho is a rank statistic blind to tail dependence, so this
-  RMSE gap likely understates the real family separation — a tail-dependence metric is the
+  generated the data. Multi-seed refines "best-or-tied": on `constant` it is within ~1.5 SE of the
+  best cumulative estimator on every family, and best only on $t$. On Gaussian it trails
+  `gaussian_mle` (0.0236±0.0045 vs 0.0169±0.0021, Linux run) because it picks Gumbel on ~12% of
+  ticks. The bug fix above leaves this unchanged. Caveat: Spearman rho is a rank statistic blind
+  to tail dependence, so this RMSE gap likely understates the real family separation — a tail-dependence metric is the
   natural follow-up (see below).
 - ⬜ **Tail-dependence metric** (e.g. empirical upper/lower tail-dependence coefficients) to
   complement the Spearman-rho comparison above — rho_S can't see the very thing (tail behaviour)
