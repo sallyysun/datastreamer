@@ -5,6 +5,8 @@
 //
 // Usage (from experiments/):  ./probe_memory_tradeoff [out_dir]
 //   default out_dir = ../notes/studies/memory_tradeoff
+//   ./probe_memory_tradeoff <out_dir> xiao   -> components are fixed-memory XiaoSpearmanEstimator
+//     (rank-PIT mode, kBins, kPrior) read through log_density_uv; the VFF keeps its own Hist.
 
 #include <algorithm>
 #include <cmath>
@@ -32,6 +34,8 @@ constexpr double kMemMin = 25.0, kMemMax = 8000.0;
 constexpr unsigned kTuneSeed = 42, kEvalSeed = 5042;
 constexpr int kTuneSeeds = 30, kEvalSeeds = 60;
 constexpr double kT975 = 2.001;           // t_{0.975, 59}
+
+bool g_xiao_arms = false;
 
 double Phi(double z) { return 0.5 * std::erfc(-z / std::sqrt(2.0)); }
 double lam_of(double mem) { return 1.0 - 2.0 / (mem + 1.0); }
@@ -256,6 +260,11 @@ Trace run(const Scenario& sc, unsigned seed, const std::vector<Method>& M) {
     RankPit px(500), py(500);
     std::vector<Hist> arms;
     for (double m : arm_mem()) arms.push_back(Hist{lam_of(m)});
+    std::vector<XiaoSpearmanEstimator> xarms;
+    if (g_xiao_arms)
+        for (double m : arm_mem())
+            xarms.emplace_back(XiaoSpearmanEstimator::Config{.bins = kBins, .lambda = lam_of(m),
+                                                             .rank_pit_window = 500, .density_prior = kPrior}, "arm");
     std::vector<FixedShare> fs; std::vector<Discounted> ds; std::vector<Vff> vf; RhoFixedShare rf;
     std::vector<std::pair<char, std::size_t>> slot;   // method -> (kind, index)
     for (const auto& m : M) {
@@ -286,9 +295,15 @@ Trace run(const Scenario& sc, unsigned seed, const std::vector<Method>& M) {
         const std::string& fam = (t < kChange) ? sc.before : sc.after;
         const double lc = true_logc(fam, s.rho, s.x, s.y);
         for (std::size_t k = 0; k < kArms; ++k) {
-            lp_rank[k] = arms[k].logpdf(u, v);
-            lp_true[k] = arms[k].logpdf(ut, vt);
-            rho[k] = arms[k].rho();
+            if (g_xiao_arms) {
+                lp_rank[k] = xarms[k].log_density_uv(u, v);
+                lp_true[k] = xarms[k].log_density_uv(ut, vt);
+                rho[k] = xarms[k].estimate();
+            } else {
+                lp_rank[k] = arms[k].logpdf(u, v);
+                lp_true[k] = arms[k].logpdf(ut, vt);
+                rho[k] = arms[k].rho();
+            }
         }
         // Predictions made before seeing t, evaluated at the true PIT.
         for (std::size_t i = 0; i < M.size(); ++i) {
@@ -311,7 +326,8 @@ Trace run(const Scenario& sc, unsigned seed, const std::vector<Method>& M) {
         for (auto& b : fs) b.learn(lp_rank, scorable);
         for (auto& b : ds) b.learn(lp_rank, scorable);
         for (auto& b : vf) b.observe(u, v, scorable);
-        for (auto& a : arms) a.update(u, v);
+        if (g_xiao_arms) for (auto& a : xarms) a.update(s.x, s.y);
+        else for (auto& a : arms) a.update(u, v);
     }
     return T;
 }
@@ -396,6 +412,7 @@ void calibration(std::FILE* out) {
 
 int main(int argc, char** argv) {
     const std::string out_dir = argc > 1 ? argv[1] : "../notes/studies/memory_tradeoff";
+    g_xiao_arms = argc > 2 && std::string(argv[2]) == "xiao";
     auto open = [&](const std::string& f) { return std::fopen((out_dir + "/" + f).c_str(), "w"); };
     std::FILE* chk = open("checks.txt");
     if (!chk) { std::fprintf(stderr, "cannot write to %s (create it first)\n", out_dir.c_str()); return 1; }

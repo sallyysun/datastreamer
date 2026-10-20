@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -43,6 +44,7 @@ public:
         double lambda = 0.0;          // in (0,1): retention factor; overrides window
         std::size_t calibration = 300;
         std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
+        double density_prior = 0.5;       // pseudo-count per cell, for log_density_uv
 
         // Variable forgetting, driven by the section 14.14 rank residual
         //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
@@ -163,6 +165,31 @@ public:
     }
 
     const char* name() const override { return name_; }
+
+    // Histogram log-density at pseudo-observations (u, v) on the equal-area bins x bins grid of
+    // rank-PIT mode, smoothed by density_prior per cell. With unforgotten counts this is a
+    // Dirichlet posterior predictive; with fixed forgetting it is discounted-count smoothing. It
+    // integrates to one but its margins are uniform only approximately, so it is a density on the
+    // unit square, not a copula density. NaN outside rank-PIT mode (raw-scale calibrated cells are
+    // not equal-area in u) and under VFF (the stored counts mix observations weighted by different
+    // lambdas). notes/studies/memory_tradeoff.md.
+    double log_density_uv(double u, double v) const {
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        if (config_.rank_pit_window == 0 || config_.vff_rate > 0.0) return kNaN;
+        if (!std::isfinite(config_.density_prior) || !(config_.density_prior > 0.0)) return kNaN;
+        if (!(u >= 0.0 && u <= 1.0 && v >= 0.0 && v <= 1.0)) return kNaN;
+        if (total_ <= 0.0) return 0.0;
+        const std::size_t m = config_.bins;
+        const auto cell = [m](double p) {
+            return std::min(static_cast<std::size_t>(p * static_cast<double>(m)), m - 1);
+        };
+        // Fixed forgetting stores each observation with weight 1 - lambda, so total_ tends to 1;
+        // rescale to observation units or the prior (density_prior * bins^2) swamps the data.
+        const double unit = (config_.lambda > 0.0) ? 1.0 / (1.0 - config_.lambda) : 1.0;
+        const double k2 = static_cast<double>(m * m);
+        const double n = counts_[cell(u) * m + cell(v)] * unit;
+        return std::log((n + config_.density_prior) / (total_ * unit + config_.density_prior * k2) * k2);
+    }
 
     // Ablation hooks (probe_vff_norm.cpp): swap the VFF's null scale per tick and
     // read back the controller's per-block state.
