@@ -546,7 +546,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<HermiteCusumDetector>(
             HermiteCusumDetector::Config{
                 .hermite = HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100,
-                                                   .reset_boost = 0.0, .surprise_fast_rate = 0.1},
+                                                   .surprise_fast_rate = 0.1, .reset_boost = 0.0},
                 .delta = 1.0, .h = 10.0, .block = 20},
             "hermite_cusum2_noreset");
     }
