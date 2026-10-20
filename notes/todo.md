@@ -323,8 +323,8 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   log score (shared, Gaussian-standardised marginals, so the marginal term is common, though
   marginal errors can still affect candidates differently) and reports the winner's Spearman rho.
   ⚠️ Only partly prequential: the marginal moments are updated with (x_t, y_t) before (u_t, v_t)
-  is computed (`thesis_audit.md` §1.6). Fixing the order means rerunning the selector numbers. Verified: picks the generating family on
-  matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
+  is computed (`thesis_audit.md` §1.6). Fixing the order means rerunning the selector numbers.
+  Verified: picks the generating family on matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
   ⚠️ **Fixed 2026-10-20: two bugs in the nonparametric candidate (`copula::NonparamCopula`).**
   (1) Under forgetting, its counts were weighted by 1−λ, so a total mass of ~1 faced a Laplace
   prior of mass 100, leaving the density nearly flat. Counts are now kept in observation units.

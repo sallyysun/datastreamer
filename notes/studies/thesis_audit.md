@@ -2,15 +2,18 @@
 
 **2026-10-20 refresh.** Since the original audit, merge #10 brought `adaptive-memory`,
 `claude/tail-dependence` and `claude/async-memory` into `main`, and `bank-vff-study` added the
-density-scored bank/VFF study (`memory_tradeoff.md`). This refresh changed §0, §1.1 (VFF, bank and
-MPL rows), §1.4 items 7–8, §1.5, the status of §3, the claims table in §4, and added the glossary
-(§6). Everything else is the 2026-10-10 text. The `branch:path:line` references below are the
+density-scored bank/VFF study (`memory_tradeoff.md`). This refresh narrowed the scope paragraph below,
+changed §0, §1.1 (VFF, bank and MPL rows), §1.4 items 7–8, §1.5, the status of §3 and the claims
+table in §4, and added §1.6 (`CopulaSelector`) and the glossary (§6). Everything else is the 2026-10-10 text. The `branch:path:line` references below are the
 pre-merge branches, and their line numbers date from 2026-10-10; the files now live on `main`.
 
-Scope of the thesis for this audit: **memory / forgetting** across three estimator classes —
-Xiao, Hermite, online pseudo-likelihood (MPL) — with fixed forgetting, VFF and a bank. Kalman,
-state-space, CUSUM/BOCPD and method of moments are out of scope and appear here only where an
-in-scope result depends on them.
+Scope of the thesis for this audit: **memory / forgetting** — fixed forgetting, VFF and a bank —
+for **Xiao and Hermite**, the two estimator classes the current claims rest on (§4, claim 7). The
+online pseudo-likelihood (MPL) is audited for what exists, as the planned extension (claim 7+,
+§3 MUST-1 to MUST-3), not as part of the supported claims. Kalman, state-space, CUSUM/BOCPD and
+method of moments are out of scope and appear here only where an in-scope result depends on them.
+*(Scope paragraph narrowed 2026-10-20; the original audit listed the MPL as a third in-scope
+class.)*
 
 Every claim below is tagged **[code]** (read in source, file:line given), **[rerun]** (rebuilt and
 re-run in this audit), **[note]** (stated in a repo note, not re-verified), or **[interp]** (my
@@ -102,7 +105,7 @@ Every other note quoting these numbers inherits the label of its source.
 | **Parametric copula MLE** (Clayton/Gumbel/t/Gaussian) | yes | `parametric_copula.hpp`, `ParametricCopulaMLE` / `copula::CopulaFit` | φ unconstrained; H_t = λH_{t−1} + s_φ² (**outer product of scores**, H₀ = 1); step = clip(s_φ/H_t, ±0.5) (`am:…/parametric_copula.hpp:31-96`) | family grid (λ = 0.99), rank-PIT invariance test | Default input u = Φ(standardised x) (`:194-195, :219-222`). Rank-PIT only if `rank_pit_window > 0` (`am` only). Different information estimate from `GaussianCopulaMLE`. |
 | **Online MPL (ranks)** | partly | `ParametricCopulaMLE` + `RankPit` (`am:…/marginal_rank_pit.hpp:25-43`) | u_t = (#{last ≤500 obs < x_t} + ½)/(n_t + 1), then the recursion above | §9 invariance test only (`gaussian_mle_pit`, 10 seeds, one memory) | **No memory experiment uses a rank-based MPL** (still true on `main` after #10, checked 2026-10-20). Ranks are sequential and windowed, not full-sample R/(n+1). |
 | **Fixed forgetting** | yes, all | per estimator | M = (2−α)/α for all; knob differs (table §2.7) | all | Half-life check confirms M within ±8% for Xiao/Hermite [note]; **unchecked for the MLE**. |
-| **VFF** | yes, 5 *different* rules | Xiao `:206-233`; Hermite `:141-147`; `CopulaFit` `:56-65`; Kalman (out of scope); the Rosenblatt-residual VFF inside `probe_memory_tradeoff.cpp` (probe only, not registered) | see §2.8 and `memory_tradeoff.md` §4 | bank/VFF table (Xiao, Hermite, Kalman); `gaussian_mle_vff` only in one `jump` table; `memory_tradeoff.md` | Not one method: each estimator uses a different surprise signal and clamp. `gaussian_mle_vff` is `ParametricCopulaMLE` (OPG information), so it is not matched to `gaussian_mle_ew`. Registry `xiao_vff` rate is 0.5 (`am:registry.hpp:411`); `adaptive_memory.md` §5.1 says 0.05. |
+| **VFF** | yes, 5 *different* rules | Xiao `:206-233`; Hermite `:141-147`; `CopulaFit` `:56-65`; Kalman (out of scope); the Rosenblatt-residual VFF inside `probe_memory_tradeoff.cpp` (probe only, not registered) | see §2.8 and `memory_tradeoff.md` §4 | bank/VFF table (Xiao, Hermite, Kalman); `gaussian_mle_vff` only in one `jump` table; `memory_tradeoff.md` | Not one method: each estimator uses a different surprise signal and clamp. `gaussian_mle_vff` is `ParametricCopulaMLE` (OPG information), so it is not matched to `gaussian_mle_ew`. Registry `xiao_vff` rate is 0.5 (`am:registry.hpp:411`); the study ran 0.05 and 0.5 (`adaptive_memory.md` §5.1, corrected 2026-10-20). |
 | **Bank** | yes | `am:…/estimator_bank.hpp`, `EstimatorBank` | exponential weights on a squared rank residual, fixed share 0.002 per 20-tick block (`:52-91`) | bank/VFF table (Xiao, Hermite); χ step 2/3b (tail variant); `memory_tradeoff.md` uses two *log-scored* banks built in its probe (§6) | **MLE bank never measured** (still true after #10). Registered `xiao_bank/hermite_bank/mle_bank` use a λ grid (M ≈ 39–1999), not the 7-arm tick grid the study used. |
 | **DGPs** | yes | `dependence.hpp`, `copula.hpp`, `experiments/copula_source.hpp` | knob d_t → target ρ_S = (6/π)asin(d/2) → family parameter by bisection | everything | Margins always exactly N(0,1), stationary. Clayton/Gumbel cannot follow the negative half of `drift`/`oscillate` (clipped). |
 | **Evaluation** | yes | `multiseed.cpp`, `probe_memory.cpp`, `probe_adaptive.cpp`, `tail_*.cpp` | RMSE vs true ρ_S per tick after burn-in; bias²/var decomposition; paired σ; χ: MSE vs χ_t(q), recovery time | — | Three aggregations in use (mean of per-seed RMSE; pooled RMSE; MSE decomposed across seeds). **No regret anywhere** (only a "not relevant" mention in `am:notes/studies/reference_review.md:60`). |
@@ -585,16 +588,26 @@ Three different scales come out of the same weights:
 | Exponential, retention λ (Xiao, both MLEs, the `memory_tradeoff` histogram) | α = 1 − λ | (2 − α)/α = (1 + λ)/(1 − λ) | M = ESS, so λ = 1 − 2/(M + 1) | (1 − α)/α ≈ M/2 |
 | Exponential, update weight λ (Hermite) | α = λ | (2 − λ)/λ | M = ESS, so λ = 2/(M + 1) | (1 − λ)/λ ≈ M/2 |
 | Exponential, *first t ticks* | as above | (1 + λ)(1 − λᵗ)/((1 − λ)(1 + λᵗ)), reaching M only for t ≫ M | M (the steady-state value) | < M/2 |
-| Kalman local level, blocks of B ticks, steady-state gain K | α = K per block | (2 − K)/K blocks | M = B(2 − K)/K ticks | ≈ M/2; its ρ-space step response reads ~27% short on a large step (`memory_sweep.md` §3) |
+| Kalman local level, blocks of B ticks, gain K_t → K | α = K per block, **only once the gain has converged** | (2 − K)/K blocks of the filter's *state*, i.e. B(2 − K)/K ticks | M = B(2 − K)/K ticks — **approximate**: it describes the steady-state filter state, not the ρ̂ readout, whose step response reads ~27% short on a large step (`memory_sweep.md` §3) | ≈ B(1 − K)/K + (B − 1)/2 ≈ M/2, same caveats |
 | Recursive MLE in θ = atanh r | α = 1 − λ on H_t | (2 − α)/α *in θ* [interp, linearisation] | M as for exponential; **not verified in ρ space** | unmeasured |
-| VFF (any rule) | α_t varies | realised ESS of the product weights w_j ∝ α_{t−j}∏_{s>t−j}(1 − α_s); it lags the current setting | reported M_t = (2 − α_t)/α_t: the memory the *current* α_t would have if held fixed | lags too |
-| Bank of K arms with memories M_k, weights π_k | per arm | for a linear statistic, the ESS of the mixed kernel Σ_k π_k α_k(1 − α_k)^j, which is **not** Σ_k π_k M_k | reported M̄ = Σ_k π_k M_k, a descriptive weight-average of arm memories | Σ_k π_k ā_k (this one *is* linear) |
+| VFF (any rule) | α_t varies, learned from the data | kernel ESS of the realised product weights w_j ∝ α_{t−j}∏_{s>t−j}(1 − α_s); it lags the current setting, and like the bank's it describes weights, not estimation variance | reported M_t = (2 − α_t)/α_t: the memory the *current* α_t would have if held fixed | lags too |
+| Bank of K arms with memories M_k, weights π_k | per arm | **kernel-equivalent ESS under fixed bank weights**: 1/Σ_j(Σ_k π_k a_{k,j})² with a_{k,j} = α_k(1 − α_k)^j, the ESS of the mixed observation-weight kernel. It is at least the π-weighted harmonic mean 1/Σ_k(π_k/M_k), and can be far below the average arm memory. It is **not** in general the variance-equivalent ESS of the bank's estimate (see below) | **average arm memory** M̄ = Σ_k π_k M_k, what banks report and plot; a summary of the weights, not an ESS | Σ_k π_k ā_k for the mixed kernel |
+
+The kernel-equivalent ESS describes the combined observation weights when the arms average
+comparable weighted observations and the bank weights are held fixed. It is not, in general, the
+variance-equivalent ESS of the bank's estimate: Xiao's ρ̂ (and the MLEs') is a nonlinear function
+of the weighted data, and the bank weights π_k are learned from the same data.
+
+Illustration of the kernel calculation only: arms at 25 and 8000 ticks with fixed π = ½ each have
+an average arm memory of 4012 ticks, but a kernel-equivalent ESS of about 98 (harmonic-mean bound
+50), because the short arm's heavy recent weights dominate Σ_j w_j². This does not mean such a
+bank's estimate carries 98 observations' worth of information.
 
 So: for a fixed exponential or hard-window scheme at steady state, M and ESS coincide by
 construction and the mean age is about M/2. For a VFF, a bank, the start-up period, or a
 parameter-space recursion they differ, and figures that plot "memory" for those methods are
 plotting M_t or M̄, not an ESS. Xiao's and the MLEs' *estimates* are nonlinear in the weighted
-counts, so the bank row's kernel view is a heuristic for them.
+counts, so the bank row's kernel view describes their weights, not their estimation variance.
 
 Rank-PIT adds a **second, marginal memory**: a hard window of 500 ticks over which the margins are
 ranked, independent of the dependence memory M.
@@ -636,8 +649,9 @@ labelled "VFF" compares one of these, never VFFs in general.
 - **Single tuned fixed memory**: `one_setting` in `probe_adaptive`; the `fixed` control in
   `memory_tradeoff.md` (tuned on jump + drift, 1170 ticks).
 - **RMSE**: against the true ρ_S per tick (§2.10).
-- **ρ score**: squared error against the one-tick proxy p_t; its expectation is minimised by
-  ρ̂ = ρ_S.
+- **ρ score**: squared error against the one-tick proxy p_t; with exact uniform margins its
+  expectation is minimised by ρ̂ = ρ_S (with estimated rank-PIT margins p_t is biased by
+  O(1/N_eff) of the rank window).
 - **Log score**: predictive log density of the next observation. **Excess log loss**: log of the
   true copula density minus log of the predicted density, both at the *true* PIT; its expectation
   is the per-tick KL divergence. Reported ×10⁻³ nats/tick.

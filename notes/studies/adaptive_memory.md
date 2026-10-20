@@ -27,7 +27,8 @@ This note fills the table. The short answer:
   ~150 ticks of the jump and relax back, in near-lockstep (Figure 1). Nothing about that
   behaviour was Kalman-specific.
 - **The RMSE win generalises, but it is small, and it happens on `jump` only.** Xiao −3.3σ,
-  Hermite −2.7σ, Kalman −16.6σ (macOS; on Linux Xiao's is −1.8σ, so treat it as marginal). Everywhere else all three banks *lose* to the oracle.
+  Hermite −2.7σ, Kalman −16.6σ (macOS; on Linux Xiao's is −1.8σ, so treat it as marginal).
+  Everywhere else all three banks *lose* to the oracle.
 - **One incumbent number does not reproduce and should be retracted**: the Kalman bank's
   8.2σ win on `drift` was measured against an under-resolved oracle. Against a properly
   resolved one it is a 7.7σ **loss** (§6).
