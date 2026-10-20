@@ -1,0 +1,344 @@
+<title>Copula V3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --ground:#F2F5F3; --surface:#FFFFFF; --sunk:#E8EDEA;
+  --ink:#0F1917; --muted:#5A6B66; --rule:#D6DFDB;
+  --accent:#0B6B57; --accent-soft:#DCEDE7; --warn:#A8452C; --warn-soft:#F6E6E1;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"IBM Plex Sans Condensed","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0D1312; --surface:#141C1A; --sunk:#101715;
+  --ink:#E6EDEA; --muted:#8FA09B; --rule:#22302D;
+  --accent:#52C4A5; --accent-soft:#12332C; --warn:#E28063; --warn-soft:#33201B;
+}}
+:root[data-theme="dark"]{
+  --ground:#0D1312; --surface:#141C1A; --sunk:#101715;
+  --ink:#E6EDEA; --muted:#8FA09B; --rule:#22302D;
+  --accent:#52C4A5; --accent-soft:#12332C; --warn:#E28063; --warn-soft:#33201B;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--serif);
+  font-size:16.5px;line-height:1.68;margin:0;-webkit-font-smoothing:antialiased}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:56px;
+  max-width:1180px;margin:0 auto;padding:0 32px 120px}
+header.mast{grid-column:1/-1;border-bottom:1px solid var(--rule);
+  padding:56px 0 28px;margin-bottom:44px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+h1.doc{font-family:var(--sans);font-weight:700;font-size:clamp(30px,4.4vw,46px);
+  line-height:1.1;letter-spacing:-.015em;margin:0 0 18px;text-wrap:balance;max-width:20ch}
+.standfirst{font-size:18px;color:var(--muted);margin:0;max-width:62ch}
+.meta{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:26px;
+  font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+nav.rail{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;
+  padding:8px 0 40px;font-family:var(--sans);font-size:13.5px}
+nav.rail .rl{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+nav.rail a{display:block;color:var(--muted);text-decoration:none;padding:3.5px 0;
+  border-left:2px solid transparent;padding-left:12px;margin-left:-14px;line-height:1.35}
+nav.rail a:hover{color:var(--accent);border-left-color:var(--accent)}
+nav.rail a.sub{font-size:12.5px;padding-left:26px;opacity:.78}
+nav.rail a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+article{min-width:0;max-width:72ch}
+article h2{font-family:var(--sans);font-weight:700;font-size:27px;line-height:1.18;
+  letter-spacing:-.01em;margin:64px 0 6px;padding-top:22px;border-top:1px solid var(--rule);
+  text-wrap:balance}
+article h2:first-of-type{margin-top:0;border-top:0;padding-top:0}
+article h3{font-family:var(--sans);font-weight:600;font-size:19.5px;
+  margin:38px 0 4px;letter-spacing:-.005em;text-wrap:balance}
+article h4{font-family:var(--sans);font-weight:600;font-size:16px;margin:26px 0 2px;color:var(--muted)}
+article p{margin:14px 0}
+article a{color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent-soft)}
+article a:hover{border-bottom-color:var(--accent)}
+article ul,article ol{padding-left:22px;margin:14px 0}
+article li{margin:7px 0}
+article hr{border:0;border-top:1px solid var(--rule);margin:44px 0}
+code{font-family:var(--mono);font-size:.855em;background:var(--sunk);
+  padding:.14em .38em;border-radius:3px}
+pre{background:var(--sunk);border:1px solid var(--rule);border-radius:6px;
+  padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.45}
+pre code{background:none;padding:0;font-size:13px}
+blockquote{margin:20px 0;padding:14px 20px;background:var(--surface);
+  border-left:3px solid var(--accent);border-radius:0 5px 5px 0;color:var(--muted)}
+blockquote p{margin:6px 0}
+blockquote strong{color:var(--ink)}
+blockquote.warn,p.warn{border-left:3px solid var(--warn);background:var(--warn-soft);
+  padding:14px 20px;border-radius:0 5px 5px 0;margin:20px 0;color:var(--ink)}
+strong.cite{font-family:var(--mono);font-weight:500;font-size:12.5px;
+  background:var(--accent-soft);color:var(--accent);padding:.16em .48em;
+  border-radius:3px;white-space:nowrap;letter-spacing:-.01em}
+.tw{overflow-x:auto;margin:22px 0;border:1px solid var(--rule);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-family:var(--sans)}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-weight:600;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);background:var(--sunk);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td{font-variant-numeric:tabular-nums}
+td code{font-size:12.5px}
+article img{display:block;width:100%;height:auto;margin:24px 0 8px;
+  border:1px solid var(--rule);border-radius:6px;background:#fff}
+article img + em, article p > em:only-child{display:block;font-family:var(--sans);
+  font-size:13px;color:var(--muted);line-height:1.5;margin:0 0 28px;font-style:normal}
+mjx-container{overflow-x:auto;overflow-y:hidden;max-width:100%}
+mjx-container[display="true"]{margin:20px 0!important}
+.contents{border:1px solid var(--rule);border-radius:8px;background:var(--surface);
+  padding:22px 24px 26px;margin:0 0 52px}
+.contents h2{margin:0 0 16px!important;padding-top:0!important;border-top:0!important;
+  font-size:13px!important;font-family:var(--mono)!important;font-weight:500!important;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:20px 28px}
+.cgroup{display:flex;flex-direction:column;gap:2px;min-width:0}
+a.ctop{font-family:var(--sans);font-weight:600;font-size:14.5px;color:var(--ink);
+  text-decoration:none;border-bottom:0;margin-bottom:3px;text-wrap:balance}
+a.ctop:hover{color:var(--accent)}
+a.csub{font-size:13px;color:var(--muted);text-decoration:none;border-bottom:0;
+  padding-left:11px;border-left:1px solid var(--rule);line-height:1.45}
+a.csub:hover{color:var(--accent);border-left-color:var(--accent)}
+.stub{color:var(--muted);font-family:var(--mono);font-size:12.5px;
+  border-left:2px solid var(--rule);padding:3px 0 3px 14px;margin:14px 0}
+
+@media (max-width:900px){
+  .wrap{grid-template-columns:1fr;gap:0;padding:0 20px 80px}
+  nav.rail{position:static;max-height:none;border-bottom:1px solid var(--rule);
+    margin-bottom:32px;padding-bottom:24px;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0 18px}
+  nav.rail .rl{grid-column:1/-1}
+  nav.rail a.sub{display:none}
+  article{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">Honours thesis &middot; Sally Sun &middot; consolidated results</p>
+    <h1 class="doc">Copula&nbsp;V3</h1>
+    <p class="standfirst">Equations and results only. The full record is Copula V2.</p>
+    <div class="meta"><span>Findings <b>3</b></span><span>Seeds <b>40</b></span><span>Retractions <b>14</b></span></div>
+  </header>
+  <nav class="rail" id="rail"><p class="rl">Contents</p></nav>
+  <article id="doc"></article>
+</div>
+
+<script type="text/markdown" id="src">> **How should an online dependence estimator remember the past when the relationship it is
+> estimating can change?** Xiao and Hermite, Kalman as reference. 40 seeds, $N=5000$.
+> Full record: `copula_v2.md`.
+
+## The trade
+
+$$\mathrm{MSE}(\mathrm{ESS}) \;\approx\;
+\underbrace{\frac{\sigma^2}{\mathrm{ESS}}}_{\text{variance}} +
+\underbrace{\Big(\frac{\dot\theta\,\mathrm{ESS}}{2}\Big)^{\!2}}_{\text{lag bias}},
+\qquad \mathrm{ESS} = \frac{2-\alpha}{\alpha}$$
+
+## One axis
+
+$$K = \frac{\sqrt{q^2+4q}-q}{2},\quad q = \frac{\sigma_\omega^2}{\sigma_v^2}
+\;\Longrightarrow\;
+\hat z_t = (1-K)\hat z_{t-1} + Ky_t,\quad \boxed{\lambda = 1-K}$$
+
+Every fixed-memory estimator **is** a settled Kalman filter. Verified to 5 dp. Without this there is
+no common axis. ⚠️ $\lambda$ is mirror-image: Xiao larger = longer, Hermite smaller = longer.
+
+## 1 — The optimum is set by how fast the truth moves
+
+| scenario | best memory | RMSE |
+| --- | --- | --- |
+| `constant` | **≥30,000** | 0.0154 |
+| `jump` settled | 495 | 0.0199 |
+| `drift` | 235 | 0.0659 |
+| `jump` all | 162 | 0.0801 |
+| `jump` recovery | 53 | 0.0934 |
+| `oscillate` | **36** | 0.1827 |
+
+Variance falls with memory everywhere; **all scenario differences are in bias²**.
+
+**Same run, two stretches: 495 against 53 ticks — 9.4×.** Tuned for one, the other is 2.3× / 3.1×
+worse. No fixed memory serves both.
+
+## 2 — Memory ×2–17. Estimator 3–15%.
+
+Xiao against Hermite at **matched memory**: 3.4–15.4%, $|t| = 3.9$–13.1, 38 of 47 points favour Xiao.
+**Pure variance** — bias² agrees to three figures, Hermite's variance is 1.11–1.63× Xiao's.
+
+> **Memory sets the lag. Representation sets the noise.**
+
+⚠️ Exception — singular density (Fréchet): Hermite 0.0121 → 0.0288, **4.7σ worse**, behind a
+misspecified parametric model. Xiao 0.0128 → 0.0152.
+
+## 3 — Adaptive memory
+
+**VFF** — one estimator, one evolving rate. $e_t$ is the prediction error and $F_t$ the variance the
+model predicted for it, so their ratio has a **known** null value:
+
+$$e_t = y_t - \hat z_{t|t-1}, \qquad F_t = P_{t|t-1} + \sigma_v^2,
+\qquad \mathbb E\Big[\tfrac{e_t^2}{F_t}\Big] = 1 \;\text{ under the model}$$
+
+$$C_t = (1-r)\,C_{t-1} + r\,\frac{e_t^2}{F_t}
+\qquad
+\sigma_\omega^2 \leftarrow \sigma_\omega^2\,C_t^{\,r}
+\;\Longleftrightarrow\;
+\log\sigma_\omega^2 \mathrel{+}= r\log C_t$$
+
+$C_t>1$ ⇒ shorter memory; $C_t<1$ ⇒ longer; $C_t=1$ is the fixed point. **Additive in $\log$, so the
+step is bounded by $r$.** ⚠️ $r$ is both the smoothing rate and the step size — one knob, two jobs.
+
+**Bank** — $K$ copies at memories $\mathrm{mem}_1\dots\mathrm{mem}_K$, weights summing to 1, where
+$L_k = p(y_t \mid \text{memory }k,\, y_{1:t-1})$ is the density copy $k$ gave $y_t$ **before** seeing it:
+
+$$w_k \leftarrow \frac{w_k\,L_k}{\sum_j w_j\,L_j}
+\qquad\text{then}\qquad
+w_k \leftarrow (1-p)\,w_k + \frac{p}{K}$$
+
+$$\hat\rho_t = \sum_k w_k\,\hat\rho^{(k)}_t,
+\qquad
+\overline{\mathrm{mem}}_t = \sum_k w_k\,\mathrm{mem}_k$$
+
+**Multiplicative, so the step is unbounded**: normalisation fixes $\sum_k w_k = 1$ but the *ratio*
+$w_i/w_j$ is multiplied by $L_i/L_j$, which has no bound. One bad prediction can annihilate an arm.
+That is the whole adaptation mechanism — no rule anywhere says "shorten the memory when something
+changes". The mixing step is what lets an annihilated arm recover; without it the memory could
+collapse and never return. $\overline{\mathrm{mem}}_t$ is what is plotted below.
+
+| | step size | consequence |
+| --- | --- | --- |
+| VFF | bounded by $r$ | moves a set amount per observation, whatever it sees |
+| bank | unbounded in $L_i/L_j$ | one observation can overturn the belief |
+
+**Memory collapse at the jump**, three unrelated estimators:
+
+| Xiao | Hermite | Kalman |
+| --- | --- | --- |
+| 800 → 55 (**14.7×**) | 785 → 62 (12.6×) | 923 → 46 (20×) |
+
+No detector, no threshold, no reset.
+
+**Against one fixed memory for all scenarios: 12 of 12 cells, 25–65%.**
+**Against a per-scenario oracle: `jump` only** — the one scenario whose dynamics change mid-run
+(−3.3σ, −2.7σ, −16.6σ). Elsewhere it loses 8.9–21.7σ.
+
+⚠️ **VFF is not slow — it is unpredictable.** Collapse ranges 1.00× to 74.7× across settings of one
+knob, and the hardest collapse has the *worst* `jump` RMSE. It replaces "choose a memory" with
+"choose a rate", and no rate suits both regimes. The bank needs no such choice.
+
+⚠️ Bank storage: **52 KB** (Xiao) against 736 B (Kalman). The device generalises; its cheapness
+does not.
+
+## Retracted: 14
+
+Two from this work. **R13** — the bank's 8.2σ `drift` win: the oracle's grid was too coarse to
+contain the optimum, so it **loses by 7.7σ**. **R14** — a VFF "win" whose measured collapse is
+**1.00×**: a fixed memory wearing an adaptive label.
+
+</script>
+<script>
+window.MathJax={tex:{inlineMath:[["$","$"]],displayMath:[["$$","$$"]],processEscapes:true},
+  svg:{fontCache:"global"},
+  options:{skipHtmlTags:["script","noscript","style","textarea","pre","code"]},
+  startup:{typeset:false}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js" id="MathJax-script"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script>
+(function(){
+  var md = document.getElementById("src").textContent;
+
+  // Protect math from markdown mangling (underscores would become emphasis).
+  // Fenced code is NOT stashed - marked has to see it to emit <pre>, or the
+  // whitespace in the ASCII diagrams collapses. Split on fences so the math
+  // patterns only ever run over prose.
+  var store = [];
+  function keep(m){ store.push(m); return "@@KEEP" + (store.length - 1) + "@@"; }
+  md = md.split(/(```[\s\S]*?```)/g).map(function(part, i){
+    if (i % 2 === 1) return part;              // a fenced block - leave it alone
+    return part.replace(/\$\$[\s\S]*?\$\$/g, keep)
+               .replace(/\$[^$\n]+\$/g, keep);
+  }).join("");
+
+  function slug(t){
+    return t.toLowerCase().replace(/<[^>]+>/g,"").replace(/[^\w\s-]/g,"")
+            .trim().replace(/\s+/g,"-");
+  }
+
+  var toc = [];
+  var r = new marked.Renderer();
+  r.heading = function(text, level){
+    var plain = text.replace(/<[^>]+>/g,"").replace(/@@KEEP\d+@@/g,"").trim();
+    var id = slug(plain);
+    if (level === 2 || level === 3) toc.push({id:id, text:plain, level:level});
+    return "<h" + level + ' id="' + id + '">' + text + "</h" + level + ">";
+  };
+  marked.setOptions({renderer:r, headerIds:false, mangle:false, gfm:true});
+
+  var html = marked.parse(md);
+  html = html.replace(/@@KEEP(\d+)@@/g, function(_, n){ return store[+n]; });
+
+  var doc = document.getElementById("doc");
+  doc.innerHTML = html;
+
+  doc.querySelectorAll("table").forEach(function(t){
+    var w = document.createElement("div");
+    w.className = "tw";
+    t.parentNode.insertBefore(w, t);
+    w.appendChild(t);
+  });
+
+  doc.querySelectorAll("strong").forEach(function(s){
+    if (/^\[.+\]$/.test(s.textContent.trim())) s.className = "cite";
+  });
+
+  // Only the OUTERMOST element gets .warn. A <p> inside a warning blockquote
+  // would otherwise draw its own bordered background inside the blockquote's.
+  doc.querySelectorAll("blockquote, p").forEach(function(el){
+    if (el.textContent.trim().charAt(0) !== "⚠") return;
+    if (el.tagName === "P" && el.closest("blockquote")) return;
+    el.classList.add("warn");
+  });
+
+  // A contents CARD at the top, not only the side rail: this document is read
+  // cold after weeks away and "what is in it" is the first question.
+  var conts = document.createElement("section");
+  conts.className = "contents";
+  var ch = document.createElement("h2");
+  ch.textContent = "Contents"; ch.id = "contents";
+  conts.appendChild(ch);
+  var grid = document.createElement("div");
+  grid.className = "cgrid";
+  var cur = null;
+  toc.forEach(function(h){
+    if (h.level === 2) {
+      cur = document.createElement("div");
+      cur.className = "cgroup";
+      var a = document.createElement("a");
+      a.href = "#" + h.id; a.className = "ctop"; a.textContent = h.text;
+      cur.appendChild(a);
+      grid.appendChild(cur);
+    } else if (cur) {
+      var b = document.createElement("a");
+      b.href = "#" + h.id; b.className = "csub"; b.textContent = h.text;
+      cur.appendChild(b);
+    }
+  });
+  conts.appendChild(grid);
+  doc.insertBefore(conts, doc.firstChild);
+
+  var rail = document.getElementById("rail");
+  toc.forEach(function(h){
+    var a = document.createElement("a");
+    a.href = "#" + h.id;
+    a.textContent = h.text;
+    if (h.level === 3) a.className = "sub";
+    rail.appendChild(a);
+  });
+
+  if (window.MathJax && window.MathJax.typesetPromise) {
+    window.MathJax.typesetPromise([doc]);
+  }
+})();
+</script>

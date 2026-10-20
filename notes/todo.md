@@ -51,6 +51,16 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   - *Assumes synchronous producers* (one tick per symbol per step, same order) so arrival-order
     pairing is exact. **Async / multi-rate legs deferred** — will need timestamp/sequence
     alignment instead of FIFO, and `--rate` throttling can desync the legs today.
+  - ✅ **Offline async study** (`experiments/async_memory.cpp`, `notes/studies/async_memory.md`):
+    refresh-time pairing (Chakrabarti & Sen 2022) on a latent Gaussian stream, 5 memory-knob
+    estimators × memory grid × 5 arrival settings, 20 seeds. Matched-rate sync obeys
+    $M^*_\text{clock}\propto f^{-1/3}$ (±10%); naive async pairing is a 1.3–2× RMSE bias problem
+    no memory choice fixes; the overlap correction removes the bias and shifts
+    $M^*\propto f^{-1/3}\bar c^{-2/3}$. ⬜ Phase 2: liquidity-change scenario (spurious dependence
+    change / detector false alarms); ✅ drift toward/away from zero (sign argument confirmed in both mirror pairs);
+    ✅ state-dependent noise diagnostic (measured $v_j(\rho)$ halves corrected-arm error; the
+    toward-zero "breakdown" was a `hermite_ew` startup bug); ⬜ fix `HermiteEstimator` EW startup
+    (weight $\max(\lambda,1/n)$); ⬜ then timestamp pairing in the consumer.
   - *Next: a multi-symbol DGP* — routing + pairing are in place, but the synthetic source still
     emits a single correlated pair (published as its two legs).
 - ✅ **Throttled subscriptions.** `SUBSCRIBE <topic> [max_hz]` (consumer flag `--rate N`)
@@ -333,16 +343,58 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   complement the Spearman-rho comparison above — rho_S can't see the very thing (tail behaviour)
   that actually distinguishes Clayton/Gumbel/t from Gaussian, so the misspecification RMSE gaps
   measured are likely a lower bound on the real difference.
+- ⬜ **Online adaptive memory for $\chi$ — the thesis deliverable**
+  ([oracle_memory.md](studies/oracle_memory.md)). Known-changepoint soft restart is the *oracle*
+  ($\gamma^*=1/(1+Z^2)$, derived, checked numerically); the method is an online rule that
+  estimates the evidence $Z$ from the stream and maps it to retention continuously. Build order:
+  1. Streaming $\hat\chi(q)$ estimator with an online $SE$ (depends on the tail-dependence item
+     above). **Contract decision needed first:** `estimate()` is defined to return Spearman $\rho$
+     (CLAUDE.md) — $\chi$ needs either a second method or a separate interface, not a silent
+     redefinition.
+  2. $\chi$-changing scenarios (Clayton/Gumbel/$t$; Gaussian has $\chi\equiv0$) with true $\chi_t$
+     in the CSV.
+  3. Oracle $\gamma^*$ baseline (knows $\tau$, $\Delta\chi$) — the ceiling. Port the existing
+     out-of-repo oracle code here; check measured optimum against $1/(1+Z^2)$.
+  4. Online $\hat\gamma_t$ rule with re-anchoring + null calibration (oracle_memory.md §4.1 traps
+     1–2: naïve map loses ~⅓ of memory per quiet tick; per-tick discounts compound).
+  5. Baselines: fixed λ (swept), VFF, one detect-and-hard-restart. All through `./multiseed`.
+  ➖ More changepoint detectors — out of scope; CUSUM/GLR/BOCPD on $\rho_S$ stay as prior work.
 - ⬜ **Same-rho_S, different-shape changepoint scenario** — now unlocked by the `Copula`
   abstraction (switch family mid-stream at constant target rho_S): the roadmap distinction #1
   case a scalar rho detector structurally cannot see. Also unlocks the tail-asymmetry
   pairs-trading angle (roadmap `application_2.md`).
-- ⬜ **rank-PIT** transform for non-Gaussian real marginals (currently online standardization,
-  exact only for Gaussian; the parametric copula estimators inherit this marginal convention).
+- ➖ **rank-PIT** — built for Hermite (`hermite_pit`) and the copula MLEs (`gaussian_mle_pit`)
+  2026-09-08, exactly invariant to monotone marginal change; the Kalman channel never needed
+  it. **Xiao converted 2026-09-13** (`xiao_pit`, optional `rank_pit_window` on the config).
+  Quantile binning was *already* exactly invariant to a static monotone map, so the win is
+  elsewhere: the frozen cutpoints are corrupted **permanently** by a marginal shift arriving
+  after calibration — rho-hat locks at −0.95 against a truth of +0.58 — and rank-PIT recovers
+  within one window. Free on RMSE (≤0.2σ on every scenario tried), 5.2× the store.
+  §14.19 of `studies/kalman_changepoint_results.md`.
+  Still ➖ overall: the `_pit` variants are additions, not replacements — §5–§8 and the live
+  consumer still run standardization / frozen cutpoints; the 500 window is inherited, not
+  tuned; no detector wraps a `_pit` estimator.
 - ➖ Estimating the Student-t **degrees of freedom** nu online — left as a fixed hyper-parameter;
   online nu estimation is a separate problem, not needed for the misspecification comparison.
 
 ### Experiments / device
+- ✅ **Online tail dependence, step 1: stationary validation** (`experiments/tail_validate.cpp`,
+  `notes/studies/tail_dependence.md`). Gaussian / Clayton / Gumbel / $t_4$ at matched $\rho_S=0.58$,
+  copula space. Finite-threshold $\chi(q)-\lambda$ dominates (Gaussian reads 0.19 at $q=.01$ with
+  $\lambda=0$); estimators unbiased vs own target, ratio form least noisy; noise is exactly
+  binomial thinning, $\mathrm{Var}\approx\chi(1-\chi)/(qm)$; Gaussian → $t$ needs memory ≈ 5000
+  for SNR 3, which explains `tail_cusum`'s 0/20 in §14.13. ✅ Step 2 (`experiments/tail_change.cpp`):
+  oracle restart beats best fixed memory 1.6–6× on Clayton/Gumbel switches but *loses* to it on
+  Gauss → $t$ (0.77–0.99); the bank sits near best fixed; $M^*=\sqrt{4V/(q\Delta(q)^2)}$ fits all 40
+  cells to ±9 %, pure $q^{-1/2}$ falsified. ✅ Step 3a: Clayton–Gumbel mixture
+  feasibility (`experiments/tail_mixture.cpp`) — $\rho_S$ and $\chi$ exactly linear, $\tau$ not;
+  $\lambda_L+\lambda_U$ pinned to ≈ 0.50–0.61 at $\rho_S=.58$; equal-component path (only $\pi$ moves)
+  recommended. ✅ Step 3b: soft-restart oracle
+  (`experiments/tail_soft.cpp`) — best soft restart beats best fixed memory in all 48 cells (5–20 % on
+  the smallest change, up to 5× on the largest) and beats hard restart on every non-extreme change;
+  optimal retained old evidence follows $n_0^*=v_\text{post}/\Delta\chi^2$ events (slope 1.03,
+  $R^2=0.98$; post hoc, checked on fresh seeds). ⬜ Detection + estimated $\Delta\chi$ to approach the
+  soft oracle; rank-based margins; tail-structure drift.
 - ✅ **Multi-seed replication + error bars**, for the Kalman/CUSUM/GLR/BOCPD line
   (`experiments/multiseed.cpp`, run: `make multiseed && ./multiseed <scenario> [n_seeds] [base_seed]`,
   default 10 seeds; run at 20 for the numbers cited in this file). Same keys/scenarios/$N$/burn-in
@@ -410,3 +462,177 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   item) and on any resulting delay number.
 - ⬜ Decide whether to keep the `StateManager` moments (now inside `DeviceState`) exposed, or
   slim the device to buffer + copula inference only.
+
+### References to acquire (sequential analysis)
+- ⬜ **Acquire and cite the primary sequential-analysis sources.** Every detector in
+  `registry.hpp` — CUSUM, GLR, SR, EWMA chart, BOCPD — currently traces to no entry in
+  `sallysun-honours/bibliography.bib`, and the reference list in §12 of
+  [kalman_changepoint_results.md](studies/kalman_changepoint_results.md) is explicitly from
+  memory. Priority order, most load-bearing first:
+  - **Lorden (1971)**, *Procedures for reacting to a change in distribution*, Ann. Math. Statist.
+    — the minimax criterion CUSUM is optimal for: worst case over change time **and** over
+    pre-change history, $\sup_\nu \operatorname{ess\,sup} E_\nu[(T-\nu+1)^+ \mid \mathcal F_{\nu-1}]$
+    subject to $E_\infty[T]\ge\gamma$. Cite for `kalman_cusum`.
+  - **Pollak (1985)**, *Optimal detection of a change in distribution*, Ann. Statist. — replaces
+    Lorden's inner ess-sup with a conditional average, $\sup_\nu E_\nu[T-\nu \mid T\ge\nu]$;
+    Shiryaev–Roberts is asymptotically optimal for it. Cite for `kalman_sr`.
+    **These two are why `kalman_cusum` vs `kalman_sr` is a comparison of optimality criteria,
+    not of algorithms** — same likelihood-ratio recursion, max over $\nu$ vs sum over $\nu$.
+  - **Page (1954)**, *Continuous inspection schemes*, Biometrika — CUSUM itself.
+  - **Moustakides (1986)**, Ann. Statist. — CUSUM is *exactly*, not just asymptotically,
+    Lorden-optimal.
+  - **Shiryaev (1963)** — the SR statistic's Bayesian origin.
+  - **Roberts (2000/1959)**, *Control Chart Tests Based on Geometric Moving Averages* — the EWMA
+    chart implemented in `kalman_ewma_chart`. **Already in Zotero**, uncited.
+  - **Adams & MacKay (2007)** — BOCPD; the one reference already cited from the paper itself.
+  ⚠️ Volumes, pages and years above are from memory and must be checked against a bibliographic
+  database before entering `bibliography.bib`.
+- ⬜ **Adaptive-forgetting / VFF literature**, promoted by the §11 reset-cost finding: the fix
+  candidate (inflate state covariance on alarm rather than clearing state) is standard there.
+  Haykin, *Adaptive Filter Theory*; the Paleologu et al. variable-forgetting-factor RLS line.
+
+### Fisher scoring for the copula MLEs — efficiency
+Both are $O(1)$ and neither changes the estimator's interface. Current update in
+`parametric_copula.hpp`:
+```cpp
+info_ = decay * info_ + score_phi * score_phi;   // empirical Fisher
+double step = score_phi / info_;
+step = std::clamp(step, -kMaxStep, kMaxStep);
+```
+- ⬜ **Use the expected Fisher information, not the squared score.** `score_phi * score_phi`
+  is the *observed* information from a single observation — a very noisy curvature estimate.
+  The Gaussian copula's expected information is closed-form; deriving it for Clayton/Gumbel is
+  the work. Better-conditioned steps at no runtime cost. This is exactly what
+  **Pereira, Costa & Gonçalves (2026)** ✓ do — they replace observed information with a
+  bootstrap approximation of the expected one and report better standard errors and numerical
+  stability in small samples. Their method is batch, but the *motivation* transfers directly.
+- ⬜ **Polyak–Ruppert averaging.** Keep a running mean of $\phi$ alongside $\phi$ itself and
+  report the mean. One extra accumulator, recovers the MLE's asymptotic efficiency, and permits
+  a larger step size than the raw iterate would tolerate.
+- ⬜ **Replace the `kMaxStep` clamp with a damped or trust-region step.** The clamp is a safety
+  hack that works; a trust region does the same job with a justification, and would not need
+  re-tuning per family.
+- ➖ Not worth doing: the update is already $O(1)$ per tick, so there is no *computational*
+  efficiency to recover — these are all statistical-efficiency changes.
+
+### Done 2026-09-07/08 — see [code changes 2026-09-08](code_changes/code%20changes%202026-09-08.md)
+- ✅ **VFF** for Kalman, Hermite and the copula MLEs.
+- ✅ **Particle filter**, **EKF**, **UKF** — layer 2 complete except Xiao's marginals.
+- ✅ **ARL₀ calibration** for all six detectors; `kalman_ewma_chart` moved to $L=2.5$.
+- ✅ **The reset is the whole cost.** No-op `reset()` returns RMSE to exactly `kalman_fast`;
+  covariance inflation is free everywhere and beats no detector on `oscillate`.
+- ✅ **Registry invariant guarded both ways**, and `multiseed` prints σ-from-best.
+
+### Done 2026-09-08 (second pass) — the controls
+- ✅ **Inflation factor swept**, and ⚠️ **the `oscillate` win retracted**. Monotone and
+  saturating (×2 → ×50: 0.3130 → 0.3055), but a blind clock (0.2580) and a plain filter at
+  a larger `sigma_omega2` (0.2256) both beat it. §14.8.
+- ✅ **`sigma_omega2` swept** — never done before, and it moves RMSE ~4× more than any
+  detector. Best value differs per scenario over 2.5 orders of magnitude; `kalman_vff` beats
+  the best *fixed* value on `drift` with no oracle. §14.8b.
+- ✅ **MLE score-CUSUM** — 20/20 on `jump` at matched ARL₀ against the Kalman detectors'
+  17–19/20, same delay, half the SE. Paired with information deflation it beats the best
+  fixed λ by 5.0σ **and passes both controls**. The first detector that earns its keep. §14.10.
+- ✅ **`hermite_cusum` baseline fixed** (frozen Phase-I). RMSE damage gone, detection power
+  still zero (0/20). The two-timescale replacement is 32× slower than the score-CUSUM. §14.11.
+
+### Done 2026-09-08 (third pass) — off-family, shape, and the nonparametric detectors
+- ✅ **Score-CUSUM off-family.** Detection survives (20/20 on all four DGPs), calibration does
+  not — 2.7× too many alarms on t. Cause measured: Var[score]/I goes 0.93 → 2.20. Fixed with
+  the sandwich correction (one EWMA); one threshold now holds on all four. §14.12.
+- ✅ **Shape-change DGP** (`shape`: Gaussian → t(4), ρ flat to 5 dp, tail 0 → ~0.3). Nothing
+  detects it. `hermite_cusum2` **0/20 on the change it was built for**. The only arm with power
+  is `gaussian_mle_cusum` (17/20) and it works by misspecification sensitivity — which §14.12's
+  robust fix cuts to 10/20. §14.13.
+- ✅ **Score-CUSUM for Xiao and Hermite** via a per-tick rank residual — no likelihood needed.
+  `xiao_cusum` 20/20 with **zero** false alarms. CUSUM column of §0.3's matrix closed. §14.14.
+
+### Open, in priority order
+- ⬜ **Throughput vs arrival rate: which estimators drop data, and what it costs them.**
+  Everything measured so far assumes every tick is processed. The live pipeline
+  (`src/consumer/`) has no such guarantee — if events arrive faster than `update()` runs, the
+  ring buffer overwrites and the estimator silently sees a *thinned* stream. No result in
+  `kalman_changepoint_results.md` accounts for that, and the throughput spread is **74×**:
+
+  | | bytes | ticks/sec |
+  | --- | --- | --- |
+  | `gaussian_mle_ew` | 144 | 5,958,854 |
+  | `kalman_fast` | 512 | 4,571,357 |
+  | `kalman_bank_sticky` | 736 | 3,581,713 |
+  | `xiao_ew` | 3,824 | 1,897,512 |
+  | `hermite_ew` | 1,192 | 1,007,929 |
+  | `mle_bank` | 17,208 | 548,548 |
+  | `hermite_bank` | 22,448 | 69,139 |
+  | `xiao_bank` | 35,608 | 48,380 |
+
+  **Why it matters more than it looks.** A single liquid pair ticks at 10–1000/s, so even the
+  slowest row copes. The budget binds through the number of *pairs*: $d$ assets is $d(d-1)/2$
+  pairs sharing one core, so 100 assets is 4950 pairs and `xiao_bank` gets **10 ticks/sec each**.
+  That is the constraint the `application_2.md` vine track runs straight into.
+
+  **The experiment.** Add a `--max-rate` / drop-on-overflow mode to the harness, sweep the
+  arrival rate against each estimator's measured throughput, and plot RMSE vs rate. Hypotheses
+  worth separating:
+    1. Thinning is *benign* for rank-based estimators — a thinned sample of an i.i.d. stream is
+       still i.i.d., so Xiao/Hermite should degrade only through reduced effective sample size.
+    2. Thinning is *not* benign for anything with a block or a memory in TICKS rather than in
+       time — `block = 20` becomes 20 *surviving* ticks spanning a much longer window, so the
+       Fisher-transform variance $1.06/(m-3)$ stays right but the lag doubles, and every
+       forgetting rate silently lengthens. That would hit the Kalman line and the banks.
+    3. Dropping is not random — it is bursty and correlated with volatility, i.e. exactly when
+       dependence is changing. That breaks the i.i.d. assumption under 1 and is the interesting
+       case.
+  **This reframes the whole efficiency↔adaptation question as a budget constraint:** an
+  estimator 20% more accurate but 74× slower is *worse* in production if it sees 1/74 of the
+  data. None of the RMSE tables in the results doc price that.
+
+- ⬜ **Monitor tail dependence directly.** §14.13 is the one change nothing detects, and the
+  statistic that projects onto it has never been tried — $\hat\lambda_L$ over a window, the
+  §14.10 lesson applied to a different direction. Highest value: it is an open gap with a
+  known-good method for closing it.
+- ⬜ **Decide the misspecification question.** §14.13 shows robustness to a wrong family and
+  detection of a changing family are one statistic with opposite signs. Running both
+  accumulators at different rates would give both; untested.
+- ⬜ **Why `hermite_scusum` is erratic** (185 ± 92 vs Xiao's 71 ± 5 on the same statistic).
+- ✅ **Memory sweep: bias²/variance against effective memory in ticks**
+  (`experiments/probe_memory.cpp`, `notes/studies/memory_sweep.md`, 40 seeds). Puts `xiao_ew`,
+  `hermite_ew` and `kalman` on one memory axis (ESS = (2−α)/α ticks, ×20 for the Kalman's block)
+  and decomposes RMSE. **Memory is worth ×2–×17 in RMSE; the estimator choice at matched memory
+  is worth 3–15 %.** The optimum moves from 36 ticks (`oscillate`) to past 30 000 (`constant`);
+  on `jump` it is 53 ticks in the recovery window and 495 in the settled one — a factor of 9.4,
+  costing 2.3–3.1× whichever way a single fixed λ is set. Three findings worth acting on:
+  **(a)** the Xiao–Hermite gap is pure variance (Hermite's is 1.11–1.63× Xiao's at matched
+  memory), so the representation costs efficiency, not bias; **(b)** `hermite_ew` has **no EWMA
+  initialisation debiasing**, so any λ ≲ 0.002 at N = 5000 measures warm-up, not memory —
+  `hermite_bank`'s longest arm (λ = 0.001) is already at that edge; **(c)** the Kalman's memory
+  is floored at one block, so `σ_ω²` above ~0.03 at `block = 20` is a dead knob.
+- ✅ **Does adaptive memory generalise past the Kalman?** (`experiments/probe_adaptive.cpp`,
+  `notes/studies/adaptive_memory.md`, 40 seeds, memory-matched arm grids in ticks). **The
+  mechanism generalises completely** — the Xiao, Hermite and Kalman banks all collapse memory
+  13–20× at a jump and relax back, in near-lockstep. **The RMSE win against the per-scenario
+  oracle generalises only on `jump`** (Xiao −3.3σ, Hermite −2.7σ, Kalman −16.6σ); all three lose
+  on `constant`, `drift` and `oscillate`. Against a single fixed setting used everywhere the
+  banks win **12 of 12, by 25–65 % RMSE**, which is the claim that needs no oracle.
+  ⚠️ **§14.16's 8.2σ `drift` win is retracted**: §14.8b's `σ_ω²` grid stopped at 1e-3, so its
+  "oracle" was 30 % too weak; against a properly resolved one the bank loses by 7.7σ. Cost:
+  `xiao_bank` is 52 KB against `kalman_bank`'s 736 B — the device generalises, its cheapness
+  does not.
+- ✅ **Debias `hermite_ew`'s EWMA start** — divide by `1 − (1−λ)^t`, as Xiao's scale-invariant
+  ratio does implicitly. Added as `HermiteEstimator::Config::debias`, **off by default** so no
+  registered number moves. It changes the *oracle*: raw Hermite's `constant` optimum is a
+  warm-up artifact at 341 ticks (0.0416); debiased it is 30 000 ticks (0.0195), matching Xiao.
+  ⬜ Still open: turning it on by default, which needs its own multiseed run.
+- ⬜ **Learn the forgetting rate properly.** §14.8b makes it the highest-value knob and
+  `kalman_vff` is one heuristic. Ties to the roadmap's "ultimate estimator". `memory_sweep.md`
+  §6.1 now quantifies the prize: 2.3–3.1× on the `jump` sub-windows. `xiao_vff` now exists
+  (rank residual over its known null scale, `adaptive_memory.md` §5) and confirms the shape of
+  the answer: a VFF *integrates* surprise where a bank *re-weights* on it, so the VFF barely dips
+  at a jump and the bank drops 15×. Banks, not VFFs.
+- ⬜ **Re-specify `xiao_bank` / `hermite_bank` / `mle_bank` in ticks.** They carry λ grids
+  (memory 39 → 1999), which is neither matched to `kalman_bank` (22 → 999) nor warm for Hermite
+  at the long end. Nothing has been measured on them; don't quote them until they are fixed.
+- ⬜ **Per-arm predictive variance in `EstimatorBank`.** It scores arms with a variance shared
+  across arms, where `KalmanBank` uses `F_k` per arm and gets the log-determinant term. Candidate
+  explanation for the Kalman bank's `jump` win being 5× the Xiao bank's. `adaptive_memory.md` §11.
+- ⬜ **Rank-PIT for Xiao**, the last layer-1 gap.
+- ⬜ **Why expected information reduces variance 5–9×.** Three hypotheses tested, all failed.

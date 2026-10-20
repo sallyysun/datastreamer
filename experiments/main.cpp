@@ -40,6 +40,8 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (!check_registry()) return 1;
+
     const std::size_t N = 5000;
     const unsigned seed = 42;
     const std::size_t burn = 500;  // steps to skip before scoring

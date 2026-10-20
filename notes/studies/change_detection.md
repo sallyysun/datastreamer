@@ -440,6 +440,11 @@ with Harrison-Stevens / IMM soft-mixing sitting in between. The roadmap currentl
 competing options (#1 vs #2 of "the ultimate streaming estimator"); they are the same architecture,
 which is both a cleaner story and less to build.
 
+The dial has a closed-form optimum when the change is known: an oracle soft restart that
+retains $\gamma^*=1/(1+Z^2)$ of the old precision, $Z=|\Delta|/SE_0$ — i.e. a one-shot process-noise
+impulse $q_\tau=\Delta^2$. Derivation and the oracle-vs-online framing:
+[oracle_memory.md](oracle_memory.md).
+
 ---
 
 # Part VI — Evaluation

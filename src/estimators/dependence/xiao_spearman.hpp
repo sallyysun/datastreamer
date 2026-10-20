@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "estimator.hpp"
+#include "marginal_rank_pit.hpp"
 
 // Streaming empirical-copula estimator of Spearman's rho (the "Xiao" branch).
 //
@@ -29,6 +30,11 @@
 //   * lambda > 0  : exponential forgetting  (counts *= lambda each step)
 //   * window > 0  : hard sliding window      (oldest cell decremented)
 //   * otherwise   : cumulative               (all history)
+//
+// rank_pit_window > 0 replaces the calibrated cutpoints with rank-PIT: each
+// marginal goes through RankPit, so the cutpoints are exactly k/bins and no
+// calibration window is needed. Section 14.19 of
+// notes/studies/kalman_changepoint_results.md.
 class XiaoSpearmanEstimator : public DependenceEstimator {
 public:
     struct Config {
@@ -36,6 +42,21 @@ public:
         std::size_t window = 0;       // >0: hard sliding window
         double lambda = 0.0;          // in (0,1): retention factor; overrides window
         std::size_t calibration = 300;
+        std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
+
+        // Variable forgetting, driven by the section 14.14 rank residual
+        //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
+        // over its KNOWN null variance (see vff_step). C_ then tracks E[e~^2],
+        // which is 1 when the memory is right -- the same statistic and the same
+        // multiplicative rule as KalmanLocalLevel's vff_rate. Mirror image: here
+        // it drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda.
+        // See notes/studies/adaptive_memory.md.
+        double vff_rate = 0.0;             // 0 disables
+        std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
+        double vff_null_var = 1.0;         // section 14.14 measured 0.92-1.00
+        std::size_t vff_pit_window = 500;
+        double vff_mem_min = 25.0;         // clamps, in ticks of effective memory
+        double vff_mem_max = 1000.0;
     };
 
     XiaoSpearmanEstimator(Config config, const char* name)
@@ -43,11 +64,22 @@ public:
           name_(name),
           counts_(config.bins * config.bins, 0.0),
           row_counts_(config.bins, 0.0),
-          col_counts_(config.bins, 0.0) {
-        calibration_.reserve(config.calibration);
+          col_counts_(config.bins, 0.0),
+          pit_x_(config.rank_pit_window),
+          pit_y_(config.rank_pit_window) {
+        if (config_.rank_pit_window > 0) {
+            use_uniform_cutpoints();
+        } else {
+            calibration_.reserve(config_.calibration);
+        }
     }
 
     void update(double x, double y) override {
+        if (config_.vff_rate > 0.0) vff_step(x, y);
+        if (config_.rank_pit_window > 0) {
+            insert(pit_x_.transform(x), pit_y_.transform(y));
+            return;
+        }
         if (!calibrated_) {
             calibration_.emplace_back(x, y);
             if (calibration_.size() >= config_.calibration) {
@@ -104,23 +136,60 @@ public:
         total_ = 0.0;
         calibrated_ = false;
         calibration_.clear();
-        calibration_.reserve(config_.calibration);
+        lambda_ = config_.lambda;
+        vff_pit_x_.reset();
+        vff_pit_y_.reset();
+        vff_c_ = 1.0;
+        vff_sum_ = 0.0;
+        vff_raw_sum_ = vff_den_sum_ = 0.0;
+        vff_in_block_ = 0;
+        vff_blocks_ = 0;
+        if (config_.rank_pit_window > 0) {
+            pit_x_.reset();
+            pit_y_.reset();
+            use_uniform_cutpoints();
+        } else {
+            calibration_.reserve(config_.calibration);
+        }
     }
 
     std::size_t store_bytes() const override {
         return (counts_.size() + row_counts_.size() + col_counts_.size()) * sizeof(double)
              + (cuts_x_.size() + cuts_y_.size()) * sizeof(double)
              + window_.size() * sizeof(BinPair)
-             + calibration_.capacity() * sizeof(std::pair<double, double>);
+             + calibration_.capacity() * sizeof(std::pair<double, double>)
+             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0)
+             + (config_.vff_rate > 0.0 ? vff_pit_x_.store_bytes() + vff_pit_y_.store_bytes() : 0);
     }
 
     const char* name() const override { return name_; }
+
+    // Ablation hooks (probe_vff_norm.cpp): swap the VFF's null scale per tick and
+    // read back the controller's per-block state.
+    void set_vff_null_var(double v) { config_.vff_null_var = v; }
+    double vff_c() const { return vff_c_; }
+    double vff_last_ms() const { return vff_last_ms_; }
+    double vff_last_denom() const { return vff_last_denom_; }
+
+    double effective_memory_ticks() const {
+        const double alpha = 1.0 - lambda_;
+        return (alpha > 0.0) ? (2.0 - alpha) / alpha : 0.0;
+    }
 
 private:
     struct BinPair {
         std::uint16_t i;
         std::uint16_t j;
     };
+
+    void use_uniform_cutpoints() {
+        cuts_x_.resize(config_.bins - 1);
+        for (std::size_t k = 1; k < config_.bins; ++k) {
+            cuts_x_[k - 1] = static_cast<double>(k) / static_cast<double>(config_.bins);
+        }
+        cuts_y_ = cuts_x_;
+        calibrated_ = true;
+    }
 
     void build_cutpoints() {
         std::vector<double> xs, ys;
@@ -142,6 +211,41 @@ private:
         }
     }
 
+    void vff_step(double x, double y) {
+        // Residual against the estimate held BEFORE this observation is absorbed.
+        const double rho_hat = estimate();
+        const double u = vff_pit_x_.transform(x);
+        const double v = vff_pit_y_.transform(y);
+        if (vff_pit_x_.size() < 30) return;
+        const double p = 12.0 * (u - 0.5) * (v - 0.5);
+        const double s = p - rho_hat;
+
+        // Fixed null scale, not an estimated one. An EWMA of s^2 chases the very
+        // lag the VFF exists to remove (14.11's trap); E[p^2] - rho_hat^2 biases
+        // the other way, since rho_hat is the lagging quantity. Section 14.14
+        // measured Var(s) at 0.92-1.00 across the whole rho range, so 1 is a
+        // KNOWN scale to within 8% and nothing has to be estimated. This is the
+        // nonparametric stand-in for the Kalman's F.
+        vff_sum_ += s * s / config_.vff_null_var;
+        vff_raw_sum_ += s * s;
+        vff_den_sum_ += config_.vff_null_var;
+        if (++vff_in_block_ < config_.vff_block) return;
+        const double e2 = vff_sum_ / static_cast<double>(config_.vff_block);
+        vff_last_ms_ = vff_raw_sum_ / static_cast<double>(config_.vff_block);
+        vff_last_denom_ = vff_den_sum_ / static_cast<double>(config_.vff_block);
+        vff_sum_ = 0.0;
+        vff_raw_sum_ = 0.0;
+        vff_den_sum_ = 0.0;
+        vff_in_block_ = 0;
+        if (++vff_blocks_ <= kVffBurnInBlocks) return;
+
+        vff_c_ += config_.vff_rate * (e2 - vff_c_);
+        double alpha = (1.0 - lambda_) * std::pow(std::max(vff_c_, 1e-6), config_.vff_rate);
+        alpha = std::clamp(alpha, 2.0 / (config_.vff_mem_max + 1.0),
+                                  2.0 / (config_.vff_mem_min + 1.0));
+        lambda_ = 1.0 - alpha;
+    }
+
     std::size_t bin_of(const std::vector<double>& cuts, double value) const {
         return static_cast<std::size_t>(
             std::upper_bound(cuts.begin(), cuts.end(), value) - cuts.begin());
@@ -153,7 +257,7 @@ private:
         const std::size_t m = config_.bins;
 
         if (config_.lambda > 0.0) {
-            const double l = config_.lambda;
+            const double l = lambda_;
             for (auto& c : counts_) c *= l;
             for (auto& c : row_counts_) c *= l;
             for (auto& c : col_counts_) c *= l;
@@ -195,4 +299,20 @@ private:
     std::vector<double> cuts_y_;
     std::deque<BinPair> window_;
     std::vector<std::pair<double, double>> calibration_;
+
+    // Declared AFTER config_: a RankPit placed before it reads an uninitialised
+    // window size (the parametric_copula.hpp bug of 2026-09).
+    RankPit pit_x_;
+    RankPit pit_y_;
+    RankPit vff_pit_x_{config_.vff_pit_window};
+    RankPit vff_pit_y_{config_.vff_pit_window};
+
+    static constexpr std::size_t kVffBurnInBlocks = 5;
+    double lambda_ = config_.lambda;
+    double vff_c_ = 1.0;
+    double vff_sum_ = 0.0;
+    double vff_raw_sum_ = 0.0, vff_den_sum_ = 0.0;
+    double vff_last_ms_ = 0.0, vff_last_denom_ = 0.0;
+    std::size_t vff_in_block_ = 0;
+    std::size_t vff_blocks_ = 0;
 };
