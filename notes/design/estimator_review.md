@@ -41,7 +41,7 @@ Only stage 3 rows can move a thesis number, and each of those keeps a legacy con
 
 ## Stage 1: reset fixes and contract tests
 
-Done in PR #11; no result changes. `ParametricCopulaMLE::reset()` now clears its rank-PIT windows,
+Done (commit e798c17 on `massive-refactor`); no result changes. `ParametricCopulaMLE::reset()` now clears its rank-PIT windows,
 and `CopulaFit::reset()` restores the VFF λ, the score mean and variance, and the Polyak–Ruppert
 state. Before the fix, `gaussian_mle_pit`, `_fisher`, `_pr` and `_vff` differed from a fresh
 estimator by up to 0.26 after a reset.
