@@ -30,6 +30,9 @@ std::unique_ptr<Dependence> make_dependence(const std::string& scenario, std::si
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, N / 2);
     if (scenario == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, seed + 1);
     if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    // Dependence is CONSTANT; the change is in the copula's shape, injected by
+    // the gauss2t family below. Section 14.13.
+    if (scenario == "shape") return std::make_unique<ConstantDependence>(0.6);
     return nullptr;
 }
 
@@ -73,7 +76,7 @@ SeedResult run_one_seed(const std::string& scenario, const std::string& family,
     r.false_before.assign(keys.size(), 0.0);
     r.detection_delay.assign(keys.size(), -1);
 
-    const bool has_known_jump = (scenario == "jump");
+    const bool has_known_jump = (scenario == "jump" || scenario == "shape");
     const std::size_t jump_t = N / 2;
 
     for (std::size_t e = 0; e < keys.size(); ++e) {
@@ -127,6 +130,8 @@ Stats mean_stderr(const std::vector<double>& v) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    if (!check_registry()) return 1;
+
     const std::string scenario = (argc > 1) ? argv[1] : "jump";
     const int n_seeds = (argc > 2) ? std::atoi(argv[2]) : 10;
     const unsigned base_seed = (argc > 3) ? static_cast<unsigned>(std::atoi(argv[3])) : 42;
@@ -134,7 +139,7 @@ int main(int argc, char** argv) {
     const std::size_t burn = 500;
 
     if (!make_dependence(scenario, N, base_seed)) {
-        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate)\n",
+        std::fprintf(stderr, "unknown scenario '%s' (use constant|drift|jump|stochastic|oscillate|shape)\n",
                      scenario.c_str());
         return 1;
     }
@@ -142,10 +147,14 @@ int main(int argc, char** argv) {
     // dgp::make_copula falls back to Gaussian on an unrecognised name, which would
     // silently mislabel a whole grid, so reject anything unknown up front.
     const char* copula_env = std::getenv("COPULA");
-    const std::string family = copula_env ? copula_env : "gaussian";
+    // `shape` IS a copula family change, so it fixes its own family -- COPULA
+    // would otherwise silently pick the DGP apart from the scenario it names.
+    const std::string family = (scenario == "shape") ? "gauss2t"
+                             : (copula_env ? copula_env : "gaussian");
     if (family != "gaussian" && family != "clayton" && family != "gumbel" &&
-        family != "t" && family != "student_t") {
-        std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t)\n", family.c_str());
+        family != "t" && family != "student_t" && family != "gauss2t" &&
+        family != "frechet" && family != "mixgauss") {
+        std::fprintf(stderr, "unknown COPULA '%s' (use gaussian|clayton|gumbel|t|frechet|mixgauss)\n", family.c_str());
         return 1;
     }
     const std::string family_name = dgp::make_copula(family)->name();
@@ -163,7 +172,7 @@ int main(int argc, char** argv) {
     std::vector<std::vector<double>> delays(keys.size());
     std::vector<int> misses(keys.size(), 0);
 
-    const bool has_known_jump = (scenario == "jump");
+    const bool has_known_jump = (scenario == "jump" || scenario == "shape");
 
     for (int s = 0; s < n_seeds; ++s) {
         const unsigned seed = base_seed + static_cast<unsigned>(s);
@@ -183,7 +192,21 @@ int main(int argc, char** argv) {
 
     std::printf("scenario=%s  copula=%s  n_seeds=%d  base_seed=%u  N=%zu  burn=%zu\n\n",
                 scenario.c_str(), family_name.c_str(), n_seeds, base_seed, N, burn);
-    std::printf("%-18s %16s", "estimator", "RMSE (mean+-se)");
+    // Distance from the best row, in pooled SEs. A gap under ~2 sigma is noise,
+    // and reading point estimates without it is how the einfo ablation was
+    // misread (studies/kalman_changepoint_results.md section 13.2).
+    std::size_t best_e = 0;
+    {
+        double best = 1e300;
+        for (std::size_t e = 0; e < keys.size(); ++e) {
+            double m = 0.0;
+            for (double v : rmse[e]) m += v;
+            m /= static_cast<double>(rmse[e].size());
+            if (m < best) { best = m; best_e = e; }
+        }
+    }
+
+    std::printf("%-18s %16s %8s", "estimator", "RMSE (mean+-se)", "vs best");
     if (has_known_jump) std::printf("  %14s  %16s  %16s", "alarms/run", "false_before", "delay,ticks(hits)");
     else std::printf("  %14s", "alarms/run");
     std::printf("\n");
@@ -204,6 +227,14 @@ int main(int argc, char** argv) {
     for (std::size_t e = 0; e < keys.size(); ++e) {
         const Stats rs = mean_stderr(rmse[e]);
         std::printf("%-18s %8.4f +- %6.4f", keys[e].c_str(), rs.mean, rs.se);
+        if (e == best_e) {
+            std::printf(" %8s", "best");
+        } else {
+            const Stats bs = mean_stderr(rmse[best_e]);
+            const double sd = std::sqrt(rs.se * rs.se + bs.se * bs.se);
+            const double sigma = (sd > 0.0) ? (rs.mean - bs.mean) / sd : 0.0;
+            std::printf(" %7.1f%s", sigma, sigma < 2.0 ? "~" : " ");
+        }
 
         double a_mean = 0.0, a_se = 0.0, fb_mean = 0.0, fb_se = 0.0, d_mean = 0.0, d_se = 0.0;
         std::size_t d_n = 0;

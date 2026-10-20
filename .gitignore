@@ -9,3 +9,18 @@
 /experiments/dump_copula_samples
 __pycache__/
 /experiments/results/
+/experiments/probe_auc
+/experiments/probe_memory
+/experiments/probe_adaptive
+
+# Compiled harness binaries. Built by experiments/Makefile from the .cpp beside
+# them -- committing them makes every rebuild show as a dirty worktree.
+experiments/experiment
+experiments/multiseed
+experiments/calibrate_arl0
+experiments/calibrate_tail
+experiments/bench_rate
+experiments/probe_*
+!experiments/probe_*.cpp
+!experiments/probe_*.py
+experiments/*.dSYM/
