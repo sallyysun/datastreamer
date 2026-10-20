@@ -40,7 +40,7 @@ Only stage 3 rows can move a thesis number, and each of those keeps a legacy con
 | Shared rank code (`ranks.hpp`) | 2 | No | Outputs byte-identical |
 | Shared scenario definitions (`experiments/scenarios.hpp`) | 2 | No | Outputs byte-identical |
 | Fixed-parameter draw on `dgp::Copula`, used by the tail studies | 2 | No | Tail study outputs byte-identical |
-| Hermite warm-up w = max(λ, 1/m), m = coefficient updates | 3 | Yes | Legacy key kept; rerun all Hermite comparisons |
+| Hermite warm-up w = max(λ, 1/m), m = coefficient updates | 3 (on `bank-vff-study`) | Yes, under a new key only | Opt-in `cumulative_start` flag; `hermite_ew` unchanged; new key `hermite_ew_cs`; rerun Hermite comparisons |
 | Banks registered on the tick grid used in the thesis | 3 | Yes | Legacy λ-grid keys kept; `multiseed` matches `probe_adaptive` |
 | One `store_bytes` definition (object + heap capacity) for every estimator | 3 | Yes (memory metric) | Cost table regenerated |
 | Registry split into run list and fixed comparator set | 4 | No, only if the comparator set is fixed | Manifest identical; "vs best" and oracle rows unchanged |
@@ -114,24 +114,25 @@ and is rerun before any thesis number is replaced.
 
 ### Hermite warm-up
 
-- **Change.** Weight each coefficient update by w_m = max(λ, 1/m), where m counts *coefficient
-  updates*, not incoming observations; the marginal mean and variance get their own counter the
-  same way. The estimator then runs as a cumulative average until 1/m falls below λ, so its
-  weights sum to one. The existing opt-in debias corrects only the coefficient sums.
-- **Why a separate clock.** `update()` increments n_ on every observation but skips the
-  coefficient update at n = 1, and with rank-PIT until the window holds 30 points. Using
-  max(λ, 1/n) on the observation count, accumulated weight at tick 50 with λ = 0.01 is
-  1 − ½·(2/50) = 0.98, and 1 − 30/50 = 0.40 with rank-PIT, not 1. Before the reruns, assert
-  wsum_ = 1 to machine precision at the end of warm-up, with and without rank-PIT.
-- **Versioning.** `hermite_ew_legacy` keeps today's behaviour exactly; the warm-up becomes a config
-  flag, and `hermite_ew` switches to it only after the reruns. The live consumer follows the
-  registry.
-- **Checks before rerunning.** That debias is a no-op under the new warm-up must be verified after
-  a soft reset and during a forgetting boost, not assumed: both change the weight sequence
-  mid-stream.
-- **Reruns.** Every comparison that includes a Hermite estimator: the `multiseed` grid,
-  `probe_memory`, `probe_adaptive`, and the async study. Long-memory configurations matter most,
-  because warm-up lasts about 1/λ ticks.
+Decided 2026-10-20: implemented on `bank-vff-study` as the opt-in `Config::cumulative_start` flag,
+not on this branch. `hermite_ew` is unchanged; the flag-on configuration is registered as
+`hermite_ew_cs`.
+
+- **Change.** Coefficient weight w_m = max(λ, 1/m), where m counts *coefficient updates*, not
+  incoming observations, so the first update has weight 1 even under rank-PIT (where it lands at
+  n = 31). Marginal moments are Welford while 1/n > λ, then exponentially weighted.
+- **Why a separate clock.** `update()` skips the coefficient update at n = 1, and with rank-PIT
+  until the window holds 30 points. On the observation count, accumulated weight at tick 50 with
+  λ = 0.01 would be 0.98, or 0.40 with rank-PIT, not 1.
+- **Checks reported by that session.** The accumulated weight is exactly 1 through and after
+  warm-up, with and without rank-PIT. A hard reset equals fresh construction. A soft reset during
+  warm-up keeps counting updates with weight min(1, max(λ, 1/m)·boost). `debias` is a no-op under
+  the flag for both `estimate()` and `kendall()`. Per-tick scale invariance holds to 2e-14 for
+  (x, y) → (3+5x, −2+0.1y). Under the old start the difference reaches 0.067: the initial variance
+  of 1.0 acts as an artificial observation, and with a true variance of 0.01 the y-variance is 36×
+  too high at n = 1350, which biases ρ by −0.21.
+- **Reruns.** Every comparison that includes a Hermite estimator, with `hermite_ew_cs` beside
+  `hermite_ew`: the `multiseed` grid, `probe_memory`, `probe_adaptive` and the async study.
 
 ### Bank configurations
 
@@ -192,13 +193,31 @@ is accepted on byte-identical outputs.
   per call, and `windowed_rank` re-sorts its window each estimate. Fixing these changes timing
   figures, so re-time before quoting any.
 
+## Merge plan with `bank-vff-study`
+
+Decided 2026-10-20:
+
+1. `massive-refactor` merges into `main` first.
+2. `bank-vff-study` then merges `main` in with a merge commit, not a rebase.
+3. The gate after that merge compares trajectory hashes key by key against `main`, using
+   `dump_trajectories` plus the probe manifests. Exactly two exemptions are allowed, and they are
+   listed by name:
+   - `copula_select_ew` changes on purpose. Commit 9d16c53 fixes the `NonparamCopula` counts and
+     switches the ρ readout to mid-rank Pearson. It is a bug fix with no legacy mode, and the
+     older `copula_select_ew` numbers are marked superseded.
+   - `hermite_ew_cs` is a new key.
+
+   Any other difference fails the gate.
+
 ## Open decisions
 
 - [ ] **Particle filter reset contract.** Should `reset()` mean "identical to a fresh filter with
   the same seed" (reseed the RNG) or "restart the state, keep the random sequence"? Neither is
   statistically wrong; it only sets what `check-estimators` can promise.
-- [ ] **Hermite default.** After the reruns, does `hermite_ew` switch to the max(λ, 1/n) warm-up,
-  with the debias flag kept only to reproduce old notes, or deleted?
+- [x] **Hermite warm-up form.** Opt-in `cumulative_start` flag on `bank-vff-study`, registered as
+  `hermite_ew_cs`; `hermite_ew` unchanged (decided 2026-10-20).
+- [ ] **Hermite default.** After the reruns, does the thesis cite `hermite_ew_cs` in place of
+  `hermite_ew`, and is the debias flag then kept only to reproduce old notes?
 - [ ] **Block-Spearman bias.** After measuring it on `jump`: correct it (larger blocks or an
   unbiased statistic) or report it as a limitation?
 - [ ] **Registry archive.** Do the detector keys stay registered, now that detection is out of the
