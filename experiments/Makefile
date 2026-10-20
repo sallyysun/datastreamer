@@ -52,13 +52,16 @@ probe_memory:
 probe_adaptive:
 	$(CXX) probe_adaptive.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_adaptive
 
+probe_vff_norm:
+	$(CXX) probe_vff_norm.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_vff_norm
+
 dump_copula_samples:
 	$(CXX) dump_copula_samples.cpp -std=c++20 -O2 -o dump_copula_samples
 
 clean:
-	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive dump_copula_samples
+	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples
 
-.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive dump_copula_samples clean
+.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.
