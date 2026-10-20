@@ -8,6 +8,7 @@
 /experiments/multiseed
 /experiments/dump_copula_samples
 /experiments/check_estimators
+/experiments/dump_trajectories
 /experiments/tail_validate
 /experiments/tail_change
 /experiments/tail_mixture
