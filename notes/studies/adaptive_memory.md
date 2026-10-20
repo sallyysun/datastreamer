@@ -8,6 +8,12 @@ Branch: `adaptive-memory` (off `memory-sweep`). Code: `experiments/probe_adaptiv
 Read `memory_sweep.md` first; this is its direct successor and reuses its protocol, its ESS
 conversion and its warnings.
 
+> ⚠️ **Platform: macOS / libc++.** A Linux / libstdc++ rerun of the same code (`thesis_audit.md`
+> §0.1) reproduces every optimal memory and the 12/12 wins against one fixed setting, but moves the
+> `jump` wins against the per-scenario oracle: Xiao **−3.3σ → −1.8σ**, Hermite −2.7σ → −2.2σ.
+> Numbers below are the macOS ones. Terms (bank, VFF, memory vs ESS, oracle):
+> `thesis_audit.md` §6.
+
 §14.16 of `kalman_changepoint_results.md` is the thesis's headline contribution: a **bank** —
 a posterior over memory length — adapts its own memory through a change and beats the best
 fixed memory chosen per scenario *after* seeing the answer. It was measured on **one estimator**,
@@ -21,7 +27,7 @@ This note fills the table. The short answer:
   ~150 ticks of the jump and relax back, in near-lockstep (Figure 1). Nothing about that
   behaviour was Kalman-specific.
 - **The RMSE win generalises, but it is small, and it happens on `jump` only.** Xiao −3.3σ,
-  Hermite −2.7σ, Kalman −16.6σ. Everywhere else all three banks *lose* to the oracle.
+  Hermite −2.7σ, Kalman −16.6σ (macOS; on Linux Xiao's is −1.8σ, so treat it as marginal). Everywhere else all three banks *lose* to the oracle.
 - **One incumbent number does not reproduce and should be retracted**: the Kalman bank's
   8.2σ win on `drift` was measured against an under-resolved oracle. Against a properly
   resolved one it is a 7.7σ **loss** (§6).
@@ -263,8 +269,9 @@ and measured before the third was:
    The residual ≤8% bias makes memory drift slowly *longer* in a quiet stretch, which is the
    benign direction.
 
-`xiao_vff` is registered (λ base 0.98742 = 158 ticks, `vff_rate` 0.05) and listed in
-`all_estimator_keys()`.
+`xiao_vff` is registered (λ base 0.98742 = 158 ticks) and listed in `all_estimator_keys()`. The
+registered key uses `vff_rate` **0.5**; this study ran both 0.05 and 0.5 in `probe_adaptive`, and
+names the rate wherever it matters.
 
 ### 5.2 It works, and it is not good enough
 
@@ -279,8 +286,10 @@ Xiao bank's 0.0774 in σ terms though not in RMSE. That is one cell out of twelv
 
 The VFF's problem is visible in Figure 1: through the jump the Xiao VFF's memory barely dips
 (516 → 440) and then *lengthens*, because the surprise is a brief spike followed by a quiet new
-regime, while the bank's posterior collapses 14×. A VFF integrates surprise; a bank re-weights on
-it. **That is the structural reason the bank wins, and it is the same on all three families.**
+regime, while the bank's posterior collapses 14×. One reading is that a VFF integrates surprise
+while a bank re-weights on it. That is a hypothesis, not an established cause: the VFF and the
+bank here also differ in their signal, tuning and starting memory (`memory_tradeoff.md` §3.4).
+The pattern is the same on all three families.
 
 It also has two free constants the bank does not: the base memory and the adaptation rate. Both
 rates (0.05 and 0.5) are reported above for exactly that reason, and which is better flips by

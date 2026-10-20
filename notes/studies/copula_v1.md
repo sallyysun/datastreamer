@@ -428,7 +428,8 @@ obvious question.
 > therefore silently discarding $P$.
 
 ⚠️ §6.4 builds the same posterior-over-memory off a *non*-Kalman estimator, using the per-tick rank
-residual as a stand-in predictive density — and `mle_bank` then beats `kalman_bank`. The filter is
+residual as a stand-in predictive density — and `mle_bank` then beats `kalman_bank` *(retracted:
+`mle_bank` was never measured; see `copula_v2.md` §E and `thesis_audit.md` §1.4 item 3)*. The filter is
 where these ideas came from, not the only place they can live.
 
 ### 2.7 Detectors
@@ -957,7 +958,9 @@ likelihood and reports the winner's $\rho_S$.
 - **When cumulative it works**, matching the correct family's own MLE exactly — Clayton 0.0154,
   Gumbel 0.0168, $t$ 0.0131 on `constant`. It costs nothing when it is right.
 - ⚠️ **Under forgetting it breaks.** `copula_select_ew` loses to the right family's `_ew` on Clayton
-  `drift`, 0.1039 against 0.0717. It chooses on a short window and churns.
+  `drift`, 0.1039 against 0.0717. It chooses on a short window and churns. *(Superseded: mostly a
+  `NonparamCopula` bug, fixed 2026-10-20 — `kalman_changepoint_results.md` §8.5. The selector's
+  score is also only partly prequential — `thesis_audit.md` §1.6.)*
 - **Selection and forgetting interact badly.** That is an open problem, not a tuning detail, and it
   is the interesting form of the model-selection question for a streaming thesis (§9).
 

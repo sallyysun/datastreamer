@@ -6,6 +6,12 @@ Branch: `memory-sweep` (off `innovation-variance`). Code: `experiments/probe_mem
 `experiments/results/` is gitignored. Figures are copied to `notes/studies/figures/` so this note
 renders from a clean checkout.
 
+> ⚠️ **Platform: macOS / libc++.** A Linux / libstdc++ rerun of the same code (`thesis_audit.md`
+> §0.1) reproduces every optimal memory, but RMSEs move by about 1–3 SE; for example `constant`
+> reads 0.0187 at M = 9 793 (flat from M ≈ 4 600) instead of 0.0154 at ≥ 30 000. Numbers below are
+> the macOS ones. "Memory" here is memory in ticks, equal to the steady-state ESS for these
+> fixed-λ schemes (`thesis_audit.md` §6.1).
+
 Every other result in this project reports RMSE, which is `bias² + variance` already summed.
 The thesis's framing claim — *efficiency versus adaptation* — is a claim about **memory
 length**, and it has two parts that RMSE alone cannot show:

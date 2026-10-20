@@ -1,4 +1,11 @@
-# Thesis audit — what is implemented, what was run, what is missing (2026-10-10)
+# Thesis audit — what is implemented, what was run, what is missing (2026-10-10, refreshed 2026-10-20)
+
+**2026-10-20 refresh.** Since the original audit, merge #10 brought `adaptive-memory`,
+`claude/tail-dependence` and `claude/async-memory` into `main`, and `bank-vff-study` added the
+density-scored bank/VFF study (`memory_tradeoff.md`). This refresh changed §0, §1.1 (VFF, bank and
+MPL rows), §1.4 items 7–8, §1.5, the status of §3, the claims table in §4, and added the glossary
+(§6). Everything else is the 2026-10-10 text. The `branch:path:line` references below are the
+pre-merge branches, and their line numbers date from 2026-10-10; the files now live on `main`.
 
 Scope of the thesis for this audit: **memory / forgetting** across three estimator classes —
 Xiao, Hermite, online pseudo-likelihood (MPL) — with fixed forgetting, VFF and a bank. Kalman,
@@ -14,18 +21,23 @@ reading, not a fact about the code). File paths are given as `branch:path:line`;
 
 ## 0. Where the work actually lives
 
-| Branch | Forked from | Holds | Merged to `main`? |
-| --- | --- | --- | --- |
-| `main` | — | Xiao, Hermite, Gaussian MLE, Clayton/Gumbel/t MLE, Kalman + detectors, `multiseed`, family grid (#8) | — |
-| `adaptive-memory` (`am`) | `54c993a` (#7) — **does not contain #8** | memory sweep, bank/VFF study, VFF code, `EstimatorBank`, rank-PIT, Hermite debias, results docs `copula_v1–v3.md`, `memory_sweep.md`, `adaptive_memory.md` | **no** (73 commits) |
-| `claude/tail-dependence` (`td`) | `main` | χ studies, steps 1–3b (`tail_dependence.md`) | no |
-| `claude/async-memory` (`as`) | `main` | async-arrival / thinning study, the f^(−1/3) check (`async_memory.md`) | no |
-| `claude/hermite-ew-startup` | `main` | a second, different Hermite startup fix | no |
-| `r-analytics` | early | June R prototype (MAE study, `online_npcorr.R`) | no |
+State on 2026-10-20:
 
-**The memory work and the tail/async work are on divergent lines.** `td`/`as` are built on
-`main`'s estimators; `am` changed those same files (Xiao, Hermite, parametric MLE, registry) and is
-missing `main`'s #8. No single commit can reproduce all results.
+| Branch | Holds | Merged to `main`? |
+| --- | --- | --- |
+| `main` | Xiao, Hermite, Gaussian MLE, Clayton/Gumbel/t MLE, Kalman + detectors, `multiseed`, family grid (#8), and since #10 everything that was on `am`, `td` and `as` below | — |
+| `adaptive-memory` (`am`) | memory sweep, ρ-scored bank/VFF study, VFF code, `EstimatorBank`, rank-PIT, Hermite `debias`, `copula_v1–v3.md`, `memory_sweep.md`, `adaptive_memory.md` | ✅ #10 |
+| `claude/tail-dependence` (`td`) | χ studies, steps 1–3b (`tail_dependence.md`) | ✅ #10 |
+| `claude/async-memory` (`as`) | async-arrival / thinning study, the f^(−1/3) check (`async_memory.md`) | ✅ #10 |
+| `bank-vff-study` | `NonparamCopula` fix, `XiaoSpearmanEstimator::log_density_uv`, the density-scored bank/VFF study (`memory_tradeoff.md` + committed CSVs) | no (on top of #10) |
+| `claude/hermite-ew-startup` | a second, different Hermite start-up fix, w = max(λ, 1/n) | no, kept separate deliberately |
+| `fix-estimator-resets`, `massive-refactor` | the same `ParametricCopulaMLE::reset()` fix (+ contract checks / design notes) | no |
+| `r-analytics` | June R prototype (MAE study, `online_npcorr.R`) | no, left as is |
+
+The divergence the original audit described (no single commit reproducing all results) is resolved
+by #10 for code. Two things still block one reproducible thesis build: the Hermite start-up fix is
+not chosen (`debias` is opt-in on `main`, `max(λ, 1/n)` is on its own branch), and the numbers come
+from two platforms (§0.1).
 
 **Thesis PDF in the repo** (`Sally_Sun_Honours_Thesis.pdf`, 21 pp., 19 Aug 2026) has no
 forgetting chapter and no MPL section; §3.3 still reads "describe method IN THIS DRAFT" for both
@@ -33,8 +45,9 @@ Xiao and Hermite; §4.1 describes the *live server's* GBM price/volume DGP (4-va
 copula), which is **not** the offline harness DGP used for every result (§2.1 below). The MPL
 background you describe is not in the repo; I audited the code against your prompt's equations.
 
-**No result files are committed.** `experiments/results/` is gitignored on every branch; numbers
-exist only in notes. Committed figures: `am:notes/studies/figures/{memory_fig1_ucurve,
+**Committed results.** `experiments/results/` is gitignored, so for most studies the numbers exist
+only in notes. Exception: `memory_tradeoff.md`'s per-seed CSVs are committed in
+`notes/studies/memory_tradeoff/`. Committed figures: `am:notes/studies/figures/{memory_fig1_ucurve,
 memory_fig2_families,adaptive_fig1_trajectory,adaptive_fig2_table}.png` (scripts
 `plot_memory.py`, `plot_adaptive.py`) and `td:notes/studies/figures/{tail_mixture,tail_restart,
 tail_soft}.png` (`plot_tail_*.py`).
@@ -65,6 +78,16 @@ oracle on `jump`" claim for Xiao is not robust to it.** Before any number goes i
 generate all of them on one platform from one commit, and either commit the CSVs or replace the
 `std::*_distribution` calls with a portable sampler.
 
+**Platform labels (2026-10-20).** Until the numbers are regenerated, each note carries its
+platform:
+
+| Platform | Notes |
+| --- | --- |
+| macOS / libc++ | `memory_sweep.md`, `adaptive_memory.md` (labelled at the top of each, with the Linux rerun values from the table above) |
+| Linux / libstdc++ | `tail_dependence.md`, `async_memory.md`, `vff_norm.md`, `memory_tradeoff.md`, `kalman_changepoint_results.md` §8.5 |
+
+Every other note quoting these numbers inherits the label of its source.
+
 ---
 
 ## 1. Task 1 — the audit
@@ -77,10 +100,10 @@ generate all of them on one platform from one commit, and either commit the CSVs
 | **Hermite** | yes | `hermiter.hpp`, `HermiteEstimator` | order K = 10 Hermite functions; A ← A + w(h_x h_yᵀ − A), w = λ (`am:…/hermiter.hpp:101-118`); ρ̂ = 12uᵀAv − 6uᵀAz − 6zᵀAv + 3zᵀAz (`:160-177`) | memory sweep, bank/VFF table, family grid, async | λ = **update weight** (= α). Marginals EW-standardised **with the same λ** (`:239-266`). **Start-up shrinkage toward 0** when λ small; two competing fixes, both unmerged: opt-in `debias` (`am`, divide by 1−(1−w)ⁿ) and always-on w = max(λ,1/n) (`claude/hermite-ew-startup`). |
 | **Gaussian "MLE"** | yes | `gaussian_mle.hpp`, `GaussianCopulaMLE` | θ = atanh r; H_t = λH_{t−1} + (1+r̂²); θ_t = θ_{t−1} + s_θ/H_t, clipped at \|r\| ≤ 0.999 (`am:…/gaussian_mle.hpp:61-98`) | family grid (λ = 0.99); 5-point λ set (`gaussian_mle_l95…l999`, `am` only); async grid | **Not pseudo-likelihood**: input is (x − x̄ₙ)/sₙ with *cumulative* Welford moments (`:66-67, :138-151`), i.e. parametric Gaussian margins. **Never in the memory sweep or the bank/VFF table.** |
 | **Parametric copula MLE** (Clayton/Gumbel/t/Gaussian) | yes | `parametric_copula.hpp`, `ParametricCopulaMLE` / `copula::CopulaFit` | φ unconstrained; H_t = λH_{t−1} + s_φ² (**outer product of scores**, H₀ = 1); step = clip(s_φ/H_t, ±0.5) (`am:…/parametric_copula.hpp:31-96`) | family grid (λ = 0.99), rank-PIT invariance test | Default input u = Φ(standardised x) (`:194-195, :219-222`). Rank-PIT only if `rank_pit_window > 0` (`am` only). Different information estimate from `GaussianCopulaMLE`. |
-| **Online MPL (ranks)** | partly | `ParametricCopulaMLE` + `RankPit` (`am:…/marginal_rank_pit.hpp:25-43`) | u_t = (#{last ≤500 obs < x_t} + ½)/(n_t + 1), then the recursion above | §9 invariance test only (`gaussian_mle_pit`, 10 seeds, one memory) | **No memory experiment uses a rank-based MPL.** Ranks are sequential and windowed, not full-sample R/(n+1). |
+| **Online MPL (ranks)** | partly | `ParametricCopulaMLE` + `RankPit` (`am:…/marginal_rank_pit.hpp:25-43`) | u_t = (#{last ≤500 obs < x_t} + ½)/(n_t + 1), then the recursion above | §9 invariance test only (`gaussian_mle_pit`, 10 seeds, one memory) | **No memory experiment uses a rank-based MPL** (still true on `main` after #10, checked 2026-10-20). Ranks are sequential and windowed, not full-sample R/(n+1). |
 | **Fixed forgetting** | yes, all | per estimator | M = (2−α)/α for all; knob differs (table §2.7) | all | Half-life check confirms M within ±8% for Xiao/Hermite [note]; **unchecked for the MLE**. |
-| **VFF** | yes, 4 *different* rules | Xiao `:206-233`; Hermite `:141-147`; `CopulaFit` `:56-65`; Kalman (out of scope) | see §2.8 | bank/VFF table (Xiao, Hermite, Kalman); `gaussian_mle_vff` only in one `jump` table | Not one method: each estimator uses a different surprise signal and clamp. `gaussian_mle_vff` is `ParametricCopulaMLE` (OPG information), so it is not matched to `gaussian_mle_ew`. Registry `xiao_vff` rate is 0.5 (`am:registry.hpp:411`); `adaptive_memory.md` §5.1 says 0.05. |
-| **Bank** | yes | `am:…/estimator_bank.hpp`, `EstimatorBank` | exponential weights on a squared rank residual, fixed share 0.002 per 20-tick block (`:52-91`) | bank/VFF table (Xiao, Hermite); χ step 2/3b (tail variant) | **MLE bank never measured.** Registered `xiao_bank/hermite_bank/mle_bank` use a λ grid (M ≈ 39–1999), not the 7-arm tick grid the study used. |
+| **VFF** | yes, 5 *different* rules | Xiao `:206-233`; Hermite `:141-147`; `CopulaFit` `:56-65`; Kalman (out of scope); the Rosenblatt-residual VFF inside `probe_memory_tradeoff.cpp` (probe only, not registered) | see §2.8 and `memory_tradeoff.md` §4 | bank/VFF table (Xiao, Hermite, Kalman); `gaussian_mle_vff` only in one `jump` table; `memory_tradeoff.md` | Not one method: each estimator uses a different surprise signal and clamp. `gaussian_mle_vff` is `ParametricCopulaMLE` (OPG information), so it is not matched to `gaussian_mle_ew`. Registry `xiao_vff` rate is 0.5 (`am:registry.hpp:411`); `adaptive_memory.md` §5.1 says 0.05. |
+| **Bank** | yes | `am:…/estimator_bank.hpp`, `EstimatorBank` | exponential weights on a squared rank residual, fixed share 0.002 per 20-tick block (`:52-91`) | bank/VFF table (Xiao, Hermite); χ step 2/3b (tail variant); `memory_tradeoff.md` uses two *log-scored* banks built in its probe (§6) | **MLE bank never measured** (still true after #10). Registered `xiao_bank/hermite_bank/mle_bank` use a λ grid (M ≈ 39–1999), not the 7-arm tick grid the study used. |
 | **DGPs** | yes | `dependence.hpp`, `copula.hpp`, `experiments/copula_source.hpp` | knob d_t → target ρ_S = (6/π)asin(d/2) → family parameter by bisection | everything | Margins always exactly N(0,1), stationary. Clayton/Gumbel cannot follow the negative half of `drift`/`oscillate` (clipped). |
 | **Evaluation** | yes | `multiseed.cpp`, `probe_memory.cpp`, `probe_adaptive.cpp`, `tail_*.cpp` | RMSE vs true ρ_S per tick after burn-in; bias²/var decomposition; paired σ; χ: MSE vs χ_t(q), recovery time | — | Three aggregations in use (mean of per-seed RMSE; pooled RMSE; MSE decomposed across seeds). **No regret anywhere** (only a "not relevant" mention in `am:notes/studies/reference_review.md:60`). |
 | **Processing rate** | partly | `as:experiments/async_memory.cpp` (`sync` arm); `am:experiments/bench_rate.cpp` (throughput only) | Bernoulli(p) observation of each leg; `sync` arm = pure thinning | `async_memory.md` | The "processing-rate study" that *derived* f^(−1/3) is **not in the repo**: `async_memory.md:12,227` cites it as "not on `main`", and `bench_rate.cpp:1` points to `notes/studies/rate_budget.md`, which exists on no branch. |
@@ -182,8 +205,10 @@ generate all of them on one platform from one commit, and either commit the CSVs
    confounds "Hermite has 11–63% more variance at matched memory" [interp].
 6. **Thesis §4.1 DGP** (GBM prices + log-normal volumes, 4-variate copula) ≠ the harness DGP
    (bivariate normal scores, §2.1).
-7. **`CLAUDE.md` on `main`** still says the harness is single-seed 42; multi-seed exists.
-8. **`xiao_vff` rate**: registry 0.5, note 0.05 (probe uses both, so no number is wrong).
+7. ~~**`CLAUDE.md` on `main`** still says the harness is single-seed 42; multi-seed exists.~~
+   Fixed 2026-10-20.
+8. ~~**`xiao_vff` rate**: registry 0.5, note 0.05 (probe uses both, so no number is wrong).~~
+   Note corrected 2026-10-20 (`adaptive_memory.md` §5.1).
 9. **Platform dependence of the numbers** (§0.1).
 10. **`oracle_memory.md` (this branch)** said the χ oracle work was not in the repo; it is on
     `td`. Corrected in that note.
@@ -197,7 +222,8 @@ generate all of them on one platform from one commit, and either commit the CSVs
 - **B. Partial.** Gaussian MLE memory: 5 λ points via multiseed and the async drift/constant grid,
   never decomposed or ESS-checked. MPL with ranks: built (`*_pit`) but only used in an invariance
   test. MLE VFF: one cell. Hermite start-up fix: two versions, unmerged.
-- **C. Missing.** MLE on the common memory axis (all 4 scenarios); MLE bank; any memory sweep
+- **C. Missing** (re-checked on `main` after #10, 2026-10-20: all still missing). MLE on the
+  common memory axis (all 4 scenarios); MLE bank; any memory sweep
   under a misspecified family; any rank-based MPL in a memory experiment; a χ *drift* scenario;
   χ from Xiao/MPL (χ exists only in a separate ratio estimator inside the tail harness); one
   consolidated, reproducible build; regret (if you want it at all).
@@ -206,6 +232,36 @@ generate all of them on one platform from one commit, and either commit the CSVs
   sweeps; `copula_v1–v3.md` (they consolidate the Kalman-centred story); the online γ̂ rule in
   `oracle_memory.md` §4.
 - **E. Issues.** §1.4, items 1–5 and 9, are the ones that change what the thesis can claim.
+
+### 1.6 `CopulaSelector`: context only (added 2026-10-20)
+
+Out of scope for the memory thesis (§1.5 D): it selects a copula **family**, whereas the banks
+select a **memory**. Kept here as a short, corrected description because the notes cite it.
+
+What it does (`copula_selector.hpp:94-212` on `bank-vff-study`): standardise each margin with a
+running Welford mean and variance, map to u = Φ(z) (clamped to [10⁻⁹, 1 − 10⁻⁹]), score Gaussian,
+Clayton, Gumbel and t₄ `CopulaFit`s plus a 10×10 `NonparamCopula` by an exponentially discounted
+cumulative log score, S_m ← λS_m + log ĉ_m(u_t, v_t) (non-finite log densities count as −50), and
+report the Spearman ρ of the current argmax. λ = 0 means undiscounted.
+
+Corrections to how it has been described:
+
+1. **The score is only partly prequential.** Each candidate is scored *before its own update*, but
+   `update()` updates the marginal mean and variance with (x_t, y_t) *before* computing
+   (u_t, v_t) (`:113-118`). A strictly prequential score would transform with the previous
+   marginal estimates and update them afterwards. ⚠️ This is a methodological issue in every
+   selector number so far (`kalman_changepoint_results.md` §8.5, `copula_v1–v3.md`, the family
+   grid); fixing it means rerunning those numbers, so they must not be quoted as strictly
+   prequential, and a revised description must not silently carry them over.
+2. **The inputs are Gaussian-standardised, not rank pseudo-observations.** All candidates see the
+   same (u, v), so the marginal term is common, but an error in those inputs (non-Gaussian
+   margins, estimated moments) can change candidates' scores by different amounts.
+3. **It is a cumulative prequential log score, not a marginal likelihood.** Parameters are fitted
+   online and plugged in, not integrated out under a prior (Dawid 1984, prequential approach).
+4. **"Window" has two senses.** With λ = 0.99 the score's weight sum is 1/(1 − λ) = 100 ticks; its
+   effective sample size is (1 + λ)/(1 − λ) ≈ 199 ticks (§6.1). Name which one is meant.
+5. **Negative dependence.** Clayton and Gumbel cannot represent it, so they should score badly
+   there, but a finite-sample discounted score does not guarantee which candidate wins.
 
 ---
 
@@ -388,6 +444,11 @@ caps the identifiable optimum on `constant`. The bank's arm span (25–1000) cap
 
 ## 3. Task 3 — Minimum additional experiments
 
+**Status 2026-10-20.** None of MUST-1 to MUST-3 has been run. Claim 7 (§4) is now narrowed to
+what Xiao and Hermite support, so MUST-1 to MUST-3 are the work needed to *extend* it to the MPL,
+not a prerequisite for the narrowed thesis. MUST-4 is half done: #10 merged the code; the Hermite
+start-up choice and the single-platform regeneration remain. MUST-1 to MUST-3 need Eigen.
+
 ### MUST
 
 1. **Put the MLE on the common memory axis, correctly specified.** Add the Gaussian MLE to
@@ -447,10 +508,20 @@ sweep (it exists — only regenerate it).
 | 3 | Bias–variance / responsiveness–stability trade-off | ✅ Xiao, Hermite; ⚠️ MLE | exact decomposition, 40 seeds; MLE only via async drift grid (20 seeds, not decomposed) |
 | 4 | Different dynamics prefer different memories | ✅ Xiao, Hermite (Gaussian); ⚠️ MLE | 36 → 53 → 235 → 495 → cumulative; reproduces on rerun |
 | 5 | No single fixed memory is uniformly appropriate | ✅ | recovery vs settled 2.3×/3.1×; `one_setting` loses to per-scenario optima everywhere |
-| 6 | VFF and bank respond to it | ✅ with an honest qualifier | banks beat one fixed setting 12/12 (rerun); vs the per-scenario oracle they win only on `jump`, and for Xiao that win is not robust (−1.8σ on rerun); VFF is erratic (loses to one fixed setting on `oscillate`) |
-| 7 | Holds across nonparametric and semiparametric | ❌ **not yet** | the MLE is absent from the sweep and the bank table; no rank-based MPL in any memory experiment; misspecification only at one memory |
+| 6 | VFF and bank respond to it (ρ-scored bank) | ✅ with an honest qualifier | banks beat one fixed setting 12/12 (rerun); vs the per-scenario oracle they win only on `jump`, and for Xiao that win is not robust (−1.8σ on rerun); VFF is erratic (loses to one fixed setting on `oscillate`) |
+| 6b | A bank also helps when components are scored on the copula density (log score) | ✅ narrow | `memory_tradeoff.md`: 60 fresh seeds, paired CIs, whole-run `jump`, `drift`, `constant`. Holds for one 8×8 histogram (= Xiao in rank-PIT mode), Gaussian margins, and one VFF design; the ranking depends on the scoring window |
+| 7 | Holds across two nonparametric estimator classes (Xiao's grid and Hermite's series) under Gaussian copula data | ✅ narrowed | claims 2–6 are measured for both (6b for Xiao only); the narrowed wording drops "semiparametric" |
+| 7+ | *Extension:* holds for the online MPL, and under a misspecified family | ❌ not measured | MUST-1 (MPL on the memory axis + step response), MUST-2 (MPL bank), MUST-3 (t₄ sweep). Until they run, the thesis should not claim the trade-off for the MPL |
 
-Claims 1–6 are supportable now from Xiao and Hermite. Claim 7 is exactly MUST-1 to MUST-3.
+Wording notes for the claims:
+- Claim 2: for the MLE, memory is defined on θ = atanh r (Fisher z), not on ρ_S (§6).
+- Claim 4: the optimal memories reproduce on both platforms; the RMSE values do not (§0.1).
+- Claim 6: say "these VFF designs", not "VFFs": five different rules share the name (§1.1). The
+  "Xiao bank beats the per-scenario oracle on `jump`" result is −3.3σ on macOS and −1.8σ on Linux,
+  so it should be qualified or dropped.
+
+Claims 1–7 as narrowed are supportable now from Xiao and Hermite. Claim 7+ is exactly MUST-1 to
+MUST-3.
 
 ---
 
@@ -486,3 +557,91 @@ Prediction: the ρ_S-optimal memory is "cumulative" (ρ_S does not move) while t
 is finite. In other words, **the optimal memory depends on the functional being estimated, not
 only on the data.** Hermite is not recommended for χ: a truncated smooth basis is weakest in the
 corners. Its Fréchet failure (`copula_v3.md`) is the same mechanism.
+
+---
+
+## 6. Glossary (2026-10-20)
+
+One definition per term; other notes should link here rather than re-derive.
+
+### 6.1 Effective sample size is not memory in ticks
+
+Write w_j for the normalised weight a scheme puts on the observation j ticks old (Σ_j w_j = 1).
+Three different scales come out of the same weights:
+
+- **Effective sample size (ESS)**, N_eff = 1/Σ_j w_j² (Kish). It sets the *variance*: a weighted
+  mean of i.i.d. terms with variance σ² has variance σ²/N_eff. Any "noise ∝ N_eff^(−1/2)"
+  statement means this quantity.
+- **Mean age**, ā = Σ_j j·w_j. It sets the *lag*: on a linear drift of slope d the tracking bias
+  is d·ā.
+- **Memory in ticks**, M. The axis every probe and figure uses. It is a *nominal* length: the
+  hard-window length whose ESS equals the scheme's steady-state ESS. It is a design coordinate,
+  not a measured property, and for some schemes below it is neither the ESS nor twice the mean age.
+
+| Scheme | Knob → α | Steady-state ESS | Memory in ticks as used | Mean age |
+| --- | --- | --- | --- | --- |
+| Hard window of W ticks (`windowed_rank`, `xiao_win`, the rank-PIT window) | — | W | M = W | (W − 1)/2 |
+| Cumulative | — | n (grows) | "cumulative", no M | (n − 1)/2 |
+| Exponential, retention λ (Xiao, both MLEs, the `memory_tradeoff` histogram) | α = 1 − λ | (2 − α)/α = (1 + λ)/(1 − λ) | M = ESS, so λ = 1 − 2/(M + 1) | (1 − α)/α ≈ M/2 |
+| Exponential, update weight λ (Hermite) | α = λ | (2 − λ)/λ | M = ESS, so λ = 2/(M + 1) | (1 − λ)/λ ≈ M/2 |
+| Exponential, *first t ticks* | as above | (1 + λ)(1 − λᵗ)/((1 − λ)(1 + λᵗ)), reaching M only for t ≫ M | M (the steady-state value) | < M/2 |
+| Kalman local level, blocks of B ticks, steady-state gain K | α = K per block | (2 − K)/K blocks | M = B(2 − K)/K ticks | ≈ M/2; its ρ-space step response reads ~27% short on a large step (`memory_sweep.md` §3) |
+| Recursive MLE in θ = atanh r | α = 1 − λ on H_t | (2 − α)/α *in θ* [interp, linearisation] | M as for exponential; **not verified in ρ space** | unmeasured |
+| VFF (any rule) | α_t varies | realised ESS of the product weights w_j ∝ α_{t−j}∏_{s>t−j}(1 − α_s); it lags the current setting | reported M_t = (2 − α_t)/α_t: the memory the *current* α_t would have if held fixed | lags too |
+| Bank of K arms with memories M_k, weights π_k | per arm | for a linear statistic, the ESS of the mixed kernel Σ_k π_k α_k(1 − α_k)^j, which is **not** Σ_k π_k M_k | reported M̄ = Σ_k π_k M_k, a descriptive weight-average of arm memories | Σ_k π_k ā_k (this one *is* linear) |
+
+So: for a fixed exponential or hard-window scheme at steady state, M and ESS coincide by
+construction and the mean age is about M/2. For a VFF, a bank, the start-up period, or a
+parameter-space recursion they differ, and figures that plot "memory" for those methods are
+plotting M_t or M̄, not an ESS. Xiao's and the MLEs' *estimates* are nonlinear in the weighted
+counts, so the bank row's kernel view is a heuristic for them.
+
+Rank-PIT adds a **second, marginal memory**: a hard window of 500 ticks over which the margins are
+ranked, independent of the dependence memory M.
+
+### 6.2 Estimators
+
+- **Xiao**: `XiaoSpearmanEstimator`, an exponentially forgotten B×B count grid; ρ̂ is the rank
+  correlation of grid mid-ranks. In rank-PIT mode with equal-area cells it also gives a histogram
+  density (`log_density_uv`).
+- **Hermite**: `HermiteEstimator`, Hermite-series coefficients updated with weight λ.
+- **MLE / two-stage (IFM)**: `GaussianCopulaMLE` and `ParametricCopulaMLE` with the default input
+  u = Φ(standardised x). Parametric (Gaussian) margins; **not** pseudo-likelihood. All
+  `gaussian_mle*` registry keys except `gaussian_mle_pit` are this.
+- **MPL**: the same recursions fed sequential rank-PIT pseudo-observations
+  (`rank_pit_window = 500`, e.g. `gaussian_mle_pit`). Only this is maximum pseudo-likelihood.
+
+### 6.3 Banks
+
+| Name in notes | Code | Arms | Score per arm | Weight rule |
+| --- | --- | --- | --- | --- |
+| ρ-scored bank (`xiao_bank`, `hermite_bank` in `adaptive_memory.md`) | `EstimatorBank` | probe: 7 memories 25–1000 ticks; registered keys: a λ grid, M ≈ 39–1999 | squared error of ρ̂_k against p_t = 12(u − ½)(v − ½) | exponential weights per 20-tick block + fixed share 0.002 |
+| log-scored fixed share (`memory_tradeoff.md`) | in `probe_memory_tradeoff.cpp` | 10 memories 25–8000 ticks | predictive log density | as above, α = .008, η = 1 |
+| discounted bank (`memory_tradeoff.md`) | in `probe_memory_tradeoff.cpp` | same 10 | predictive log density | L ← βL + (1 − β)s, π ∝ e^(−ηL), η = c/(1 − β); no fixed share |
+| `kalman_bank` | `KalmanBank` | σ_ω² grid | Gaussian predictive density | fixed share; out of scope |
+
+### 6.4 VFFs
+
+Five rules share the name (signal → rule): Xiao (ρ-level rank residual, α ← α·C^r), Hermite
+(coefficient-change ratio of fast/slow EWMAs), `CopulaFit` / `gaussian_mle_vff` (score drift
+m²/v), Kalman (out of scope), and the Rosenblatt-residual VFF in `memory_tradeoff.md` §4 (Xiao's
+rule driven by conditional-PIT residuals). Details: §2.8 and `memory_tradeoff.md` §4. A row
+labelled "VFF" compares one of these, never VFFs in general.
+
+### 6.5 Baselines, scores and uncertainty
+
+- **Per-scenario best fixed memory (hindsight)**: `known_best` in `probe_adaptive`, "oracle" in
+  `adaptive_memory.md`, "hindsight best" in `memory_tradeoff.md` §3.2. Chosen after seeing that
+  scenario's result.
+- **Single tuned fixed memory**: `one_setting` in `probe_adaptive`; the `fixed` control in
+  `memory_tradeoff.md` (tuned on jump + drift, 1170 ticks).
+- **RMSE**: against the true ρ_S per tick (§2.10).
+- **ρ score**: squared error against the one-tick proxy p_t; its expectation is minimised by
+  ρ̂ = ρ_S.
+- **Log score**: predictive log density of the next observation. **Excess log loss**: log of the
+  true copula density minus log of the predicted density, both at the *true* PIT; its expectation
+  is the per-tick KL divergence. Reported ×10⁻³ nats/tick.
+- **Paired σ** (`adaptive_memory.md`): mean paired difference over its standard error.
+  **Paired 95% CI** (`memory_tradeoff.md`): mean ± t₀.₉₇₅·SE. |paired σ| > ~2 is the same
+  statement as "CI excludes 0".
+

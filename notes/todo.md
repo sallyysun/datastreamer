@@ -319,9 +319,11 @@ Status key: ✅ done · ⬜ open · ➖ deliberate non-goal.
   Clayton/Gumbel are positive-dependence only; the t copula's nu is a fixed hyper-parameter.
 - ✅ **Parametric-vs-nonparametric goodness-of-fit selection** — `CopulaSelector`
   (`dependence/copula_selector.hpp`, keys `copula_select` + `_ew`). Scores Gaussian / Clayton /
-  Gumbel / t + a binned nonparametric density by forgetting-weighted **prequential**
-  log-likelihood (shared marginals ⇒ marginal term cancels, so it is a like-for-like copula
-  comparison) and reports the winner's Spearman rho. Verified: picks the generating family on
+  Gumbel / t + a binned nonparametric density by a forgetting-weighted cumulative prequential
+  log score (shared, Gaussian-standardised marginals, so the marginal term is common, though
+  marginal errors can still affect candidates differently) and reports the winner's Spearman rho.
+  ⚠️ Only partly prequential: the marginal moments are updated with (x_t, y_t) before (u_t, v_t)
+  is computed (`thesis_audit.md` §1.6). Fixing the order means rerunning the selector numbers. Verified: picks the generating family on
   matched data; on constant Gaussian data selects Gaussian and lands on the true rho_S.
   ⚠️ **Fixed 2026-10-20: two bugs in the nonparametric candidate (`copula::NonparamCopula`).**
   (1) Under forgetting, its counts were weighted by 1−λ, so a total mass of ~1 faced a Laplace

@@ -2,8 +2,9 @@
 
 Probe: `experiments/probe_memory_tradeoff.cpp`. Analysis and figures:
 `experiments/analyze_memory_tradeoff.py`. Raw outputs: [`memory_tradeoff/`](memory_tradeoff/).
-2026-10-20. Builds on `adaptive_memory.md` (the banks) and §8.5 of `kalman_changepoint_results.md`
-(the fixed nonparametric density).
+2026-10-20, Linux / libstdc++. Builds on `adaptive_memory.md` (the banks) and §8.5 of
+`kalman_changepoint_results.md` (the fixed nonparametric density). Terms (the two banks here,
+the VFF variants, memory in ticks vs ESS): `thesis_audit.md` §6.
 
 **Question.** After fair tuning, does the discounted-loss bank improve recovery after a jump
 without paying too much during drift or stationary periods? Compared against fixed share, a VFF
@@ -131,9 +132,13 @@ hindsight choice, on the tuning seeds, the banks lose only 0.4–0.6: 40.50 (fix
 
 ### 3.4 What the memory traces show (`memory_tradeoff/traces.png`)
 
+Bank memory in the figure is the weight-averaged arm memory Σπ_k M_k and the VFF's is its current
+setting M_t; neither is an effective sample size (`thesis_audit.md` §6.1).
+
 - **Before the jump**, both banks run at about 6000–7000 ticks of memory, far longer than the
-  fixed control. That is where the "pre" gain comes from, and it is also why they are worst in
-  the first 100 ticks after the jump: they start from the longest memory.
+  fixed control. That is consistent with their "pre" gain, and with their slow start after the
+  jump: in the first 100 ticks the discounted bank is the worst of the four and fixed share the
+  second worst.
 - **After the jump**, both banks drop to about 350 ticks within about 300 ticks, then lengthen
   again. The discounted bank lengthens back sooner than fixed share, which is where it wins
   500–1500 ticks after the change.
@@ -212,8 +217,8 @@ should react correctly there; one successful run would support this explanation,
 - **Windows were fixed in advance, but several were compared.** Treat individual window
   differences of a few ×10⁻³ with that in mind. The whole-run `jump`, `drift` and `constant`
   comparisons are the primary results.
-- **Platform.** Numbers are from Linux/libstdc++. `std::normal_distribution` differs under
-  libc++, so a macOS run will give different draws (see §8.5 of `kalman_changepoint_results.md`).
+- **Platform: Linux / libstdc++.** A macOS / libc++ run draws different data from the same seeds
+  (`thesis_audit.md` §0.1).
 
 ## 6. Reproduction
 

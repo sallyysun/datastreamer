@@ -111,8 +111,10 @@ def roll(x, w=50):
 
 style = {"fixed": ("#888888", "fixed (tuned)"), "fs": ("#1b9e77", "fixed share (tuned)"),
          "disc": ("#7570b3", "discounted (tuned)"), "vff": ("#e7298a", "VFF (tuned)"),
-         "vff_aggr": ("#e6ab02", "VFF aggressive r=0.5"), "rho_fs": ("#d95f02", "rho-scored fixed share")}
+         "vff_aggr": ("#e6ab02", "VFF aggressive r=0.5"), "rho_fs": ("#222222", "ρ-scored fixed share")}
 scen = ["jump", "drift", "constant", "clay2gumb_.8"]
+titles = {"jump": "jump: knob 0.2 → 0.8 at t = 2500", "drift": "drift: knob −0.5 → 0.8",
+          "constant": "constant: knob 0.6", "clay2gumb_.8": "Clayton → Gumbel at t = 2500, ρ_S ≈ 0.79"}
 fig, ax = plt.subplots(3, len(scen), figsize=(18, 10), sharex=True)
 for j, s in enumerate(scen):
     for role, (col, lab) in style.items():
@@ -120,22 +122,23 @@ for j, s in enumerate(scen):
         if not d["t"]:
             continue
         if role != "rho_fs":
-            ax[0, j].plot(d["t"], roll(d["excess"]), color=col, lw=1.2, label=lab)
-        ax[1, j].plot(d["t"], d["mem"], color=col, lw=1.2, label=lab)
+            ax[0, j].plot(d["t"], [1000 * v for v in roll(d["excess"])], color=col, lw=1.2, label=lab)
+        ax[1, j].plot(d["t"], d["mem"], color=col, lw=1.2, label=lab, ls="--" if role == "rho_fs" else "-")
         if role.startswith("vff"):
             ax[2, j].plot(d["t"], roll(d["e2"], 20), color=col, lw=1.2, label=lab)
     for a in ax[:, j]:
         if s != "drift" and s != "constant":
             a.axvline(2500, color="k", ls=":", lw=1)
     ax[2, j].axhline(1.0, color="k", lw=0.8, ls="--")
-    ax[0, j].set_title(s)
+    ax[0, j].set_title(titles[s])
     ax[1, j].set_yscale("log")
     ax[2, j].set_xlabel("tick")
-ax[0, 0].set_ylabel("excess log loss vs true copula\n(50-tick rolling mean, 60 seeds)")
-ax[1, 0].set_ylabel("effective memory (ticks)\nbanks: weight-averaged")
-ax[2, 0].set_ylabel("VFF Rosenblatt e² (block mean)\nnull = 1 (dashed)")
+ax[0, 0].set_ylabel("excess log loss, ×10⁻³ nats/tick\n(50-tick rolling mean, 60 seeds)")
+ax[1, 0].set_ylabel("memory in ticks (not an ESS)\nbanks: Σ π_k M_k; VFF: current M_t")
+ax[2, 0].set_ylabel("VFF Rosenblatt e² (block mean)\nideal null = 1 (dashed);\nmeasured baseline ≠ 1, note §4")
 ax[0, 0].legend(fontsize=8)
 ax[1, 0].legend(fontsize=7)
+fig.suptitle("Ticks 2000–4000 only (traces.csv); the post window runs to 5000. Linux / libstdc++.", fontsize=10)
 fig.tight_layout()
 fig.savefig(f"{DIR}/traces.png", dpi=100)
 print("figure saved")

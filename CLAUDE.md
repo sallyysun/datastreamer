@@ -73,10 +73,16 @@ offline and online RMSE stop being comparable.
 
 ## Conventions
 
-- Harness is **single-seed (42)**. No number is a thesis result until multi-seed with error bars —
-  see `notes/todo.md`.
+- `./experiment` is **single-seed (42)**. No number is a thesis result until it comes from
+  `./multiseed` or a multi-seed probe, with error bars.
+- `std::*_distribution` draws differ between libc++ (macOS) and libstdc++ (Linux), so the same seed
+  gives different data. Every results note states its platform; see `thesis_audit.md` §0.1.
 - Offline and live `oscillate` share period 400 deliberately, so their RMSE is directly comparable.
-- Marginals are currently handled by standardization (exact only for Gaussian); rank-PIT is open.
+- Margins are handled per estimator: Xiao freezes cut-points after 100 observations, Hermite
+  standardises with its own λ, the MLEs standardise cumulatively — all exact only for stationary
+  (and, for standardisation, Gaussian) margins. Rank-PIT variants exist (`xiao_pit`, `hermite_pit`,
+  `gaussian_mle_pit`); among the memory studies only `memory_tradeoff.md` feeds rank-PIT inputs to
+  the estimates.
 - The browser must stay a strict viewer — if a calculation is creeping into `client/`, that's a bug.
 
 ## Where the thinking lives
@@ -91,7 +97,9 @@ Read the note, don't re-derive it.
   the steady-state limit of a Kalman filter (λ = 1−K), and CUSUM/SR/BOCPD/HMM are one recursion
   over a latent chain. Published as an artifact.
 - `notes/studies/thesis_audit.md` — **start here**: what is implemented and run on which branch,
-  methodology reconstructed from code, gap analysis for the memory thesis (2026-10-10).
+  methodology reconstructed from code, gap analysis for the memory thesis (2026-10-10, refreshed
+  2026-10-20 after #10), and the **glossary** (§6: memory in ticks vs ESS, bank and VFF variants,
+  MLE vs MPL).
 - `notes/studies/oracle_memory.md` — the thesis deliverable: an **online** evidence→memory rule for
   tail dependence. Known-changepoint soft restart ($\gamma^*=1/(1+Z^2)$) is the oracle it
   approximates, not the endpoint.
