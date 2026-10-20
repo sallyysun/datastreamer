@@ -26,6 +26,11 @@ public:
     void reset() {
         phi_ = init_phi();
         info_ = kPriorInfo;
+        lambda_ = lambda0_;
+        score_mean_ = 0.0;
+        score_var_ = 1.0;
+        phi_avg_ = 0.0;
+        pr_started_ = false;
     }
 
     void update_uv(double u, double v) {
@@ -208,6 +213,8 @@ public:
         mean_x_ = mean_y_ = 0.0;
         m2_x_ = m2_y_ = 0.0;
         var_x_ = var_y_ = 1.0;
+        pit_x_.reset();
+        pit_y_.reset();
     }
 
     std::size_t store_bytes() const override { return sizeof(*this); }
