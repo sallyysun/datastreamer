@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -339,13 +340,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             HermiteEstimator::Config{.order = ord, .lambda = 0.0, .burn_in = 50},
             key == "hermite_o20" ? "hermite_o20" : "hermite_o40");
     }
-    if (key == "xiao_b8" || key == "xiao_b40") {
-        const std::size_t b = (key == "xiao_b8") ? 8 : 40;
-        return std::make_unique<XiaoSpearmanEstimator>(
-            XiaoSpearmanEstimator::Config{.bins = b, .window = 0, .lambda = 0.0,
-                                          .calibration = 100},
-            key == "xiao_b8" ? "xiao_b8" : "xiao_b40");
-    }
     if (key == "kalman_glr") {
         return std::make_unique<KalmanGlrDetector>(
             KalmanGlrDetector::Config{
@@ -615,7 +609,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_var_chart", "kalman_var_chart_slow", "kalman_var_cusum", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "xiao_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
-        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
+        "hermite_o20", "hermite_o40", "xiao_bank", "hermite_bank", "mle_bank", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",
@@ -627,7 +621,12 @@ inline const std::vector<std::string>& all_estimator_keys() {
 // A listed key with no branch returns nullptr and segfaults on first use.
 inline bool check_registry() {
     bool ok = true;
+    std::set<std::string> seen;
     for (const std::string& k : all_estimator_keys()) {
+        if (!seen.insert(k).second) {
+            std::fprintf(stderr, "registry: '%s' is listed twice in all_estimator_keys()\n", k.c_str());
+            ok = false;
+        }
         if (!make_estimator(k)) {
             std::fprintf(stderr, "registry: '%s' is in all_estimator_keys() but has no "
                                  "make_estimator branch\n", k.c_str());
