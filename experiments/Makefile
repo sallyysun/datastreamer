@@ -19,7 +19,10 @@ calibrate_arl0:
 multiseed:
 	$(CXX) multiseed.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o multiseed
 
-clean:
-	rm -f experiment calibrate_arl0 multiseed
+dump_copula_samples:
+	$(CXX) dump_copula_samples.cpp -std=c++20 -O2 -o dump_copula_samples
 
-.PHONY: experiment calibrate_arl0 multiseed clean
+clean:
+	rm -f experiment calibrate_arl0 multiseed dump_copula_samples
+
+.PHONY: experiment calibrate_arl0 multiseed dump_copula_samples clean
