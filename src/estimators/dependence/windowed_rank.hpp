@@ -66,7 +66,7 @@ public:
 
         const double n0 = 0.5 * static_cast<double>(n) * (static_cast<double>(n) - 1.0);
         const double denom = std::sqrt((n0 - static_cast<double>(ties_x)) * (n0 - static_cast<double>(ties_y)));
-        return (denom > 0.0) ? (static_cast<double>(concordant - discordant) / denom) : 0.0;
+        return (denom > 0.0) ? ((static_cast<double>(concordant) - static_cast<double>(discordant)) / denom) : 0.0;
     }
 
     void reset() override {

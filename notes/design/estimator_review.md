@@ -12,8 +12,11 @@ before any number is replaced.
 Startup behaviour, block bias and configuration differences are part of the statistical
 experiment, not code maintenance. Four rules follow from that.
 
-1. **Refactors and bug fixes reproduce existing outputs exactly.** Acceptance is a byte-identical
-   `multiseed` CSV (and probe CSV where relevant) before and after, run on the same platform.
+1. **Refactors and bug fixes reproduce existing outputs exactly.** Acceptance is an identical
+   `dump_trajectories` manifest before and after, on the same platform: a bit-exact hash of every
+   input stream and every per-tick estimate for every key. Summary CSVs are printed at limited
+   precision and can hide last-bit differences, so a matching `multiseed` CSV is supporting
+   evidence, not the gate.
 2. **No silent replacement.** A change to what an estimator computes gets a new registry key or an
    explicit config flag. The old behaviour keeps its own name (`*_legacy`), so a thesis number can
    always be traced to the code that produced it.
@@ -30,18 +33,22 @@ Only stage 3 rows can move a thesis number, and each of those keeps a legacy con
 | --- | --- | --- | --- |
 | Complete `ParametricCopulaMLE` / `CopulaFit` reset | 1 | No (verified) | `check-estimators` passes; `multiseed` CSV byte-identical |
 | `make check-estimators` contract test | 1 | No | 94 keys, 0 failing |
+| Contract test: reset at five points, NaN on either side, negative ρ, Kendall | 1 | No | 94 keys, 0 failing |
+| `windowed_rank::kendall()` unsigned subtraction; Hermite `kendall()` formula | 1 | No (no caller; manifest identical) | Kendall sign and range checks pass |
+| `make dump_trajectories` bit-exact manifest | 1 | No | Used as the gate for every later stage |
 | Shared memory helpers (`memory.hpp`: α ↔ ESS, Kalman memory, construct-at-memory) | 2 | No | Probe and `multiseed` outputs byte-identical |
 | Shared rank code (`ranks.hpp`) | 2 | No | Outputs byte-identical |
 | Shared scenario definitions (`experiments/scenarios.hpp`) | 2 | No | Outputs byte-identical |
 | Fixed-parameter draw on `dgp::Copula`, used by the tail studies | 2 | No | Tail study outputs byte-identical |
-| Hermite warm-up w = max(λ, 1/n) | 3 | Yes | Legacy key kept; rerun all Hermite comparisons |
+| Hermite warm-up w = max(λ, 1/m), m = coefficient updates | 3 | Yes | Legacy key kept; rerun all Hermite comparisons |
 | Banks registered on the tick grid used in the thesis | 3 | Yes | Legacy λ-grid keys kept; `multiseed` matches `probe_adaptive` |
-| `gaussian_mle_pit` counts its rank windows in `store_bytes` | 3 | Yes (memory metric) | Cost table regenerated |
-| Registry split, comment trim, Makefile paths, warnings | 4 | No | Outputs byte-identical |
+| One `store_bytes` definition (object + heap capacity) for every estimator | 3 | Yes (memory metric) | Cost table regenerated |
+| Registry split into run list and fixed comparator set | 4 | No, only if the comparator set is fixed | Manifest identical; "vs best" and oracle rows unchanged |
+| Comment trim, Makefile paths, warnings | 4 | No | Manifest identical |
 
 ## Stage 1: reset fixes and contract tests
 
-Done (commit e798c17 on `massive-refactor`); no result changes. `ParametricCopulaMLE::reset()` now clears its rank-PIT windows,
+Done on `massive-refactor` (e798c17, plus a follow-up from external review); no result changes. `ParametricCopulaMLE::reset()` now clears its rank-PIT windows,
 and `CopulaFit::reset()` restores the VFF λ, the score mean and variance, and the Polyak–Ruppert
 state. Before the fix, `gaussian_mle_pit`, `_fisher`, `_pr` and `_vff` differed from a fresh
 estimator by up to 0.26 after a reset.
@@ -59,6 +66,22 @@ Impact was checked, not assumed:
 fresh construction, `store_bytes()` does not grow with stream length, and estimates are finite and
 in [−1, 1]. Deliberate soft or no-op resets are exempted by name with the reason. The particle
 filter is exempted until its reset contract is decided (see Open decisions).
+
+Follow-up after external review:
+
+- **Reset check had a NaN hole.** `std::max(0.0, NaN)` is 0, so a reset estimator returning NaN
+  passed, and finiteness was checked only on the fresh copy. Both copies are now checked, a
+  NaN on one side is a failure, and reset is tried after 1, 7, 29, 47 and 3007 observations
+  (inside rank-PIT calibration, inside burn-in, mid-block for the 20-tick block estimators, and
+  after a long run). A ρ = −0.7 stream checks range under negative dependence. All 94 keys pass.
+- **Two Kendall bugs, neither reaching a result.** `windowed_rank::kendall()` subtracted unsigned
+  counts before converting, so perfectly negative data gave about 1.5 × 10¹⁶ instead of −1.
+  `HermiteEstimator::kendall()` used 4 tr(Wᵀ Aᵀ W) − 1, which is linear in A; τ = 4∫∫F dF − 1 is
+  quadratic, 4 tr(Aᵀ W A Wᵀ) − 1, with W_kj = ∫ h_k H_j. The old formula clamped to +1 at every
+  ρ; the new one gives −0.714, −0.341, 0.330, 0.716 against true τ −0.713, −0.333, 0.333, 0.713
+  (Gaussian, n = 20000). No code calls either method; the manifest is identical before and after.
+- **`dump_trajectories`.** The bit-exact gate described in Principles. 3 seeds × 5 scenarios × 94
+  keys runs in about 25 s.
 
 ## Stage 2: shared helpers that reproduce existing outputs
 
@@ -91,10 +114,15 @@ and is rerun before any thesis number is replaced.
 
 ### Hermite warm-up
 
-- **Change.** Weight each update by w_n = max(λ_n, 1/n) in both the coefficient sums and the
-  marginal mean and variance. The estimator then runs as a cumulative average until 1/n falls
-  below λ, so its weights always sum to one. The existing opt-in debias corrects only the
-  coefficient sums.
+- **Change.** Weight each coefficient update by w_m = max(λ, 1/m), where m counts *coefficient
+  updates*, not incoming observations; the marginal mean and variance get their own counter the
+  same way. The estimator then runs as a cumulative average until 1/m falls below λ, so its
+  weights sum to one. The existing opt-in debias corrects only the coefficient sums.
+- **Why a separate clock.** `update()` increments n_ on every observation but skips the
+  coefficient update at n = 1, and with rank-PIT until the window holds 30 points. Using
+  max(λ, 1/n) on the observation count, accumulated weight at tick 50 with λ = 0.01 is
+  1 − ½·(2/50) = 0.98, and 1 − 30/50 = 0.40 with rank-PIT, not 1. Before the reruns, assert
+  wsum_ = 1 to machine precision at the end of warm-up, with and without rank-PIT.
 - **Versioning.** `hermite_ew_legacy` keeps today's behaviour exactly; the warm-up becomes a config
   flag, and `hermite_ew` switches to it only after the reruns. The live consumer follows the
   registry.
@@ -111,13 +139,23 @@ and is rerun before any thesis number is replaced.
   π = 0.002, built through `make_at_memory`.
 - **Versioning.** The current λ-grid banks become `xiao_bank_lambda`, `hermite_bank_lambda` and
   `mle_bank_lambda`; the plain names point to the tick-grid banks.
-- **Acceptance.** `./multiseed` on the plain key matches `probe_adaptive`'s bank row exactly.
+- **Acceptance.** First, identical per-tick estimates from the registry bank and the probe's bank
+  on the same input stream. Then the summary, on a named quantity: `multiseed` reports the mean of
+  per-seed RMSEs, `probe_adaptive` also reports pooled RMSE (√ of the mean squared error over all
+  seeds and ticks). These differ, so compare mean per-seed RMSE with mean per-seed RMSE.
 
 ### Memory metric
 
-- `gaussian_mle_pit` returns `sizeof(*this)` and omits its two rank-PIT windows. Count them, and
-  define `store_bytes` once for all estimators (object plus heap, measured after warm-up), then
-  regenerate the cost table.
+- **Known undercounts.** `gaussian_mle_pit` returns `sizeof(*this)` and omits its two rank-PIT
+  windows. Hermite omits the coupling matrix `W_` and the vector `z_`, and counts `A_fast_` only
+  when fast-surprise tracking is on, although all three are always allocated.
+- **One definition.** `store_bytes()` = `sizeof(*this)` + allocated heap capacity (`capacity()`,
+  not `size()`, for vectors; rows × cols for Eigen), measured after warm-up. Embedded members are
+  already inside `sizeof(*this)`, so only their heap blocks are added, never their `sizeof` again.
+  Shared constant tables (one copy per process) are reported separately rather than per instance.
+- **Check.** Add to `check-estimators` a test that `store_bytes()` is at least the sum of the
+  heap capacities it can see, plus a per-family audit by hand. Then regenerate the cost table;
+  ranks between families may move.
 
 ### Block-Spearman bias
 
@@ -137,6 +175,13 @@ is accepted on byte-identical outputs.
 - **Registry split.** 94 keys, many one-off ablations (`kalman_q*`, `_inf2/5/10/50`, detector
   variants). Keep one core list for `multiseed` by default and an archive list for reproducing old
   notes.
+- **Run list ≠ comparator set.** `multiseed`'s "vs best" column and `probe_adaptive`'s
+  `known_best` / `one_setting` baselines take an argmin over whatever was run. Shrinking the run
+  list can therefore move a benchmark, and any regret against it, with every estimate unchanged.
+  So the split defines two explicit lists: `run_keys()` (what executes) and a fixed
+  `comparator_keys()` (what "best" and the oracles range over), with a check that the comparator
+  set is a subset of the run list. This item is cosmetic only if `comparator_keys()` equals
+  today's set.
 - **Comments.** Several headers carry long derivations and section histories, against
   `CLAUDE.md`'s nearly-comment-free rule; move them into `notes/`.
 - **Build.** Makefile Homebrew paths become `EIGEN ?=` and `JSON ?=`, so Linux builds need no

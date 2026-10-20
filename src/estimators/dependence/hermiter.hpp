@@ -204,7 +204,7 @@ public:
 
     double kendall() const {
         if (n_ < config_.burn_in) return 0.0;
-        const double tau = 4.0 * (W_.transpose() * A_.transpose() * W_).trace() - 1.0;
+        const double tau = 4.0 * (A_.transpose() * W_ * A_ * W_.transpose()).trace() - 1.0;
         return std::clamp(tau, -1.0, 1.0);
     }
 
