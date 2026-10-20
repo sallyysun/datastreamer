@@ -11,17 +11,20 @@ and fixed memory.
 
 **Answer, in one paragraph.** Over the whole `jump` run, yes. The discounted bank has the lowest
 excess log loss of the four, beating tuned fixed memory by 6.8 ×10⁻³ nats/tick, fixed share by
-0.6 and the VFF by 3.6, all with paired CIs excluding zero. But it does **not** recover faster
-immediately after the jump: in the first 100 ticks it is the worst of the four (+8.2 against
-fixed memory). Its advantage comes 100–1500 ticks after the change, and before the change.
-On `drift` it pays 1.0 ×10⁻³ against fixed memory (about 2% of the excess loss), the same as
-fixed share. On `constant` it beats the jump/drift-tuned fixed memory by 10.2, and on the tuning
-seeds it is within about 0.6 of the best fixed memory chosen for `constant` in hindsight. The
-VFF fails for an identifiable reason, not because it was tuned too cautiously: **its signal
-points the wrong way after this jump** (§4).
+0.6 and the VFF by 3.6, all with paired CIs excluding zero. Part of that whole-run advantage is
+earned **before** the change. It does **not** show better post-jump adaptation: in the first 100
+ticks it is the worst of the four (+8.2 against fixed memory), and over the whole post-change
+period the VFF does better (+1.25). The bank's post-change advantage over fixed memory comes
+100–1500 ticks after the change, and over fixed share only 500–1500 ticks after it. On `drift` it pays 1.0 ×10⁻³ against fixed
+memory (about 2% of the excess loss), the same as fixed share. On `constant` it beats the
+jump/drift-tuned fixed memory by 10.2, and on the tuning seeds it is within about 0.6 of the best
+fixed memory chosen for `constant` in hindsight. The VFF's surprise signal is poorly suited to
+this change direction (§4).
 
-All of this is for one density estimator (an 8×8 forgetting histogram copula), Gaussian
-margins, and this VFF design. It is not a statement about banks versus VFFs in general.
+The defensible summary is narrower than "banks beat VFFs": **the bank performed well here, but
+its advantage depends on the target, the comparator and the scoring window.** All of this is for
+one density estimator (an 8×8 forgetting histogram), Gaussian margins and this VFF design, and
+the densities are densities on the unit square, not copula densities (§5).
 
 ---
 
@@ -56,9 +59,11 @@ adapting.
 **Evaluation.** 60 fresh seeds (5042–5101), identical across methods. Paired 95% CIs ($t_{59}$).
 
 **Metric.** Excess log loss $\log c_{\text{true}}(U^*,V^*)-\log\hat c(U^*,V^*)$, evaluated at the
-**true** PIT $U^*=\Phi(X)$ for every method. Its expectation is the per-tick KL divergence from
-the true copula, so a change in the true copula's entropy at the jump does not register as a loss.
-Spearman RMSE is reported separately, as a secondary metric.
+**true** PIT $U^*=\Phi(X)$ for every method. Its *expectation* is the per-tick KL divergence from
+the true copula, and the reported averages estimate it; a change in the true copula's entropy at
+the jump therefore does not register as a loss. The predicted densities integrate to one but their
+margins are only approximately uniform (§5), so they are densities on the unit square, not copula
+densities. Spearman RMSE is reported separately, as a secondary metric.
 
 **Windows, fixed in advance.**
 
@@ -134,14 +139,24 @@ hindsight choice, on the tuning seeds, the banks lose only 0.4–0.6: 40.50 (fix
   500–1500 ticks after the change.
 - **On `drift`**, the banks' memory slides from about 3000 to 1200 ticks.
 
-## 4. Why the VFF does not react: the signal has the wrong sign here
+One possible reading is that a bank *re-weights* on evidence while a VFF *integrates* it. That is
+a hypothesis, not an established cause: the two methods here also differ in their signal, their
+tuning, their starting memory and how they represent the density.
+
+## 4. Why the VFF does not react: a signal poorly suited to this change direction
 
 The VFF follows `XiaoSpearmanEstimator`'s rule: $C\leftarrow C+r(e^2-C)$, then
 $\alpha\leftarrow\alpha\,C^r$, so $e^2>1$ shortens memory. Here $e^2$ is the mean of the two
 squared Rosenblatt residuals of the predictive histogram, $z=\Phi^{-1}(H(V\mid U))$ and the same
-for $U\mid V$. Under a correct predictive copula, $\mathbb E[z^2]=1$.
+for $U\mid V$. Under the correct continuous conditional distribution, the transform is exactly
+uniform, so $\mathbb E[z^2]=1$ **whatever the dependence**. Note also that calibration does not
+identify memory: a correctly normalised residual averages close to 1 over a wide range of
+memories (`vff_norm.md` §2 measured about $1+1/N_{\mathrm{eff}}$ for the ρ-level residual).
 
-**Calibration.** The null level is not 1, and it depends on the dependence. Mean $e^2$ for
+**Calibration of this construction.** The *measured* baseline is not 1, and it moves with the
+dependence. Since the ideal null does not, this comes from the construction: within-cell
+conditionals treated as uniform, estimated counts and smoothing, and the PIT. It is unlike the
+ρ-level VFF, where $\operatorname{Var}(p_t)$ genuinely changes with ρ. Mean $e^2$ for
 fixed-memory histograms under a stationary copula, ticks 1500–2500, 20 seeds:
 
 | copula | mem 250 | mem 1000 | mem 4000 |
@@ -150,7 +165,7 @@ fixed-memory histograms under a stationary copula, ticks 1500–2500, 20 seeds:
 | Gaussian ρ≈.58, rank PIT | 0.934 | 0.958 | 0.968 |
 | Clayton ρ≈.58, rank PIT | 0.921 | 0.957 | 0.975 |
 
-True-PIT values are within 0.02 of these, so this is not caused by the rank PIT.
+True-PIT values are within 0.02 of these, so the rank PIT is not the main cause.
 
 **Trajectory (bottom row of the figure).** Over the jump from weak to strong dependence, $e^2$
 **falls** from about 1.03 to about 0.75 and stays below 1 for over 1000 ticks. A forecast that is
@@ -166,23 +181,34 @@ conditional PITs cluster near ½, which gives $z^2<1$. The statistic reads "too 
   shortens its memory (about 7000 → 2800 ticks), in the right direction. The tuned VFF's rate is
   too slow for this to do more than slow its lengthening.
 
-**So the problem is neither a weak signal nor cautious tuning. The statistic has the wrong sign
-for a change toward stronger dependence, and a dependence-dependent null.** Faster rates do not
-rescue it. Across the VFF grid, the best `jump` loss (87.9, rate .2, start 1000) comes with a
-`drift` loss of 77.3, against the banks' 52.6–52.8: a faster rate amplifies the dependence-
-dependent null as much as the change signal. This is the copula-level counterpart of `adaptive_memory.md`
-§5.1, where a ρ-level scale also pointed the wrong way just after a jump. A two-sided statistic,
-such as a test of whether the conditional PITs are uniform, or the log score compared with its
-own predicted expectation, would be needed. That is untested.
+**So these results point to the signal rather than to cautious tuning.** The statistic responds
+in the wrong direction to a change toward stronger dependence, and its measured baseline moves
+with the dependence. Faster rates do not rescue it. Across the VFF grid, the best `jump` loss
+(87.9, rate .2, start 1000) comes with a `drift` loss of 77.3, against the banks' 52.6–52.8: a
+faster rate amplifies the moving baseline as much as the change signal. This parallels
+`adaptive_memory.md` §5.1 and `vff_norm.md`, where a ρ-level scale also pointed the wrong way
+just after a jump. A two-sided statistic, such as a test of whether the conditional PITs are
+uniform, or the log score compared with its own predicted expectation, would be needed. That is
+untested. A jump toward *weaker* dependence would make the forecast too narrow, so this VFF
+should react correctly there; one successful run would support this explanation, not confirm it.
 
 ## 5. Caveats
 
 - **One density estimator** (8×8 histogram, prior 0.5) and Gaussian margins. With fewer
   parameters, the best memories, and possibly the ranking, could change.
 - **One VFF design.** §4 explains its failure. It is not evidence about VFFs in general.
-- **`jump` is a single, large change toward stronger dependence.** A jump toward *weaker*
-  dependence would make the forecast too *narrow*, $e^2>1$, and the VFF might react correctly.
-  That is untested.
+- **`jump` is a single, large change toward stronger dependence.** The reverse direction is
+  untested (§4).
+- **The densities are not copula densities.** They integrate to one, but their margins are only
+  approximately uniform. In a check on the same histogram, the worst row or column mass
+  deviated from $1/8$ by 13% on average at memory 1000 and 32% at memory 25 (the mean of the
+  *worst* deviation, not a typical one). The causes have not been separated: sampling noise,
+  rolling estimated ranks, overlapping windows and forgetting may all contribute. Because
+  marginal errors can affect methods differently, they can change the ranking, not merely add a
+  common penalty. Enforcing uniform margins and re-running is a separate, untested experiment.
+- **What the bank comparison cancels.** Comparing components on identical observations removes
+  terms they share, such as the observation's own variance, so no absolute surprise threshold is
+  needed. It does not remove marginal errors or each component's own estimation noise.
 - **Windows were fixed in advance, but several were compared.** Treat individual window
   differences of a few ×10⁻³ with that in mind. The whole-run `jump`, `drift` and `constant`
   comparisons are the primary results.
@@ -202,3 +228,22 @@ python3 analyze_memory_tradeoff.py    # summary.md + traces.png
 Outputs: `checks.txt` (sanity checks and calibration), `tuning.csv` (every configuration ×
 scenario, tuning seeds), `eval_windows.csv` (per seed × window × method), `traces.csv` (per-tick
 means over the 60 evaluation seeds, ticks 2000–4000), `summary.md` and `traces.png`.
+
+## 7. Reproduction with Xiao components (2026-10-20)
+
+`XiaoSpearmanEstimator::log_density_uv` (rank-PIT mode only; NaN under VFF, for a non-finite or
+non-positive prior, and for $u,v\notin[0,1]$) exposes the same smoothed histogram density from
+Xiao's own state. `./probe_memory_tradeoff <out_dir> xiao` swaps the probe's histogram components for
+fixed-memory Xiao estimators (rank-PIT, 8 bins, prior 0.5). The VFF comparator keeps its own
+histogram, because `log_density_uv` is undefined under VFF.
+
+With the same seeds:
+
+- tuning chose the same four configurations;
+- every excess-log-loss value for fixed memory, both banks and both VFFs is **identical**, in
+  every seed × window cell;
+- Spearman RMSE differs only slightly (mean +0.0001–0.0002, max 0.0055), because Xiao reads ρ
+  with its mid-rank formula rather than the weighted correlation of cell indices;
+- the ρ-scored fixed-share reference differs, since its weights depend on that ρ readout.
+
+So the findings above hold for Xiao itself, as results about densities on the unit square.
