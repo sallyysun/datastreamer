@@ -16,10 +16,8 @@ public:
         DelayStrategy delay
     );
 
-    // infinite stream
     void run(Sink sink);
 
-    // bounded stream
     void run(Sink sink, int n_events);
 
 private:

@@ -22,25 +22,10 @@
 
 #include "../../protocol/topic.hpp"
 
-// Minimal TCP publish/subscribe broker -- a "mini Kafka" broker. Consumers
-// connect over TCP and send a line "SUBSCRIBE <topic> [max_hz]\n"; thereafter
-// they receive newline-delimited JSON events published to a matching topic.
-//
-// Topics are hierarchical, dot-separated (e.g. "trades.SYNX_SYNY"). A
-// subscription matches by prefix on dot boundaries: subscribing to "trades"
-// receives every "trades.<pair>", while "trades.SYNX_SYNY" selects just that
-// pair. The literal "all" matches everything.
-//
-// The optional [max_hz] throttles a connection to at most that many messages
-// per second (0 / omitted = unthrottled); excess messages are dropped, which is
-// consistent with the best-effort model below.
-//
-// Best-effort, NO retention or offsets by design: client sockets are
-// non-blocking, so a consumer that cannot keep up simply drops events. Each
-// consumer's own device buffer is its only memory -- matching the thesis's
-// "buffer-type device". publish() is called from the producer thread; the
-// accept/read loop runs on its own thread; a single mutex guards the
-// subscription table.
+// Minimal TCP pub/sub broker. Protocol: client sends "SUBSCRIBE <topic> [max_hz]\n", then receives
+// newline-delimited JSON. Best-effort, no retention by design: non-blocking sends drop for slow
+// consumers, and max_hz throttles by dropping. publish() runs on the producer thread, the
+// accept/read loop on its own thread; mutex_ guards subs_ and inbuf_.
 class Broker {
 public:
     explicit Broker(int port) : port_(port) {}
@@ -63,8 +48,6 @@ public:
         return true;
     }
 
-    // Deliver msg to every consumer whose subscription matches `topic`, honouring
-    // each connection's optional rate limit.
     void publish(const std::string& topic, const std::string& msg) {
         std::string framed = msg;
         framed.push_back('\n');
@@ -72,7 +55,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         for (auto& [fd, sub] : subs_) {
             if (!sub.matches(topic)) continue;
-            if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
+            if (sub.throttled(now)) continue;
             ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
             sub.last_sent = now;
         }
@@ -137,7 +120,6 @@ private:
             const std::string kw = "SUBSCRIBE ";
             if (line.rfind(kw, 0) != 0) continue;
 
-            // "SUBSCRIBE <topic> [max_hz]" -- optional trailing rate limit.
             std::string rest = line.substr(kw.size());
             std::string topic = rest;
             double max_hz = 0.0;
@@ -163,16 +145,12 @@ private:
         inbuf_.erase(fd);
     }
 
-    // Per-connection subscription: the set of topics it wants, plus an optional
-    // rate limit (min gap between deliveries; zero = unthrottled).
     struct Sub {
         using clock = std::chrono::steady_clock;
         std::unordered_set<std::string> topics;
         std::chrono::duration<double, std::milli> min_interval{0.0};
         clock::time_point last_sent{};
 
-        // Matches if any subscribed topic matches the published one (shared
-        // dot-prefix rule, see protocol/topic.hpp).
         bool matches(const std::string& pub) const {
             for (const auto& s : topics) {
                 if (topic_matches(s, pub)) return true;

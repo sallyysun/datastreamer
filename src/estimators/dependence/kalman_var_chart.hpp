@@ -8,20 +8,16 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Upper one-sided EWMA of the SQUARED standardized innovation: watches the
-// dispersion of e~ rather than its mean. See
-// notes/studies/kalman_changepoint_results.md section 14.20.
+// Upper one-sided EWMA of the squared standardized innovation (dispersion, not mean).
+// See notes/studies/kalman_changepoint_results.md section 14.20.
 class KalmanVarChartDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
-        KalmanLocalLevel::Config kalman;   // must be FIXED-memory: a VFF filter
-                                           // absorbs the over-dispersion itself
-        double r = 0.05;      // chart smoothing weight on e~^2
-        double h = 1.5;       // upper limit; calibrate via calibrate_arl0.cpp
+        KalmanLocalLevel::Config kalman;   // must be fixed-memory: a VFF filter absorbs the over-dispersion
+        double r = 0.05;
+        double h = 1.5;       // calibrate via calibrate_arl0.cpp
 
-        // > 0 switches the EWMA for a one-sided CUSUM of (e~^2 - k) on the same
-        // quantity. The EWMA saturates at the new level; the CUSUM integrates it,
-        // which is the whole difference on a small sustained shift. Section 14.20.
+        // > 0 replaces the EWMA with a one-sided CUSUM of (e~^2 - k).
         double cusum_k = 0.0;
     };
 
@@ -42,10 +38,8 @@ public:
         }
         ++chart_n_;
 
-        // The baseline is FIXED at the model value, never re-estimated from the
-        // data being monitored -- the 14.11 chasing bug. Its realised null level
-        // is not exactly 1 (q over-models a constant truth), which is why h comes
-        // from calibration rather than from theory.
+        // Baseline fixed at the model value, never re-estimated from monitored data (14.11 chasing bug);
+        // its realised null level is not exactly 1, so h must come from calibration.
         if (chart_n_ > config_.kalman.burn_in_blocks && c_ > config_.h) {
             alarmed_ = true;
             ++alarm_count_;

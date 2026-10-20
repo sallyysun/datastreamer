@@ -9,8 +9,7 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Window-limited GLR on KalmanLocalLevel's innovations, for an unknown jump
-// size; resets the filter on alarm.
+// Window-limited GLR on KalmanLocalLevel's innovations for an unknown jump size; resets on alarm.
 // See notes/studies/kalman_changepoint_results.md.
 class KalmanGlrDetector : public DependenceEstimator, public ChangeDetector {
 public:

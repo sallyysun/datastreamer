@@ -13,12 +13,8 @@
 #include "../estimators/dependence/xiao_spearman.hpp"
 #include "../protocol/symbol_tick.hpp"
 
-// DeviceState is the recursively-updated state Z of a consumer device
-// (thesis D = (Z, Psi, Z_0)). update() is the one-pass update map Psi applied
-// per event. It maintains, in O(1) per update:
-//   * fixed-dimensional moments  -- Welford mean/variance of prices & returns;
-//   * the inference layer        -- a bank of online copula-dependence estimators.
-// Folds the former running_stats / state_manager / dependence_monitor into one.
+// Device state: Welford moments of prices/returns + the online dependence-estimator bank, O(1)/tick.
+// Thesis framing (D = (Z, Psi, Z_0)): notes/design/source_rationale.md.
 class DeviceState {
 public:
     struct Moments {
@@ -28,8 +24,8 @@ public:
         double mean_price_x, mean_price_y;
     };
 
-    // Estimator bank -- configs kept IDENTICAL to src/estimators/registry.hpp so
-    // live (device) and offline (harness) results are directly comparable.
+    // Configs must stay IDENTICAL to src/estimators/registry.hpp (live vs offline RMSE comparability).
+    // λ is a mirror-image knob: Xiao larger = longer memory, Hermite smaller = longer; see registry.hpp.
     DeviceState() {
         estimators_.emplace_back(std::make_unique<XiaoSpearmanEstimator>(
             XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.0, .calibration = 100}, "xiao"));
@@ -41,10 +37,7 @@ public:
             HermiteEstimator::Config{.order = 10, .lambda = 0.01, .burn_in = 50}, "hermite_ew"));
     }
 
-    // Psi: fold one event into the device state (moments + inference). The wire
-    // carries prices; the return is derived here as the log-price increment
-    // (return = ln(price_t / price_{t-1})), so the first event only seeds the
-    // previous price and produces no return.
+    // Wire carries prices; return = ln(p_t / p_{t-1}), so the first event only seeds prev price.
     void update(const TickPair& event) {
         std::lock_guard<std::mutex> lock(mutex_);
         price_x_.add(event.x.price);
@@ -71,7 +64,6 @@ public:
         };
     }
 
-    // Inference: current Spearman's rho per estimator, in registration order.
     std::vector<std::pair<std::string, double>> dependence() const {
         std::lock_guard<std::mutex> lock(mutex_);
         std::vector<std::pair<std::string, double>> out;
@@ -81,7 +73,6 @@ public:
     }
 
 private:
-    // Online mean/variance via Welford's algorithm (was running_stats.hpp).
     struct Welford {
         void add(double x) {
             ++n_;
@@ -98,7 +89,7 @@ private:
 
     mutable std::mutex mutex_;
     Welford return_x_, return_y_, price_x_, price_y_;
-    double prev_price_x_ = 0.0, prev_price_y_ = 0.0;  // for return = Δlog price
+    double prev_price_x_ = 0.0, prev_price_y_ = 0.0;
     bool has_prev_ = false;
     std::vector<std::unique_ptr<DependenceEstimator>> estimators_;
 };

@@ -10,8 +10,7 @@
 #include "objective.hpp"
 #include "special_functions.hpp"
 
-// Parametric copula families: log-density, score in the family's natural
-// parameter, and a shared Spearman conversion by Gauss-Legendre on the density.
+// Parametric copula families: log-density, score in the natural parameter, Spearman by Gauss-Legendre.
 // Clayton/Gumbel are positive-dependence only; the t copula's nu is fixed.
 // Derivations: notes/studies/roadmap.md.
 namespace copula {
@@ -198,7 +197,7 @@ struct SpearmanTable {
     }
 };
 
-}  // namespace detail
+}
 
 inline double spearman_from_param(Family family, double param, double nu = 4.0) {
     constexpr int kGrid = 96;
@@ -255,4 +254,4 @@ inline double spearman_from_param(Family family, double param, double nu = 4.0) 
     }
 }
 
-}  // namespace copula
+}

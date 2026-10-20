@@ -23,14 +23,7 @@ enum class ConsumerPolicy {
     SkipToLatest     // real-time only, always jump to newest
 };
 
-// One connected client. Each Consumer owns its own ring buffer, its own lag
-// policy, and its own StateManager, so clients are fully independent: a slow
-// client lagging or skipping events doesn't affect anyone else.
-//
-// on_event() is invoked for each event the device receives (from the broker /
-// consumer read loop). It appends to this consumer's buffer and folds the
-// newly-available events into the running state and inference, honouring the lag
-// policy.
+// One device: its own ring buffer, lag policy and state, so a slow client affects no one else.
 class Consumer {
 public:
     explicit Consumer(
@@ -40,15 +33,11 @@ public:
           cursor_(0),
           policy_(policy) {}
 
-    // ----------- ingestion (called per received event) -----------
-
     void on_event(const TickPair& event) {
         buffer_->push(event);
         process_available();
     }
 
-    // Drain everything newly available, applying the lag policy, and fold each
-    // event into the running state and this device's inference layer.
     void process_available() {
         handle_policy();
 
@@ -59,24 +48,16 @@ public:
                 continue;
             }
             const TickPair e = buffer_->get(cursor_);
-            state_.update(e);   // folds moments + inference (thesis: Psi on device state)
+            state_.update(e);
             ++cursor_;
         }
     }
 
-    // ----------- inference layer (the device's statistical objective) -----------
-
-    // Current dependence estimate (Spearman rho) from each estimator this device
-    // runs. Each device owns its own estimators, independent of every other.
     std::vector<std::pair<std::string, double>> dependence() const {
         return state_.dependence();
     }
 
-    // ----------- statistics -----------
-
     DeviceState::Moments moments() const { return state_.moments(); }
-
-    // ----------- introspection -----------
 
     bool has_next() const { return cursor_ < buffer_->head(); }
     size_t cursor() const { return cursor_; }
@@ -84,34 +65,27 @@ public:
     ConsumerPolicy policy() const { return policy_; }
     const RingBuffer& buffer() const { return *buffer_; }
 
-    // ----------- explicit controls -----------
-
     void seek_to_beginning() { cursor_ = buffer_->oldest_available(); }
     void seek_latest() { cursor_ = buffer_->head(); }
 
 private:
-    // Reconcile the cursor with the buffer according to the lag policy.
     void handle_policy() {
         const size_t oldest = buffer_->oldest_available();
         const size_t head = buffer_->head();
 
         switch (policy_) {
-        // 1. ProcessAll: never skip, fail loudly if we missed data
         case ConsumerPolicy::ProcessAll:
             if (cursor_ < oldest) {
                 throw ConsumerLagException();
             }
             return;
 
-        // 2. Snapshot: catch up to the oldest still-valid event, never fail
         case ConsumerPolicy::Snapshot:
             if (cursor_ < oldest) {
                 cursor_ = oldest;
             }
             return;
 
-        // 3. SkipToLatest: drop any backlog, keep only the newest event so the
-        //    state always reflects the live edge
         case ConsumerPolicy::SkipToLatest:
             if (head > 0 && cursor_ < head - 1) {
                 cursor_ = head - 1;
@@ -123,5 +97,5 @@ private:
     std::shared_ptr<RingBuffer> buffer_;
     size_t cursor_;
     ConsumerPolicy policy_;
-    DeviceState state_;   // Z: moments + inference (folds state_manager + monitor)
+    DeviceState state_;
 };

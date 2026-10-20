@@ -8,16 +8,14 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// Shiryaev-Roberts detector on KalmanLocalLevel's standardized innovations;
-// resets the filter on alarm. Same latent chain as CUSUM, summed over the change
-// time instead of maximised: R_t = (1 + R_{t-1}) * Lambda_t. Carried in logs.
-// See notes/studies/kalman_changepoint_results.md.
+// Shiryaev-Roberts, R_t = (1 + R_{t-1}) * Lambda_t carried in logs, on KalmanLocalLevel's
+// standardized innovations; resets the filter on alarm. See notes/studies/kalman_changepoint_results.md.
 class KalmanShiryaevRobertsDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         KalmanLocalLevel::Config kalman;
-        double delta = 1.0;   // design shift size, in innovation SDs
-        double h = 5.0;       // alarm threshold on log R; calibrate via calibrate_arl0.cpp
+        double delta = 1.0;   // in innovation SDs
+        double h = 5.0;       // on log R; calibrate via calibrate_arl0.cpp
     };
 
     KalmanShiryaevRobertsDetector(Config config, const char* name)
@@ -32,7 +30,6 @@ public:
         const double e = filter_.standardized_innovation();
         const double d = config_.delta;
 
-        // Two one-sided statistics so a drop is caught as well as a rise.
         log_r_pos_ = accumulate(log_r_pos_, d * e - 0.5 * d * d);
         log_r_neg_ = accumulate(log_r_neg_, -d * e - 0.5 * d * d);
 
@@ -73,8 +70,7 @@ public:
 private:
     static constexpr double kLogZero = -1e300;
 
-    // log R_t = log(1 + R_{t-1}) + log Lambda_t, via log1p on the exponentiated
-    // previous value so R = 0 is representable without underflow games.
+    // log1p on the exponentiated previous value so R = 0 is representable without underflow.
     static double accumulate(double log_r_prev, double log_lambda) {
         const double log1p_r = (log_r_prev <= kLogZero / 2.0)
                              ? 0.0

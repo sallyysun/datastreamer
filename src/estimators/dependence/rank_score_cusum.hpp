@@ -10,26 +10,9 @@
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
 
-// CUSUM on a per-tick unbiased estimate of Spearman's rho, for estimators that
-// have no likelihood score.
-//
-// Section 14.10 found the MLE score-CUSUM's advantage came from two properties,
-// neither of them parametric: the statistic is PER TICK (20x the sample rate of
-// anything read off a block) and it is PROJECTED onto the one direction the
-// change moves. Xiao and Hermite have no score, but Spearman's rho is itself an
-// expectation,
-//
-//     rho_S = 12 E[(F_X(x) - 1/2)(F_Y(y) - 1/2)],
-//
-// so one observation gives an unbiased estimate of it, and the residual against
-// the estimator's current rho-hat is a mean-zero per-tick innovation. At rho = 0
-// its variance is exactly 1; elsewhere it is standardized by its own empirical
-// variance, for the reason section 14.12 gives.
-//
-// Estimator-agnostic by construction: it wraps a DependenceEstimator and uses
-// only estimate(), so the same detector runs on Xiao, Hermite or anything else.
-//
-// See section 14.14 of notes/studies/kalman_changepoint_results.md.
+// CUSUM on the per-tick residual 12(u-1/2)(v-1/2) - rho_hat (an unbiased one-tick Spearman),
+// standardized by its empirical variance; wraps any estimator via estimate().
+// See notes/studies/kalman_changepoint_results.md §14.14.
 class RankScoreCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     enum class Response { Hard, None };
@@ -43,12 +26,8 @@ public:
         std::size_t burn_in_blocks = 5;
         Response response = Response::Hard;
 
-        // Ticks to hold the CUSUM after a hard reset. The statistic is
-        // 12(u-1/2)(v-1/2) - rho_hat, and a reset sends rho_hat to 0 during the
-        // inner estimator's burn-in -- which is a sustained residual of size rho,
-        // i.e. the alarm response manufactures the signal and the detector alarms
-        // forever. Measured: ARL0 of 1 block at rho = 0.8. Same positive feedback
-        // as the Hermite boost in section 14.11.4, in a third place.
+        // Hold after a hard reset: inner burn-in reports rho_hat = 0, so the residual becomes rho
+        // and the detector alarms forever (ARL0 = 1 block at rho = 0.8 without it).
         std::size_t resume_ticks = 200;
     };
 
@@ -67,7 +46,7 @@ public:
         if (pit_x_.size() < 30) return;   // no usable rank scale yet
         if (hold_ > 0) { --hold_; return; }
 
-        // Residual against the estimate held BEFORE this observation was absorbed.
+        // rho_hat is taken BEFORE this observation is absorbed.
         const double s = 12.0 * (u - 0.5) * (v - 0.5) - rho_hat;
         var_ += config_.var_rate * (s * s - var_);
 

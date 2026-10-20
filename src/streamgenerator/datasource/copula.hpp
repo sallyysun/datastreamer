@@ -12,10 +12,9 @@
 #include "../../estimators/copula_family.hpp"
 #include "../../estimators/special_functions.hpp"
 
-// Copula families for the synthetic DGP -- the generator counterpart to
-// estimators/copula_family.hpp. Every family targets the same Spearman path
-// rho_S = (6/pi) asin(d/2) and differs only in tail shape, so misspecification
-// is isolated from the dependence trajectory. Notes: notes/studies/roadmap.md.
+// DGP copula families (generator side of estimators/copula_family.hpp). All target the same Spearman
+// path rho_S = (6/pi) asin(d/2) and differ only in tail shape. Notes: notes/studies/roadmap.md,
+// notes/studies/kalman_changepoint_results.md Appendix A.
 namespace dgp {
 
 struct CopulaDraw {
@@ -148,17 +147,7 @@ private:
     std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};
 };
 
-// Frechet mixture: C = a M + b W + (1-a-b) Pi, mixing the comonotone, the
-// countermonotone and the independence copula. Spearman's rho is a LINEAR
-// functional of C, so rho_S = a - b exactly -- no quadrature, unlike every other
-// family here.
-//
-// This is the family the Gaussian copula cannot summarise. Its density is a
-// singular ridge on the diagonal sitting on a flat background, and a maximum
-// likelihood fit is driven by the ridge while a rank average is driven by the
-// background. Clayton, Gumbel and t are all smooth and sit close enough to the
-// Gaussian that one rho describes them (finding 5, "a forgiving wrong answer");
-// this one does not. Section 14.15.
+// Fréchet mixture a M + b W + (1-a-b) Pi: rho_S = a - b exactly (no quadrature). Appendix A.5, §14.15.
 class FrechetCopula : public Copula {
 public:
     CopulaDraw sample(double d, std::mt19937& rng) override {
@@ -167,9 +156,9 @@ public:
         const double u = unit_(rng);
         double v;
         if (unit_(rng) < w) {
-            v = (target > 0.0) ? u : 1.0 - u;   // comonotone / countermonotone
+            v = (target > 0.0) ? u : 1.0 - u;
         } else {
-            v = unit_(rng);                      // independent
+            v = unit_(rng);
         }
         return {detail::to_normal_score(u), detail::to_normal_score(v), target};
     }
@@ -179,10 +168,7 @@ private:
     std::uniform_real_distribution<double> unit_{0.0, 1.0};
 };
 
-// The same idea without the singularity: mix a STRONG Gaussian against
-// independence rather than a degenerate one. Spearman is still linear in the
-// weight, so rho_S = p * rho_S(0.95) exactly. Separates "the Gaussian MLE cannot
-// handle a singular component" from "the Gaussian MLE cannot handle a mixture".
+// p Gauss(0.95) + (1-p) Pi: rho_S = p * rho_S(0.95) exactly; Fréchet without the singularity. Appendix A.6.
 class MixtureGaussianCopula : public Copula {
 public:
     CopulaDraw sample(double d, std::mt19937& rng) override {
@@ -208,13 +194,7 @@ private:
     std::uniform_real_distribution<double> unit_{0.0, 1.0};
 };
 
-// Two families, one Spearman path, a switch part-way through. Because every
-// family here already targets the SAME rho_S for a given knob d, holding d
-// constant across the switch changes the copula's SHAPE -- its tail dependence --
-// while leaving rho_S flat. That is distinction 1 made into an experiment: a
-// change no rho-monitoring detector can see, by construction.
-//
-// See section 14.13 of notes/studies/kalman_changepoint_results.md.
+// Family switch at fixed d: tail shape changes, rho_S stays flat (invisible to rho monitors). Appendix A.7, §14.13.
 class SwitchingCopula : public Copula {
 public:
     SwitchingCopula(std::unique_ptr<Copula> before, std::unique_ptr<Copula> after,
@@ -235,7 +215,7 @@ private:
 };
 
 inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 4.0) {
-    // Gaussian -> t at matched Spearman rho, switching at N/2 as `jump` does.
+    // Switch tick 2500 = N/2, matching `jump`.
     if (name == "gauss2t") {
         return std::make_unique<SwitchingCopula>(
             std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),

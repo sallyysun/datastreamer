@@ -8,19 +8,8 @@
 
 #include "estimator.hpp"
 
-// EKF and UKF on the RAW block Spearman, with no Fisher transform.
-//
-// KalmanLocalLevel transforms the observation first (y = atanh(rho-hat)) so the
-// model becomes linear with constant noise. That is what makes the exact filter
-// available, and section 0.9 records what it costs. These two do the opposite:
-// keep the state as z = atanh(rho) but observe rho-hat directly through
-// h(z) = tanh(z), with the heteroscedastic variance the raw statistic actually
-// has, Var ~ 1.06 (1 - rho^2)^2 / (m - 1).
-//
-// So the comparison against `kalman` is precisely: is the Fisher transform's
-// variance stabilization worth more than handling the nonlinearity properly?
-//
-// See section 11 of notes/studies/kalman_changepoint_results.md.
+// EKF and UKF on the raw block Spearman: state z = atanh(rho) observed through h(z) = tanh(z),
+// no Fisher transform. See section 12 of notes/studies/kalman_changepoint_results.md.
 class NonlinearKalman : public DependenceEstimator {
 public:
     enum class Mode { Extended, Unscented };
@@ -30,8 +19,8 @@ public:
         double sigma_omega2 = 1e-3;
         Mode mode = Mode::Extended;
         std::size_t burn_in_blocks = 2;
-        double alpha = 1e-3;      // UKF spread
-        double beta = 2.0;        // UKF: 2 is optimal for a Gaussian prior
+        double alpha = 1e-3;
+        double beta = 2.0;        // 2 is optimal for a Gaussian prior
         double kappa = 0.0;
     };
 
@@ -54,14 +43,13 @@ public:
 
         if (config_.mode == Mode::Extended) {
             const double h = std::tanh(z_pred);
-            const double H = 1.0 - h * h;               // dh/dz = sech^2
+            const double H = 1.0 - h * h;
             const double R = obs_var(h, m);
             const double S = H * H * P_pred + R;
             const double K = (S > 0.0) ? P_pred * H / S : 0.0;
             z_ = z_pred + K * (r_obs - h);
             P_ = (1.0 - K * H) * P_pred;
         } else {
-            // Scalar UKF: three sigma points.
             const double L = 1.0;
             const double lam = config_.alpha * config_.alpha * (L + config_.kappa) - L;
             const double c = L + lam;
@@ -120,8 +108,7 @@ public:
 private:
     static constexpr double kPriorVariance = 1.0;
 
-    // The variance the raw statistic actually has. This is the heteroscedasticity
-    // the Fisher transform exists to remove; a floor keeps it finite as rho -> 1.
+    // Raw block-Spearman variance; the floor keeps it finite as rho -> 1.
     static double obs_var(double rho, double m) {
         const double s = 1.0 - rho * rho;
         return std::max(1.06 * s * s / std::max(m - 1.0, 1.0), 1e-6);

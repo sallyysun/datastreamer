@@ -71,7 +71,7 @@ private:
     double total_ = 0.0;
 };
 
-}  // namespace copula
+}
 
 class CopulaSelector : public DependenceEstimator {
 public:

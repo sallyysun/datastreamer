@@ -6,17 +6,14 @@
 #include <numbers>
 #include <random>
 
-// A Dependence produces the true copula parameter rho_t for each step,
-// advancing an internal clock on every call to next(). These drive the
-// simulated data-generating process so estimators can be scored against a
-// known ground truth (roadmap: "Dynamic latent-process model").
+// DGP dependence paths: next() advances the clock and returns the knob d_t. d is a Gaussian-copula
+// correlation, NOT Spearman: copula.hpp maps it to rho_S = (6/pi) asin(d/2). Notes: notes/studies/roadmap.md.
 struct Dependence {
     virtual ~Dependence() = default;
     virtual double next() = 0;
     virtual const char* name() const = 0;
 };
 
-// rho_t = rho, constant.
 class ConstantDependence : public Dependence {
 public:
     explicit ConstantDependence(double rho) : rho_(rho) {}
@@ -27,9 +24,7 @@ private:
     double rho_;
 };
 
-// rho_t = offset + amplitude * sin(2*pi*t / period). A perpetually moving
-// target, handy for an infinite live stream where a one-off jump would settle
-// and stop being interesting.
+// Never settles, so it suits the infinite live stream (a one-off jump would go flat).
 class OscillatingDependence : public Dependence {
 public:
     OscillatingDependence(double amplitude, double period, double offset = 0.0)
@@ -46,7 +41,6 @@ private:
     std::size_t t_ = 0;
 };
 
-// Linear ramp from r0 to r1 over T steps, then held at r1.
 class DriftDependence : public Dependence {
 public:
     DriftDependence(double r0, double r1, std::size_t T) : r0_(r0), r1_(r1), T_(T) {}
@@ -63,7 +57,6 @@ private:
     std::size_t t_ = 0;
 };
 
-// Abrupt structural break: r0 for t < tau, r1 afterwards.
 class JumpDependence : public Dependence {
 public:
     JumpDependence(double r0, double r1, std::size_t tau) : r0_(r0), r1_(r1), tau_(tau) {}
@@ -76,7 +69,6 @@ private:
     std::size_t t_ = 0;
 };
 
-// Stochastic latent dependence: z_t = z_{t-1} + sigma * omega_t, rho_t = tanh(z_t).
 class StochasticDependence : public Dependence {
 public:
     StochasticDependence(double sigma, double z0, unsigned seed)

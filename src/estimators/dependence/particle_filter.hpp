@@ -9,27 +9,17 @@
 
 #include "estimator.hpp"
 
-// Bootstrap particle filter on Fisher-z'd blockwise Spearman's rho.
-//
-// The Kalman filter is optimal only if the state moves by Gaussian increments.
-// That assumption is what forces a single memory length: one sigma_omega2 has to
-// serve both quiet stretches and breaks. A particle filter carries the posterior
-// as samples instead, so the increment distribution is free — here a jump-diffusion
-// mixture, mostly small steps with a rare large one. That gives long memory while
-// a regime holds and an instant move when it does not, without a detector and
-// without a reset.
-//
-// O(P) per block rather than O(1). See section 0.3 and section 10 of
-// notes/studies/kalman_changepoint_results.md.
+// Bootstrap particle filter on Fisher-z'd block Spearman, jump-diffusion state; O(P) per block.
+// See sections 0.3 and 11 of notes/studies/kalman_changepoint_results.md.
 class ParticleFilter : public DependenceEstimator {
 public:
     struct Config {
         std::size_t block = 20;
         std::size_t particles = 400;
-        double sigma_omega2 = 1e-4;    // diffusion component
-        double jump_prob = 0.01;       // mixture weight on the jump component
-        double jump_scale = 0.5;       // jump sd, in Fisher-z units
-        double nu = 5.0;               // observation t degrees of freedom; large -> Gaussian
+        double sigma_omega2 = 1e-4;
+        double jump_prob = 0.01;
+        double jump_scale = 0.5;       // in Fisher-z units
+        double nu = 5.0;               // observation-t dof; large -> Gaussian
         std::size_t burn_in_blocks = 2;
         std::uint64_t seed = 20260908;
     };
@@ -60,8 +50,7 @@ public:
             z_[i] += diffusion(rng_);
             if (unit(rng_) < config_.jump_prob) z_[i] += jump(rng_);
 
-            // Student-t observation likelihood: a block Spearman is not Gaussian,
-            // and a heavy tail stops one odd block from collapsing the weights.
+            // Student-t likelihood: a heavy tail stops one odd block from collapsing the weights.
             const double r = (y_obs - z_[i]) / sigma_v;
             w_[i] = std::pow(1.0 + r * r / config_.nu, -(config_.nu + 1.0) / 2.0);
             total += w_[i];
@@ -108,7 +97,6 @@ private:
         return (s > 0.0) ? 1.0 / s : 0.0;
     }
 
-    // Systematic resampling: one uniform draw, lower variance than multinomial.
     void resample() {
         const std::size_t P = z_.size();
         std::vector<double> next(P);

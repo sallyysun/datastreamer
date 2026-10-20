@@ -8,33 +8,14 @@
 
 #include "estimator.hpp"
 
-// A posterior over the forgetting rate, instead of a guess at it.
-//
-// Section 14.8b measured the problem: sigma_omega2 moves RMSE about 4x more than
-// any detector, and its best value differs per scenario across two and a half
-// orders of magnitude. No single value is close to good everywhere, and the
-// value every detector in this document wraps (1e-2) is right for two of five
-// scenarios.
-//
-// So do not choose one. Run a bank of local-level filters at different
-// sigma_omega2, score each by the predictive likelihood it assigns to the block
-// actually observed, and report the weighted mean. That is Bayesian model
-// averaging over the memory length, and it is structurally the same device as
-// BOCPD -- which averages over run length and is the one clear structural win in
-// this document (finding 2).
-//
-// The weights need their own dynamics or they converge once and never move
-// again, which is the cumulative-estimator trap in a new place. A small
-// switch_prob puts a Markov chain on the model index, exactly as BOCPD's hazard
-// does on the run length.
-//
-// Cost: O(K) scalar updates per block on ONE shared block Spearman, so ~500
-// bytes and no extra rank sorting. See section 14.16.
+// Bayesian model average over local-level filters at different sigma_omega2, with a Markov
+// switch on the model index so the weights never freeze. See
+// notes/studies/kalman_changepoint_results.md §14.16 and notes/design/source_rationale.md.
 class KalmanBank : public DependenceEstimator {
 public:
     struct Config {
         std::size_t block = 20;
-        // Spans the range section 14.8b found the per-scenario optimum over.
+        // Spans §14.8b's per-scenario optimum range.
         std::vector<double> sigma_omega2 = {1e-4, 1e-3, 1e-2, 3e-2, 1e-1, 3e-1, 1e0};
         double switch_prob = 0.02;   // per-block probability the memory changes
         std::size_t burn_in_blocks = 2;
@@ -60,7 +41,7 @@ public:
         const double sigma_v2 = 1.06 / std::max(m - 3.0, 1.0);
         const std::size_t K = z_.size();
 
-        // Score each model by the density it gave the observation BEFORE using it.
+        // Score on the predictive density, BEFORE the update.
         std::vector<double> logl(K);
         for (std::size_t k = 0; k < K; ++k) {
             const double P_pred = P_[k] + config_.sigma_omega2[k];
@@ -73,7 +54,7 @@ public:
             P_[k] = (1.0 - gain) * P_pred;
         }
 
-        // Bayes on the weights, in log space so a confident model cannot underflow.
+        // Log space so a confident model cannot underflow.
         const double top = *std::max_element(logl.begin(), logl.end());
         double total = 0.0;
         for (std::size_t k = 0; k < K; ++k) {
@@ -86,8 +67,6 @@ public:
             std::fill(w_.begin(), w_.end(), 1.0 / static_cast<double>(K));
         }
 
-        // Markov transition on the model index: the right memory length is itself
-        // allowed to change, so the posterior stays able to move.
         const double floor = config_.switch_prob / static_cast<double>(K);
         for (double& wk : w_) wk = (1.0 - config_.switch_prob) * wk + floor;
 
@@ -124,7 +103,6 @@ public:
     double weight(std::size_t k) const { return w_[k]; }
     double sigma_omega2(std::size_t k) const { return config_.sigma_omega2[k]; }
 
-    // The posterior-mean memory length, for diagnostics.
     double effective_sigma_omega2() const {
         double q = 0.0;
         for (std::size_t k = 0; k < w_.size(); ++k) q += w_[k] * config_.sigma_omega2[k];

@@ -2,11 +2,9 @@
 
 #include <cstddef>
 
-// Common interface for all online dependence estimators.
-//
-// estimate() returns Spearman's rho (rho_S), so parametric and nonparametric
-// estimators can be compared in the same space. reset() clears all state and
-// is what a change-detection wrapper calls to "restart" the estimator.
+// Common interface for all online dependence estimators. estimate() always returns Spearman's rho,
+// never a native parameter; reset() is the change-detection restart hook; store_bytes() is a thesis
+// metric (streaming admissibility), not diagnostics.
 class DependenceEstimator {
 public:
     virtual ~DependenceEstimator() = default;

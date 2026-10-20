@@ -4,8 +4,7 @@
 
 #include <string>
 
-// The wire is single-symbol ticks: producers publish per symbol, subscribers
-// (browser or C++ consumer) pair the symbols they want.
+// JSON wire format: one single-symbol tick per message; subscribers pair the legs themselves.
 class Serializer {
 public:
     static std::string to_json(const SymbolTick& tick);

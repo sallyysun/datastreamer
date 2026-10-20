@@ -11,30 +11,9 @@
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
 
-// Streaming empirical-copula estimator of Spearman's rho (the "Xiao" branch).
-//
-// C++ port of Xiao (2019), "Novel Online Algorithms for Nonparametric
-// Correlations with Application to Analyze Sensor Data" (IEEE Big Data),
-// reference implementation: external/onlineNPCORR (corr.py online_corr /
-// utility.py spearmanr_by_matrix, get_index). This estimate() reproduces
-// spearmanr_by_matrix exactly; we add two extensions beyond the paper:
-// auto-calibrated cutpoints (below) and exponential forgetting (lambda).
-//
-// Marginals are discretised into `bins` equiprobable cells whose cutpoints are
-// fixed from an initial calibration window. A bins x bins count grid then
-// approximates the joint distribution, and Spearman's rho is read off as a
-// rank correlation over the grid.
-//
-// Three memory regimes share the same estimate() formula (it is scale
-// invariant, so the total weight need not be an integer):
-//   * lambda > 0  : exponential forgetting  (counts *= lambda each step)
-//   * window > 0  : hard sliding window      (oldest cell decremented)
-//   * otherwise   : cumulative               (all history)
-//
-// rank_pit_window > 0 replaces the calibrated cutpoints with rank-PIT: each
-// marginal goes through RankPit, so the cutpoints are exactly k/bins and no
-// calibration window is needed. Section 14.19 of
-// notes/studies/kalman_changepoint_results.md.
+// Streaming empirical-copula Spearman's rho: port of Xiao (2019), reference
+// external/onlineNPCORR. estimate() is scale invariant, so fractional (forgetting)
+// weights are fine. Rank-PIT: §14.19 of notes/studies/kalman_changepoint_results.md.
 class XiaoSpearmanEstimator : public DependenceEstimator {
 public:
     struct Config {
@@ -44,13 +23,7 @@ public:
         std::size_t calibration = 300;
         std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
 
-        // Variable forgetting, driven by the section 14.14 rank residual
-        //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
-        // over its KNOWN null variance (see vff_step). C_ then tracks E[e~^2],
-        // which is 1 when the memory is right -- the same statistic and the same
-        // multiplicative rule as KalmanLocalLevel's vff_rate. Mirror image: here
-        // it drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda.
-        // See notes/studies/adaptive_memory.md.
+        // ⚠️ Drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda. notes/studies/adaptive_memory.md.
         double vff_rate = 0.0;             // 0 disables
         std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
         double vff_null_var = 1.0;         // section 14.14 measured 0.92-1.00
@@ -98,7 +71,6 @@ public:
         if (!calibrated_ || total_ <= 0.0) return 0.0;
         const std::size_t m = config_.bins;
 
-        // Mid-rank of each marginal cell, centred on the grand mean (total_/2).
         std::vector<double> rx(m), ry(m);
         double cum = 0.0;
         for (std::size_t i = 0; i < m; ++i) {
@@ -164,8 +136,7 @@ public:
 
     const char* name() const override { return name_; }
 
-    // Ablation hooks (probe_vff_norm.cpp): swap the VFF's null scale per tick and
-    // read back the controller's per-block state.
+    // Ablation hooks for probe_vff_norm.cpp.
     void set_vff_null_var(double v) { config_.vff_null_var = v; }
     double vff_c() const { return vff_c_; }
     double vff_last_ms() const { return vff_last_ms_; }
@@ -212,7 +183,7 @@ private:
     }
 
     void vff_step(double x, double y) {
-        // Residual against the estimate held BEFORE this observation is absorbed.
+        // Residual against the estimate BEFORE this observation is absorbed.
         const double rho_hat = estimate();
         const double u = vff_pit_x_.transform(x);
         const double v = vff_pit_y_.transform(y);
@@ -220,12 +191,7 @@ private:
         const double p = 12.0 * (u - 0.5) * (v - 0.5);
         const double s = p - rho_hat;
 
-        // Fixed null scale, not an estimated one. An EWMA of s^2 chases the very
-        // lag the VFF exists to remove (14.11's trap); E[p^2] - rho_hat^2 biases
-        // the other way, since rho_hat is the lagging quantity. Section 14.14
-        // measured Var(s) at 0.92-1.00 across the whole rho range, so 1 is a
-        // KNOWN scale to within 8% and nothing has to be estimated. This is the
-        // nonparametric stand-in for the Kalman's F.
+        // Fixed null scale on purpose: an estimated one chases the lag the VFF removes. §14.14.
         vff_sum_ += s * s / config_.vff_null_var;
         vff_raw_sum_ += s * s;
         vff_den_sum_ += config_.vff_null_var;
@@ -300,8 +266,7 @@ private:
     std::deque<BinPair> window_;
     std::vector<std::pair<double, double>> calibration_;
 
-    // Declared AFTER config_: a RankPit placed before it reads an uninitialised
-    // window size (the parametric_copula.hpp bug of 2026-09).
+    // Must be declared after config_, or it reads an uninitialised window size.
     RankPit pit_x_;
     RankPit pit_y_;
     RankPit vff_pit_x_{config_.vff_pit_window};

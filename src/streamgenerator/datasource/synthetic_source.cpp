@@ -23,14 +23,11 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence,
 }
 
 TickPair SyntheticSource::next() {
-    // Current dependence knob for this step (clamped away from +-1 so the copula
-    // constructions stay well defined).
+    // Clamp away from +-1 so the copula constructions stay well defined.
     double d = dependence_->next();
     if (d > 0.999) d = 0.999;
     if (d < -0.999) d = -0.999;
 
-    // Sample the chosen copula family: two standard-normal scores whose
-    // dependence follows the family and whose true Spearman rho is rho_s.
     const dgp::CopulaDraw draw = copula_->sample(d, rng_);
     const double z1 = draw.z1;
     const double z2 = draw.z2;
@@ -46,12 +43,8 @@ TickPair SyntheticSource::next() {
                   now.time_since_epoch())
                   .count();
 
-    // r_x/r_y were used to advance the prices above; the wire carries price +
-    // volume, and each device re-derives the return from consecutive prices.
     const double rho_s = draw.rho_s;
 
-    // Symbols are left empty here (the DGP is instrument-agnostic); the server
-    // names the two legs before publishing.
     const SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
     const SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
     return TickPair{x, y};

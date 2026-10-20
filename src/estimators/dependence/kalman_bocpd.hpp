@@ -11,21 +11,17 @@
 #include "change_detector.hpp"
 #include "estimator.hpp"
 
-// Bayesian Online Changepoint Detection (Adams & MacKay 2007) on the same
-// observation as KalmanLocalLevel. Never resets; estimate() is the
-// run-length-weighted posterior mean.
-// See notes/studies/kalman_changepoint_results.md.
+// BOCPD (Adams & MacKay 2007) on KalmanLocalLevel's observation. Never resets; estimate() is the
+// run-length-weighted posterior mean. See notes/studies/kalman_changepoint_results.md.
 class KalmanBocpdDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         std::size_t block = 20;
-        double hazard_rate = 1.0 / 1000.0;  // H = 1 / mean segment length, in blocks
-        double prior_mu0 = 0.0;             // prior mean of mu = atanh(rho) at a fresh run
-        double prior_tau0_sq = 1.0;         // prior variance of mu at a fresh run
-        std::size_t max_run_length = 150;   // truncation bound, in blocks
-        // Thresholds P(r_t <= short_run_cutoff), not P(r_t=0): under a
-        // constant hazard the latter equals hazard_rate identically, whatever
-        // the data.
+        double hazard_rate = 1.0 / 1000.0;  // 1 / mean segment length, in blocks
+        double prior_mu0 = 0.0;             // atanh(rho) units
+        double prior_tau0_sq = 1.0;
+        std::size_t max_run_length = 150;   // in blocks
+        // Thresholds P(r_t <= short_run_cutoff): under constant hazard P(r_t=0) == hazard_rate always.
         std::size_t short_run_cutoff = 2;
         double alarm_prob_threshold = 0.5;
         std::size_t burn_in_blocks = 2;
@@ -108,8 +104,7 @@ public:
         for (std::size_t r = 0; r < log_prob_.size() && r <= config_.short_run_cutoff; ++r) {
             p_short_run_ += std::exp(log_prob_[r]);
         }
-        // Below short_run_cutoff+2 blocks every hypothesis is trivially short,
-        // so P(short run) is ~1 regardless of the data.
+        // Before short_run_cutoff+2 blocks every run is short, so P(short run) ~ 1 regardless of data.
         const bool long_enough_history = blocks_ > config_.short_run_cutoff + 1;
         alarmed_ = long_enough_history && (p_short_run_ > config_.alarm_prob_threshold);
         if (alarmed_) ++alarm_count_;
@@ -204,7 +199,7 @@ private:
     std::size_t blocks_ = 0;
 
     std::vector<double> log_prob_;  // log P(r_{t-1}=r | data)
-    std::vector<double> sum_y_;     // sum of hypothesis r's observations
+    std::vector<double> sum_y_;
 
     double estimate_ = 0.0;
     double p_changepoint_ = 1.0;

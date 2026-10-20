@@ -5,20 +5,14 @@
 #include <thread>
 #include <random>
 
+// Producer pacing; `rate` is events per second.
 using DelayStrategy = std::function<void()>;
 
-// -------------------------
-// no delay
-// -------------------------
 inline DelayStrategy zero_delay() {
     return []() {
-        // do nothing
     };
 }
 
-// -------------------------
-// fixed interval (deterministic rate)
-// -------------------------
 inline DelayStrategy fixed_delay(double rate) {
     return [rate]() {
         std::this_thread::sleep_for(
@@ -29,9 +23,6 @@ inline DelayStrategy fixed_delay(double rate) {
     };
 }
 
-// -------------------------
-// Poisson process (exponential inter-arrival)
-// -------------------------
 inline DelayStrategy poisson_delay(double rate) {
     return [rate]() {
         static thread_local std::mt19937 gen(std::random_device{}());
@@ -46,9 +37,6 @@ inline DelayStrategy poisson_delay(double rate) {
     };
 }
 
-// -------------------------
-// bursty process (market clustering)
-// -------------------------
 inline DelayStrategy burst_delay(
     double rate,
     int burst_min = 2,

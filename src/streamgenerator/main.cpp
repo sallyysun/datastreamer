@@ -1,3 +1,5 @@
+// Server: synthetic DGP producer publishing per-symbol ticks over the TCP broker and uWS WebSocket.
+// Does not estimate; estimation lives in each consumer (src/consumer). See notes/architecture.md.
 #include <App.h>
 
 #include <cstdlib>
@@ -21,9 +23,6 @@
 
 using json = nlohmann::json;
 
-// =========================================================
-// CONFIG LOADER
-// =========================================================
 struct Config {
     int port = 9002;        // uWS HTTP/WebSocket (browser display)
     int broker_port = 9003; // raw-TCP broker (C++ consumers)
@@ -40,9 +39,6 @@ static Config load_config() {
     return c;
 }
 
-// =========================================================
-// MIME + topic helpers
-// =========================================================
 static std::string mime_type(const std::string &path) {
     if (path.ends_with(".html")) return "text/html";
     if (path.ends_with(".js")) return "application/javascript";
@@ -52,8 +48,6 @@ static std::string mime_type(const std::string &path) {
     return "text/plain";
 }
 
-// The two equity symbols this server streams (the two legs of the DGP's pair).
-// Overridable via SYMBOLS=<X>,<Y>. Equity-only for now.
 static std::pair<std::string, std::string> live_symbols() {
     const char *env = std::getenv("SYMBOLS");
     const std::string s = env && *env ? env : "AAPL,MSFT";
@@ -62,15 +56,10 @@ static std::pair<std::string, std::string> live_symbols() {
     return {s.substr(0, comma), s.substr(comma + 1)};
 }
 
-// Per-symbol topic: "trades.equity.<symbol>". Consumers subscribe by prefix --
-// "trades" / "trades.equity" get every symbol, "trades.equity.AAPL" gets one
-// (see Broker::Sub::matches).
 static std::string equity_topic(const std::string &symbol) {
     return "trades.equity." + symbol;
 }
 
-// Pick the live dependence regime from the DEPENDENCE env var (see
-// make_live_dependence below). Same binary demos any regime without recompiling.
 static std::unique_ptr<Dependence> make_live_dependence() {
     const char* env = std::getenv("DEPENDENCE");
     const std::string name = env ? env : "oscillate";
@@ -79,21 +68,14 @@ static std::unique_ptr<Dependence> make_live_dependence() {
     if (name == "jump")       return std::make_unique<JumpDependence>(0.2, 0.8, 1000);
     if (name == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, 12345);
     if (name != "oscillate") std::cout << "unknown DEPENDENCE='" << name << "', using oscillate\n";
-    return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);  // period 400 = offline oscillate, so RMSEs compare
 }
 
-// Pick the live copula family from the COPULA env var (gaussian|clayton|gumbel|t,
-// default gaussian). The Dependence sets rho_S; the copula sets its SHAPE.
 static std::unique_ptr<dgp::Copula> make_live_copula() {
     const char* env = std::getenv("COPULA");
     return dgp::make_copula(env ? env : "gaussian");
 }
 
-// =========================================================
-// SERVER = stream generator (producer) + broker.
-// The server does NOT estimate: it publishes raw events. Estimation lives in
-// each consumer's device (see src/consumer). The browser is a display client.
-// =========================================================
 int main() {
     Config cfg = load_config();
 
@@ -110,7 +92,6 @@ int main() {
               << " / " << equity_topic(sym_y) << ")\n";
     auto source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula));
 
-    // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
     if (broker.start()) {
         std::cout << "broker listening on tcp/" << cfg.broker_port << "\n";
@@ -120,7 +101,6 @@ int main() {
 
     Producer producer(source, fixed_delay(10.0));
 
-    // Serve the React build (display client).
     app.get("/*", [](auto *res, auto *req) {
         std::string path = std::string(req->getUrl());
         if (path == "/") path = "/index.html";
@@ -140,19 +120,15 @@ int main() {
         res->end(buffer.str());
     });
 
-    // The concrete per-symbol topics the browser can subscribe to, and the
-    // catalog message announcing them on connect.
     const std::vector<std::string> catalog_topics = {equity_topic(sym_x), equity_topic(sym_y)};
     const std::string catalog_msg =
         json{{"type", "catalog"}, {"symbols", json::array({sym_x, sym_y})}}.dump();
 
-    // Browser display over WebSocket. Topic-aware, symmetric with the TCP broker:
-    // the browser sends {"action":"subscribe","topics":[...]} and we expand each
-    // (possibly a dot-prefix like "trades") against the catalog, so it receives
-    // only the concrete symbol topics it asked for. No server-side estimation.
+    // Browser sends {"action":"subscribe"|"unsubscribe","topics":[...]}; each (possibly a dot-prefix)
+    // is expanded against the catalog so the socket joins only concrete symbol topics.
     app.ws<int>("/*", {
         .open = [&catalog_msg](auto *ws) {
-            ws->send(catalog_msg, uWS::OpCode::TEXT);  // announce available symbols
+            ws->send(catalog_msg, uWS::OpCode::TEXT);
         },
         .message = [&catalog_topics](auto *ws, std::string_view message, uWS::OpCode) {
             json j = json::parse(message, nullptr, /*allow_exceptions=*/false);
@@ -169,14 +145,9 @@ int main() {
         }
     });
 
-    // Producer thread: pull each bivariate DGP step, split it into two per-symbol
-    // ticks, and publish each to its own topic on BOTH transports (TCP broker and
-    // WS). A subscriber -- C++ consumer or browser -- pairs the symbols it wants.
-    // No estimation here.
     std::thread producer_thread([&]() {
         std::size_t n = 0;
         producer.run([&](const TickPair &event) {
-            // The DGP leaves the legs unnamed; the server names the instruments.
             SymbolTick tick_x = event.x; tick_x.symbol = sym_x;
             SymbolTick tick_y = event.y; tick_y.symbol = sym_y;
             const std::string msg_x = serializer.to_json(tick_x);

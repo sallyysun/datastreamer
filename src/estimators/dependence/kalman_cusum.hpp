@@ -14,8 +14,8 @@ class KalmanCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         KalmanLocalLevel::Config kalman;
-        double delta = 1.0;   // design shift size, in innovation SDs
-        double h = 5.0;       // alarm threshold; calibrate via calibrate_arl0.cpp
+        double delta = 1.0;   // in innovation SDs
+        double h = 5.0;       // calibrate via calibrate_arl0.cpp
     };
 
     KalmanCusumDetector(Config config, const char* name)

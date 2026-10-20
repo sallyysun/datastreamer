@@ -16,27 +16,13 @@ public:
         std::size_t block = 50;          // ticks per Spearman block; needs > 3
         double sigma_omega2 = 1e-3;      // process noise
         std::size_t burn_in_blocks = 2;
-
-        // Variable forgetting. When vff_rate > 0, sigma_omega2 adapts instead of
-        // staying fixed: standardized innovations must have variance 1 under a
-        // correct model, so a sustained excess means the filter is under-modelling
-        // change. Same statistic the detectors threshold, used continuously
-        // instead. Section 0.3 / 9.4.
+        // >0 adapts sigma_omega2 so standardized innovations have variance 1 (§0.3, §9.4).
         double vff_rate = 0.0;           // 0 disables; ~0.05 is a slow adaptation
 
-        // What an alarm should do. A hard reset discards a nearly-converged
-        // estimate — see section 14. Alternatives, both keeping z_:
-        //   inflation > 1 : widen P_ instead of clearing ("I am less sure"),
-        //                   which raises the gain so the filter moves fast to new
-        //                   data without throwing the estimate away.
-        //   inflation = 0 : reset() does nothing at all. The control that tests
-        //                   whether the reset is the whole cost.
+        // >1: P_ *= inflation, z_ kept (soft reset); 0: reset() is a no-op control. §14
         double reset_inflation = -1.0;   // <0 keeps the hard reset
 
-        // Control for the soft reset: inflate on a fixed schedule instead of on
-        // an alarm. If a detector-timed inflation is no better than a blind one
-        // at the same rate, the detector's timing carries no information and the
-        // gain is just "hold P higher". Section 14.8.
+        // Blind-schedule control for the soft reset (§14.8).
         std::size_t periodic_inflate_blocks = 0;   // 0 disables
 
         double vff_min = 1e-5;
@@ -73,9 +59,7 @@ public:
         ++blocks_;
 
         if (config_.vff_rate > 0.0) {
-            // C_ tracks E[e~^2], which is 1 when sigma_omega2 is right. The
-            // multiplicative update keeps sigma_omega2 positive without a clamp
-            // doing the work.
+            // C_ tracks E[e~^2] (1 when sigma_omega2 is right); multiplicative step keeps it positive.
             const double e2 = (innovation * innovation) / std::max(F, 1e-12);
             C_ += config_.vff_rate * (e2 - C_);
             if (blocks_ > config_.burn_in_blocks) {
@@ -99,8 +83,8 @@ public:
     }
 
     void reset() override {
-        if (config_.reset_inflation == 0.0) return;              // no-op control
-        if (config_.reset_inflation > 0.0) {                      // soft reset
+        if (config_.reset_inflation == 0.0) return;
+        if (config_.reset_inflation > 0.0) {
             P_ = std::min(P_ * config_.reset_inflation, kPriorVariance);
             return;
         }

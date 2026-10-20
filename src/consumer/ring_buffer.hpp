@@ -6,6 +6,7 @@
 
 #include "../protocol/symbol_tick.hpp"
 
+// Overwrites the oldest slot on wrap. Indices are monotonic; only [oldest_available(), head()) is valid.
 class RingBuffer {
 public:
     explicit RingBuffer(size_t capacity)
@@ -30,7 +31,6 @@ public:
         return capacity_;
     }
 
-    // oldest still valid index
     size_t oldest_available() const {
         const size_t h = head();
 

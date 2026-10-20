@@ -8,15 +8,14 @@
 #include "estimator.hpp"
 #include "kalman_local_level.hpp"
 
-// EWMA control chart (Roberts 1959) on KalmanLocalLevel's standardized
-// innovations; resets the filter on alarm. See
-// notes/studies/kalman_changepoint_results.md.
+// EWMA control chart (Roberts 1959) on KalmanLocalLevel's standardized innovations;
+// resets the filter on alarm. See notes/studies/kalman_changepoint_results.md.
 class KalmanEwmaChartDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         KalmanLocalLevel::Config kalman;
-        double r = 0.2;       // chart smoothing weight
-        double L = 3.0;       // control limit in SDs; calibrate via calibrate_arl0.cpp
+        double r = 0.2;
+        double L = 3.0;       // in SDs; calibrate via calibrate_arl0.cpp
     };
 
     KalmanEwmaChartDetector(Config config, const char* name)
@@ -31,9 +30,7 @@ public:
         ++chart_n_;
         z_ = (1.0 - config_.r) * z_ + config_.r * filter_.standardized_innovation();
 
-        // Time-varying limit: Var(z_n) = r/(2-r) * (1 - (1-r)^(2n)) for unit-variance
-        // input. Using the asymptotic value alone makes the first few blocks far too
-        // wide, which is where the BOCPD burn-in bug lived.
+        // Exact Var(z_n) = r/(2-r) * (1 - (1-r)^(2n)); the asymptotic limit is far too wide early on.
         const double var = config_.r / (2.0 - config_.r)
                          * (1.0 - std::pow(1.0 - config_.r, 2.0 * static_cast<double>(chart_n_)));
         const double limit = config_.L * std::sqrt(var);
@@ -69,9 +66,7 @@ public:
 
     bool alarmed_this_block() const override { return alarmed_; }
 
-    // |z| in units of its own time-varying SD -- the quantity actually compared
-    // against L. Raw z_ is not comparable across blocks, its scale grows with
-    // chart_n_.
+    // |z| in units of its time-varying SD (what is compared against L); raw z_ grows with chart_n_.
     double monitor_statistic() const override {
         if (chart_n_ == 0) return 0.0;
         const double var = config_.r / (2.0 - config_.r)

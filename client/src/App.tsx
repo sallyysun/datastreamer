@@ -11,7 +11,6 @@ import {
 
 import "./App.css";
 
-// One single-symbol tick as published by the server (topic trades.equity.<SYM>).
 type Tick = {
   symbol: string;
   price: number;
@@ -20,16 +19,14 @@ type Tick = {
   true_rho_s?: number;
 };
 
-// A merged row keyed by timestamp: { time, AAPL: price, MSFT: price, ... }. Both
-// legs of a step share the same timestamp, so they land in the same row.
+// Both legs of a DGP step share a timestamp, so they merge into one row.
 type Row = { time: number } & Record<string, number>;
 
-const MAX_POINTS = 240; // rows retained in the price series
+const MAX_POINTS = 240;
 const MAX_TAPE = 60;
 const TOPIC_PREFIX = "trades.equity.";
 const topicFor = (sym: string) => TOPIC_PREFIX + sym;
 
-// Deterministic per-symbol colour, stable across renders (index into catalog).
 const PALETTE = ["#f6c177", "#a0a5d6", "#74ccaa", "#60b5be", "#e294b9"];
 
 const fmt = (v: number | undefined, d = 2) =>
@@ -53,8 +50,7 @@ export default function App() {
   const [tape, setTape] = useState<Tick[]>([]);
   const [count, setCount] = useState(0);
 
-  // Display throttle: commit buffered ticks to the screen at most once per
-  // `intervalSec`. Capped at 1s (fastest); the user can dial it slower.
+  // Display throttle in seconds; 1s is the fastest allowed.
   const [intervalSec, setIntervalSec] = useState(1);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -67,13 +63,11 @@ export default function App() {
     return PALETTE[(i < 0 ? sym.length : i) % PALETTE.length];
   };
 
-  // Keep the ref in sync so the WS open handler (created once) reads the live
-  // selection when it resubscribes after a reconnect.
+  // The WS onopen handler is created once; it reads the live selection from this ref on reconnect.
   useEffect(() => {
     selectedRef.current = selected;
   }, [selected]);
 
-  // Reflect the selection in the URL so a link reopens the same view.
   useEffect(() => {
     const url = new URL(window.location.href);
     if (selected.length) url.searchParams.set("symbols", selected.join(","));
@@ -81,7 +75,6 @@ export default function App() {
     window.history.replaceState(null, "", url);
   }, [selected]);
 
-  // ---- WebSocket: connect once, resubscribe on (re)open ----
   useEffect(() => {
     const envUrl = import.meta.env.VITE_WS_URL;
     const fallbackUrl =
@@ -120,13 +113,12 @@ export default function App() {
         return;
       }
       if (typeof obj.symbol === "string") {
-        bufferRef.current.push(m as Tick); // flushed on the throttle interval
+        bufferRef.current.push(m as Tick);
       }
     };
     return () => ws.close();
   }, []);
 
-  // ---- Display throttle: flush the buffer into state on a timer ----
   useEffect(() => {
     const flush = () => {
       const buf = bufferRef.current;
@@ -155,7 +147,6 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [intervalSec]);
 
-  // ---- Subscription toggling ----
   const toggle = (sym: string) => {
     const ws = wsRef.current;
     const isOn = selected.includes(sym);
@@ -170,7 +161,6 @@ export default function App() {
       );
     }
     if (isOn) {
-      // stop drawing a line for a symbol we no longer receive
       seriesMapRef.current.forEach((row) => delete row[sym]);
     }
   };
@@ -184,7 +174,6 @@ export default function App() {
   const intervalLabel =
     intervalSec === 1 ? "1s (max)" : `${intervalSec}s`;
 
-  // Price ratio of the two legs, when exactly two are subscribed.
   const ratio =
     selected.length === 2
       ? (() => {
@@ -209,7 +198,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* SUBSCRIPTION + THROTTLE BAR */}
       <div className="subbar">
         <span className="subbar-label">subscribe</span>
         {catalog.length === 0 && <span className="muted small">waiting for catalog…</span>}
@@ -263,7 +251,6 @@ export default function App() {
         </section>
       ) : (
         <>
-          {/* KPI TILES */}
           <div className="tiles">
             {selected.map((sym) => (
               <div className="tile" key={sym} style={{ borderLeftColor: colorFor(sym) }}>
@@ -290,7 +277,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* PRICE CHART — one line per subscribed symbol */}
           <section className="panel">
             <div className="panel-head">
               <span>PRICES</span>
@@ -342,11 +328,8 @@ export default function App() {
             </div>
           </section>
 
-          {/* No dependence panel: the browser is a strict price viewer. Online ρ̂
-              (Xiao / Hermite / Gaussian-MLE) is computed per-device inside each C++
-              consumer and stays there -- it is not sent back to the browser. */}
+          {/* No dependence panel: the browser is a strict viewer; ρ̂ is computed in the C++ consumers only. */}
 
-          {/* TAPE */}
           <section className="panel">
             <div className="panel-head"><span>TAPE</span><span className="muted">{count} ticks</span></div>
             <div className="table-wrap">

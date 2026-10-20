@@ -2,13 +2,8 @@
 
 #include <string>
 
-// Hierarchical, dot-separated topic matching shared by both transports (the TCP
-// Broker and the uWS WebSocket bridge) so they agree on semantics.
-//
-// A subscription `sub` matches a published topic `pub` if it equals it, is the
-// literal "all", or is a dot-boundary prefix of it. So "trades" matches
-// "trades.equity.AAPL", "trades.equity" matches it too, "trades.equity.AAPL"
-// selects just that one, and "all" matches everything.
+// Topic matching shared by the TCP Broker and the uWS bridge so both agree: exact, "all", or a
+// dot-boundary prefix ("trades" matches "trades.equity.AAPL"; "trades.eq" does not).
 inline bool topic_matches(const std::string& sub, const std::string& pub) {
     if (sub == "all" || sub == pub) return true;
     return pub.size() > sub.size() && pub[sub.size()] == '.' &&

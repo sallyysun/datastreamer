@@ -59,9 +59,7 @@ public:
         if (!std::isfinite(score_phi)) return;
 
         if (vff_rate_ > 0.0 && lambda0_ > 0.0) {
-            // E[score] = 0 when theta is right. A systematically one-signed score
-            // means theta lags, so shorten memory. lambda_ is RETENTION, so
-            // shortening means lowering it.
+            // One-signed score => theta lags => shorten memory. lambda_ is RETENTION: lower it.
             score_mean_ += vff_rate_ * (score_phi - score_mean_);
             score_var_ += vff_rate_ * (score_phi * score_phi - score_var_);
             const double drift = (score_mean_ * score_mean_) / std::max(score_var_, 1e-12);
@@ -70,11 +68,7 @@ public:
         }
         const double decay = (lambda_ > 0.0) ? lambda_ : 1.0;
 
-        // (1) Expected rather than observed information. score_phi^2 is a
-        // one-sample curvature estimate and very noisy. For the Gaussian copula in
-        // the Fisher-z coordinate the expected information is closed form:
-        // I(rho) = (1+rho^2)/(1-rho^2)^2 and drho/dphi = 1-rho^2, so I(phi) = 1+rho^2.
-        // No closed form for the Archimedean families, so they keep the observed one.
+        // Expected info I(phi) = 1+rho^2 exists only for the Gaussian; others keep observed score^2.
         double contribution = score_phi * score_phi;
         if (expected_info_ && family_ == Family::Gaussian) {
             const double rho = param();
@@ -84,16 +78,11 @@ public:
 
         double step = score_phi / info_;
 
-        // (3) Smooth saturation instead of a hard clamp. Same job, differentiable,
-        // and it does not need re-tuning per family.
         step = damped_ ? kMaxStep * step / (kMaxStep + std::abs(step))
                        : std::clamp(step, -kMaxStep, kMaxStep);
         phi_ += step;
 
-        // (2) Polyak-Ruppert: report an average of the iterates, not the last one.
-        // A plain running mean assumes convergence to a fixed point, which a
-        // forgetting estimator is not doing, so this is an EWMA slower than the
-        // estimator itself.
+        // Polyak-Ruppert as an EWMA, not a running mean: a forgetting estimator has no fixed point.
         if (pr_rate_ > 0.0) {
             if (!pr_started_) { phi_avg_ = phi_; pr_started_ = true; }
             else              { phi_avg_ += pr_rate_ * (phi_ - phi_avg_); }
@@ -170,14 +159,12 @@ public:
     struct Config {
         copula::Family family = copula::Family::Clayton;
         double nu = 4.0;
-        double lambda = 0.0;
+        double lambda = 0.0;          // RETENTION (larger = longer memory); 0 => cumulative
         double vff_rate = 0.0;
         bool expected_info = false;   // expected Fisher info (Gaussian only)
         double pr_rate = 0.0;         // Polyak-Ruppert averaging rate; 0 disables
         bool damped = false;          // smooth step saturation instead of a clamp
-        // Rank-PIT marginals instead of a Gaussian CDF of the standardized value.
-        // pseudo() is exact only for Gaussian margins; ranks are exact for any
-        // continuous margin. Section 9.
+        // >0: rank-PIT marginals (exact for any continuous margin); pseudo() is exact only for Gaussian.
         std::size_t rank_pit_window = 0;   // 0 keeps pseudo()
         std::size_t burn_in = 50;
     };
@@ -243,8 +230,7 @@ private:
     }
 
     Config config_;
-    // Declared after config_: a member initializer reading config_ from above it
-    // would run before config_ exists.
+    // Must stay declared after config_: these initializers read it.
     RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     const char* name_;

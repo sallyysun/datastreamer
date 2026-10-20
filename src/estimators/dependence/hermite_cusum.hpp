@@ -7,20 +7,15 @@
 #include "estimator.hpp"
 #include "hermiter.hpp"
 
-// One-sided CUSUM on HermiteEstimator's coefficient-matrix surprise, rather than
-// on a scalar rho. Detects a change of copula *shape* at constant rho, which no
-// rho-monitoring detector can see. See notes/studies/kalman_changepoint_results.md
-// section 0.4 (distinction 1).
+// One-sided CUSUM on HermiteEstimator's coefficient-matrix surprise: detects a copula shape change
+// at constant rho. See notes/studies/kalman_changepoint_results.md section 0.4 (distinction 1).
 class HermiteCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         HermiteEstimator::Config hermite;
-        double delta = 1.0;   // design shift, in surprise SDs
-        double h = 5.0;       // alarm threshold; calibrate via calibrate_arl0.cpp
-        // Surprises are averaged over a block before being thresholded. Per tick
-        // the statistic is a rank-1 outer-product norm, dominated by the single
-        // observation's magnitude; a block mean is what has usable SNR, and
-        // block = 20 makes the alarm rate comparable to every other detector's.
+        double delta = 1.0;   // in surprise SDs
+        double h = 5.0;       // calibrate via calibrate_arl0.cpp
+        // Per-tick surprise is a rank-1 norm with no usable SNR; only the block mean is thresholded.
         std::size_t block = 20;
     };
 
@@ -40,8 +35,6 @@ public:
         sum_ = 0.0;
         in_block_ = 0;
 
-        // One-sided: only a *rise* in surprise indicates the coefficients have
-        // moved away from what the estimator has absorbed.
         s_ = std::max(0.0, s_ + e - config_.delta / 2.0);
 
         if (s_ > config_.h) {

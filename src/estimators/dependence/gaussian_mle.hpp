@@ -8,50 +8,18 @@
 #include "estimator.hpp"
 #include "../objective.hpp"
 
-// Online Gaussian-copula MLE via recursive Fisher scoring (the parametric branch;
-// roadmap: "online MLE / Fisher scoring"). Parameterized in theta = atanh(rho),
-// which is unconstrained and makes the Fisher information in theta simply
-// 1 + rho^2 (bounded, well-behaved near +-1).
-//
-// Marginals are standardized online with cumulative Welford moments: the marginal
-// scale is stationary, so it is NOT forgotten -- only the dependence is. This
-// decouples the two timescales and avoids the hermite_ew cold-start (where a
-// forgotten variance took ~800 ticks to reach the right scale). For Gaussian
-// marginals, standardization gives exactly the normal scores.
-//
-// The dependence update is a natural-gradient (Fisher-preconditioned) step whose
-// learning rate is set by an accumulated information H:
-//   H_t     = lambda * H_{t-1} + I_theta         (lambda = 1 => cumulative MLE)
-//   theta_t = theta_{t-1} + s_theta / H_t
-// lambda in (0,1) gives exponential forgetting (ESS ~ 1/(1-lambda)); lambda = 0
-// (the default sentinel) means cumulative (recursive MLE, step ~ 1/n).
+// Online Gaussian-copula MLE: Fisher scoring in theta = atanh(rho), cumulative (unforgotten)
+// marginal standardization. See notes/studies/roadmap.md and notes/design/source_rationale.md.
 class GaussianCopulaMLE : public DependenceEstimator {
 public:
     struct Config {
-        double lambda = 0.0;       // forgetting for the dependence info; 0 => cumulative
-        std::size_t burn_in = 50;  // samples before reporting an estimate
-
-        // What an alarm should do, in this estimator's own currency. The MLE's
-        // step size is 1/info_, so deflating info_ is the exact analogue of the
-        // Kalman filter's covariance inflation: it raises the gain without
-        // discarding theta_. Section 14.10.
-        //   deflation > 1 : info_ /= deflation, theta_ kept
-        //   deflation = 0 : reset() does nothing (the control)
+        double lambda = 0.0;       // RETENTION of info (larger = longer memory); 0 => cumulative
+        std::size_t burn_in = 50;
+        // >1: info_ /= deflation, theta_ kept (soft reset); 0: reset() is a no-op control. §14.10
         double reset_deflation = -1.0;   // <0 keeps the hard reset
-
-        // Control for the soft reset: deflate on a fixed schedule instead of on
-        // an alarm, with no detector at all. Section 14.10.
-        std::size_t periodic_deflate_ticks = 0;   // 0 disables
-
-        // Standardize the score by its EMPIRICAL variance instead of by the model
-        // information. Var[s] = I only when the family is right; off-family the
-        // information matrix equality fails and every ARL0-calibrated threshold is
-        // wrong by sqrt(Var[s]/I) -- up to 1.48x on t data. This is the sandwich
-        // /QMLE correction, one extra accumulator. Section 14.12.
-        //
-        // The rate must be MUCH slower than the change being detected, or the
-        // scale chases the signal and swallows it -- the hermite_cusum bug of
-        // section 14.11, in a different place.
+        std::size_t periodic_deflate_ticks = 0;   // blind-schedule control; 0 disables
+        // >0: standardize the score by its empirical variance (sandwich, §14.12). Must be much
+        // slower than the change, or the scale swallows the signal (§14.11).
         double robust_score_rate = 0.0;   // 0 keeps the model information
     };
 
@@ -69,13 +37,10 @@ public:
         const double rho = std::tanh(theta_);
         const double drho_dtheta = 1.0 - rho * rho;
         const double s_theta = GaussianCopulaObjective::score(zx, zy, rho) * drho_dtheta;
-        const double i_theta = 1.0 + rho * rho;  // Fisher information in theta
+        const double i_theta = 1.0 + rho * rho;
         if (!std::isfinite(s_theta)) return;
 
-        // At the true theta the score has mean 0 and variance i_theta, so this is
-        // already a standardized innovation -- no statistic has to be invented for
-        // a detector to threshold. Evaluated BEFORE the step, so it measures the
-        // surprise in this observation rather than what is left after absorbing it.
+        // Standardized innovation, taken BEFORE the step.
         last_std_score_ = s_theta / std::sqrt(i_theta);
         if (config_.robust_score_rate > 0.0) {
             const double c = config_.robust_score_rate;
@@ -85,11 +50,8 @@ public:
 
         const double decay = (config_.lambda > 0.0) ? config_.lambda : 1.0;
         info_ = decay * info_ + i_theta;
-        // score(.,.,rho) carries 1/(1-rho^2)^2 and drho_dtheta cancels only one
-        // power of it, so theta is clamped away from the saturation of tanh: at
-        // |rho| = 1 exactly the next step is inf, and opposite-signed infinities
-        // then latch theta at NaN for the rest of the stream. Same guards, and
-        // the same +-0.999 bound, as ParametricCopulaMLE.
+        // Clamp: at |rho| = 1 the step is inf and opposite-signed infinities latch theta at NaN.
+        // Same +-0.999 bound as ParametricCopulaMLE.
         theta_ = std::clamp(theta_ + s_theta / info_, -kMaxTheta, kMaxTheta);
 
         if (config_.periodic_deflate_ticks > 0 && n_ % config_.periodic_deflate_ticks == 0) {
@@ -100,14 +62,12 @@ public:
     double estimate() const override {
         if (n_ < config_.burn_in + 1) return 0.0;
         const double rho = std::tanh(theta_);
-        // Gaussian copula: Spearman's rho = (6/pi) asin(rho/2) -- same space as
-        // the nonparametric estimators, so results are directly comparable.
         return std::clamp(6.0 / std::numbers::pi * std::asin(rho / 2.0), -1.0, 1.0);
     }
 
     void reset() override {
-        if (config_.reset_deflation == 0.0) return;               // no-op control
-        if (config_.reset_deflation > 0.0) {                       // soft: raise the gain
+        if (config_.reset_deflation == 0.0) return;
+        if (config_.reset_deflation > 0.0) {
             info_ = std::max(info_ / config_.reset_deflation, 1e-12);
             return;
         }
@@ -136,7 +96,6 @@ private:
     static double sd(double var) { return std::sqrt(std::max(var, 1e-12)); }
 
     void update_marginals(double x, double y) {
-        // Cumulative Welford (marginal scale is stationary -> no forgetting).
         const double n = static_cast<double>(n_);
         const double dx = x - mean_x_;
         const double dy = y - mean_y_;
@@ -154,8 +113,8 @@ private:
     const char* name_;
     std::size_t n_ = 0;
 
-    double theta_ = 0.0;  // atanh(rho)
-    double info_ = 0.0;   // accumulated Fisher information
+    double theta_ = 0.0;
+    double info_ = 0.0;
     double last_std_score_ = 0.0;
     double score_var_ = 1.0;
 

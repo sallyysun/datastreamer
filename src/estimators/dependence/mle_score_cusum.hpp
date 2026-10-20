@@ -8,27 +8,15 @@
 #include "estimator.hpp"
 #include "gaussian_mle.hpp"
 
-// Two-sided CUSUM on the Gaussian-copula MLE's own score.
-//
-// Every other detector in this document wraps the Kalman filter, which is the
-// one estimator that hands out a ready-made standardized innovation. The MLE
-// hands out one too and it was never used: at the true theta the score has mean
-// zero and variance I_theta, so s / sqrt(I_theta) is already the quantity a
-// CUSUM wants. Nothing has to be invented, and nothing has to be re-estimated.
-//
-// Scores are summed over a block of `block` ticks before being thresholded, for
-// two reasons: a per-tick copula score is heavy-tailed while a block sum is
-// close to normal by the CLT, and block = 20 makes the alarm rate directly
-// comparable to kalman_cusum's.
-//
+// Two-sided CUSUM on the Gaussian-copula MLE's standardized score s / sqrt(I_theta), block-summed.
 // See section 14.10 of notes/studies/kalman_changepoint_results.md.
 class MleScoreCusumDetector : public DependenceEstimator, public ChangeDetector {
 public:
     struct Config {
         GaussianCopulaMLE::Config mle;
         std::size_t block = 20;
-        double delta = 1.0;   // design shift, in block-score SDs
-        double h = 3.5;       // alarm threshold; calibrate via calibrate_arl0.cpp
+        double delta = 1.0;   // in block-score SDs
+        double h = 3.5;       // calibrate via calibrate_arl0.cpp
         std::size_t burn_in_blocks = 3;
     };
 
@@ -42,8 +30,7 @@ public:
         sum_ += inner_.standardized_score();
         if (++in_block_ < config_.block) return;
 
-        // Each term has unit variance and the MLE step makes successive terms
-        // only weakly dependent, so the block sum is scaled by sqrt(block).
+        // Unit-variance, weakly dependent terms: scale the block sum by sqrt(block).
         const double e = sum_ / std::sqrt(static_cast<double>(config_.block));
         sum_ = 0.0;
         in_block_ = 0;

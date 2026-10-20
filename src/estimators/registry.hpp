@@ -30,24 +30,12 @@
 #include "dependence/windowed_rank.hpp"
 #include "dependence/xiao_spearman.hpp"
 
-// Named constructors for the nonparametric dependence estimators so experiments
-// can be configured by string instead of recompiled. Returns nullptr for an
-// unknown key.
-//
-// These configs are the single source of truth and are kept IDENTICAL to the
-// live consumer's (src/consumer/), so offline and online RMSE numbers are
-// directly comparable. Keep the two in sync.
-//
-// Forgetting conventions differ per estimator (same memory, mirror-image knob):
-//   * Xiao    lambda = retention;    alpha = 1 - lambda. LARGER = longer memory.
-//   * Hermite lambda = update weight; alpha = lambda.    SMALLER = longer memory.
-//   * Parametric copula MLE (gaussian/clayton/gumbel/t) and the selector follow
-//     Xiao: lambda = retention on the accumulated (Fisher) information.
-// All then have ESS ~ (2-alpha)/alpha, so xiao lambda=0.99 and hermite
-// lambda=0.01 are the same memory (ESS ~ 200), not 200 vs 100.
-// For all, lambda = 0 means "cumulative" (no forgetting).
-//
-// Clayton/Gumbel model POSITIVE dependence only; the t copula's nu is fixed.
+// Estimator configs by string key (nullptr if unknown). Results per key:
+// notes/studies/kalman_changepoint_results.md. Keep IDENTICAL to src/consumer/.
+// ⚠️ lambda is a mirror-image knob: Xiao, the copula MLEs and the selector use
+// RETENTION (alpha = 1 - lambda, larger = longer); Hermite uses the UPDATE WEIGHT
+// (alpha = lambda, smaller = longer). ESS ~ (2-alpha)/alpha, so xiao 0.99 ==
+// hermite 0.01. lambda = 0 is cumulative. Clayton/Gumbel: positive dependence only.
 inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& key) {
     if (key == "xiao") {
         return std::make_unique<XiaoSpearmanEstimator>(
@@ -65,8 +53,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             "xiao_win");
     }
     if (key == "xiao_pit") {
-        // Matched to xiao_ew in memory (lambda) and bins; only the marginal
-        // handling differs, so the pair isolates rank-PIT. Section 14.19.
+        // Control pair with xiao_ew: only the marginal handling differs. §14.19.
         return std::make_unique<XiaoSpearmanEstimator>(
             XiaoSpearmanEstimator::Config{
                 .bins = 20, .window = 0, .lambda = 0.99, .rank_pit_window = 500},
@@ -92,7 +79,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     }
     if (key == "hermite_ew20") {
         // Control for hermite_pit: same order and burn-in, standardized marginals.
-        // hermite_ew differs in BOTH order and marginal, so it cannot isolate rank-PIT.
         return std::make_unique<HermiteEstimator>(
             HermiteEstimator::Config{.order = 20, .lambda = 0.01, .burn_in = 100}, "hermite_ew20");
     }
@@ -107,8 +93,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50}, "gaussian_mle_ew");
     }
-    // Forgetting knob is sigma_omega2. `block` trades lag against observation
-    // noise and must stay under the fastest timescale in the DGP suite.
+    // Forgetting knob is sigma_omega2; `block` must stay under the fastest DGP timescale.
     if (key == "kalman") {
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-4, .burn_in_blocks = 2},
@@ -119,8 +104,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2},
             "kalman_fast");
     }
-    // Detector thresholds below are calibrated by calibrate_arl0.cpp; re-run it
-    // if block, sigma_omega2 or hazard_rate changes.
+    // Detector thresholds are calibrated by calibrate_arl0.cpp; re-run it if
+    // block, sigma_omega2 or hazard_rate changes.
     if (key == "kalman_cusum") {
         return std::make_unique<KalmanCusumDetector>(
             KalmanCusumDetector::Config{
@@ -176,17 +161,14 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 3.5},
             "kalman_cusum_inf50");
     }
-    // No detector at all: inflate P_ on a fixed schedule at the rate the CUSUM
-    // fires. Isolates "the alarm timing was informative" from "P_ was held higher".
+    // Control: no detector, P_ inflated on a fixed schedule at the CUSUM's alarm rate.
     if (key == "kalman_periodic_inf") {
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-2, .burn_in_blocks = 2,
                                      .reset_inflation = 20.0, .periodic_inflate_blocks = 10},
             "kalman_periodic_inf");
     }
-    // Process-noise sweep, no detector. kalman_fast is q = 1e-2, the value every
-    // detector wraps. If a plain filter at some other q beats the detectors, the
-    // detector comparison was being run at the wrong operating point. Section 14.8.
+    // Process-noise sweep, no detector; every detector wraps kalman_fast (q = 1e-2). §14.8.
     if (key == "kalman_q003") {
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 3e-2, .burn_in_blocks = 2},
@@ -212,9 +194,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e1, .burn_in_blocks = 2},
             "kalman_q10");
     }
-    // The MLE's score is already a standardized innovation, so this is the one
-    // detector in the set that needs no statistic invented for it. The three arms
-    // are the same alarm with the three responses of section 14.
     if (key == "gaussian_mle_cusum") {
         return std::make_unique<MleScoreCusumDetector>(
             MleScoreCusumDetector::Config{
@@ -239,10 +218,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .block = 20, .delta = 1.0, .h = 4.0},
             "gaussian_mle_cusum_soft");
     }
-    // Same detector on the CUMULATIVE MLE, where theta_ adapts at 1/n and so
-    // cannot chase the change away before the CUSUM sees it.
-    // Same detector, score standardized by its empirical variance instead of the
-    // model information, so the threshold survives a wrong family. Section 14.12.
+    // Score standardized by its empirical variance, so h survives a wrong family. §14.12.
     if (key == "gaussian_mle_cusum_rob") {
         return std::make_unique<MleScoreCusumDetector>(
             MleScoreCusumDetector::Config{
@@ -261,6 +237,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .block = 20, .delta = 1.0, .h = 4.0},
             "gaussian_mle_cusum_rob_noreset");
     }
+    // Cumulative MLE: theta_ adapts at 1/n, so it cannot chase the change away first.
     if (key == "gaussian_mle_cum_cusum") {
         return std::make_unique<MleScoreCusumDetector>(
             MleScoreCusumDetector::Config{
@@ -268,9 +245,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .block = 20, .delta = 1.0, .h = 6.0},
             "gaussian_mle_cum_cusum");
     }
-    // Controls for the score-CUSUM's soft arm, exactly as section 14.8 did for
-    // the Kalman soft reset: does the alarm TIMING matter, and is the whole
-    // effect reachable by tuning lambda instead?
+    // Controls for the score-CUSUM soft arm (as §14.8): fixed-schedule deflation, lambda sweep.
     if (key == "gaussian_mle_periodic_defl") {
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.99, .burn_in = 50, .reset_deflation = 20.0,
@@ -293,9 +268,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<GaussianCopulaMLE>(
             GaussianCopulaMLE::Config{.lambda = 0.999, .burn_in = 50}, "gaussian_mle_l999");
     }
-    // The section 14.10 statistic without a likelihood: a per-tick unbiased
-    // estimate of Spearman's rho, residualised against the estimator's own
-    // rho-hat. Estimator-agnostic, so the same detector runs on both. 14.14.
+    // Rank-residual CUSUM, estimator-agnostic. §14.14.
     if (key == "xiao_cusum" || key == "xiao_cusum_noreset" ||
         key == "hermite_scusum" || key == "hermite_scusum_noreset") {
         const bool hard = (key == "xiao_cusum" || key == "hermite_scusum");
@@ -312,12 +285,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
           : key == "xiao_cusum_noreset" ? "xiao_cusum_noreset"
           : key == "hermite_scusum" ? "hermite_scusum" : "hermite_scusum_noreset");
     }
-    // A posterior over the forgetting rate rather than a guess at it. 14.16.
+    // §14.16.
     if (key == "kalman_bank") {
         return std::make_unique<KalmanBank>(KalmanBank::Config{}, "kalman_bank");
     }
-    // Sticky and flighty variants: how fast should the memory length itself be
-    // allowed to change?
     if (key == "kalman_bank_sticky") {
         return std::make_unique<KalmanBank>(
             KalmanBank::Config{.switch_prob = 0.002}, "kalman_bank_sticky");
@@ -326,14 +297,12 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         return std::make_unique<KalmanBank>(
             KalmanBank::Config{.switch_prob = 0.15}, "kalman_bank_quick");
     }
-    // Control: the same averaging with the weights FROZEN uniform. Isolates
-    // "carrying several memory lengths" from "picking between them".
+    // Control: weights frozen uniform.
     if (key == "kalman_bank_uniform") {
         return std::make_unique<KalmanBank>(
             KalmanBank::Config{.switch_prob = 1.0}, "kalman_bank_uniform");
     }
-    // Monitors excess tail co-occurrence over what a Gaussian at the same rho
-    // would give -- the functional section 14.13 says is missing. 14.17.
+    // §14.17.
     if (key == "tail_cusum" || key == "tail_cusum_slow") {
         const bool slow = (key == "tail_cusum_slow");
         return std::make_unique<TailCusumDetector>(
@@ -341,13 +310,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             TailCusumDetector::Config{.count_rate = slow ? 0.0005 : 0.002, .L = 4.0},
             slow ? "tail_cusum_slow" : "tail_cusum");
     }
-    // The section 14.16 device on a non-Kalman estimator, scored by the section
-    // 14.14 rank residual. 14.18.
-    //
-    // ⚠️ lambda is a MIRROR-IMAGE knob (see the header of this file): for Xiao and
-    // the MLE it is RETENTION, so the grid runs 0.95 (short) -> 0.999 (long); for
-    // Hermite it is the UPDATE WEIGHT, so its grid runs the other way, 0.05
-    // (short) -> 0.001 (long). Both grids span the same memory range.
+    // §14.18. ⚠️ Mirror-image lambda: the Hermite grid runs the opposite way over
+    // the same memory range as the Xiao/MLE retention grid.
     if (key == "xiao_bank" || key == "hermite_bank" || key == "mle_bank") {
         std::vector<std::unique_ptr<DependenceEstimator>> models;
         if (key == "xiao_bank") {
@@ -368,9 +332,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             std::move(models), EstimatorBank::Config{},
             key == "xiao_bank" ? "xiao_bank" : key == "hermite_bank" ? "hermite_bank" : "mle_bank");
     }
-    // Resolution sweep, to test WHY Xiao beats Hermite on a singular copula
-    // (section 14.15.3). If the mechanism is truncation of a smooth basis, raising
-    // Hermite's order must close the gap and changing Xiao's bin count must not.
+    // Resolution sweep: Hermite order vs Xiao bins on a singular copula. §14.15.3.
     if (key == "hermite_o20" || key == "hermite_o40") {
         const int ord = (key == "hermite_o20") ? 20 : 40;
         return std::make_unique<HermiteEstimator>(
@@ -403,8 +365,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                                      .vff_rate = 0.5},
             "hermite_vff");
     }
-    // ⚠️ MIRROR IMAGE: Xiao's lambda is RETENTION, so the VFF drives alpha =
-    // 1 - lambda upward on surprise. notes/studies/adaptive_memory.md.
+    // ⚠️ Xiao's lambda is RETENTION: the VFF drives alpha = 1 - lambda up on surprise.
     if (key == "xiao_vff") {
         return std::make_unique<XiaoSpearmanEstimator>(
             XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.98742,
@@ -418,9 +379,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             "gaussian_mle_vff");
     }
     if (key == "gaussian_mle_best") {
-        // Expected information + damped step. Polyak-Ruppert deliberately omitted:
-        // it assumes convergence to a fixed point, which a tracking estimator never
-        // does. See the ablation in section 13.
+        // Polyak-Ruppert deliberately omitted: a tracking estimator never converges. §13.
         return std::make_unique<ParametricCopulaMLE>(
             ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
                                         .lambda = 0.99, .expected_info = true,
@@ -446,7 +405,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             "gaussian_mle_damp");
     }
     if (key == "gaussian_mle_fisher") {
-        // The three efficiency ideas together, against gaussian_mle_param as control.
         return std::make_unique<ParametricCopulaMLE>(
             ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
                                         .lambda = 0.99, .expected_info = true,
@@ -454,9 +412,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             "gaussian_mle_fisher");
     }
     if (key == "gaussian_mle_param") {
-        // Control: same class as gaussian_mle_pit, no rank-PIT. Isolates whether a
-        // fault is in the marginals or in ParametricCopulaMLE's Gaussian path,
-        // which no registered key had exercised before.
+        // Control for gaussian_mle_pit and gaussian_mle_fisher: same class, no extras.
         return std::make_unique<ParametricCopulaMLE>(
             ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .nu = 4.0,
                                         .lambda = 0.99, .burn_in = 50},
@@ -469,8 +425,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             "gaussian_mle_pit");
     }
     if (key == "kalman_mid") {
-        // Matched sigma_omega2 for the EKF/UKF comparison: same process noise,
-        // the only difference being the Fisher transform vs a nonlinear observation.
+        // Matched sigma_omega2 for the EKF/UKF comparison.
         return std::make_unique<KalmanLocalLevel>(
             KalmanLocalLevel::Config{.block = 20, .sigma_omega2 = 1e-3, .burn_in_blocks = 2},
             "kalman_mid");
@@ -529,11 +484,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 3.0, .block = 20},
             "hermite_cusum_soft");
     }
-    // The bug this replaces: baseline on the coefficient weight, so it chased
-    // the change as fast as the coefficients absorbed it. Kept as a control.
-    // Two-timescale statistic: a fast EWMA of the coefficient matrix against the
-    // estimator's own, so per-observation noise cancels and only a persistent
-    // drift of the coefficients survives. Section 14.11.
+    // Two-timescale surprise. §14.11.
     if (key == "hermite_cusum2") {
         return std::make_unique<HermiteCusumDetector>(
             HermiteCusumDetector::Config{
@@ -550,6 +501,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .delta = 1.0, .h = 10.0, .block = 20},
             "hermite_cusum2_noreset");
     }
+    // Control: the §14.11 bug, baseline chasing the coefficient weight.
     if (key == "hermite_cusum_chasing") {
         return std::make_unique<HermiteCusumDetector>(
             HermiteCusumDetector::Config{
@@ -565,9 +517,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .r = 0.2, .L = 2.5},
             "kalman_ewma_chart");
     }
-    // Dispersion, not level: every other Kalman detector watches E[e~], this one
-    // watches E[e~^2]. The filter is deliberately the fixed-memory kalman_fast --
-    // a VFF filter would shorten its own memory and whiten the signal away. 14.20.
+    // Watches E[e~^2]; fixed-memory filter on purpose (a VFF would whiten the signal). §14.20.
     if (key == "kalman_var_chart") {
         return std::make_unique<KalmanVarChartDetector>(
             KalmanVarChartDetector::Config{
@@ -582,10 +532,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .r = 0.02, .h = 1.225},
             "kalman_var_chart_slow");
     }
-    // Same quantity, accumulated instead of averaged. k sits between the
-    // worst-case null level of e~^2 (0.867, at rho=0.8) and the post-change one
-    // (0.911, at rho=0.6) -- a gap the rho-dependence of the null nearly fills
-    // on its own, which is the point of the measurement. 14.20.
+    // k between null e~^2 (0.867 at rho=0.8) and post-change (0.911 at rho=0.6). §14.20.
     if (key == "kalman_var_cusum") {
         return std::make_unique<KalmanVarChartDetector>(
             KalmanVarChartDetector::Config{
@@ -607,8 +554,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .short_run_cutoff = 2, .alarm_prob_threshold = 0.15},
             "kalman_bocpd");
     }
-    // hazard_rate is BOCPD's analog of sigma_omega2; the threshold rises with it
-    // because a model expecting frequent change finds short runs likelier.
+    // Threshold rises with hazard_rate: a model expecting change finds short runs likelier.
     if (key == "kalman_bocpd_fast") {
         return std::make_unique<KalmanBocpdDetector>(
             KalmanBocpdDetector::Config{
@@ -616,7 +562,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 .short_run_cutoff = 2, .alarm_prob_threshold = 0.95},
             "kalman_bocpd_fast");
     }
-    // --- Non-Gaussian parametric copula MLE (positive-dependence families) ---
     if (key == "clayton_mle") {
         return std::make_unique<ParametricCopulaMLE>(
             ParametricCopulaMLE::Config{.family = copula::Family::Clayton, .lambda = 0.0, .burn_in = 50},
@@ -647,7 +592,6 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             ParametricCopulaMLE::Config{.family = copula::Family::StudentT, .nu = 4.0, .lambda = 0.99, .burn_in = 50},
             "t_mle_ew");
     }
-    // --- Online parametric-vs-nonparametric goodness-of-fit selection ---
     if (key == "copula_select") {
         return std::make_unique<CopulaSelector>(
             CopulaSelector::Config{.lambda = 0.0, .burn_in = 100, .nu = 4.0}, "copula_select");
@@ -659,9 +603,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     return nullptr;
 }
 
-// Every key above, in report order. The harnesses share this rather than each
-// keeping a copy: a key registered but missing from a harness's list is not an
-// error, just a silently absent row, which is how xiao_win went unmeasured.
+// Both harnesses read this list; a key registered but missing here is silently never run.
 inline const std::vector<std::string>& all_estimator_keys() {
     static const std::vector<std::string> keys = {
         "xiao", "xiao_ew", "xiao_win", "xiao_pit", "xiao_b8", "xiao_b40", "hermite", "hermite_ew", "hermite_ew20",
@@ -682,11 +624,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
     return keys;
 }
 
-// Every key in all_estimator_keys() must construct. A key listed without a
-// make_estimator branch returns nullptr and segfaults on first use, with no
-// diagnostic; that has happened three times. The reverse direction — a branch
-// with no list entry, so the estimator silently never runs — is checked by
-// `make check-registry`.
+// A listed key with no branch returns nullptr and segfaults on first use.
 inline bool check_registry() {
     bool ok = true;
     for (const std::string& k : all_estimator_keys()) {

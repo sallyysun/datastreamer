@@ -10,34 +10,15 @@
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
 
-// KalmanBank's device, without the Kalman filter.
-//
-// Section 14.16 carries a posterior over the forgetting rate and beats the
-// per-scenario oracle with it -- but only for the local-level filter, because
-// that is the one estimator that hands out a predictive density to score models
-// by. Xiao, Hermite and the copula MLEs have no such density, which is the same
-// gap that kept every detector Kalman-only until section 14.10.
-//
-// The same statistic that closed it there closes it here. Spearman's rho is an
-// expectation, so
-//
-//     s_k = 12 (u - 1/2)(v - 1/2) - rho_hat_k
-//
-// is a mean-zero residual for model k with a variance measured at ~0.92-1.00
-// (section 14.14), which is all a Gaussian predictive score needs:
-//
-//     log L_k  =  -s_k^2 / (2 v)      accumulated over a block, then Bayes.
-//
-// So a bank over lambda is available for ANY estimator, parametric or not.
-// Cost is K copies of the inner estimator; for the MLE that is 144 bytes each.
-//
-// See section 14.18.
+// KalmanBank's model averaging over memory for any estimator: model k is scored by the Gaussian
+// predictive log L_k = -s_k^2/(2v), s_k = 12(u-1/2)(v-1/2) - rho_hat_k, per block, then Bayes.
+// See notes/studies/adaptive_memory.md and notes/design/source_rationale.md.
 class EstimatorBank : public DependenceEstimator {
 public:
     struct Config {
         std::size_t block = 20;
-        double switch_prob = 0.002;   // Markov step on the model index, as 14.16
-        double var_rate = 0.001;      // slow, for the reason section 14.11 gives
+        double switch_prob = 0.002;   // Markov step on the model index
+        double var_rate = 0.001;      // must be far slower than the change (§14.11)
         std::size_t pit_window = 500;
         std::size_t burn_in_ticks = 200;
     };

@@ -1,19 +1,6 @@
-// Standalone C++ consumer for the datastreamer mini-Kafka.
-//
-// Subscribes to TWO per-symbol equity topics, FIFO-pairs the two single-symbol
-// streams into bivariate samples, and runs its own device: a RingBuffer
-// (buffer-type device), a StateManager, and an inference layer (the dependence
-// estimators). Each consumer is an independent process -- its buffer is its only
-// memory, so a slow consumer just falls behind.
-//
-// Usage:
-//   ./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT]
-//              [--policy all|snapshot|latest] [--print 20] [--rate 0]
-//
-// The consumer subscribes to "trades.equity.<X>" and "trades.equity.<Y>" and
-// pairs by arrival order. This assumes the producers publish synchronously (one
-// tick per symbol per step); asynchronous / multi-rate legs are a later concern
-// (and --rate can desync the legs, so leave it 0 for estimation).
+// Standalone consumer: subscribes to two per-symbol topics on the TCP broker, FIFO-pairs the legs
+// by arrival order (assumes synchronous producers) and runs the estimators on its own device.
+// Leave --rate 0 for estimation: broker-side throttling drops each leg independently and desyncs the pair.
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -35,7 +22,7 @@ namespace {
 ConsumerPolicy parse_policy(const std::string& s) {
     if (s == "all") return ConsumerPolicy::ProcessAll;
     if (s == "snapshot") return ConsumerPolicy::Snapshot;
-    return ConsumerPolicy::SkipToLatest;  // "latest"
+    return ConsumerPolicy::SkipToLatest;
 }
 
 const char* arg(int argc, char** argv, const char* key, const char* fallback) {
@@ -93,7 +80,6 @@ int main(int argc, char** argv) {
 
     Consumer device(1024, policy);
 
-    // One FIFO per leg; when both are non-empty we can emit a paired sample.
     std::deque<SymbolTick> queue_x, queue_y;
 
     std::string buf;
@@ -114,14 +100,12 @@ int main(int argc, char** argv) {
             try {
                 tick = Serializer::symbol_from_json(line);
             } catch (...) {
-                continue;  // skip malformed
+                continue;
             }
             if (tick.symbol == sym_x) queue_x.push_back(tick);
             else if (tick.symbol == sym_y) queue_y.push_back(tick);
             else continue;
 
-            // Drain any complete pairs (synchronous producers keep the legs in
-            // lockstep, so front-to-front pairing is exact).
             while (!queue_x.empty() && !queue_y.empty()) {
                 const TickPair event{queue_x.front(), queue_y.front()};
                 queue_x.pop_front();

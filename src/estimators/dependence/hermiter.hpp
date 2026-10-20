@@ -9,64 +9,28 @@
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
 
-// Online Hermite-series estimator of Spearman's rho.
-//
-// C++ port of the method of Stephanou & Varughese (2021), "Sequential estimation
-// of Spearman rank correlation using Hermite series estimators"; reference
-// implementation (R/Rcpp): external/hermiter. The orthonormal Hermite-function,
-// integral, full-domain-integral, and online-standardization recurrences match
-// that package exactly.
-//
-// Scope: this port covers only the online bivariate Spearman's-rho path. The
-// reference package additionally does univariate pdf/cdf/quantile estimation,
-// Kendall's tau, consistent merging of sub-estimators, and batch mode -- none
-// ported (see notes/code_changes). The Spearman coupling matrix W is built in
-// closed form (see integral_matrix), matching the reference; there is no
-// remaining quadrature/approximation step.
+// Online Hermite-series Spearman's rho: port of Stephanou & Varughese (2021),
+// reference external/hermiter. Closed-form W: notes/hermiter_change.md.
 class HermiteEstimator : public DependenceEstimator {
 public:
     struct Config {
         int order = 20;
         double lambda = 0.0;
-        std::size_t burn_in = 100; // Number of initial samples to discard
-        // Variable forgetting on the update weight. lambda here is the UPDATE
-        // WEIGHT, so shortening memory means raising it — the mirror image of the
-        // MLE/Xiao retention convention. See the registry.hpp header.
+        std::size_t burn_in = 100;
+        // ⚠️ lambda is the UPDATE WEIGHT (mirror of Xiao/MLE retention): shorter memory = larger.
         double vff_rate = 0.0;
-        // Divide the three EWMA accumulators by the weight actually accumulated,
-        // 1 - (1-w)^n. Without it a long-memory Hermite is still shrunk toward
-        // zero at t ~ ESS, which reads as a memory effect and is not one. Off by
-        // default so no registered number moves. See notes/studies/adaptive_memory.md.
+        // Divide accumulators by 1 - (1-w)^n; off by default so no registered
+        // number moves. notes/studies/adaptive_memory.md.
         bool debias = false;
 
-        // Marginals by rank-PIT + probit instead of Welford standardization.
-        // Standardization is exact only for Gaussian margins; ranks are exact for
-        // any continuous margin and are invariant to monotone marginal change.
         std::size_t rank_pit_window = 0;   // 0 keeps standardization
 
-        // Rate at which the surprise BASELINE (its mean and sd) is updated. This
-        // must not be the coefficient weight: the baseline would then chase a
-        // change at exactly the speed the coefficients absorb it, and the
-        // standardized surprise would return to zero as fast as it rose. That is
-        // the bug section 14.11 records.
-        //   0 (default) : freeze after the calibration window -- a Phase-I
-        //                 control chart, and the fix.
-        //   > 0         : an EWMA at its own, slower rate.
+        // Never the coefficient weight (the §14.11 bug). 0 freezes after calibration.
         double surprise_baseline_rate = 0.0;
 
-        // Which surprise statistic the detector monitors.
-        //   0 : ||h_x h_y' - A||, the one-observation residual. Its norm is
-        //       dominated by ||h_x|| ||h_y||, i.e. by where in the margins this
-        //       single point landed, so the dependence signal is a small part of
-        //       a large number. Section 14.11 measures how little power it has.
-        //   > 0 : ||A_fast - A_slow||, this rate against the coefficient rate.
-        //       Two smoothed copies of the same matrix, so the per-observation
-        //       noise cancels and only a persistent drift survives. Costs one
-        //       extra (order+1)^2 matrix.
+        // 0: ||h_x h_y' - A||; >0: ||A_fast - A|| at this rate (one extra matrix). §14.11.
         double surprise_fast_rate = 0.0;
 
-        // What an alarm should do. The Hermite analogue of covariance inflation:
-        // forget faster for a short burst instead of discarding A_. Section 14.11.
         double reset_boost = -1.0;         // <0 hard reset; 0 no-op; >1 boost w
         std::size_t reset_boost_ticks = 20;
     };
@@ -84,7 +48,7 @@ public:
     void update(double x, double y) override {
         ++n_;
         update_moments(x, y);
-        if (n_ < 2) return; // Need at least 2 samples to compute covariance
+        if (n_ < 2) return;
 
         double sx, sy;
         if (config_.rank_pit_window > 0) {
@@ -110,9 +74,7 @@ public:
             ax_ += w * (hx - ax_);
             ay_ += w * (hy - ay_);
 
-            // The coefficient-matrix surprise, before it is absorbed. This is the
-            // Hermite analogue of a Kalman innovation, and it carries shape change
-            // that estimate()'s collapse to a scalar rho throws away.
+            // Surprise is taken before the observation is absorbed.
             const Eigen::MatrixXd outer = hx * hy.transpose();
             double surprise = (outer - A_).norm();
             A_ += w * (outer - A_);
@@ -121,9 +83,6 @@ public:
                 surprise = (A_fast_ - A_).norm();
             }
 
-            // Baseline on its own clock. Inside the calibration window it is a
-            // running mean/variance; after it, either frozen or a slow EWMA --
-            // never the coefficient weight w.
             if (surprise_n_ < kSurpriseBurnIn) {
                 const double c = 1.0 / static_cast<double>(surprise_n_ + 1);
                 const double d = surprise - surprise_mean_;
@@ -147,8 +106,6 @@ public:
             }
     }
 
-    // Standardized coefficient-matrix surprise, for a detector to monitor. Zero
-    // until enough history exists to have a scale for it.
     double standardized_surprise() const {
         if (surprise_n_ <= kSurpriseBurnIn) return 0.0;
         const double sd = std::sqrt(std::max(surprise_var_, 1e-12));
@@ -158,14 +115,9 @@ public:
     const Eigen::MatrixXd& coefficients() const { return A_; }
 
     double estimate() const override {
-        if (n_ < config_.burn_in + 1) return 0.0; // Not enough data to estimate
-        // Spearman's rho = 12 * E[(F_X - 1/2)(F_Y - 1/2)], expanded in the
-        // Hermite basis. u = int F_X h dx, v = int F_Y h dy, z = int h dx, so
-        // (u - z/2) and (v - z/2) are the centred marginal CDF projections and
-        // rho = 12 (u - z/2)^T A (v - z/2).
-        // rho is not homogeneous in the accumulators (its four terms are degree
-        // 3, 2, 2 and 1 in them), so a common shrinkage does not cancel here the
-        // way it does inside Xiao's ratio.
+        if (n_ < config_.burn_in + 1) return 0.0;
+        // rho = 12 (u - z/2)^T A (v - z/2). Not homogeneous in the accumulators, so
+        // shrinkage does not cancel as in Xiao's ratio; debias scales every factor.
         const double c = (config_.debias && wsum_ > 0.0) ? 1.0 / wsum_ : 1.0;
         const Eigen::VectorXd u = (W_ * ax_) * c;
         const Eigen::VectorXd v = (W_ * ay_) * c;
@@ -177,9 +129,9 @@ public:
     }
 
     void reset() override {
-        if (config_.reset_boost == 0.0) return;                    // no-op control
-        if (config_.reset_boost > 0.0) {                            // soft: forget faster
-            boost_left_ = config_.reset_boost_ticks;                // A_ and the baseline kept
+        if (config_.reset_boost == 0.0) return;
+        if (config_.reset_boost > 0.0) {                            // soft: A_ and baseline kept
+            boost_left_ = config_.reset_boost_ticks;
             return;
         }
         n_ = 0;
@@ -233,7 +185,7 @@ private:
     }
 
     static double standardize(double value, double mean, double var) {
-        const double sd = std::sqrt(std::max(var, 1e-12)); // Avoid division by zero
+        const double sd = std::sqrt(std::max(var, 1e-12));
         return (value - mean) / sd;
     }
 
@@ -276,18 +228,12 @@ private:
         return z;
     }
 
-    // Spearman coupling matrix W(k,j) = int h_k(x) I_j(x) dx, computed in CLOSED
-    // FORM (no quadrature). Two exact facts:
-    //   * integration by parts: W(k,j) + W(j,k) = z_k z_j   (z = full-domain integrals)
-    //   * I_j = -sqrt(2/j) h_{j-1} + sqrt((j-1)/j) I_{j-2}, with int h_k h_{j-1} = delta,
-    //     giving the column recurrence W(k,j) = -sqrt(2/j)[k==j-1] + sqrt((j-1)/j) W(k,j-2).
-    // Bases: W(0,0)=z0^2/2, W(0,1)=-sqrt2, W(k,1)=-sqrt2 [k==0], W(k,0)=z_k z_0 - W(0,k).
+    // W(k,j) = int h_k I_j dx in closed form; derivation in notes/hermiter_change.md.
     static Eigen::MatrixXd integral_matrix(int order) {
         const int dim = order + 1;
         const Eigen::VectorXd z = basis_integrals(order);
         const double sqrt2 = std::sqrt(2.0);
 
-        // Row 0 across all columns: W(0,j).
         Eigen::VectorXd row0(dim);
         row0(0) = z(0) * z(0) / 2.0;
         if (dim > 1) row0(1) = -sqrt2;
@@ -296,12 +242,10 @@ private:
         }
 
         Eigen::MatrixXd W(dim, dim);
-        // Column bases j = 0 (IBP symmetry) and j = 1 (orthonormality).
         for (int k = 0; k < dim; ++k) {
             W(k, 0) = z(k) * z(0) - row0(k);
             if (dim > 1) W(k, 1) = (k == 0) ? -sqrt2 : 0.0;
         }
-        // Columns j >= 2 via the recurrence.
         for (int j = 2; j < dim; ++j) {
             const double aj = std::sqrt(2.0 / j);
             const double bj = std::sqrt((j - 1.0) / j);
@@ -312,8 +256,7 @@ private:
         return W;
     }
 
-    // 1 / pi^(1/4): ground-state Hermite-function normaliser. std::sqrt is not
-    // constexpr until C++23, so this is computed once at static-init (inline const).
+    // 1 / pi^(1/4); not constexpr because std::sqrt isn't until C++23.
     inline static const double kQuarterRootPiInv =
         1.0 / std::sqrt(std::sqrt(std::numbers::pi));
 
@@ -325,7 +268,7 @@ private:
     double mean_y_ = 0.0;
     double var_x_ = 1.0;
     double var_y_ = 1.0;
-    double m2_x_ = 0.0; // Welford accumulators (cumulative mode)
+    double m2_x_ = 0.0;
     double m2_y_ = 0.0;
 
     static constexpr std::size_t kSurpriseBurnIn = 200;

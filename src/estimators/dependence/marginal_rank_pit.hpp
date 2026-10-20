@@ -5,15 +5,8 @@
 #include <cstddef>
 #include <vector>
 
-// Streaming rank-PIT for one marginal, followed by a probit so the output lands
-// back on the real line where the Hermite basis expects it (van der Waerden
-// normal scores).
-//
-// Exact rank-PIT needs every past observation. This keeps a bounded sorted
-// window instead, which is what makes it streaming-admissible: O(log W) to rank,
-// O(W) to maintain the sorted order. See section 0.5 of
-// notes/studies/kalman_changepoint_results.md for why ranks and not
-// standardization.
+// Bounded-window streaming rank-PIT for one marginal, then probit to normal scores.
+// See section 0.5 of notes/studies/kalman_changepoint_results.md.
 class RankPit {
 public:
     explicit RankPit(std::size_t window = 500) : window_(window) {
@@ -21,14 +14,12 @@ public:
         fifo_.reserve(window + 1);
     }
 
-    // Returns the pseudo-observation u in (0,1) for `value`, then absorbs it.
     double transform(double value) {
         const auto lo = std::lower_bound(sorted_.begin(), sorted_.end(), value);
         const double below = static_cast<double>(lo - sorted_.begin());
         const double n = static_cast<double>(sorted_.size());
 
-        // (r + 1/2) / (n + 1) keeps u strictly inside (0,1) so the probit stays
-        // finite for the smallest and largest value seen.
+        // (r + 1/2) / (n + 1) keeps u strictly inside (0,1) so the probit stays finite.
         const double u = (n > 0.0) ? (below + 0.5) / (n + 1.0) : 0.5;
 
         sorted_.insert(lo, value);
@@ -53,8 +44,7 @@ public:
 
     std::size_t size() const { return sorted_.size(); }
 
-    // Acklam's rational approximation to the standard normal quantile; absolute
-    // error < 1.15e-9, which is far below the sampling noise it is fed.
+    // Acklam's rational approximation to the normal quantile; abs error < 1.15e-9.
     static double probit(double p) {
         static constexpr double a[6] = {-3.969683028665376e+01, 2.209460984245205e+02,
                                         -2.759285104469687e+02, 1.383577518672690e+02,

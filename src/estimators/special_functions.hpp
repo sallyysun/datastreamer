@@ -117,4 +117,4 @@ inline double t_ppf(double p, double nu) {
     return 0.5 * (lo + hi);
 }
 
-}  // namespace special
+}
