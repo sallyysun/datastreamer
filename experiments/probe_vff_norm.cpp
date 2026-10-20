@@ -23,6 +23,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -148,6 +149,12 @@ int main() {
     std::printf("oracle Var(p): d=0 %.4f  d=0.2 %.4f  d=0.6 %.4f  d=0.8 %.4f\n",
                 varp(0.0), varp(0.2), varp(0.6), varp(0.8));
 
+    if (traj::on()) {
+        std::vector<double> vp;
+        for (int i = -999; i <= 999; ++i) vp.push_back(varp(i / 1000.0));
+        traj::record("probe_vff_norm/varp_grid", vp);
+    }
+
     const std::vector<Cfg> cfgs{{0.05, false, "vff_slow_fixed1"}, {0.05, true, "vff_slow_oracle"},
                                 {0.5, false, "vff_fast_fixed1"},  {0.5, true, "vff_fast_oracle"}};
     const std::vector<std::string> scenarios{"constant", "drift", "jump", "oscillate"};
@@ -178,6 +185,16 @@ int main() {
                     run_seed(scenario, cfgs, s, varp, rec, ignored[w], false);
             });
         for (auto& th : pool) th.join();
+        if (traj::on()) {
+            static const char* kChName[kNumCh] = {"est", "mem", "ess", "ms", "den", "ratio", "C"};
+            traj::record("probe_vff_norm/" + scenario + "/truth", truth);
+            for (std::size_t c = 0; c < cfgs.size(); ++c)
+                for (std::size_t s = 0; s < kSeeds; ++s)
+                    for (int ch = 0; ch < kNumCh; ++ch)
+                        traj::record(traj::tag("probe_vff_norm/%s/%s/%zu/%s", scenario.c_str(), cfgs[c].name, s,
+                                               kChName[ch]),
+                                     rec[c][ch][s]);
+        }
 
         std::vector<std::vector<double>> per_seed(cfgs.size(), std::vector<double>(kSeeds));
         for (std::size_t c = 0; c < cfgs.size(); ++c) {
@@ -197,6 +214,9 @@ int main() {
                 << std::sqrt(pooled / (kSeeds * static_cast<double>(kN - kBurn))) << "," << m << ","
                 << std::sqrt(v / (kSeeds - 1.0) / kSeeds) << "\n";
         }
+        if (traj::on())
+            for (std::size_t c = 0; c < cfgs.size(); ++c)
+                traj::record(traj::tag("probe_vff_norm/%s/%s/seed_rmse", scenario.c_str(), cfgs[c].name), per_seed[c]);
         for (std::size_t c = 0; c + 1 < cfgs.size(); c += 2) {
             double m = 0.0;
             for (std::size_t s = 0; s < kSeeds; ++s) m += per_seed[c + 1][s] - per_seed[c][s];

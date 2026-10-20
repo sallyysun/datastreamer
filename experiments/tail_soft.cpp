@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "tail_common.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -76,6 +77,7 @@ SeedOut run_seed(const tail::Mix& ma, const tail::Mix& mb, const std::vector<dou
     const std::size_t C = n_cells();
     SeedOut out{std::vector<double>(C, 0.0), std::vector<double>(C, 0.0), std::vector<double>(C * n_path(), 0.0)};
     std::vector<double> est(C, 0.0);
+    traj::Series ser;
 
     for (std::size_t t = 0; t < T; ++t) {
         const bool post = t >= TAU;
@@ -125,6 +127,7 @@ SeedOut run_seed(const tail::Mix& ma, const tail::Mix& mb, const std::vector<dou
                 for (std::size_t b = 0; b < B; ++b) bank += w[b] * last[sidx(tail, qi, g1, kBankArms[b])];
                 est[bank_cell(tail, qi)] = bank;
             }
+        ser.add(est);
         if (t >= PRE0)
             for (std::size_t tail = 0; tail < 2; ++tail)
                 for (std::size_t qi = 0; qi < NQ; ++qi) {
@@ -139,6 +142,13 @@ SeedOut run_seed(const tail::Mix& ma, const tail::Mix& mb, const std::vector<dou
             const std::size_t p = (t - PATH0) / STRIDE;
             for (std::size_t c = 0; c < C; ++c) out.path[c * n_path() + p] = est[c];
         }
+    }
+    if (traj::on()) {
+        const std::string base = traj::tag("tail_soft/%.17g->%.17g/%u/", ma.pi, mb.pi, seed);
+        ser.commit(base + "est");
+        traj::record(base + "se_pre", out.se_pre);
+        traj::record(base + "se_post", out.se_post);
+        traj::record(base + "path", out.path);
     }
     return out;
 }
@@ -262,6 +272,19 @@ int main(int argc, char** argv) {
                 std::sort(bn.begin(), bn.end());
                 const double blo = bg[bg.size() * 16 / 100], bhi = bg[bg.size() * 84 / 100];
                 const double nlo = bn[bn.size() * 16 / 100], nhi = bn[bn.size() * 84 / 100];
+                if (traj::on()) {
+                    const std::string base = traj::tag("tail_soft/%.17g->%.17g/%zu/%zu/", pi0, pi1, tail, qi);
+                    std::vector<double> flat;
+                    for (const auto& r : tot) flat.insert(flat.end(), r.begin(), r.end());
+                    traj::record(base + "tot", flat);
+                    traj::record(base + "boot_gamma", bg);
+                    traj::record(base + "boot_n0", bn);
+                    traj::record(base + "summary",
+                                 std::vector<double>{fixed, hard, soft, bank, dm, dse, n0_star, n0_pred,
+                                                     static_cast<double>(gs), static_cast<double>(ms),
+                                                     static_cast<double>(gf), static_cast<double>(mf),
+                                                     static_cast<double>(same)});
+                }
                 char bstr[32], nstr[32];
                 std::snprintf(bstr, sizeof bstr, "[%.4f,%.4f]", blo, bhi);
                 std::snprintf(nstr, sizeof nstr, "[%.1f,%.1f]", nlo, nhi);

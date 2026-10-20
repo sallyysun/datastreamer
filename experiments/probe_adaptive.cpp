@@ -28,6 +28,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -316,6 +317,18 @@ int main() {
             });
         }
         for (auto& th : pool) th.join();
+        if (traj::on()) {
+            traj::record("probe_adaptive/" + scenario + "/truth", truth);
+            for (std::size_t c = 0; c < cfgs.size(); ++c) {
+                const std::string name = traj::tag("%02zu_%s_%s%s@%.17g", c, cfgs[c].family.c_str(),
+                                                   cfgs[c].method.c_str(), cfgs[c].tag.c_str(), cfgs[c].param);
+                for (std::size_t s = 0; s < kSeeds; ++s) {
+                    const std::string base = "probe_adaptive/" + scenario + "/" + name + "/" + std::to_string(s);
+                    traj::record(base + "/est", est[c][s]);
+                    if (!mem[c][s].empty()) traj::record(base + "/mem", mem[c][s]);
+                }
+            }
+        }
 
         std::vector<std::vector<double>> per_seed(cfgs.size());
         std::vector<double> pooled(cfgs.size());
@@ -336,6 +349,12 @@ int main() {
                 sout << cfgs[c].family << "," << cfgs[c].method << cfgs[c].tag << "," << scenario
                      << "," << cfgs[c].param << "," << kBaseSeed + s << "," << per_seed[c][s] << "\n";
         all_pooled[si] = pooled;
+        if (traj::on()) {
+            traj::record("probe_adaptive/" + scenario + "/pooled_rmse", pooled);
+            std::vector<double> flat;
+            for (const auto& r : per_seed) flat.insert(flat.end(), r.begin(), r.end());
+            traj::record("probe_adaptive/" + scenario + "/seed_rmse", flat);
+        }
 
         for (std::size_t c = 0; c < cfgs.size(); ++c) {
             if (mem[c][0].empty()) continue;

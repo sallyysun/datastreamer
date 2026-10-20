@@ -9,6 +9,7 @@
 //   ...change...
 //   make dump_trajectories && ./dump_trajectories 3 42 > after.txt && diff before.txt after.txt
 // COPULA=<family> selects the DGP family as in multiseed.
+// Probes that build configs outside the registry: TRAJ_MANIFEST=<file> ./probe_memory (see check_probe_trajectories.sh).
 
 #include <cstdint>
 #include <cstdio>

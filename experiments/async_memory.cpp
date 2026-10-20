@@ -29,6 +29,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "memory_grid.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -113,6 +114,7 @@ SeedOut run_seed(const std::string& scenario, unsigned seed) {
         bool new_x = false, new_y = false;
         std::size_t n_pairs = 0;
         double sum_c = 0.0;
+        traj::Series ser;
 
         for (std::size_t t = 0; t < T; ++t) {
             px += L.z1[t];
@@ -154,6 +156,8 @@ SeedOut run_seed(const std::string& scenario, unsigned seed) {
                     if (!ests[i]) continue;
                     const double es = ests[i]->estimate();
                     const double ea = ests[half + i]->estimate();
+                    ser.add(es);
+                    ser.add(ea);
                     const double ec = pearson_to_spearman(spearman_to_pearson(ea) / std::max(c_hat, 1e-3));
                     const double d[3] = {es - truth, ea - truth, ec - truth};
                     for (std::size_t a = 0; a < 3; ++a) {
@@ -165,6 +169,7 @@ SeedOut run_seed(const std::string& scenario, unsigned seed) {
             }
         }
 
+        if (traj::on()) ser.commit(traj::tag("async_memory/%s/%u/l%zu/est", scenario.c_str(), seed, l));
         const std::size_t half = ests.size() / 2;
         for (std::size_t a = 0; a < 3; ++a)
             for (std::size_t i = 0; i < half; ++i) {
@@ -176,6 +181,15 @@ SeedOut run_seed(const std::string& scenario, unsigned seed) {
         out.pairs.push_back(static_cast<double>(n_pairs));
         out.steps_per_pair.push_back(n_pairs ? static_cast<double>(T) / static_cast<double>(n_pairs) : NAN);
         out.mean_c.push_back(n_pairs ? sum_c / static_cast<double>(n_pairs) : NAN);
+    }
+    if (traj::on()) {
+        std::vector<double> cells;
+        for (const CellResult& c : out.cells) { cells.push_back(c.rmse); cells.push_back(c.bias); }
+        const std::string base = traj::tag("async_memory/%s/%u/", scenario.c_str(), seed);
+        traj::record(base + "cells", cells);
+        traj::record(base + "pairs", out.pairs);
+        traj::record(base + "steps_per_pair", out.steps_per_pair);
+        traj::record(base + "mean_c", out.mean_c);
     }
     return out;
 }

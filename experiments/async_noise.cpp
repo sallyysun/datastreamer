@@ -19,6 +19,7 @@
 
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "memory_grid.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -66,6 +67,11 @@ int main(int argc, char** argv) {
     for (int s = 0; s < n_seeds; ++s) jobs.push_back(std::async(std::launch::async, run_seed, base + static_cast<unsigned>(s)));
     std::vector<std::vector<std::vector<double>>> seeds;
     for (auto& j : jobs) seeds.push_back(j.get());
+    if (traj::on())
+        for (int s = 0; s < n_seeds; ++s)
+            for (std::size_t i = 0; i < seeds[s].size(); ++i)
+                traj::record(traj::tag("async_noise/%u/cell%03zu", base + static_cast<unsigned>(s), i), seeds[s][i]);
+    std::vector<double> summary;
 
     std::ofstream csv("results/async_noise.csv");
     if (!csv.is_open()) {
@@ -90,11 +96,13 @@ int main(int argc, char** argv) {
                 for (const auto& s : seeds) for (double x : s[i]) ss += (x - mean) * (x - mean);
                 const double var = ss / (n - 1.0);
                 const double v = kMemories[k] * var;
+                summary.insert(summary.end(), {mean, var, v});
                 std::printf(" %6.3f", v);
                 csv << fams[f] << "," << kMemories[k] << "," << rhos[r] << "," << mean << "," << var << "," << v << "\n";
             }
             std::printf("\n");
         }
+    traj::record("async_noise/summary", summary);
     std::printf("wrote results/async_noise.csv\n");
     return 0;
 }

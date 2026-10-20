@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "tail_common.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -42,6 +43,8 @@ struct MC {
 
 // rho_S and chi by Monte Carlo; tau = 4 E[C(U,V)] - 1 evaluated with the exact mixture CDF.
 MC monte_carlo(const Mix& m, std::size_t n) {
+    static std::size_t n_calls = 0;  // manifest tag only: report() repeats a mix
+    const std::size_t call = n_calls++;
     const unsigned threads = 8;
     std::vector<std::future<std::vector<double>>> jobs;
     for (unsigned k = 0; k < threads; ++k)
@@ -61,13 +64,26 @@ MC monte_carlo(const Mix& m, std::size_t n) {
             return acc;
         }));
     std::vector<double> acc(3 + 2 * kQ.size(), 0.0);
-    for (auto& j : jobs) { auto a = j.get(); for (std::size_t i = 0; i < a.size(); ++i) acc[i] += a[i]; }
+    for (auto& j : jobs) {
+        auto a = j.get();
+        if (traj::on())
+            traj::record(traj::tag("tail_mixture/mc%02zu/%.17g,%.17g,%.17g/%zu/thread%zu", call, m.pi, m.theta, m.zeta,
+                                   n, static_cast<std::size_t>(&j - jobs.data())),
+                         a);
+        for (std::size_t i = 0; i < a.size(); ++i) acc[i] += a[i];
+    }
     const double N = static_cast<double>(n / threads * threads);
     const double e = acc[0] / N, var = acc[1] / N - e * e;
     MC r{12.0 * e - 3.0, 12.0 * std::sqrt(var / N), 4.0 * acc[2] / N - 1.0, {}, {}};
     for (std::size_t j = 0; j < kQ.size(); ++j) {
         r.chiL.push_back(acc[3 + j] / N / kQ[j]);
         r.chiU.push_back(acc[3 + kQ.size() + j] / N / kQ[j]);
+    }
+    if (traj::on()) {
+        std::vector<double> v{r.rho_s, r.rho_s_se, r.tau};
+        v.insert(v.end(), r.chiL.begin(), r.chiL.end());
+        v.insert(v.end(), r.chiU.begin(), r.chiU.end());
+        traj::record(traj::tag("tail_mixture/mc%02zu/%.17g,%.17g,%.17g/%zu/result", call, m.pi, m.theta, m.zeta, n), v);
     }
     return r;
 }
@@ -137,6 +153,11 @@ int main(int argc, char** argv) {
             for (double q : kQ) csv << "," << m.chi_L(q) << "," << m.chi_U(q);
             csv << "\n";
         }
+    }
+    if (traj::on()) {
+        std::vector<double> v;
+        for (const auto& p : pts) v.insert(v.end(), {p.pi, p.rc, p.rg, p.th, p.ze, p.lL, p.lU, p.cL, p.cU});
+        traj::record("tail_mixture/feasible", v);
     }
     std::printf("%zu feasible grid points\n", pts.size());
     std::printf("lambda envelope:  lam_L bin   |  min lam_U  max lam_U   (and the pi giving the max)\n");

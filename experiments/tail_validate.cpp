@@ -29,6 +29,7 @@
 #include "../src/estimators/special_functions.hpp"
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "tail_common.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -111,6 +112,11 @@ std::vector<std::vector<double>> run_stream(const Fixed& f, unsigned seed) {
             out[i * kEst.size() + 2].push_back(target_of("log", pj, q));
         }
     }
+    if (traj::on()) {
+        traj::Series ser;
+        for (const auto& v : out) ser.add(v);
+        ser.commit(traj::tag("tail_validate/stream/%s/%u", f.family.c_str(), seed));
+    }
     return out;
 }
 
@@ -128,6 +134,8 @@ void cross_check(const std::string& fam, double d) {
         const auto [x, y] = loc.next();
         b[0] += (x <= 0.05 && y <= 0.05); b[1] += (x > 0.95 && y > 0.95); b[2] += x * y; b[3] += x * y * x * y;
     }
+    if (traj::on())
+        traj::record("tail_validate/cross_check/" + fam, std::vector<double>{a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]});
     const double N = static_cast<double>(n);
     auto zp = [N](double c1, double c2) {
         const double p1 = c1 / N, p2 = c2 / N;
@@ -168,6 +176,11 @@ int main(int argc, char** argv) {
         fixed.push_back(fix(fam, d));
         exact.push_back(exact_targets(fixed.back()));
         const auto& e = exact.back();
+        if (traj::on()) {
+            std::vector<double> v{fixed.back().param, e.rho_s};
+            for (const auto* a : {&e.pL, &e.pU, &e.pL_closed, &e.pU_closed}) v.insert(v.end(), a->begin(), a->end());
+            traj::record("tail_validate/exact/" + fam, v);
+        }
         const Lambdas lam = exact_lambda(fixed.back());
         std::printf("%-9s %8.4f %8.4f %7.3f %7.3f |", fam.c_str(), fixed.back().param, e.rho_s, lam.lower, lam.upper);
         for (std::size_t j = 0; j < kQ.size(); ++j) {
@@ -190,6 +203,7 @@ int main(int argc, char** argv) {
     auto bidx = [](std::size_t f, std::size_t tail, std::size_t qi, std::size_t mi, std::size_t e) {
         return (((f * 2 + tail) * kQ.size() + qi) * kMem.size() + mi) * kEst.size() + e;
     };
+    std::vector<double> summary;
     for (std::size_t fi = 0; fi < kFamilies.size(); ++fi) {
         std::vector<std::future<std::vector<std::vector<double>>>> jobs;
         for (int s = 0; s < n_seeds; ++s)
@@ -215,11 +229,16 @@ int main(int argc, char** argv) {
                         const double rl = std::sqrt(sdv * sdv + (mean - lm) * (mean - lm));
                         SD[bidx(fi, tail, qi, mi, e)] = sdv;
                         TGT[bidx(fi, tail, qi, mi, e)] = tgt;
+                        if (traj::on()) summary.insert(summary.end(), {mean, sdv, rt, rl});
                         scsv << kFamilies[fi] << "," << (tail ? "upper" : "lower") << "," << kQ[qi] << "," << kEst[e]
                              << "," << kMem[mi] << "," << tgt << "," << lm << "," << mean << "," << sdv << "," << rt
                              << "," << rl << "\n";
                     }
     }
+
+    traj::record("tail_validate/stream_summary", summary);
+    traj::record("tail_validate/SD", SD);
+    traj::record("tail_validate/TGT", TGT);
 
     std::printf("\n== B. streaming SD of the SEC-ratio estimator (bias vs own target is in the CSV)\n");
     for (std::size_t fi = 0; fi < kFamilies.size(); ++fi)

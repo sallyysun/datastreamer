@@ -16,7 +16,9 @@ experiment, not code maintenance. Four rules follow from that.
    `dump_trajectories` manifest before and after, on the same platform: a bit-exact hash of every
    input stream and every per-tick estimate for every key. Summary CSVs are printed at limited
    precision and can hide last-bit differences, so a matching `multiseed` CSV is supporting
-   evidence, not the gate.
+   evidence, not the gate. Probes that build their own configurations (memory sweeps, adaptive,
+   VFF-norm, async and tail studies) are gated the same way with
+   `./check_probe_trajectories.sh <dir>`, which runs them with `TRAJ_MANIFEST` set (about 160 s).
 2. **No silent replacement.** A change to what an estimator computes gets a new registry key or an
    explicit config flag. The old behaviour keeps its own name (`*_legacy`), so a thesis number can
    always be traced to the code that produced it.

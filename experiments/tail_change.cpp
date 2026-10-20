@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "tail_common.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -76,6 +77,7 @@ SeedOut run_seed(const tail::Fixed& fa, const tail::Fixed& fb, const std::vector
 
     SeedOut out{std::vector<double>(C, 0.0), std::vector<double>(C, 0.0), std::vector<double>(C * n_path(), 0.0)};
     std::vector<double> est(C, 0.0);
+    traj::Series ser;
 
     for (std::size_t t = 0; t < T; ++t) {
         const auto [u, v] = (t < TAU) ? sa.next() : sb.next();
@@ -120,6 +122,7 @@ SeedOut run_seed(const tail::Fixed& fa, const tail::Fixed& fb, const std::vector
                 for (std::size_t k = 0; k < 2 * M; ++k) est[cell(tail, qi, k)] = last[aidx(tail, qi, k)];
                 est[cell(tail, qi, 2 * M)] = bank;
             }
+        ser.add(est);
 
         if (t >= PRE0) {
             for (std::size_t tail = 0; tail < 2; ++tail)
@@ -136,6 +139,13 @@ SeedOut run_seed(const tail::Fixed& fa, const tail::Fixed& fb, const std::vector
             const std::size_t p = (t - PATH0) / STRIDE;
             for (std::size_t c = 0; c < C; ++c) out.path[c * n_path() + p] = est[c];
         }
+    }
+    if (traj::on()) {
+        const std::string base = traj::tag("tail_change/%s->%s/%u/", fa.family.c_str(), fb.family.c_str(), seed);
+        ser.commit(base + "est");
+        traj::record(base + "se_pre", out.se_pre);
+        traj::record(base + "se_post", out.se_post);
+        traj::record(base + "path", out.path);
     }
     return out;
 }
@@ -186,6 +196,13 @@ int main(int argc, char** argv) {
             chi_b[qi] = cb.pL[qi] / kQ[qi]; chi_b[nQ + qi] = cb.pU[qi] / kQ[qi];
         }
 
+        const std::string trname = std::string(tr.a) + "->" + tr.b;
+        if (traj::on()) {
+            std::vector<double> v{ca.rho_s, cb.rho_s};
+            v.insert(v.end(), chi_a.begin(), chi_a.end());
+            v.insert(v.end(), chi_b.begin(), chi_b.end());
+            traj::record("tail_change/" + trname + "/exact", v);
+        }
         std::vector<SeedOut> seeds;
         for (int s0 = 0; s0 < n_seeds; s0 += 8) {
             std::vector<std::future<SeedOut>> jobs;
@@ -223,6 +240,13 @@ int main(int argc, char** argv) {
                     csv << tr.a << "->" << tr.b << "," << (tail ? "upper" : "lower") << "," << kQ[qi] << "," << arm << ","
                         << mm << "," << xa << "," << xb << "," << lam_a << "," << lam_b << "," << pre_mean[k] << ","
                         << post_mean[k] << "," << tot_mean[k] << "," << se(tot) << "," << rec[k] << "\n";
+                }
+                if (traj::on()) {
+                    const std::string base = traj::tag("tail_change/%s/%zu/%zu/", trname.c_str(), tail, qi);
+                    traj::record(base + "tot_mean", tot_mean);
+                    traj::record(base + "pre_mean", pre_mean);
+                    traj::record(base + "post_mean", post_mean);
+                    traj::record(base + "recovery", rec);
                 }
                 bool edge = false;
                 std::vector<double> fixed_tot(tot_mean.begin(), tot_mean.begin() + M);

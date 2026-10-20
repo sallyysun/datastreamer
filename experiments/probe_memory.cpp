@@ -25,6 +25,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "trajectory_manifest.hpp"
 
 namespace {
 
@@ -56,6 +57,8 @@ struct Cfg {
     double mem_ticks;
     double halflife_pred;
 };
+
+std::string cfg_name(const Cfg& c) { return traj::tag("%s@%.17g", c.family.c_str(), c.param); }
 
 Cfg make_cfg(const std::string& family, double param) {
     Cfg c;
@@ -262,12 +265,25 @@ void sweep() {
             });
         }
         for (auto& th : pool) th.join();
+        if (traj::on()) {
+            traj::record("probe_memory/" + scenario + "/truth", truth);
+            for (std::size_t c = 0; c < cfgs.size(); ++c)
+                for (std::size_t s = 0; s < kSeeds; ++s)
+                    traj::record(traj::tag("probe_memory/%s/%s/%zu", scenario.c_str(), cfg_name(cfgs[c]).c_str(), s),
+                                 est[c][s]);
+        }
 
         std::vector<std::vector<Decomp>> dec(cfgs.size());
         const std::vector<Window> wins = windows_for(scenario);
         for (std::size_t c = 0; c < cfgs.size(); ++c) {
             for (const Window& w : wins) {
                 Decomp d = decompose(est, truth, c, w.lo, w.hi);
+                if (traj::on()) {
+                    std::vector<double> v{d.bias2, d.var, d.mse, d.rmse, d.se_rmse};
+                    v.insert(v.end(), d.seed_rmse.begin(), d.seed_rmse.end());
+                    traj::record(traj::tag("probe_memory/%s/%s/decomp_%s", scenario.c_str(),
+                                           cfg_name(cfgs[c]).c_str(), w.name.c_str()), v);
+                }
                 out << cfgs[c].family << "," << scenario << "," << w.name << ","
                     << cfgs[c].param << "," << cfgs[c].mem_ticks << "," << d.bias2 << ","
                     << d.var << "," << d.mse << "," << d.rmse << "," << d.se_rmse << "\n";
@@ -335,13 +351,16 @@ void ess_check() {
                     auto cop = dgp::make_copula("gaussian");
                     CopulaSource src(dep, *cop, 1000 + static_cast<unsigned>(s));
                     auto e = build(c);
+                    traj::Series ser;
                     for (std::size_t t = 0; t < T; ++t) {
                         const CopulaSource::Sample smp = src.next();
                         e->update(smp.x, smp.y);
                         const double r = e->estimate();
+                        ser.add(r);
                         acc[w][0][t] += r;
                         acc[w][1][t] += std::atanh(std::clamp(r, -0.999, 0.999));
                     }
+                    if (traj::on()) ser.commit(traj::tag("probe_memory/ess/%s/%zu", cfg_name(c).c_str(), s));
                 }
             });
         }
@@ -368,6 +387,9 @@ void ess_check() {
                 }
             }
         }
+        // Seed-mean summed per worker, so its bits depend on hardware_concurrency.
+        if (traj::on())
+            traj::record(traj::tag("probe_memory/ess/%s/halflife_hwdep", cfg_name(c).c_str()), hl, 2);
         // Invert the half-life back to an ESS so the measurement, not the
         // algebra, can carry the x-axis if the two disagree. Kalman is linear in
         // Fisher-z, so its z-column is the one to trust.
