@@ -70,10 +70,16 @@ tail_mixture:
 tail_soft:
 	$(CXX) tail_soft.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o tail_soft
 
-clean:
-	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples tail_validate tail_change tail_mixture tail_soft
+async_memory:
+	$(CXX) async_memory.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o async_memory
 
-.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples tail_validate tail_change tail_mixture tail_soft clean
+async_noise:
+	$(CXX) async_noise.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o async_noise
+
+clean:
+	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise
+
+.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.

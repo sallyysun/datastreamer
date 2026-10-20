@@ -11,6 +11,8 @@
 /experiments/tail_change
 /experiments/tail_mixture
 /experiments/tail_soft
+/experiments/async_memory
+/experiments/async_noise
 __pycache__/
 /experiments/results/
 /experiments/probe_auc
