@@ -16,10 +16,10 @@ Run from experiments/:
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Rectangle
 from scipy import special, stats
 
-from plot_ch3 import INK_2, save
+from plot_ch3 import INK_2, SHADE, save
 
 N = 12
 RHO = 0.7
@@ -95,6 +95,12 @@ TICKS = [0, 0.25, 0.5, 0.75, 1]
 TICKLABELS = ["0", ".25", ".5", ".75", "1"]
 
 
+def rank_grid(ax):
+    for k in range(1, N):
+        ax.axhline(k / N, color=GRID, lw=0.5, zorder=0)
+        ax.axvline(k / N, color=GRID, lw=0.5, zorder=0)
+
+
 def unit_square(ax, title):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -119,6 +125,9 @@ def fig_empirical():
     ax_d, ax_e = fig.add_subplot(gs[1, 0:3]), fig.add_subplot(gs[1, 3:6])
 
     unit_square(ax_a, "A  Empirical point masses")
+    rank_grid(ax_a)
+    for ri, si in zip(r, s):
+        ax_a.add_patch(Rectangle(((ri - 1) / N, (si - 1) / N), 1 / N, 1 / N, fc=SHADE, ec="none", zorder=1))
     ax_a.scatter(r / N, s / N, s=16, color=C_EMP, zorder=3, linewidths=0, clip_on=False,
                  label="Point mass $1/n$ each")
 
