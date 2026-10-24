@@ -16,10 +16,10 @@ Run from experiments/:
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, ListedColormap
-from matplotlib.patches import Patch, Rectangle
+from matplotlib.patches import Patch
 from scipy import special, stats
 
-from plot_ch3 import INK, INK_2, MARK, SHADE, save
+from plot_ch3 import INK_2, save
 
 N = 12
 RHO = 0.7
@@ -31,9 +31,8 @@ GRID = "#e4e3df"
 
 def sample():
     rng = np.random.default_rng(SEED)
-    z = rng.standard_normal((N, 2))
-    x = z[:, 0]
-    y = RHO * z[:, 0] + np.sqrt(1 - RHO**2) * z[:, 1]
+    x = rng.standard_normal(N)
+    y = RHO * x + np.sqrt(1 - RHO**2) * rng.standard_normal(N)
     r = stats.rankdata(x).astype(int)
     s = stats.rankdata(y).astype(int)
     assert len(set(r)) == N and len(set(s)) == N
@@ -92,23 +91,21 @@ def checks(r, s, u_line):
           f"beta vs empirical at vertices up to {beta_gap:.3f}")
 
 
+TICKS = [0, 0.25, 0.5, 0.75, 1]
+TICKLABELS = ["0", ".25", ".5", ".75", "1"]
+
+
 def unit_square(ax, title):
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_aspect("equal")
-    ax.set_xticks([0, 0.5, 1])
-    ax.set_yticks([0, 0.5, 1])
+    ax.set_xticks(TICKS, TICKLABELS)
+    ax.set_yticks(TICKS, TICKLABELS)
     ax.set_xlabel("$u$")
     ax.set_ylabel("$v$")
-    ax.set_title(title, loc="left")
+    ax.set_title(title, loc="left", fontweight="bold")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-
-
-def rank_grid(ax, zorder=0):
-    for k in range(1, N):
-        ax.axhline(k / N, color=GRID, lw=0.5, zorder=zorder)
-        ax.axvline(k / N, color=GRID, lw=0.5, zorder=zorder)
 
 
 def fig_empirical():
@@ -121,56 +118,61 @@ def fig_empirical():
     ax_a, ax_b, ax_c = (fig.add_subplot(gs[0, 2 * j:2 * j + 2]) for j in range(3))
     ax_d, ax_e = fig.add_subplot(gs[1, 0:3]), fig.add_subplot(gs[1, 3:6])
 
-    unit_square(ax_a, "A  Empirical copula")
-    rank_grid(ax_a)
-    for ri, si in zip(r, s):
-        ax_a.add_patch(Rectangle(((ri - 1) / N, (si - 1) / N), 1 / N, 1 / N, fc=SHADE, ec="none", zorder=1))
-    ax_a.scatter(r / N, s / N, s=16, color=C_EMP, zorder=3, linewidths=0, clip_on=False)
-    ax_a.text(0.97, 0.03, "mass 1/12 per point", transform=ax_a.transAxes, ha="right", va="bottom",
-              fontsize=6.5, color=INK_2)
+    unit_square(ax_a, "A  Empirical point masses")
+    ax_a.scatter(r / N, s / N, s=16, color=C_EMP, zorder=3, linewidths=0, clip_on=False,
+                 label="Point mass $1/n$ each")
 
     unit_square(ax_b, "B  Checkerboard density")
     cells = np.zeros((N, N))
     cells[s - 1, r - 1] = N
     ax_b.imshow(cells, origin="lower", extent=(0, 1, 0, 1), cmap=ListedColormap(["white", C_CHK]),
                 vmin=0, vmax=N, interpolation="nearest", zorder=1)
-    rank_grid(ax_b, zorder=2)
-    ax_b.legend(handles=[Patch(fc="white", ec=INK_2, lw=0.5, label="0"),
-                         Patch(fc=C_CHK, label="12")], title="density", loc="upper left",
-                fontsize=6.5, title_fontsize=6.5, frameon=False, handlelength=1.0,
-                borderaxespad=0.1)
 
-    unit_square(ax_c, "C  Beta density")
+    unit_square(ax_c, "C  Empirical beta density")
     t = np.linspace(0, 1, 241)
     tu, tv = np.meshgrid(t, t)
     dens = np.mean([beta_pdf(ri, tu) * beta_pdf(si, tv) for ri, si in zip(r, s)], axis=0)
-    seq = LinearSegmentedColormap.from_list("seq", ["#ffffff", "#cde2fb", "#3987e5", "#1c5cab", "#0d366b"])
+    seq = LinearSegmentedColormap.from_list("seq", ["#ffffff", "#c9ecdc", "#56c596", C_BETA, "#0b5e3f"])
     im = ax_c.imshow(dens, origin="lower", extent=(0, 1, 0, 1), cmap=seq, vmin=0, vmax=3,
                      interpolation="bilinear")
     cb = fig.colorbar(im, cax=ax_c.inset_axes([1.06, 0.0, 0.05, 1.0]),
                       extend="max" if dens.max() > 3 else "neither")
     cb.set_ticks([0, 1, 2, 3])
+    cb.set_label("Beta density", fontsize=6.5, color=INK_2)
     cb.outline.set_linewidth(0.4)
     cb.ax.tick_params(labelsize=6.5)
 
-    def cdf_panel(ax, v, title, ylabel):
+    for ax, handles in ((ax_a, [plt.Line2D([], [], ls="", marker="o", ms=3.5, color=C_EMP,
+                                           label="Point mass $1/n$ each")]),
+                        (ax_b, [Patch(fc=C_CHK, label=r"$c_n^{\#} = n = 12$"),
+                                Patch(fc="white", ec=INK_2, lw=0.5, label=r"$c_n^{\#} = 0$")]),
+                        (ax_c, [Patch(fc=C_BETA, label=r"$c_n^{\beta}(u,v)$: smooth, nonnegative")])):
+        ax.legend(handles=handles, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2, frameon=False,
+                  fontsize=6.5, handlelength=1.0, borderaxespad=0.1, columnspacing=1.0)
+    for ax in (ax_a, ax_b, ax_c):
+        ax.set_title(ax.get_title(loc="left"), loc="left", fontweight="bold", pad=16)
+
+    def cdf_panel(ax, v, title, labels):
         u_step = np.r_[0, np.sort(r) / N, 1]
-        ax.step(u_step, c_emp(r, s, u_step, v), where="post", color=C_EMP, lw=1.6, label="empirical")
-        ax.plot(u_line, c_chk(r, s, u_line, v), color=C_CHK, lw=1.6, label="checkerboard")
-        ax.plot(u_line, c_beta(r, s, u_line, v), color=C_BETA, lw=1.6, ls=(0, (4, 2)), label="beta")
+        ax.step(u_step, c_emp(r, s, u_step, v), where="post", color=C_EMP, lw=1.6, label=labels[0])
+        ax.plot(u_line, c_chk(r, s, u_line, v), color=C_CHK, lw=1.6, label=labels[1])
+        ax.plot(u_line, c_beta(r, s, u_line, v), color=C_BETA, lw=1.6, ls=(0, (4, 2)), label=labels[2])
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1.0 if v == 1 else None)
-        ax.set_xticks(np.arange(0, 1.01, 0.25))
+        ax.set_xticks(TICKS, TICKLABELS)
         ax.set_xlabel("$u$")
-        ax.set_ylabel(ylabel)
-        ax.set_title(title, loc="left")
+        ax.set_ylabel("Cumulative probability")
+        ax.set_title(title, loc="left", fontweight="bold")
         ax.grid(axis="y", color=GRID, lw=0.5)
+        ax.legend(loc="lower right" if v < 1 else "upper left", frameon=False, fontsize=6.5)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
 
-    cdf_panel(ax_d, V_SLICE, f"D  CDFs at $v$ = {V_SLICE:g}", f"$C(u, {V_SLICE:g})$")
-    cdf_panel(ax_e, 1.0, "E  First margin, $v$ = 1", "$C(u, 1)$")
-    ax_d.legend(loc="upper left", frameon=False, fontsize=7)
+    cdf_panel(ax_d, V_SLICE, f"D  Joint CDF slice at $v$ = {V_SLICE:g}",
+              [rf"Empirical $C_n(u, {V_SLICE:g})$", rf"Checkerboard $C_n^{{\#}}(u, {V_SLICE:g})$",
+               rf"Empirical beta $C_n^{{\beta}}(u, {V_SLICE:g})$"])
+    cdf_panel(ax_e, 1.0, "E  Marginal CDF at $v$ = 1",
+              [r"Empirical: $\lfloor nu \rfloor / n$", "Checkerboard: $u$", "Empirical beta: $u$"])
 
     save(fig, "fig_ch3_empirical")
 
