@@ -7,12 +7,13 @@ each sample's tau matches the target.
 
 Run from experiments/:
     python3 plot_ch3_parametric.py          # -> results/ch3/fig_ch3_parametric.{pdf,png}
+    cp results/ch3/fig_ch3_parametric.pdf ../thesis/figures/
 """
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import integrate, optimize, stats
 
-from plot_ch3 import INK, INK_2, MARK, note, save, scatter, tail_coefficients
+from plot_ch3 import INK, MARK, note, save, scatter, tail_coefficients
 
 TAU = 0.5
 NU = 4.0
@@ -151,9 +152,6 @@ def fig_parametric():
                         ha="center", va="center", fontsize=8.5, color=INK)
     axes[1, 0].annotate("Density", xy=(-0.62, 0.5), xycoords="axes fraction", rotation=90,
                         ha="center", va="center", fontsize=8.5, color=INK)
-    fig.text(0.5, -0.01, f"Kendall $\\tau$ = {TAU:g} in every panel; contour levels "
-             + ", ".join(f"{l:g}" for l in LEVELS) + "; n = " + str(N) + " samples.",
-             ha="center", color=INK_2, fontsize=7)
     fig.tight_layout(h_pad=0.8, w_pad=0.4)
     save(fig, "fig_ch3_parametric")
 
