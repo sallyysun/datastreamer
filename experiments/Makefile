@@ -107,3 +107,6 @@ probe_thesis_bank:
 
 probe_bank_tune:
 	$(CXX) probe_bank_tune.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_tune
+
+probe_bank_path:
+	$(CXX) probe_bank_path.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_path
