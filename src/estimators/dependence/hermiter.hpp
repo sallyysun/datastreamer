@@ -38,6 +38,13 @@ public:
         // zero at t ~ ESS, which reads as a memory effect and is not one. Off by
         // default so no registered number moves. See notes/studies/adaptive_memory.md.
         bool debias = false;
+        // Start-up weight w_n = max(lambda, 1/n): A^(1) = h(X_1) h(Y_1)^T as in
+        // thesis section 4.2.3, then the stationary running mean until n = 1/lambda,
+        // then the exponential update. A literal "(1-lambda) from n = 2" leaves the
+        // first observation weight (1-lambda)^n (0.61 at n = 500 for lambda = 0.001);
+        // A_0 = 0 instead shrinks rho toward 0 until t ~ ESS. EW mode only; the
+        // cumulative path keeps parity with the hermiter reference.
+        bool init_first_obs = true;
 
         // Marginals by rank-PIT + probit instead of Welford standardization.
         // Standardization is exact only for Gaussian margins; ranks are exact for
@@ -101,6 +108,9 @@ public:
         double w = (config_.lambda > 0.0)
             ? lambda_
             : 1.0 / static_cast<double>(n_);
+        ++absorbed_;
+        if (config_.init_first_obs && config_.lambda > 0.0)
+            w = std::max(w, 1.0 / static_cast<double>(absorbed_));
         if (boost_left_ > 0) {
             w = std::min(1.0, w * config_.reset_boost);
             --boost_left_;
@@ -197,6 +207,7 @@ public:
         surprise_n_ = 0;
         lambda_ = config_.lambda;
         wsum_ = 0.0;
+        absorbed_ = 0;
         fast_ = slow_ = 0.0;
         pit_x_.reset();
         pit_y_.reset();
@@ -333,6 +344,7 @@ private:
     RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
     double lambda_ = config_.lambda;
     double wsum_ = 0.0;
+    std::size_t absorbed_ = 0;
     std::size_t boost_left_ = 0;
     double fast_ = 0.0;
     double slow_ = 0.0;

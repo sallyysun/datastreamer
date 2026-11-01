@@ -31,3 +31,4 @@ experiments/probe_*
 !experiments/probe_*.cpp
 !experiments/probe_*.py
 experiments/*.dSYM/
+/experiments/check_thesis_bank

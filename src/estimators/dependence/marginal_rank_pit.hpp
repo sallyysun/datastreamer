@@ -27,9 +27,10 @@ public:
         const double below = static_cast<double>(lo - sorted_.begin());
         const double n = static_cast<double>(sorted_.size());
 
-        // (r + 1/2) / (n + 1) keeps u strictly inside (0,1) so the probit stays
-        // finite for the smallest and largest value seen.
-        const double u = (n > 0.0) ? (below + 0.5) / (n + 1.0) : 0.5;
+        // Mean-based pseudo-observation R/(m+1) (thesis section 3.5.1), with R the
+        // rank of value among the m = n+1 values it is ranked with; strictly
+        // inside (0,1), so the probit stays finite.
+        const double u = (below + 1.0) / (n + 2.0);
 
         sorted_.insert(lo, value);
         fifo_.push_back(value);

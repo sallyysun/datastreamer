@@ -81,7 +81,8 @@ int main(int argc, char** argv) {
         const double lambda = (argc > 5) ? std::stod(argv[5]) : 0.0;
         // burn_in=1 so estimate() emits from n>=2, matching R hermiter's range.
         HermiteEstimator est(
-            HermiteEstimator::Config{.order = order, .lambda = lambda, .burn_in = 1},
+            HermiteEstimator::Config{.order = order, .lambda = lambda, .burn_in = 1,
+                                     .init_first_obs = false},
             "hermite");
         for (const auto& r : rows) {
             est.update(r.first, r.second);

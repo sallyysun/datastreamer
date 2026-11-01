@@ -24,26 +24,7 @@ struct CopulaDraw {
     double rho_s;
 };
 
-inline double param_from_spearman(copula::Family family, double target, double nu = 4.0) {
-    using copula::Family;
-    double lo = 0.0, hi = 0.0;
-    switch (family) {
-        case Family::Clayton:  lo = copula::Clayton::kMinParam;  hi = copula::Clayton::kMaxParam;  break;
-        case Family::Gumbel:   lo = copula::Gumbel::kMinParam;   hi = copula::Gumbel::kMaxParam;   break;
-        case Family::StudentT: lo = copula::StudentT::kMinParam; hi = copula::StudentT::kMaxParam; break;
-        case Family::Gaussian:
-        default:               lo = -0.999; hi = 0.999; break;
-    }
-    const double s_lo = copula::spearman_from_param(family, lo, nu);
-    const double s_hi = copula::spearman_from_param(family, hi, nu);
-    target = std::clamp(target, std::min(s_lo, s_hi), std::max(s_lo, s_hi));
-    for (int it = 0; it < 60; ++it) {
-        const double mid = 0.5 * (lo + hi);
-        if (copula::spearman_from_param(family, mid, nu) < target) lo = mid;
-        else hi = mid;
-    }
-    return 0.5 * (lo + hi);
-}
+using copula::param_from_spearman;
 
 struct Copula {
     virtual ~Copula() = default;

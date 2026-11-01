@@ -65,16 +65,13 @@ public:
         }
         const double decay = (lambda_ > 0.0) ? lambda_ : 1.0;
 
-        // (1) Expected rather than observed information. score_phi^2 is a
-        // one-sample curvature estimate and very noisy. For the Gaussian copula in
-        // the Fisher-z coordinate the expected information is closed form:
-        // I(rho) = (1+rho^2)/(1-rho^2)^2 and drho/dphi = 1-rho^2, so I(phi) = 1+rho^2.
-        // No closed form for the Archimedean families, so they keep the observed one.
-        double contribution = score_phi * score_phi;
-        if (expected_info_ && family_ == Family::Gaussian) {
-            const double rho = param();
-            contribution = 1.0 + rho * rho;
-        }
+        // (1) Expected rather than observed information (thesis section 3.5.4,
+        // H_t = H_{t-1} + I(theta_{t-1})). score_phi^2 is a one-sample curvature
+        // estimate and very noisy; expected_info_phi is closed form for the
+        // Gaussian and tabulated for the others.
+        const double contribution = expected_info_
+            ? expected_info_phi(family_, param(), nu_)
+            : score_phi * score_phi;
         info_ = decay * info_ + contribution;
 
         double step = score_phi / info_;
@@ -167,7 +164,7 @@ public:
         double nu = 4.0;
         double lambda = 0.0;
         double vff_rate = 0.0;
-        bool expected_info = false;   // expected Fisher info (Gaussian only)
+        bool expected_info = false;   // expected Fisher info, thesis section 3.5.4
         double pr_rate = 0.0;         // Polyak-Ruppert averaging rate; 0 disables
         bool damped = false;          // smooth step saturation instead of a clamp
         // Rank-PIT marginals instead of a Gaussian CDF of the standardized value.

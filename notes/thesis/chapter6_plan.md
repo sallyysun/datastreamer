@@ -10,6 +10,12 @@ Shorthand: **EB** = `src/estimators/dependence/estimator_bank.hpp` (the register
 
 ## Part A: Does the simulated bank match Algorithm 1?
 
+> **Update 2026-11-01: resolved in code.** `ForgettingBank` now implements Algorithm 1 exactly and
+> takes the `xiao_bank` / `hermite_bank` / `mle_bank` keys (plus `_log` and `_uniform`). The old
+> rule survives as `*_bank_block`. Details and first results:
+> `notes/code_changes/code changes 2026-11-01.md`. Part D lists the thesis sentences that still
+> need to change. The table below describes the code as it was before that change.
+
 **Short answer: not exactly.** The bank code follows the structure of Algorithm 1: score before
 updating, multiplicative weights, a fixed-share floor, and K fixed-memory components. It differs
 in six ways that Chapter 6 has to state, or that need a small config change and a rerun. The
@@ -150,3 +156,69 @@ results as well as methodology.
 3. **Add to MT** a uniform-average control (α = 1), the ρ-scored bank's KL, and optionally a B = 1 row.
 4. **Optional:** a jump toward *weaker* dependence (0.8 → 0.2). This is the predicted case where
    the VFF should react correctly (`memory_tradeoff.md` §4).
+
+---
+
+## Part D: Thesis edits after the 2026-11-01 code changes
+
+The code now follows the thesis wherever the thesis is specific. These are the places where the
+thesis is silent, ambiguous, or (one case) statistically worse than the code.
+
+### Chapter 3
+
+1. **§3.2 / Tables 3.1–3.3, Frank.** Frank is listed among the families "considered", but neither
+   the DGP nor any estimator implements it. Either say the experiments use Gaussian, Clayton,
+   Gumbel and t (ν = 4), or ask for Frank to be added.
+2. **§3.5.1 pseudo-observations.** The code uses R/(n+1) (mean-based) ✓, but R is a rank within a
+   **sliding window of 500** past observations, not the full sample. Say so here or in §4.2 (item 6).
+3. **§3.5.2 IFM.** The keys named `gaussian_mle*` are IFM with Gaussian margins (Welford
+   mean/variance), not MPL, and they update the margins **with** $x_t$ before transforming it.
+   If Chapter 6 reports them, call them IFM. The MPL rows are `mpl_*` and the bank's `mle` components.
+4. **§3.5.4 Fisher scoring.**
+   - Write the step as $\hat	heta_t=\hat	heta_{t-1}+H_t^{-1}s_t$; the draft has $H_{t-1}$.
+   - State that the recursion runs in the unconstrained coordinate φ: atanh ρ for Gaussian and t, log θ for Clayton, log(θ − 1) for Gumbel.
+   - State the code's two guards: $H_0=1$, and each step clipped to |Δφ| ≤ 0.5.
+   - The forgetting version is $H_t=(1-\lambda)H_{t-1}+I(\hat	heta_{t-1})$ in the thesis convention. Put it here or in §5.1.
+5. **§3.5.4 sequential MoM.** The cumulative recursion $\hat m_n$ is not an estimator in the code.
+   The online MoM actually used is §4.3.1: Xiao or Hermite $\hatho_S$, then $g^{-1}$. Drop the
+   recursion, or say it is the stationary special case.
+
+### Chapter 4
+
+6. **§4.2, the marginal estimator actually used.** Every pseudo-observation in the experiments
+   comes from a sliding-window empirical CDF: exact ranks among the last W = 500 observations,
+   $O(W)$ storage, $O(\log W)$ to rank and $O(W)$ to maintain. None of §4.2.1's summaries (GK,
+   KLL, t-digest, Gregory) is implemented. Add a short subsection on it, and keep §4.2.1 as
+   background.
+7. **§4.2.2 Xiao cut-points.** Say how the fixed cut-points are chosen:
+   - Calibrated mode: empirical quantiles of the first 100 observations, then frozen.
+   - Inside the bank: the components see $\Phi^{-1}(\hat U)$, so those cut-points are approximately equal-probability.
+   - Experiments use B = 20 bins (8 in the log-density study).
+8. **§4.2.3 Hermite.**
+   - (a) The code standardises the input before applying $h_k$, by EW mean and variance with the same λ (or by rank-PIT). The thesis applies $h_k$ to raw $X$. Add one sentence.
+   - (b) **Change the start-up equation** to $w_n=\max(\lambda,1/n)$, so that $\hat a^{(1)}=h(X_1)$, then the running mean until $n=1/\lambda$, then $(1-\lambda)\hat a+\lambda h$. The literal draft recursion was run first: it leaves weight $(1-\lambda)^n$ on the first observation and quadrupled long-memory RMSE (0.077 against 0.021).
+   - (c) Order N = 10 in the experiments.
+9. **§4.3.1 MoM gives the density for the log loss.** Say that log loss for estimators that only
+   report $\hatho_S$ (Xiao, Hermite) uses $c_{g^{-1}(\hatho_S)}$ from a chosen family
+   (Gaussian in the experiments). This answers §5.3.1's requirement that "each estimator produce
+   an absolutely continuous predictive copula".
+10. **§4.3.2 online MPL.** It matches `mpl_*`. Add the details: rank window 500, a 30-observation
+    warm-up, expected Fisher information, and retention 0.99, i.e. update weight 0.01 in the thesis convention.
+
+### Chapter 5
+
+11. **λ convention.** The thesis uses update weight λ. In the code, Xiao and the MLEs take
+    retention, so report memory in ticks, M, with λ = 2/(M + 1). The bank arms are M = 39, 99, 199, 399, 1999.
+12. **Algorithm 1.**
+    - Line 1: the warm-up is 30 margin observations before the first score.
+    - Line 12: components receive $\Phi^{-1}(\hat U_t),\Phi^{-1}(\hat V_t)$.
+    - Line 7, log loss: the MoM copula of item 9.
+    - Add a guard sentence: non-finite losses are replaced by the worst finite loss of that tick.
+13. **Report η and δ.** The current defaults are squared η = 0.5, δ = 1e-4; log η = 1, δ = 4e-4.
+    They are carried over from the block rule, not tuned. Chapter 6 needs a stated tuning protocol
+    (separate tuning seeds).
+14. **Uniform-average control.** `*_bank_uniform` exists now. Chapter 6 can report "bank vs
+    averaging the same arms", as the sample draft asked.
+15. **Earlier results are the block rule.** `memory_tradeoff.md` and `adaptive_memory.md` used the
+    block rule and the discounted bank. For Chapter 6, rerun with `probe_thesis_bank` rather than
+    citing those.

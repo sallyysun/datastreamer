@@ -98,3 +98,9 @@ sys.exit(1 if a or b else 0)"
 
 bench_rate:
 	$(CXX) bench_rate.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o bench_rate
+
+check_thesis_bank:
+	$(CXX) check_thesis_bank.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o check_thesis_bank
+
+probe_thesis_bank:
+	$(CXX) probe_thesis_bank.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_thesis_bank
