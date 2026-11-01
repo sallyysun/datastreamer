@@ -175,12 +175,13 @@ thesis is silent, ambiguous, or (one case) statistically worse than the code.
    mean/variance), not MPL, and they update the margins **with** $x_t$ before transforming it.
    If Chapter 6 reports them, call them IFM. The MPL rows are `mpl_*` and the bank's `mle` components.
 4. **§3.5.4 Fisher scoring.**
-   - Write the step as $\hat	heta_t=\hat	heta_{t-1}+H_t^{-1}s_t$; the draft has $H_{t-1}$.
+   - Write the step as $\hat\theta_t=\hat\theta_{t-1}+H_t^{-1}s_t$; the draft has $H_{t-1}$.
    - State that the recursion runs in the unconstrained coordinate φ: atanh ρ for Gaussian and t, log θ for Clayton, log(θ − 1) for Gumbel.
    - State the code's two guards: $H_0=1$, and each step clipped to |Δφ| ≤ 0.5.
-   - The forgetting version is $H_t=(1-\lambda)H_{t-1}+I(\hat	heta_{t-1})$ in the thesis convention. Put it here or in §5.1.
+   - The forgetting version is $H_t=(1-\lambda)H_{t-1}+I(\hat\theta_{t-1})$ in the thesis convention. Put it here or in §5.1.
 5. **§3.5.4 sequential MoM.** The cumulative recursion $\hat m_n$ is not an estimator in the code.
-   The online MoM actually used is §4.3.1: Xiao or Hermite $\hatho_S$, then $g^{-1}$. Drop the
+   The online MoM actually used is §4.3.1: Xiao or Hermite $\hat
+ho_S$, then $g^{-1}$. Drop the
    recursion, or say it is the stationary special case.
 
 ### Chapter 4
@@ -199,7 +200,9 @@ thesis is silent, ambiguous, or (one case) statistically worse than the code.
    - (b) **Change the start-up equation** to $w_n=\max(\lambda,1/n)$, so that $\hat a^{(1)}=h(X_1)$, then the running mean until $n=1/\lambda$, then $(1-\lambda)\hat a+\lambda h$. The literal draft recursion was run first: it leaves weight $(1-\lambda)^n$ on the first observation and quadrupled long-memory RMSE (0.077 against 0.021).
    - (c) Order N = 10 in the experiments.
 9. **§4.3.1 MoM gives the density for the log loss.** Say that log loss for estimators that only
-   report $\hatho_S$ (Xiao, Hermite) uses $c_{g^{-1}(\hatho_S)}$ from a chosen family
+   report $\hat
+ho_S$ (Xiao, Hermite) uses $c_{g^{-1}(\hat
+ho_S)}$ from a chosen family
    (Gaussian in the experiments). This answers §5.3.1's requirement that "each estimator produce
    an absolutely continuous predictive copula".
 10. **§4.3.2 online MPL.** It matches `mpl_*`. Add the details: rank window 500, a 30-observation
