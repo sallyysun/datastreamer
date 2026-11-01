@@ -207,7 +207,9 @@ public:
         var_x_ = var_y_ = 1.0;
     }
 
-    std::size_t store_bytes() const override { return sizeof(*this); }
+    std::size_t store_bytes() const override {
+        return sizeof(*this) + pit_x_.store_bytes() + pit_y_.store_bytes() - 2 * sizeof(RankPit);
+    }
     const char* name() const override { return name_; }
 
 private:

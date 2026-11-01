@@ -27,9 +27,12 @@ All differences are RMSE in ×10⁻³ (×0.001 in ρ_S), with paired 95% CIs.
 | `constant` | +7.2 to +10.4 | +6.4 to +15.2 | +25 to +40 |
 | `oscillate` (Gaussian, t) | +0.4 to +0.7 | +2.2 to +18.4 | about +100 |
 
-**Against one fixed memory chosen in advance** (the best mean over all four scenarios, which is
-M = 99 in every case): both banks win in every scenario × component × family checked (Gaussian
-and t). The gains are 9–93 ×10⁻³, with all CIs excluding 0.
+**Against one fixed memory chosen in advance** (the best mean over all four scenarios: M = 99 for
+Gaussian and t, M = 199 for Clayton and Gumbel, for every component): both banks win in all 48
+cells. The gains are 3–93 ×10⁻³, with all CIs excluding 0.
+
+**Uniform averaging** is worse than both banks and than the hindsight-best arm in 46/48 cells; the
+two ties are Hermite on Clayton and Gumbel `oscillate`.
 
 **Excess log loss** ranks the methods the same way. The log bank beats the hindsight best on
 `jump` (−1.0 to −3.8 ×10⁻³ nats/tick), and the squared bank does not (+0.5 to +21). The squared

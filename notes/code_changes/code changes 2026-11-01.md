@@ -104,3 +104,11 @@ tables. Results: `notes/studies/thesis_bank.md`, "Against variable forgetting fa
 
 Note: `experiments/Makefile` targets have no header dependencies. After editing a header,
 rebuild with `make -B <target>`.
+
+## 8. Chapter 6 draft (later the same day)
+
+- `notes/thesis/chapter6_draft.tex`: a full Chapter 6 draft, with per-section sources in
+  `chapter6_sources.md`. Figure `notes/thesis/figures/ch6_bank_weights.png` comes from
+  `experiments/plot_thesis_bank.py`.
+- `ParametricCopulaMLE::store_bytes()` now counts its two rank-PIT windows. Before, `mpl_*`
+  reported 368 bytes and left out about 16 kB. Estimates are unchanged.

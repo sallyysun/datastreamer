@@ -69,6 +69,10 @@ anyway as a robustness row.
 
 ## Part B: What Chapter 6 should contain
 
+> **Update 2026-11-01:** drafted in `chapter6_draft.tex` (LaTeX), with sources and status per
+> section in `chapter6_sources.md`. That file also checks the current §6.1 against the live server code:
+> it is wrong about the live server too (bivariate, constant volumes, time-varying family and d_t).
+
 The current §6.1 describes the **live server's** GBM price and volume DGP (a 4-variate Gaussian
 copula). **No offline result uses it.** Move that text to §2.3 (the implementation) and replace it
 with the harness DGP below. I suggest renaming the chapter "Simulation Study", since it holds
