@@ -353,10 +353,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     //
     // xiao_bank / hermite_bank / mle_bank and their _log twins are thesis
     // Algorithm 1 (ForgettingBank). The mle components are online MPL with
-    // expected Fisher scoring (sections 3.5.4, 4.3.2). eta and delta are the
-    // per-tick equivalents of the tuned block rules below, pending the Chapter 6
-    // tuning protocol. *_bank_uniform freezes the weights (eta = delta = 0): the
-    // "average the arms" control. *_bank_block is the earlier EstimatorBank
+    // expected Fisher scoring (sections 3.5.4, 4.3.2). eta and delta were
+    // tuned on seeds 1-30, drift and jump (notes/studies/thesis_bank_tuning.md).
+    // *_bank_uniform freezes the weights (eta = delta = 0): the "average the arms"
+    // control. *_bank_block is the earlier EstimatorBank
     // (20-tick blocks, eta_t = 1/(2 v_t)), kept so adaptive_memory.md reproduces.
     {
         const auto ends_with = [&](const char* suffix) {
@@ -400,11 +400,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             const char* name = std::find(names.begin(), names.end(), key)->c_str();
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);
-            ForgettingBank::Config cfg{};
+            ForgettingBank::Config cfg{.eta = 1.0, .delta = 1.0e-4};
             if (ends_with("_log")) {
                 cfg.loss = ForgettingBank::Loss::Log;
-                cfg.eta = 1.0;
-                cfg.delta = 4.0e-4;
+                cfg.delta = 3.0e-4;
             } else if (ends_with("_uniform")) {
                 cfg.eta = 0.0;
                 cfg.delta = 0.0;

@@ -60,7 +60,8 @@ is where its whole-run gain comes from.
 - **Log loss when the copula family is wrong:** on t data the log bank's cost grows (`constant`
   +14, `oscillate` +11 to +18), because the Gaussian method-of-moments density is misspecified there.
 - **Uniform averaging is much worse than either bank.** Choosing among the arms is what does the work.
-- **Next:** tune η and δ on separate seeds, then rerun.
+- **Tuned since (2026-11-01):** `thesis_bank_tuning.md`. The tables above use the *untuned* values.
+  `results/thesis_bank*.csv` now hold the tuned rerun.
 
 ## Against variable forgetting factors (same probe, same seeds, same inputs)
 
