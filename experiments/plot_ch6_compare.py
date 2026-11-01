@@ -2,7 +2,8 @@
   ch6_bank_forest.png    log bank minus each competitor, rho_S RMSE (mean +- 2 SE, paired over seeds), per family
                          x estimator, drift and jump. results/thesis_bank[_fam].csv (probe_thesis_bank).
   ch6_bank_recovery.png  rho_S RMSE by window after the jump, averaged over the 4 families, per estimator.
-  ch6_tail_chi.png       seed-mean chi_L(0.05) around each switch: family bank, tail_chi M = 1999 / 4999, truth.
+  ch6_tail_chi.png       seed-mean chi_L(0.05) around each switch: family bank, Hermite own-density bank,
+                         tail_chi M = 1999 / 4999, truth.
                          results/tail_bank_path_<regime>_42.csv (probe_tail_bank).
 Usage (from experiments/): python3 plot_ch6_compare.py -> ../notes/thesis/figures/"""
 import os
@@ -102,6 +103,8 @@ for ax, (rg, title) in zip(axes.flat, regs):
     ax.plot(s("true").index, s("true"), color=INK, lw=1.2, ls="--", label="true $\\chi_L(0.05)$")
     ax.plot(s("tail_chi_4999").index, s("tail_chi_4999"), color=AQUA, lw=1.6, label="corner counter, M = 4999")
     ax.plot(s("tail_chi_1999").index, s("tail_chi_1999"), color=ORANGE, lw=1.6, label="corner counter, M = 1999")
+    ax.plot(s("hermite_bank_own").index, s("hermite_bank_own"), color="#6250d6", lw=1.6,
+            label="Hermite bank, own density")
     ax.plot(s("family_bank").index, s("family_bank"), color=BLUE, lw=2, label="family bank")
     ax.axvline(5000, color=INK2, lw=0.6, ls=":")
     ax.set_title(title, color=INK, fontsize=9)

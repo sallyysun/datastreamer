@@ -837,7 +837,14 @@ ties none; at $M=4999$ it wins 16, loses 2 and ties 2. The margins are as follow
   \item On Gaussian$\to t_4$ the gap is $25$ against $48$--$52$.
 \end{itemize}
 The bank turns every observation into a few copula parameters. The counter uses only the
-$\approx qM$ corner events, with variance $\chi(1-\chi)/(qM)$. In the 500 ticks after a switch the
+$\approx qM$ corner events, with variance $\chi(1-\chi)/(qM)$. At $q=0.05$ the counter is the corner
+cell of Xiao's $20\times20$ histogram read directly, so it is also the Xiao comparison.
+
+The nonparametric density estimators give the same picture when $\chi(q)$ is read off their own
+predictive densities. Against them the bank wins 16 of 20 cells against the Hermite own-density bank,
+16 against a single Hermite estimator at $M=1999$, and 18 against Xiao's histogram density at
+$M=1999$; it loses only on the mixture. Hermite's order-10 series also smooths the corner, so it
+under-reads $\chi$: $0.56$ against $0.62$ for Clayton. In the 500 ticks after a switch the
 bank has the lowest error in all 16 switch cells, including the mixture.
 
 \paragraph{It follows a change in a few hundred ticks.} The seed-mean bank estimate crosses halfway

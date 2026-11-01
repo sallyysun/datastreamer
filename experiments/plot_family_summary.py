@@ -35,10 +35,11 @@ def strip(ax, wide, refs, title, xlabel):
             better += m + h < 0
             y = -j + (i - (len(cells) - 1) / 2) * 0.5 / len(cells)
             ax.errorbar(m, y, xerr=h, fmt="o", ms=3, color=col, ecolor=col, elinewidth=0.8, capsize=0)
-        ax.text(1.0, -j, f"{better}/{len(cells)}", transform=ax.get_yaxis_transform(), va="center", fontsize=7.5,
+        ax.text(1.03, -j, f"{better}/{len(cells)}", transform=ax.get_yaxis_transform(), va="center", fontsize=7.5,
                 color=INK2)
     ax.axvline(0, color=INK, lw=0.8)
     ax.set_xscale("symlog", linthresh=10)
+    ax.set_xlim(-300, 150)
     ax.set_yticks([-j for j in range(len(refs))], [lab for _, lab in refs])
     ax.grid(axis="x", color=GRID, lw=0.6)
     ax.set_title(title, color=INK, fontsize=9, loc="left")
@@ -78,12 +79,12 @@ n50 = null.groupby("seed").t50.apply(lambda x: (x >= 0).any()).sum()
 a.set_yticks([-j for j in range(len(sw))], [l for _, l in sw])
 a.set_xlim(0, 600)
 a.grid(axis="x", color=GRID, lw=0.6)
-a.set_title("(d) Shape switch at constant $\\rho_S$: ticks until the new family holds 50% of the weight",
+a.set_title("(d) Shape switch at constant $\\rho_S$: ticks until\nthe new family holds 50% of the weight",
             color=INK, fontsize=9, loc="left")
-a.set_xlabel(f"ticks after the switch (one dot per seed). No switch (Gaussian): a wrong family reached 50% in {n50}/60 seeds")
+a.set_xlabel(f"ticks after the switch (one dot per seed)\nno switch (Gaussian path): a wrong family reached 50% in {n50}/60 seeds")
 fig.suptitle("Family bank against fair competitors. Points: one cell, paired mean ± 2 SE over 60 seeds; "
              "blue = family bank better beyond 2 SE, orange = worse, grey = within; n/N = cells better",
              fontsize=8.5, color=INK)
-fig.tight_layout(rect=(0, 0, 0.98, 0.96))
+fig.tight_layout(rect=(0, 0, 0.97, 0.96), w_pad=4)
 fig.savefig("../notes/thesis/figures/ch6_family_summary.png", dpi=170)
 print("wrote ch6_family_summary.png")

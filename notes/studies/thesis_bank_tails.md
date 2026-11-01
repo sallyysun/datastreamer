@@ -144,6 +144,38 @@ W/L/T over the 20 cells (W = family bank lower):
 - Every loss to the best arm is the Gaussian arm on the pure Gaussian path. That arm is the oracle there,
   and the bank's cost for not knowing the family is 4–6.
 
+### Nonparametric competitors: Hermite and Xiao read through their own densities
+
+Added after the first run. Each competitor's $\chi(q)$ is P(both in the corner) / P(U in the tail),
+computed from its own predictive density by a midpoint rule every 20 ticks, on the same rank PIT.
+
+**The corner counter is Xiao's corner cell.** Xiao's 20 × 20 histogram has bins 0.05 wide, so at
+q = 0.05 the corner counter *is* Xiao's corner cell read directly. The only differences are the shared
+rank PIT, which replaces Xiao's frozen cut-points, and the free choice of q.
+
+The density-based Xiao estimator here is a 20 × 20 histogram, with prior mass 12.5 pseudo-observations,
+the same total as the default 5 × 5 pooling. With the default 0.5 per cell on a 20 × 20 grid, the prior
+(200 pseudo-observations of independence) pulled $\chi$ to about q.
+
+Whole-run RMSE, family bank minus each competitor, W/L/T over the 20 cells:
+
+| competitor | W/L/T | where it loses |
+| --- | --- | --- |
+| Hermite own-density bank | 16/4/0 | mix, +13 to +20 |
+| Hermite N = 10, M = 399 | 19/0/1 | — |
+| Hermite N = 10, M = 1999 | 16/4/0 | mix, +13 to +20 |
+| Xiao 20 × 20, M = 399 | 20/0/0 | — |
+| Xiao 20 × 20, M = 1999 | 18/2/0 | mix q = 0.10, +8 and +13 |
+
+- **Hermite's $\chi$ is biased low before the switch.** The order-10 series smooths the corner: on
+  Clayton → Gumbel it reads 0.56 against a target of 0.62.
+- **Hermite follows a switch faster than the counter at M = 1999, but much more slowly than the family
+  bank.** The figure `ch6_tail_chi.png` shows this.
+- **The pattern is the corner counter's**: the family bank wins everywhere its families contain the
+  truth, and loses only on the mixture.
+
+The full table is printed by `tail_bank_table.py`.
+
 ### Selected windows, q = 0.05, lower tail: RMSE and bias
 
 | regime | method | RMSE pre | RMSE post 0–500 | RMSE post 2000–5000 | bias pre | bias post 0–500 | bias post 2000–5000 |
