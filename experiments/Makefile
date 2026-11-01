@@ -110,3 +110,6 @@ probe_bank_tune:
 
 probe_bank_path:
 	$(CXX) probe_bank_path.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_path
+
+probe_bank_regret:
+	$(CXX) probe_bank_regret.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_regret

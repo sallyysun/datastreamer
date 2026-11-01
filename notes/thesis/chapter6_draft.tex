@@ -142,7 +142,8 @@ of its arms' predictive copulas. Its output $\sum_k w_{k,t-1}\hat\rho^{(k)}_{t-1
 rho of that mixture, because $\rho_S(C)=12\int\!\!\int C\,du\,dv-3$ is linear in $C$. With $K=5$,
 $\delta=3\times10^{-4}$ and about $T=4970$ scored ticks, $B_{T,0}(\delta)\approx2.8$ and
 $B_{T,1}(\delta)\approx12.5$ nats over the whole run. The bound concerns the mixture's log loss, not
-the RMSE against the true $\rho_S$ reported below. The tuned squared bank is not covered: its
+the RMSE against the true $\rho_S$ reported below; Section~\ref{sec:regret} checks it run by run.
+The tuned squared bank is not covered: its
 $\eta=1$ is 32 times the largest learning rate, $1/32$, for which the squared loss was shown to be
 exp-concave. Smaller learning rates give up the adaptation. At $\eta=0.1$, the smallest value in
 the grid and still above $1/32$, the squared bank is $2.6\times10^{-3}$ behind the hindsight-best
@@ -551,6 +552,62 @@ families are not comparable.
 fit, or a family bank as in Section~\ref{sec:shape}), so that the log loss measures the copula and
 not only $\rho$.}
 
+\subsection{Regret against the bounds of Section~5.3.4}
+\label{sec:regret}
+
+The bounds of Section~5.3.4 are worst-case statements about the bank's cumulative loss. They should
+therefore hold in every run, not only on average. For each of the 1440 \emph{drift} and \emph{jump}
+runs (60 seeds, four families, three estimators), the bank's weights were replayed over the
+$T=4970$ scored ticks. Its cumulative log loss was compared with two comparators: the best single
+arm, and the best arm sequence with at most $m$ switches, found by dynamic programming. The loss
+in this comparison is that of the mixture $\sum_k w_{k,t-1}\hat c^{(k)}_{t-1}(\hat U_t,\hat V_t)$ of the
+arms' method-of-moments densities, at $\eta=1$ and $\delta=3\times10^{-4}$. This is the forecaster
+the log-loss bound covers. Table~\ref{tab:regret} gives the result.
+
+\begin{table}[ht]
+  \centering
+  \caption{Switching regret $R^{\mathrm{switch}}_T(m)$ of the log bank (mixture density, Xiao,
+    Hermite and MPL components, four families, 60 seeds: 720 runs per scenario), in nats over
+    $T=4970$ ticks, against the bound $B_{T,m}(\delta)$. Negative: the bank beats the comparator.}
+  \label{tab:regret}
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    & \multicolumn{3}{c}{drift} & \multicolumn{3}{c}{jump} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    $m$ & mean & max & bound & mean & max & bound \\
+    \midrule
+    0 & $1.1$  & $2.6$  & $2.8$  & $-17.2$ & $0.2$  & $2.8$ \\
+    1 & $4.9$  & $8.2$  & $12.5$ & $-3.6$  & $6.0$  & $12.5$ \\
+    2 & $8.3$  & $15.5$ & $22.2$ & $12.4$  & $16.5$ & $22.2$ \\
+    5 & $16.3$ & $29.2$ & $51.4$ & $27.8$  & $40.7$ & $51.4$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\emph{The bound holds in every run}, for every $m\in\{0,1,2,3,5,10,20,50\}$, and it is close to
+tight where it matters most. On \emph{drift} the largest static regret is $2.6$ nats against a
+bound of $2.8$. About $1.2$ of that bound is the price of the fixed share,
+$(T-1)\,\delta(1-1/K)$. Without fixed share ($\delta=0$) the static regret has a mean of $1.47$ and
+a maximum of $1.61$, against a bound of $\log K=1.61$. That bank locks onto the best arm and pays
+only for the uniform start. On \emph{jump} the bank beats the best single memory in hindsight by
+17 nats on average. It also beats, on average, the best one-switch sequence, which is a comparator
+that knows the change time but must then commit to a single arm.
+
+\emph{Fixed share buys the switching guarantee.} Against the best one-switch sequence, the bank
+with $\delta=0$, for which Section~5.3.4 gives no bound, reaches a regret of $43.8$ nats. With
+$\delta=3\times10^{-4}$ it stays below $8.2$, at a static cost of about $1.2$.
+
+\emph{The guarantee is for the mixture density.} The bank's reported $\rho$ is the Spearman's rho
+of the mixture, so none of the results in $\rho$ change. Scoring the bank instead with the Gaussian
+copula at that $\rho$, which is a different density, breaks the static bound in 233 of the 1440
+runs. Most of these are on $t_4$ data, where a mixture of Gaussian copulas fits the tails better
+than any single one, and the worst run is $213$ nats over. The squared bank at its tuned $\eta=1$
+lies outside the theory: measured against $B_{T,0}(\delta)/\eta$ with $\eta=1$, it exceeds the
+bound in 688 of the 720 \emph{drift} runs. Every run is still inside $32\,B_{T,m}(\delta)$, the
+bound a bank with $\eta=1/32$ would carry. That bank, however, does not adapt
+(Section~\ref{sec:methods}).
+
 % -----------------------------------------------------------------------------
 \section{Changes in shape and tail dependence}
 \label{sec:shape}
@@ -665,6 +722,11 @@ pairs per second on one core.
     loss, the log bank beats the squared bank in 21 of 24 drift and jump cells and ties in the other
     three ($t_4$ drift, where its Gaussian scoring density is misspecified). It moves weight back up
     to longer arms faster after a change.
+  \item \emph{The regret bounds of Section~5.3.4 hold in every run.} For the log bank, read as
+    the mixture of its arms' densities, the regret never exceeded $B_{T,m}(\delta)$ for any number
+    of switches $m$. The static bound is nearly attained on drift ($2.6$ against $2.8$ nats). On
+    jump the bank beats the best single memory by 17 nats on average. The tuned squared bank is
+    outside the theory ($\eta=1>1/32$).
   \item \emph{Tail dependence needs a different memory.} Tail estimators behave like dependence
     estimators on a stream thinned by $q$, so a bank for tail dependence needs longer arms; this,
     and a bank over families, are the extensions left for future work.

@@ -9,6 +9,7 @@ draft marks text that waits on a run.
 | 6.2 fixed memory, Table 6.2 | `notes/studies/memory_sweep.md` §4–5 (`probe_memory.cpp`) | **macOS, 40 seeds: rerun on Linux** |
 | 6.3 Tables 6.3–6.5, Fig. 6.1 | `results/thesis_bank[_clayton\|_gumbel\|_t].csv`, `thesis_bank_weights.csv`; `ch6_results_md.py`, `thesis_bank_table.py`; `plot_thesis_bank.py` → `figures/ch6_bank_weights.png`; all numbers in `docs/chapter6_results.md` | 60 seeds, **tuned** η, δ (`notes/studies/thesis_bank_tuning.md`). Refreshed 2026-11-01; drift + jump are the focus, constant + oscillate one paragraph |
 | 6.4 Table 6.6 | same CSVs (log bank minus squared bank, paired) | refreshed: both banks tuned (η = 1; δ = 1e-4 squared, 3e-4 log); log bank better in 21/24 drift+jump cells, ties t drift |
+| 6.4.1 regret vs §5.3.4 bounds, Table 6.7 | `experiments/probe_bank_regret.cpp` → `results/bank_regret_42[_fam].csv`; `notes/studies/thesis_bank_regret.md` | 60 seeds × 4 families × 3 estimators, drift + jump; bound holds in all 1440 runs (mixture log bank) |
 | 6.5 shape switches | `notes/studies/memory_tradeoff.md` §3.3 (block bank, histogram density) | **earlier algorithm: rerun with Algorithm 1** |
 | 6.5 tail dependence | `notes/studies/tail_dependence.md` results 1, 3, 4; `oracle_memory.md` §2 | stationary validation only; family bank and χ bank not built |
 | 6.6 cost, Table 6.7 | one-off timing of registry keys over 200 000 ticks (`store_bytes()`, wall clock) | indicative; MPL `store_bytes` fixed this day to count its rank windows |

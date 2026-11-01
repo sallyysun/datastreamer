@@ -73,6 +73,29 @@ so each seed runs them once and replays the weight recursion; at the old values 
   jump at δ = 1e-4 (mean over families and estimators, against the hindsight-best memory):
   η = 0.1 gives +2.6 and η = 1 gives −11.8 ×10⁻³. Small η gives up the adaptation.
 
+### Empirical check (`probe_bank_regret`, 1440 runs = 60 seeds × 4 families × 3 estimators × drift/jump)
+
+Switching regret of the log bank (mixture density, η = 1, δ = 3e-4), in nats over T = 4970 ticks.
+Negative means the bank beats the comparator.
+
+| m | drift mean | drift max | jump mean | jump max | bound B_{T,m} |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 1.09 | 2.61 | −17.21 | 0.21 | 2.80 |
+| 1 | 4.85 | 8.15 | −3.59 | 6.00 | 12.52 |
+| 2 | 8.29 | 15.45 | 12.38 | 16.49 | 22.24 |
+| 5 | 16.31 | 29.15 | 27.79 | 40.70 | 51.41 |
+
+- **No violation in any run, for any m ∈ {0, 1, 2, 3, 5, 10, 20, 50}.** The bound is close to tight
+  for static regret on drift.
+- **δ = 0 (plain Hedge):** static regret mean 1.47, max 1.61, against log K = 1.61. Against
+  one-switch sequences it reaches 43.8, compared with 8.2 with fixed share.
+- **Gaussian density at the bank's ρ (not the mixture):** breaks the static bound in 233 of 1440
+  runs, mostly t, worst 213 nats. Report the mixture's log loss.
+- **Squared bank at η = 1:** exceeds B_{T,0}/1 in 709 runs (688 of 720 on drift), and is within
+  32·B in all of them.
+
+Details: `notes/studies/thesis_bank_regret.md`.
+
 ## Weights around the jump (Gaussian, Xiao; Figure 6.1)
 
 | | Squared bank | Log bank |
