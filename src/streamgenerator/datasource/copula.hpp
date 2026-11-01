@@ -222,6 +222,11 @@ inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 
             std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),
             2500, "gauss2t");
     }
+    // Clayton -> Gumbel at matched Spearman rho: lower-tail dependence swapped for upper.
+    if (name == "clayton2gumbel") {
+        return std::make_unique<SwitchingCopula>(
+            std::make_unique<ClaytonCopula>(), std::make_unique<GumbelCopula>(), 2500, "clayton2gumbel");
+    }
     if (name == "frechet")  return std::make_unique<FrechetCopula>();
     if (name == "mixgauss") return std::make_unique<MixtureGaussianCopula>();
     if (name == "clayton") return std::make_unique<ClaytonCopula>();

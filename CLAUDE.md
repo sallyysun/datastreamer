@@ -59,6 +59,9 @@ measured — a key that is registered but not in that list is silently never run
 - **`estimate()` always returns Spearman's ρ**, so parametric and nonparametric estimators are
   comparable in one space. Never return a native parameter.
 - **`reset()` is the change-detection hook** — a detector wrapper calls it to restart.
+- **Optional `PredictiveDensity`** (`predictive_density.hpp`): `log_predictive(u, v)`, an estimator's own
+  density of the next pseudo-observation. Xiao, Hermite and the parametric MLE implement it; the
+  `*_bank_own` banks score arms by it.
 - **`store_bytes()` is a thesis metric**, not diagnostics. Streaming-admissibility is a claim we
   measure, so keep it honest.
 - New estimators are registered by string key in `src/estimators/registry.hpp` and added to

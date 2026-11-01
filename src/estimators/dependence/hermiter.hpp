@@ -4,10 +4,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <numbers>
 
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
+#include "predictive_density.hpp"
 
 // Online Hermite-series estimator of Spearman's rho.
 //
@@ -23,7 +25,7 @@
 // ported (see notes/code_changes). The Spearman coupling matrix W is built in
 // closed form (see integral_matrix), matching the reference; there is no
 // remaining quadrature/approximation step.
-class HermiteEstimator : public DependenceEstimator {
+class HermiteEstimator : public DependenceEstimator, public PredictiveDensity {
 public:
     struct Config {
         int order = 20;
@@ -74,6 +76,10 @@ public:
 
         // What an alarm should do. The Hermite analogue of covariance inflation:
         // forget faster for a short burst instead of discarding A_. Section 14.11.
+        // log_predictive: the series density is clipped at 0 and mixed with the independence
+        // copula at this weight, so a truncated series that dips negative still scores finitely.
+        double predictive_floor = 0.01;
+
         double reset_boost = -1.0;         // <0 hard reset; 0 no-op; >1 boost w
         std::size_t reset_boost_ticks = 20;
     };
@@ -166,6 +172,25 @@ public:
     }
 
     const Eigen::MatrixXd& coefficients() const { return A_; }
+
+    // Series density f(s_x, s_y) = h(s_x)' A h(s_y) of the standardised inputs, carried to the
+    // unit square: inputs arrive as z = probit(u), s = (z - mean)/sd, so the density of (u, v) is
+    // f(s_x, s_y) / (sd_x sd_y phi(z_x) phi(z_y)). Clipped and floored (predictive_floor).
+    double log_predictive(double u, double v) const override {
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        if (config_.rank_pit_window > 0) return kNaN;
+        if (!(u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0)) return kNaN;
+        if (n_ < config_.burn_in + 1) return 0.0;
+        const double zx = RankPit::probit(u), zy = RankPit::probit(v);
+        const double sdx = std::sqrt(std::max(var_x_, 1e-12)), sdy = std::sqrt(std::max(var_y_, 1e-12));
+        const double c = (config_.debias && wsum_ > 0.0) ? 1.0 / wsum_ : 1.0;
+        const double f = c * hermite_functions((zx - mean_x_) / sdx).dot(A_ * hermite_functions((zy - mean_y_) / sdy));
+        constexpr double kLogTwoPi = 1.8378770664093453;
+        const double log_phi = -kLogTwoPi - 0.5 * (zx * zx + zy * zy);
+        const double dens = std::max(f, 0.0) * std::exp(-log_phi) / (sdx * sdy);
+        const double e = config_.predictive_floor;
+        return std::log((1.0 - e) * dens + e);
+    }
 
     double estimate() const override {
         if (n_ < config_.burn_in + 1) return 0.0; // Not enough data to estimate

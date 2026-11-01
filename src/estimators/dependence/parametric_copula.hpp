@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 
 #include "../copula_family.hpp"
 #include "../special_functions.hpp"
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
+#include "predictive_density.hpp"
 
 // Online MLE for the Clayton / Gumbel / Student-t copulas, fitted in an
 // unconstrained coordinate phi by an empirical-Fisher natural-gradient step.
@@ -157,7 +159,7 @@ private:
 
 }  // namespace copula
 
-class ParametricCopulaMLE : public DependenceEstimator {
+class ParametricCopulaMLE : public DependenceEstimator, public PredictiveDensity {
 public:
     struct Config {
         copula::Family family = copula::Family::Clayton;
@@ -205,6 +207,23 @@ public:
         mean_x_ = mean_y_ = 0.0;
         m2_x_ = m2_y_ = 0.0;
         var_x_ = var_y_ = 1.0;
+    }
+
+    // Fitted copula density at the component's own pseudo-observations p = Phi((z - mean)/sd) of the
+    // inputs z = probit(u), times the Jacobian dp/du, so it is a density of (u, v).
+    double log_predictive(double u, double v) const override {
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        if (config_.rank_pit_window > 0) return kNaN;
+        if (!(u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0)) return kNaN;
+        if (n_ < config_.burn_in + 1) return 0.0;
+        const auto side = [](double w, double mean, double var, double& p) {
+            const double z = RankPit::probit(w), sd = std::sqrt(std::max(var, 1e-12)), s = (z - mean) / sd;
+            p = std::clamp(special::normal_cdf(s), kEps, 1.0 - kEps);
+            return 0.5 * (z * z - s * s) - std::log(sd);   // log dp/du = log phi(s) - log sd - log phi(z)
+        };
+        double pu = 0.0, pv = 0.0;
+        const double jac = side(u, mean_x_, var_x_, pu) + side(v, mean_y_, var_y_, pv);
+        return fit_.logpdf_uv(pu, pv) + jac;
     }
 
     std::size_t store_bytes() const override {

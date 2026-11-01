@@ -13,11 +13,11 @@ d = d[d.window == "whole"]
 cell = ["copula", "scenario", "component"]
 fx = d[d.method.str.startswith("fixed")]
 best = fx.groupby(cell + ["method"])[metric].mean().groupby(level=[0, 1, 2]).min().rename("best")
-b = d[d.method.isin(["sq", "log"])].groupby(cell + ["method", "eta", "delta"])[metric].mean().reset_index()
+b = d[d.method.isin(["sq", "log", "own"])].groupby(cell + ["method", "eta", "delta"])[metric].mean().reset_index()
 b = b.merge(best.reset_index(), on=cell)
 b["reg"] = (b[metric] - b.best) * sc
 pd.set_option("display.width", 250)
-for m in ["sq", "log"]:
+for m in ["sq", "log", "own"]:
     g = b[b.method == m]
     print(f"\n== {m}: mean regret over all 24 cells (rows eta, cols delta)")
     print(g.pivot_table(index="eta", columns="delta", values="reg", aggfunc="mean").round(2).to_string())

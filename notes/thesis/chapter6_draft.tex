@@ -120,7 +120,8 @@ $K=5$, scored on the shared pseudo-observations. Two losses are used:
     density of Section~4.3.1), with $\eta=1$, $\delta=3\times10^{-4}$.
 \end{itemize}
 The method-of-moments density is what allows Xiao and Hermite, which report only $\hat\rho_S$, to
-be scored by log loss at all. Scoring begins once the rank window holds 30 observations; a
+be scored by log loss at all. A third bank, which scores each arm by its own predictive density,
+is described in Section~\ref{sec:own}. Scoring begins once the rank window holds 30 observations; a
 non-finite loss, which can only arise at the boundary of the unit square, is replaced by the
 largest finite loss of that tick.
 
@@ -548,9 +549,64 @@ log loss is $16$--$117\times10^{-3}$ nats per tick on those families, against $4
 Gaussian data. Differences in excess log loss between methods remain meaningful, but levels across
 families are not comparable.
 
-\pending{Planned refinement: score each estimator by its own predictive density (the MPL family
-fit, or a family bank as in Section~\ref{sec:shape}), so that the log loss measures the copula and
-not only $\rho$.}
+\subsection{Scoring each estimator by its own density}
+\label{sec:own}
+
+With the method-of-moments density, every arm is a Gaussian copula indexed by its $\hat\rho$. The
+log score then measures only $\rho$, and cannot use the tail information that motivates log loss
+in Section~5.3.1. Under a non-Gaussian copula, its target is also the Gaussian copula closest in
+Kullback--Leibler divergence rather than $\rho_S$. For the families used here, that target
+differs from $2\sin(\pi\rho_S/6)$ by at most $0.008$ in $\rho_S$ units, except Clayton at
+$\rho_S=0.79$ ($0.025$).
+
+The \emph{own-density bank} removes this restriction. Each arm is scored by its own predictive
+density of $(\hat U_t,\hat V_t)$:
+\begin{itemize}
+  \item for Xiao, the histogram of its count matrix pooled to $5\times5$ cells, with half a
+    pseudo-observation per cell spread by area;
+  \item for Hermite, its series density $h(s_x)^\top A\,h(s_y)$, clipped at zero and mixed with
+    the independence copula at weight $0.01$;
+  \item for MPL, its fitted Gaussian copula.
+\end{itemize}
+Each density includes the Jacobian of the arm's own marginal step, so the densities are
+comparable across arms. The bank's predictive density is the mixture of these densities, and its
+$\rho$ is the mixture's Spearman's rho. Tuned on seeds 1--30 for the bank's own target, the
+excess log loss of that mixture, the learning rate and fixed share are $\eta=0.25$ and
+$\delta=3\times10^{-3}$.
+
+\begin{table}[ht]
+  \centering
+  \caption{Own-density bank against each fixed memory and the method-of-moments log bank:
+    wins/losses/ties over the 24 \emph{drift} and \emph{jump} cells (60 evaluation seeds, paired,
+    $\pm2$\,SE). Density: excess log loss of the bank's predictive density.}
+  \label{tab:own}
+  \small
+  \begin{tabular}{lcccccc}
+    \toprule
+    & $M=39$ & $99$ & $199$ & $399$ & $1999$ & MoM log bank \\
+    \midrule
+    Density & 24/0/0 & 24/0/0 & 21/3/0 & 21/3/0 & 24/0/0 & 20/4/0 \\
+    RMSE in $\rho$ & 22/2/0 & 8/13/3 & 4/20/0 & 9/15/0 & 24/0/0 & 0/24/0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\emph{What the bank is scored on is what it tracks} (Table~\ref{tab:own}).
+\begin{itemize}
+  \item \emph{As a density forecaster, the own-density bank is the best method.} It beats every
+    fixed memory except in the three MPL \emph{drift} cells, where every density is Gaussian. It
+    beats the method-of-moments bank by $18$--$56\times10^{-3}$ nats per tick with Hermite arms and
+    $6$--$14$ with Xiao arms.
+  \item \emph{As a tracker of $\rho_S$, it is worse than the method-of-moments bank in every
+    cell}: by $24$--$114\times10^{-3}$ with Hermite arms and $21$--$51$ with Xiao arms.
+\end{itemize}
+The reason is variance. A nonparametric density has many more degrees of freedom than one
+correlation, so its log score improves with effective sample size far longer than the error in
+$\hat\rho$ does. The memory that predicts the copula best is therefore much longer than the memory
+that tracks $\rho_S$ best. The own-density bank's average memory is $1070$--$1710$ ticks for Xiao
+and Hermite, against $615$--$815$ for the method-of-moments bank and $199$--$399$ for the best
+fixed memory in $\rho$. For tracking $\rho_S$, the method-of-moments bank remains the right
+choice. It should be read as a Gaussian working model for $\rho$, not as a score that sees tails.
 
 \subsection{Regret against the bounds of Section~5.3.4}
 \label{sec:regret}
@@ -614,18 +670,28 @@ bound a bank with $\eta=1/32$ would carry. That bank, however, does not adapt
 
 A change in the shape of the copula at constant $\rho_S$ is invisible to the squared loss by
 construction: $\mathbb E[\hat p_t]$ does not move. This section collects the evidence on such
-changes and on estimating tail dependence online. \pending{These results come from earlier probes
-with a block-update bank and a histogram density (\texttt{memory\_tradeoff.md},
-\texttt{tail\_dependence.md}); rerun with Algorithm~1 before submission.}
+changes and on estimating tail dependence online. The shape switches use Algorithm~1 with the
+own-density bank of Section~\ref{sec:own}. \pending{The tail-dependence results come from earlier
+stationary probes (\texttt{tail\_dependence.md}).}
 
-\paragraph{Shape switches.} In a Gaussian$\to t_4$ switch and a Clayton$\to$Gumbel switch at fixed
-$\rho_S$, log-scored banks beat the best fixed memory over the whole run, by $3$--$9\times10^{-3}$
-nats per tick. After Gaussian$\to t_4$ they stay ahead ($-7.9$ in the first 500 ticks). After
-Clayton$\to$Gumbel they are worse in the first 500 ticks ($+3.1$ to $+4.5$), because before the
-switch they had moved to memories of about 6000 ticks and so adapt more slowly than a fixed
-1170-tick control. This is the shape-change analogue of the first 100 ticks in
-Table~\ref{tab:recovery}.
-
+\paragraph{Shape switches.} Two switches were run at fixed $\rho_S\approx0.58$, with the copula
+changing at tick 2500: Gaussian$\to t_4$, and Clayton$\to$Gumbel (lower-tail for upper-tail
+dependence). Each was run over 60 seeds. A $\rho$-only score cannot see either change, so the
+comparison is in excess log loss of the predictive density.
+\begin{itemize}
+  \item With Hermite arms, the own-density bank beats the best fixed memory ($M=1999$) over the
+    whole run by $9.6\pm0.7$ (Gaussian$\to t_4$) and $11.9\pm0.9\times10^{-3}$ nats per tick
+    (Clayton$\to$Gumbel).
+  \item In the first 100 ticks after the switch it is ahead by $13.6\pm5.6$ and $27.5\pm8.8$.
+  \item It beats the method-of-moments bank by $6.9\pm2.3$ and $4.3\pm1.0$ over the whole run.
+  \item With Xiao's $5\times5$ histogram it is $2$--$4$ behind $M=1999$. That histogram is too
+    coarse to see the tails.
+\end{itemize}
+\emph{No bank detects a shape change by shortening its memory.} The own-density bank stays at
+1300--1840 ticks after the switch, and $M=1999$ is the best fixed arm in every window, including
+the first 100 ticks. At this size, a change in shape is smaller than the noise of a density
+estimated from 400 observations or fewer, so forgetting the old shape does not pay. The bank's
+gain comes from mixing arms, not from switching between them.
 \paragraph{Tail dependence needs longer memory than $\rho_S$.} The upper and lower tail coefficients
 are estimated by the empirical $\chi(q)=P(U>1-q\mid V>1-q)$ at a finite threshold $q$. Two facts
 measured on stationary streams shape what an online tail estimator can do:
@@ -722,6 +788,10 @@ pairs per second on one core.
     loss, the log bank beats the squared bank in 21 of 24 drift and jump cells and ties in the other
     three ($t_4$ drift, where its Gaussian scoring density is misspecified). It moves weight back up
     to longer arms faster after a change.
+  \item \emph{What the bank is scored on is what it tracks.} Scoring each arm by its own
+    predictive density gives the best density forecaster (it beats every fixed memory in 21--24 of
+    24 cells, and also wins across shape switches at fixed $\rho_S$). It is a worse tracker of
+    $\rho_S$, because density accuracy favours much longer memories (an average of 1070--1710 ticks, against 615--815 for the method-of-moments bank).
   \item \emph{The regret bounds of Section~5.3.4 hold in every run.} For the log bank, read as
     the mixture of its arms' densities, the regret never exceeded $B_{T,m}(\delta)$ for any number
     of switches $m$. The static bound is nearly attained on drift ($2.6$ against $2.8$ nats). On

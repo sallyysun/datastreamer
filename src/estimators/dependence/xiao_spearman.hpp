@@ -11,6 +11,8 @@
 
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
+#include "predictive_density.hpp"
+#include "../special_functions.hpp"
 
 // Streaming empirical-copula estimator of Spearman's rho (the "Xiao" branch).
 //
@@ -36,7 +38,7 @@
 // marginal goes through RankPit, so the cutpoints are exactly k/bins and no
 // calibration window is needed. Section 14.19 of
 // notes/studies/kalman_changepoint_results.md.
-class XiaoSpearmanEstimator : public DependenceEstimator {
+class XiaoSpearmanEstimator : public DependenceEstimator, public PredictiveDensity {
 public:
     struct Config {
         std::size_t bins = 30;
@@ -45,6 +47,10 @@ public:
         std::size_t calibration = 300;
         std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
         double density_prior = 0.5;       // pseudo-count per cell, for log_density_uv
+        // log_predictive: counts pooled into density_bins^2 cells (density_bins must divide bins),
+        // with predictive_prior pseudo-observations per pooled cell spread by cell area.
+        std::size_t density_bins = 5;
+        double predictive_prior = 0.5;
 
         // Variable forgetting, driven by the section 14.14 rank residual
         //   s = 12 (u - 1/2)(v - 1/2) - rho_hat,
@@ -189,6 +195,36 @@ public:
         const double k2 = static_cast<double>(m * m);
         const double n = counts_[cell(u) * m + cell(v)] * unit;
         return std::log((n + config_.density_prior) / (total_ * unit + config_.density_prior * k2) * k2);
+    }
+
+    // Histogram predictive density on the calibrated grid, for inputs fed as (probit(u), probit(v)).
+    // Counts are pooled into density_bins^2 cells; the prior is uniform on [0,1]^2 (pseudo-counts
+    // proportional to cell area in u), so a cell with no data predicts the independence copula.
+    double log_predictive(double u, double v) const override {
+        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+        if (config_.rank_pit_window > 0 || config_.vff_rate > 0.0) return kNaN;
+        if (!(u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0)) return kNaN;
+        const std::size_t m = config_.bins;
+        const std::size_t g = (config_.density_bins > 0 && m % config_.density_bins == 0) ? m / config_.density_bins : 1;
+        const std::size_t D = m / g;
+        if (!calibrated_ || total_ <= 0.0) return 0.0;
+        const std::size_t I = bin_of(cuts_x_, RankPit::probit(u)) / g;
+        const std::size_t J = bin_of(cuts_y_, RankPit::probit(v)) / g;
+        const auto edge = [&](const std::vector<double>& cuts, std::size_t b) {
+            if (b == 0) return 0.0;
+            if (b >= D) return 1.0;
+            return special::normal_cdf(cuts[b * g - 1]);
+        };
+        const double du = edge(cuts_x_, I + 1) - edge(cuts_x_, I);
+        const double dv = edge(cuts_y_, J + 1) - edge(cuts_y_, J);
+        if (!(du > 0.0 && dv > 0.0)) return kNaN;
+        double n = 0.0;
+        for (std::size_t i = I * g; i < (I + 1) * g; ++i)
+            for (std::size_t j = J * g; j < (J + 1) * g; ++j) n += counts_[i * m + j];
+        // Counts carry weight 1 - lambda each under forgetting; rescale to observations.
+        const double unit = (lambda_ > 0.0) ? 1.0 / (1.0 - lambda_) : 1.0;
+        const double a = config_.predictive_prior * static_cast<double>(D * D);
+        return std::log((n * unit + a * du * dv) / (total_ * unit + a) / (du * dv));
     }
 
     // Ablation hooks (probe_vff_norm.cpp): swap the VFF's null scale per tick and

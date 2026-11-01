@@ -96,6 +96,37 @@ Negative means the bank beats the comparator.
 
 Details: `notes/studies/thesis_bank_regret.md`.
 
+## Own-density bank (`*_bank_own`, η = 0.25, δ = 3e-3)
+
+Each arm is scored by its own predictive density:
+
+- Xiao: 5 × 5 histogram;
+- Hermite: series density, floored;
+- MPL: fitted Gaussian.
+
+The bank's density is their mixture. Tuned on seeds 1–30 for that mixture's excess log loss.
+Details: `notes/studies/thesis_bank_own_density.md`.
+
+W/L/T over the 24 drift + jump cells, held out (seeds 42–101), own bank against:
+
+| | M = 39 | 99 | 199 | 399 | 1999 | MoM log bank |
+| --- | --- | --- | --- | --- | --- | --- |
+| density (excess own log loss) | 24/0/0 | 24/0/0 | 21/3/0 | 21/3/0 | 24/0/0 | 20/4/0 |
+| RMSE in ρ | 22/2/0 | 8/13/3 | 4/20/0 | 9/15/0 | 24/0/0 | 0/24/0 |
+
+- **Density, against the MoM log bank:** Hermite −18 to −56 ×10⁻³ nats/tick; Xiao −6 to −14;
+  MPL −2.5 to +1.0.
+- **RMSE, against the MoM log bank:** Hermite +24 to +114 ×10⁻³; Xiao +21 to +51; MPL +6 to +10.
+- **Mean weight-averaged memory:** own bank 1070–1710 ticks (Xiao and Hermite) against 615–815 for
+  the MoM log bank. Density accuracy favours long memory.
+- **Shape switches** (ρ_S fixed, Gaussian → t₄ and Clayton → Gumbel at tick 2500), Hermite own bank
+  against the best fixed memory (M = 1999), whole run:
+  - −9.6 ± 0.7 and −11.9 ± 0.9;
+  - first 100 ticks after the switch: −13.6 ± 5.6 and −27.5 ± 8.8;
+  - against the MoM bank: −6.9 ± 2.3 and −4.3 ± 1.0.
+
+  The Xiao histogram is 2–4 behind M = 1999. No bank shortens its memory after a shape switch.
+
 ## Weights around the jump (Gaussian, Xiao; Figure 6.1)
 
 | | Squared bank | Log bank |

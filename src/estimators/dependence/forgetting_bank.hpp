@@ -11,17 +11,21 @@
 #include "../copula_family.hpp"
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
+#include "predictive_density.hpp"
 
 // Online bank of forgetting factors: thesis Algorithm 1 (Chapter 5, section 5.3),
 // one tick at a time. Shared prequential margins, prediction loss per component
 // (squared against p_t, or copula log loss), Hedge then fixed share, every
 // component updated on the shared pseudo-observations, output the weighted rho.
-// Log loss needs a density from components that only report rho, so it uses the
-// method-of-moments copula c_{g^{-1}(rho_k)} of `family` (thesis section 4.3.1).
+// Log loss needs a density. Loss::Log borrows the method-of-moments copula
+// c_{g^{-1}(rho_k)} of `family` (thesis section 4.3.1), so it sees only rho; Loss::Own
+// asks each component for its own predictive density (PredictiveDensity), falling back
+// to the method-of-moments density for a component that has none.
+// notes/studies/thesis_bank_own_density.md.
 // Design and how it differs from EstimatorBank: notes/thesis/chapter6_plan.md.
 class ForgettingBank : public DependenceEstimator {
 public:
-    enum class Loss { Squared, Log };
+    enum class Loss { Squared, Log, Own };
 
     struct Config {
         Loss loss = Loss::Squared;
@@ -38,7 +42,9 @@ public:
         : config_(config), name_(name), models_(std::move(models)),
           w_(models_.size(), 1.0 / static_cast<double>(models_.size())),
           loss_(models_.size(), 0.0), lw_(models_.size(), 0.0),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {}
+          pit_x_(config.pit_window), pit_y_(config.pit_window) {
+        for (const auto& m : models_) dens_.push_back(dynamic_cast<const PredictiveDensity*>(m.get()));
+    }
 
     void update(double x, double y) override {
         const std::size_t K = models_.size();
@@ -49,7 +55,7 @@ public:
         const double v = pit_y_.transform(y);
 
         if (scorable) {
-            for (std::size_t k = 0; k < K; ++k) loss_[k] = loss(models_[k]->estimate(), u, v);
+            for (std::size_t k = 0; k < K; ++k) loss_[k] = loss(k, u, v);
             // Guard: a non-finite loss is replaced by the worst finite loss this tick.
             double worst = 0.0;
             for (double l : loss_) if (std::isfinite(l)) worst = std::max(worst, l);
@@ -85,8 +91,22 @@ public:
         return std::clamp(r, -1.0, 1.0);
     }
 
-    // Predictive log density of the bank's own output, c_{g^{-1}(rho_bank)}(u, v).
+    // Predictive log density of the bank. Loss::Own: the weighted mixture of the components'
+    // own densities (what the section 5.3.4 log-loss bound covers). Otherwise the
+    // method-of-moments density at the bank's own rho, c_{g^{-1}(rho_bank)}(u, v).
     double log_density(double u, double v) const {
+        if (config_.loss == Loss::Own) {
+            double top = -std::numeric_limits<double>::infinity();
+            std::vector<double> l(models_.size());
+            for (std::size_t k = 0; k < models_.size(); ++k) {
+                l[k] = std::log(w_[k]) - loss(k, u, v);
+                top = std::max(top, l[k]);
+            }
+            if (!std::isfinite(top)) return top;
+            double s = 0.0;
+            for (double x : l) s += std::exp(x - top);
+            return top + std::log(s);
+        }
         return copula::log_density(config_.family, u, v,
                                    copula::param_from_spearman(config_.family, estimate(), config_.nu),
                                    config_.nu);
@@ -116,7 +136,12 @@ public:
     const DependenceEstimator& model(std::size_t k) const { return *models_[k]; }
 
 private:
-    double loss(double rho_k, double u, double v) const {
+    double loss(std::size_t k, double u, double v) const {
+        const double rho_k = models_[k]->estimate();
+        if (config_.loss == Loss::Own && dens_[k]) {
+            const double l = dens_[k]->log_predictive(u, v);
+            if (!std::isnan(l)) return -l;
+        }
         if (config_.loss == Loss::Squared) {
             const double p = 12.0 * (u - 0.5) * (v - 0.5);
             return (p - rho_k) * (p - rho_k);
@@ -129,6 +154,7 @@ private:
     const char* name_;
     std::vector<std::unique_ptr<DependenceEstimator>> models_;
     std::vector<double> w_, loss_, lw_;
+    std::vector<const PredictiveDensity*> dens_;
     RankPit pit_x_, pit_y_;
     std::size_t n_ = 0;
 };
