@@ -30,7 +30,7 @@ target Spearman's rho,
 \]
 which is the Spearman's rho of a Gaussian copula with correlation $d_t$. A copula family is then
 parametrised to have exactly this $\rho_{S,t}$, by inverting the family's
-$\rho_S(\theta)$ relation of Section~3.2, and a pair $(U_t,V_t)$ is drawn from it. The observations
+$\rho_S(\theta)$ relation of Section~2.2, and a pair $(U_t,V_t)$ is drawn from it. The observations
 are the normal scores $X_t=\Phi^{-1}(U_t)$ and $Y_t=\Phi^{-1}(V_t)$, so both margins are standard
 normal and stationary in every scenario. Four families are used: Gaussian, Clayton, Gumbel and
 Student~$t$ with $\nu=4$. Because the families are matched on $\rho_S$, any difference between
@@ -50,7 +50,7 @@ dependence path the observations are independent, so the assumption
 $\mathbb E[\hat p_t\mid\mathcal F_{t-1}]\approx\rho_{S,t}$ used in Section~5.3.1 holds up to the
 $O(1/W)$ bias of the rank pseudo-observations.
 
-The live server of Section~2.3 uses the same copula sampler, so a live stream and an offline
+The live server of Section~3.3 uses the same copula sampler, so a live stream and an offline
 stream with the same scenario are draws from the same process. The live server additionally turns
 the normal scores into geometric Brownian motion prices; that step is a deterministic, monotone
 transform of each margin and so does not change the copula.
@@ -95,7 +95,7 @@ $\lambda$ on the newest observation (the convention of Section~5.1):
     $20\times20$ grid;
   \item the Hermite series estimator of Section~4.2.3, with order $N=10$;
   \item online maximum pseudo-likelihood (MPL) for a Gaussian copula, Section~4.3.2, with
-    expected Fisher scoring in the coordinate $\operatorname{atanh}\rho$ (Section~3.5.4).
+    expected Fisher scoring in the coordinate $\operatorname{atanh}\rho$ (Section~2.5.4).
 \end{itemize}
 Memory is reported throughout as the number of ticks $M$, related to the forgetting weight by
 $\lambda=2/(M+1)$; for an exponential filter $M$ is also the steady-state effective sample size.
@@ -135,6 +135,19 @@ recursion for every grid point; this reproduces the bank exactly. The surface is
 optimum (for the log bank every point with $\eta\in[0.5,2]$ and $\delta\in[10^{-5},10^{-3}]$ is within
 $2\times10^{-3}$ of the best), the optimum is the same for every estimator, and a large $\eta$ with
 $\delta>0$ is unstable: single-tick noise then flips the weights.
+
+\paragraph{Relation to the bounds of Section~5.3.4.} The tuned log bank sits exactly where the
+log-loss bounds hold: $\eta=1$, with the bank read as the mixture $\sum_k w_{k,t-1}\hat C^{(k)}_{t-1}$
+of its arms' predictive copulas. Its output $\sum_k w_{k,t-1}\hat\rho^{(k)}_{t-1}$ is the Spearman's
+rho of that mixture, because $\rho_S(C)=12\int\!\!\int C\,du\,dv-3$ is linear in $C$. With $K=5$,
+$\delta=3\times10^{-4}$ and about $T=4970$ scored ticks, $B_{T,0}(\delta)\approx2.8$ and
+$B_{T,1}(\delta)\approx12.5$ nats over the whole run. The bound concerns the mixture's log loss, not
+the RMSE against the true $\rho_S$ reported below. The tuned squared bank is not covered: its
+$\eta=1$ is 32 times the largest learning rate, $1/32$, for which the squared loss was shown to be
+exp-concave. Smaller learning rates give up the adaptation. At $\eta=0.1$, the smallest value in
+the grid and still above $1/32$, the squared bank is $2.6\times10^{-3}$ behind the hindsight-best
+memory on \emph{jump}, against $11.8\times10^{-3}$ ahead at $\eta=1$ (evaluation seeds, mean over
+families and estimators).
 
 \paragraph{Uniform average.} The same five arms with weights frozen at $1/K$ ($\eta=\delta=0$).
 This control separates the effect of \emph{choosing} among memories from the effect of merely

@@ -63,6 +63,16 @@ so each seed runs them once and replays the weight recursion; at the old values 
 - Log bank: RMSE optimum = log-loss optimum. Squared bank: η = 1 gains ~2 in RMSE over η = 0.5 but
   loses ~2 ×10⁻³ nats/tick in log loss.
 
+## Relation to the Chapter 5 bounds (§5.3.4, thesis v5)
+
+- **Log bank:** η = 1 is the value at which §5.3.4's log-loss bounds hold, with the bank read as
+  the mixture of its arms' copulas. Its ρ output Σ w·ρ_k is the Spearman's ρ of that mixture, because
+  ρ_S is linear in C. With K = 5, δ = 3e-4 and T ≈ 4970 scored ticks: B_{T,0} ≈ 2.8 and
+  B_{T,1} ≈ 12.5 nats over the whole run. The bound is on the mixture's log loss, not on RMSE.
+- **Squared bank:** not covered. Exp-concavity needs η ≤ 1/32, and the tuned η is 1. On held-out
+  jump at δ = 1e-4 (mean over families and estimators, against the hindsight-best memory):
+  η = 0.1 gives +2.6 and η = 1 gives −11.8 ×10⁻³. Small η gives up the adaptation.
+
 ## Weights around the jump (Gaussian, Xiao; Figure 6.1)
 
 | | Squared bank | Log bank |
