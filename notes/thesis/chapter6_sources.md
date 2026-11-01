@@ -13,7 +13,8 @@ draft marks text that waits on a run.
 | 6.4.1 η = 1/32 squared bank (prose) | `probe_bank_regret` banks `sq32`, `sq32_dstar`; `probe_thesis_bank` method `bank_sq32`; `experiments/sq32_table.py`; `notes/studies/thesis_bank_sq32.md` | within 32·B in all 1440 runs; loses all 24 drift/jump cells in ρ_S RMSE to both η = 1 banks |
 | 6.4.2 own-density bank, Table 6.8 | `probe_bank_tune.cpp` (Loss::Own replay, `excess_own_x1000`, `mem`) → `results/bank_tune_{1,42}[_fam].csv`; `tune_own_table.py`; `notes/studies/thesis_bank_own_density.md` | tuned η = 0.25, δ = 3e-3 on seeds 1–30; held out 42–101 |
 | 6.5 shape switches | `probe_bank_tune.cpp` with `COPULA=gauss2t\|clayton2gumbel` → `results/bank_tune_42_{gauss2t,clayton2gumbel}.csv`; `tune_own_table.py` §3 | Algorithm 1, own-density bank, 60 seeds (replaces the block-bank result of `memory_tradeoff.md` §3.3) |
-| 6.5 tail dependence | `notes/studies/tail_dependence.md` results 1, 3, 4; `oracle_memory.md` §2 | stationary validation only; family bank and χ bank not built |
+| 6.5 tail dependence | `notes/studies/tail_dependence.md` results 1, 3, 4; `oracle_memory.md` §2 | stationary validation (the counter-based facts in §6.5) |
+| 6.6 family bank, Tables tab:chi, tab:switch | `probe_tail_bank.cpp` → `results/tail_bank*_42.csv`, `tail_bank_table.py` (χ RMSE, crossing times); `probe_family_bank.cpp` → `results/family_bank*_42[_fam].csv`, `family_bank_table.py` (t50/t90, null, ρ_S, density); `probe_bank_regret … family` → `results/bank_regret_family_42[_fam].csv`; KL by 200k-draw Monte Carlo; notes `thesis_bank_family.md`, `thesis_bank_tails.md` | 60 seeds, Linux; η = 1, δ = 2.1e-4 untuned; regret within B in 480/480 runs |
 | 6.6 cost, Table 6.7 | one-off timing of registry keys over 200 000 ticks (`store_bytes()`, wall clock) | indicative; MPL `store_bytes` fixed this day to count its rank windows |
 
 ## Corrections made while drafting

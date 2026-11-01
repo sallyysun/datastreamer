@@ -727,21 +727,198 @@ Of the matched-$\rho_S$ transitions, Gaussian$\to t_4$ is the hardest to see in 
 signal-to-noise ratio of 3 needs about 5000 ticks of memory, against 250--1000 ticks for transitions
 involving Clayton or Gumbel.
 
-\paragraph{Linking the bank to tail dependence.} Two extensions follow directly from
-Algorithm~1, and are the natural next experiments \pending{not yet run}:
-\begin{enumerate}
-  \item \emph{A bank over families.} Replace the five memories of one estimator with online MPL
-    fits of several families (Gaussian, Clayton, Gumbel, $t_4$) and score them by log loss. The
-    bank's implied tail coefficient is then $\hat\lambda_t=\sum_kw_{k,t}\lambda(\hat\theta_{k,t})$,
-    and its weights become an online measure of which tail shape the data support.
-  \item \emph{A bank over memories for $\hat\chi(q)$.} Apply Algorithm~1 to $\hat\chi(q)$ at several
-    memories, scored on tail exceedances, for example with the censored log score of Diks,
-    Panchenko and van Dijk (2011). Because of the $1/(qM)$ variance, its arms should be
-    about $1/q$ times longer than those used for $\rho_S$.
-\end{enumerate}
-A useful ceiling for both is the known-changepoint ``soft restart'', which at a change keeps a
-fraction $\gamma^*=1/(1+Z^2)$ of the old evidence, $Z$ being the standardised size of the change.
-An online method that does not know the change point can at best approach it.
+The bank of Section~\ref{sec:family} answers both points: it estimates $\chi(q)$ online from all of
+the data rather than from the corner events alone, and it follows a Gaussian$\to t_4$ change in
+$\chi(0.05)$ halfway within about 200 ticks.
+
+% -----------------------------------------------------------------------------
+\section{A bank over copula families: finite-$q$ tail dependence}
+\label{sec:family}
+
+Every bank so far holds one family of estimator at different memories. This section lets the arms
+differ in copula \emph{family} as well. The aim is the quantity that $\rho_S$ cannot see, tail
+dependence. The target throughout is the finite-threshold coefficient
+\[
+  \chi_L(q)=\frac{C(q,q)}{q},\qquad \chi_U(q)=\frac{1-2(1-q)+C(1-q,1-q)}{q},
+\]
+at $q=0.05$ and $0.10$, and not its limit $\lambda=\lim_{q\to0}\chi(q)$. The limit is not observable
+from a finite stream, and it can mislead badly. A Gaussian copula at $\rho_S=0.58$ has
+$\lambda_L=\lambda_U=0$, yet $\chi_L(0.05)=0.311$ and $\chi_L(0.10)=0.390$. The bank's Gaussian arms
+report a mean of $0.311$--$0.313$ and $0.390$--$0.393$ on a stationary Gaussian path.
+
+\paragraph{Why a bank over families.} Let each arm $k$ be a copula $C_k$ fitted online. The bank's
+predictive distribution is then the mixture $C^{\rm bank}=\sum_kw_kC_k$, which is itself a copula.
+Every quantity that is linear in $C$ is the same weighted sum of the arms' values. This covers
+$\rho_S=12\int C-3$, $C(q,q)$, and hence $\chi_L(q)$, $\chi_U(q)$, $\lambda_L$ and $\lambda_U$:
+\[
+  \hat\chi^{\rm bank}(q)=\sum_k w_k\,\chi\big(q;\hat\theta_k\big),\qquad
+  \hat\rho_S^{\rm bank}=\sum_k w_k\,\rho_S\big(\hat\theta_k\big).
+\]
+These are exact for the mixture, not approximations. Each arm is scored by its own copula log
+density $-\log c_k(\hat U_t,\hat V_t)$ before it absorbs the tick. All arms see the same rank
+pseudo-observations, so their densities are on one scale. The bank's log loss is then that of the
+mixture density, which is exactly the forecaster the log-loss bound of Section~5.3.4 covers.
+
+\paragraph{Arms.} There are eight shapes: Gaussian, $t_4$, Clayton and Gumbel, with Clayton and Gumbel
+also rotated by $90^\circ$, $c(1-u,v)$, and by $270^\circ$, $c(u,1-v)$, so that negative dependence
+has an arm. The two rotations are transposes of each other, not the same copula, since neither
+family is radially symmetric. The memories are $M=99$, $399$ and $1999$, giving $K=24$. Each arm is
+an online MPL fit with expected Fisher scoring (Section~3.5.4) on the shared 500-tick rank PIT. The
+weights use $\eta=1$ and $\delta=\delta^*=Km/((K-1)(T-1))\approx2.1\times10^{-4}$ for $m=1$, the
+theory's values, untuned. Per arm, $\chi(q)$ is closed form for Clayton, Gumbel and their rotations.
+For the Gaussian and $t_4$ it is a one-dimensional quadrature of the conditional distribution,
+tabulated once in $\rho$. The values agree with a 4-million-draw Monte Carlo to within $0.003$.
+
+\paragraph{Comparator.} The model-free comparator is an exponentially weighted corner counter on the
+same rank PIT, $\hat\chi_L(q)=b_t/a_t$, with $a_t$ and $b_t$ updated by
+$a_t=(1-\alpha)a_{t-1}+\alpha\,1\{\hat U_t\le q\}$ and
+$b_t=(1-\alpha)b_{t-1}+\alpha\,1\{\hat U_t\le q,\hat V_t\le q\}$, where $\alpha=2/(M+1)$. The upper
+tail is counted the same way. It runs at $M=399$, $1999$ and $4999$, longer than for $\rho_S$ because
+its variance is about $\chi(1-\chi)/(qM)$.
+
+\paragraph{Design.} Data are drawn in copula space at matched $\rho_S=0.582$, for $T=10\,000$ ticks,
+with the switch at $t=5000$; they are scored over $[1000,T)$, over 60 seeds. The regimes are:
+\begin{itemize}
+  \item Gaussian$\to$Clayton;
+  \item Clayton$\to$Gumbel;
+  \item Gaussian$\to t_4$;
+  \item a Clayton/Gumbel mixture whose Clayton weight goes from $0.75$ to $0.25$;
+  \item a Gaussian path with no switch.
+\end{itemize}
+The target is the exact $\chi(q)$ of the regime in force at each tick.
+
+\begin{table}[ht]
+  \centering
+  \caption{$\chi(q)$ RMSE ($\times10^{-3}$) of the family bank and of the corner counter
+    \texttt{tail\_chi} at three memories, against the exact finite-$q$ $\chi$ of the true regime.
+    Rank-PIT margins, 60 seeds, standard errors $1$--$4$ (whole run) and $5$--$18$ (first 500
+    ticks). L and U are the lower and upper tails. Bold: the lowest in each window.}
+  \label{tab:chi}
+  \small
+  \begin{tabular}{lcc rrrr rrr}
+    \toprule
+    & & & \multicolumn{4}{c}{whole run} & \multicolumn{3}{c}{first 500 ticks after switch} \\
+    \cmidrule(lr){4-7}\cmidrule(lr){8-10}
+    regime & $q$ & tail & bank & $M{=}399$ & $1999$ & $4999$ & bank & $M{=}399$ & $1999$ \\
+    \midrule
+    Gauss$\to$Clayton & $0.05$ & L & \textbf{43} & 107 & 85 & 114 & \textbf{147} & 166 & 245 \\
+     & $0.05$ & U & \textbf{26} & 88 & 60 & 76 & \textbf{91} & 105 & 155 \\
+     & $0.10$ & L & \textbf{36} & 79 & 64 & 86 & \textbf{114} & 128 & 185 \\
+     & $0.10$ & U & \textbf{24} & 72 & 51 & 66 & \textbf{83} & 99 & 145 \\
+    Clayton$\to$Gumbel & $0.05$ & L & \textbf{35} & 106 & 100 & 138 & \textbf{121} & 199 & 311 \\
+     & $0.05$ & U & \textbf{37} & 103 & 103 & 145 & \textbf{134} & 196 & 318 \\
+     & $0.10$ & L & \textbf{30} & 80 & 77 & 107 & \textbf{95} & 146 & 240 \\
+     & $0.10$ & U & \textbf{31} & 78 & 81 & 116 & \textbf{108} & 160 & 257 \\
+    Gauss$\to t_4$ & $0.05$ & L & \textbf{25} & 105 & 52 & 50 & \textbf{68} & 112 & 84 \\
+     & $0.05$ & U & \textbf{25} & 104 & 51 & 48 & \textbf{66} & 109 & 85 \\
+     & $0.10$ & L & \textbf{21} & 76 & 37 & 35 & \textbf{48} & 82 & 56 \\
+     & $0.10$ & U & \textbf{21} & 77 & 36 & 33 & \textbf{47} & 79 & 51 \\
+    mixture & $0.05$ & L & 73 & 106 & \textbf{62} & 72 & \textbf{90} & 123 & 153 \\
+     & $0.05$ & U & 84 & 101 & \textbf{64} & 78 & \textbf{99} & 126 & 158 \\
+     & $0.10$ & L & 56 & 76 & \textbf{46} & 56 & \textbf{68} & 100 & 123 \\
+     & $0.10$ & U & 70 & 74 & \textbf{50} & 63 & \textbf{78} & 102 & 132 \\
+    Gaussian (none) & $0.05$ & L & \textbf{15} & 100 & 45 & 33 & 12 & 96 & 39 \\
+     & $0.05$ & U & \textbf{17} & 99 & 44 & 33 & 12 & 96 & 39 \\
+     & $0.10$ & L & \textbf{14} & 75 & 34 & 25 & 11 & 73 & 27 \\
+     & $0.10$ & U & \textbf{15} & 75 & 33 & 25 & 12 & 71 & 30 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{The bank is the better tail estimator wherever its arms contain the truth.} Over the
+whole run (Table~\ref{tab:chi}), counted per cell with paired differences beyond two standard
+errors, the bank beats the counter at $M=399$ in 20 of 20 cells. At $M=1999$ it wins 16, loses 4 and
+ties none; at $M=4999$ it wins 16, loses 2 and ties 2. The margins are as follows.
+\begin{itemize}
+  \item On the well-specified regimes its error is $14$--$43\times10^{-3}$.
+  \item The counter's error is $25$--$145$ at its best memory.
+  \item The gap is largest where the change in $\chi$ is large (Clayton$\to$Gumbel: $35$ against
+    $100$--$145$).
+  \item On Gaussian$\to t_4$ the gap is $25$ against $48$--$52$.
+\end{itemize}
+The bank turns every observation into a few copula parameters. The counter uses only the
+$\approx qM$ corner events, with variance $\chi(1-\chi)/(qM)$. In the 500 ticks after a switch the
+bank has the lowest error in all 16 switch cells, including the mixture.
+
+\paragraph{It follows a change in a few hundred ticks.} The seed-mean bank estimate crosses halfway
+from the old $\chi(q)$ to the new one within $46$--$195$ ticks of the switch. The counter crosses at
+about $\ln2\,(M+1)/2$ ticks whatever the regime: $131$--$182$, $592$--$711$ and $1399$--$1861$ ticks
+for $M=399$, $1999$ and $4999$. On Gaussian$\to t_4$ the bank crosses at $183$--$195$ ticks. The
+earlier estimate that this transition needs about 5000 ticks therefore applies to a corner counter,
+not to a likelihood-based estimate. After 2000 ticks the bank's bias there is zero within its
+standard error.
+
+\paragraph{Switch timing and false switches.} Table~\ref{tab:switch} gives the number of ticks after
+the switch until the new family's summed weight passes $50\%$ and $90\%$, on the 5000-tick streams
+of Section~\ref{sec:design} with $\rho_S$ held at 0.58 and the switch at $t=2500$.
+
+\begin{table}[ht]
+  \centering
+  \caption{Ticks after a shape switch until the new family holds $50\%$ and $90\%$ of the family
+    bank's weight (median and interquartile range, 60 seeds; every seed reached both).}
+  \label{tab:switch}
+  \small
+  \begin{tabular}{lcc}
+    \toprule
+    switch & $t_{50}$ & $t_{90}$ \\
+    \midrule
+    Gaussian$\to t_4$       & $180\ [138,259]$ & $270\ [177,376]$ \\
+    Clayton$\to$Gumbel      & $78\ [46,129]$   & $157\ [120,230]$ \\
+    Gaussian$\to$Clayton    & $98\ [79,123]$   & $136\ [105,166]$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+As a null, the same count was taken on the constant path, which has no switch, for every family other
+than the true one. A wrong family reached $50\%$ of the weight in 0--7 of 60 seeds, and $90\%$ in
+0--3. When it did, it took a median of 370--1820 ticks. No rotated arm ever took the weight on a
+positive-dependence path.
+
+The speed follows from the loss. At $\eta=1$, Hedge accumulates the log-likelihood ratio of the
+arms, and its expected drift per tick is a Kullback--Leibler divergence. At $\rho_S=0.58$ the
+divergence from $t_4$ data to the best-fitting Gaussian copula is $0.034$ nats per tick, and $0.022$
+in the other direction (Monte Carlo, 200\,000 draws). Starting from a $t_4$ weight of about $0.004$,
+the bank must make up a log ratio of about $5.5$. That takes $5.5/0.034\approx160$ ticks, close to
+the observed median of 180. A corner counter sees only the fraction $q$ of the ticks, and the
+change it must resolve, $\Delta\chi(0.05)=0.10$, is small against its noise. The full likelihood
+also sees the body of the distribution, where the two copulas differ as well.
+
+\paragraph{The regret bound holds exactly.} Over the 480 \emph{drift} and \emph{jump} runs (60
+seeds, four families), replayed as in Section~\ref{sec:regret}, the family bank's mixture log loss
+stays within $B_{T,m}(\delta)$ in every run and for every $m\in\{0,1,2,3,5,10,20,50\}$. Its static
+regret reaches $0.99$ of the bound on \emph{drift} (a maximum of $4.15$ against $4.2$). Its regret
+against one-switch sequences is at most $11.6$ against a bound of $15.8$. With $\delta=0$ the
+one-switch regret rises to $19.8$, where no bound applies. This is the cleanest case of the theory
+in the chapter. The mixture density is the forecaster the bound is stated for, with no working
+model in between.
+
+\paragraph{Limitations.}
+\begin{itemize}
+  \item \emph{It loses when the truth is outside the bank.} On the Clayton/Gumbel mixture the
+    corner counter at $M=1999$ beats it by $9$--$20\times10^{-3}$ in all four cells. Log-loss Hedge
+    at $\eta=1$ is Bayesian model averaging over the arms, and its posterior concentrates on the
+    single best arm rather than learning mixture weights. Before the switch it puts $0.82$ of the
+    weight on Clayton arms and is biased by $+0.020$ in $\chi_L(0.05)$. A model-free counter has no
+    such bias. This is the bias--variance trade-off of the chapter in tail form: the bank wins on
+    variance wherever its families are right, and only a long-memory counter wins when they are not.
+  \item \emph{It is not a better tracker of $\rho_S$.} Over the 19 family--scenario cells of
+    Section~\ref{sec:adaptive} and the three shape switches, it beats the method-of-moments log bank
+    in $\rho_S$ on non-Gaussian constant, drift and jump paths (Xiao components: 9 of 9, by
+    $1.7$--$7.6\times10^{-3}$). It loses in four places:
+    \begin{itemize}
+      \item on \emph{oscillate}, by $9$--$87\times10^{-3}$, because its shortest memory is $M=99$
+        rather than 39;
+      \item on Gaussian \emph{drift} and \emph{jump} against the MPL log bank, by $2.7$ and $3.8$;
+      \item on the shape switches, by $2$--$6$, as weight moves to arms that spent the first half
+        fitting the wrong family;
+      \item against the best fixed arm in hindsight, in 14 of 19 cells.
+    \end{itemize}
+    Its density forecasts, by contrast, are the best of any bank on every non-Gaussian path, by
+    $2.2$--$145\times10^{-3}$ nats per tick.
+  \item The bank's $t$ arm has the data's $\nu=4$ exactly, so a mismatch in $\nu$ was not tested. The
+    data are in copula space, at a single level of $\rho_S$, and $\eta$ and $\delta$ are untuned.
+\end{itemize}
+Source notes: \texttt{thesis\_bank\_family.md} and \texttt{thesis\_bank\_tails.md}.
 
 % -----------------------------------------------------------------------------
 \section{Computational cost}
@@ -815,7 +992,12 @@ pairs per second on one core.
     of switches $m$. The static bound is nearly attained on drift ($2.6$ against $2.8$ nats). On
     jump the bank beats the best single memory by 17 nats on average. The tuned squared bank is
     outside the theory ($\eta=1>1/32$).
-  \item \emph{Tail dependence needs a different memory.} Tail estimators behave like dependence
-    estimators on a stream thinned by $q$, so a bank for tail dependence needs longer arms; this,
-    and a bank over families, are the extensions left for future work.
+  \item \emph{A bank over copula families is the best online estimator of finite-$q$ tail
+    dependence tested here.} Its $\chi(q)$ is exact for the mixture of its arms, beats an
+    exponentially weighted corner counter at every memory in 16 of 20 regime--threshold--tail cells,
+    and follows a change in $\chi$ halfway within 46--195 ticks, against 590--1860 for a counter at
+    $M=1999$--$4999$. A new family takes half its weight 78--180 ticks after a shape switch, with
+    few false switches, and its regret stays within the bound of Section~5.3.4 in every run. It
+    loses to the counter when the copula is outside its families (a Clayton/Gumbel mixture), and it
+    is not a better tracker of $\rho_S$.
 \end{enumerate}
