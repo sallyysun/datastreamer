@@ -8,7 +8,8 @@ import pandas as pd
 first = sys.argv[1] if len(sys.argv) > 1 else "42"
 regimes = ["gauss2clayton", "clayton2gumbel", "gauss2t", "mix", "gaussian"]
 d = pd.concat(pd.read_csv(f"results/tail_bank_{r}_{first}.csv") for r in regimes)
-main = ["family_bank", "tail_chi_399", "tail_chi_1999", "tail_chi_4999", "tail_chi_1999_known"]
+main = ["family_bank", "tail_chi_399", "tail_chi_1999", "tail_chi_4999", "tail_chi_1999_known",
+        "hermite_bank_own", "hermite_399", "hermite_1999", "xiao_399", "xiao_1999"]
 wins = ["whole", "pre", "post_0_500", "post_500_2000", "post_2000_5000"]
 
 
@@ -30,14 +31,15 @@ for col in ["rmse", "bias"]:
             print(f"| {r} | {q:.2f} | {tl} | {label} | " + " | ".join(ms(h[h.window == w], col) for w in wins) + " |")
 
 print("\n## Paired whole-run RMSE difference, family_bank minus each counter (x1e-3; W = bank lower by > 2 SE)\n")
-print("| regime | q | tail | − tail_chi_399 | − tail_chi_1999 | − tail_chi_4999 | − best arm |")
-print("| --- | --- | --- | --- | --- | --- | --- |")
-cnt = {k: [0, 0, 0] for k in ["tail_chi_399", "tail_chi_1999", "tail_chi_4999", "best arm"]}
+comps = ["tail_chi_399", "tail_chi_1999", "tail_chi_4999", "hermite_bank_own", "hermite_399", "hermite_1999", "xiao_399", "xiao_1999"]
+print("| regime | q | tail | " + " | ".join("− " + c for c in comps) + " | − best arm |")
+print("| --- | --- | --- | " + " | ".join("---" for _ in comps) + " | --- |")
+cnt = {k: [0, 0, 0] for k in comps + ["best arm"]}
 for (r, q, tl), g in d[d.window == "whole"].groupby(["regime", "q", "tail"], sort=False):
     w = g.pivot_table(index="seed", columns="method", values="rmse") * 1000
     best = w[[c for c in w.columns if c.startswith("arm_")]].mean().idxmin()
     cells = []
-    for k, c in [("tail_chi_399",) * 2, ("tail_chi_1999",) * 2, ("tail_chi_4999",) * 2, ("best arm", best)]:
+    for k, c in [(c, c) for c in comps] + [("best arm", best)]:
         x = w.family_bank - w[c]
         h = 2 * x.std(ddof=1) / len(x) ** .5
         cnt[k][0 if x.mean() < -h else 1 if x.mean() > h else 2] += 1

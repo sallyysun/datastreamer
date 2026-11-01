@@ -3,6 +3,12 @@
 // single-shape arms, all on a 500-tick rank PIT. Scored against the exact finite-q chi(q) of the true
 // regime (not lambda), q = 0.05 and 0.10. One known-margin corner counter (true PIT, M = 1999) is the
 // check against tail-study step 1, which used known uniform margins.
+// Nonparametric competitors read chi(q) off their own predictive density (PredictiveDensity), as
+// P(U, V both in the corner) / P(U in the tail), by a midpoint rule on the unit square, every 20 ticks
+// (held between): the Hermite own-density bank, and single Hermite (N = 10) and Xiao (20 x 20, pooled
+// density on the same 20 x 20 grid, prior mass 12.5 pseudo-observations as the default 5 x 5 pooling's)
+// estimators at M = 399 and 1999. The corner counter is the corner
+// cell of a Xiao-style histogram read directly.
 // DGP: tail_common.hpp samplers at matched rho_S = 0.5819 (d = 0.6), switch at TAU.
 // Regimes: gauss2clayton, clayton2gumbel, gauss2t (nu = 4), mix (Clayton/Gumbel mixture, pi 0.75 -> 0.25),
 // gaussian (no switch; sanity check that finite-q chi is not 0 when lambda = 0).
@@ -69,6 +75,37 @@ struct Source {
     std::pair<double, double> next() { return s ? s->next() : m->next(); }
 };
 
+// A density estimator fed the bank's inputs: probit of a 500-tick rank PIT.
+struct PitFed {
+    std::unique_ptr<DependenceEstimator> e;
+    RankPit px{500}, py{500};
+    void update(double x, double y) { e->update(RankPit::probit(px.transform(x)), RankPit::probit(py.transform(y))); }
+};
+
+// chi_L(q), chi_U(q) of a density on the unit square: corner mass over tail-strip mass, midpoint rule
+// with 16 nodes across each tail strip and 32 across the middle.
+template <typename F>
+std::pair<double, double> chi_density(F&& f, double q) {
+    constexpr int kE = 16, kM = 32;
+    std::vector<std::pair<double, double>> vs;  // (node, width)
+    for (int i = 0; i < kE; ++i) vs.push_back({q * (i + 0.5) / kE, q / kE});
+    for (int i = 0; i < kM; ++i) vs.push_back({q + (1 - 2 * q) * (i + 0.5) / kM, (1 - 2 * q) / kM});
+    for (int i = 0; i < kE; ++i) vs.push_back({1 - q + q * (i + 0.5) / kE, q / kE});
+    double nl = 0, dl = 0, nu = 0, du = 0;
+    for (int i = 0; i < kE; ++i) {
+        const double ul = q * (i + 0.5) / kE, uh = 1 - q + q * (i + 0.5) / kE;
+        for (std::size_t j = 0; j < vs.size(); ++j) {
+            const auto [v, w] = vs[j];
+            const double a = f(ul, v) * w, b = f(uh, v) * w;
+            dl += a;
+            du += b;
+            if (j < std::size_t(kE)) nl += a;
+            if (j >= vs.size() - kE) nu += b;
+        }
+    }
+    return {dl > 0 ? nl / dl : 0.0, du > 0 ? nu / du : 0.0};
+}
+
 struct Win { const char* name; std::size_t a, b; };
 const std::vector<Win> kWins{{"whole", BURN, T}, {"pre", BURN, TAU}, {"post_0_500", TAU, TAU + 500},
                              {"post_500_2000", TAU + 500, TAU + 2000}, {"post_2000_5000", TAU + 2000, T}};
@@ -107,7 +144,9 @@ int main(int argc, char** argv) {
     std::fprintf(pout, "regime,t,series,value\n");
     std::fprintf(cout_, "regime,q,tail,method,old,new,ticks_to_half\n");
 
-    std::vector<std::string> methods{"family_bank", "tail_chi_399", "tail_chi_1999", "tail_chi_4999", "tail_chi_1999_known"};
+    std::vector<std::string> methods{"family_bank", "tail_chi_399", "tail_chi_1999", "tail_chi_4999", "tail_chi_1999_known",
+                                     "hermite_bank_own", "hermite_399", "hermite_1999", "xiao_399", "xiao_1999"};
+    constexpr std::size_t kDens0 = 5, kNDens = 5;   // methods[kDens0 ..] read chi off a density
     std::vector<std::string> arm_names;
     {
         FamilyBank probe(FamilyBank::Config{}, "x");
@@ -129,17 +168,41 @@ int main(int argc, char** argv) {
         std::vector<std::unique_ptr<DependenceEstimator>> tc;
         for (const char* k : {"tail_chi_399", "tail_chi_1999", "tail_chi_4999"}) tc.push_back(make_estimator(k));
         TailChi known(TailChi::Config{.memory = 1999}, "known");
+        auto e_hb = make_estimator("hermite_bank_own");
+        auto* hb = dynamic_cast<ForgettingBank*>(e_hb.get());
+        std::vector<PitFed> dens;
+        for (double lam : {0.005, 0.001})
+            dens.push_back({std::make_unique<HermiteEstimator>(
+                HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "h")});
+        for (double lam : {0.995, 0.999})
+            dens.push_back({std::make_unique<XiaoSpearmanEstimator>(
+                XiaoSpearmanEstimator::Config{.bins = 20, .lambda = lam, .calibration = 100, .density_bins = 20,
+                                              .predictive_prior = 0.5 / 16.0}, "x")});
+        std::vector<std::array<double, 4>> dchi(kNDens, {0, 0, 0, 0});   // [estimator] = L q05, U q05, L q10, U q10
         // est[q][tail][method][t]
         std::vector<std::vector<float>> est(NQ * 2 * M, std::vector<float>(T));
         auto at = [&](std::size_t qi, int tl, std::size_t m) -> std::vector<float>& { return est[(qi * 2 + tl) * M + m]; };
 
         for (std::size_t t = 0; t < T; ++t) {
             const auto [u, v] = t < TAU ? pre.next() : post.next();
+            if (t % 20 == 0)
+                for (std::size_t qi = 0; qi < NQ; ++qi) {
+                    const auto c0 = chi_density([&](double a, double b) { return std::exp(hb->log_density(a, b)); }, kQ[qi]);
+                    dchi[0][2 * qi] = c0.first;
+                    dchi[0][2 * qi + 1] = c0.second;
+                    for (std::size_t k = 0; k < dens.size(); ++k) {
+                        const auto* pd = dynamic_cast<const PredictiveDensity*>(dens[k].e.get());
+                        const auto c = chi_density([&](double a, double b) { return std::exp(pd->log_predictive(a, b)); }, kQ[qi]);
+                        dchi[1 + k][2 * qi] = c.first;
+                        dchi[1 + k][2 * qi + 1] = c.second;
+                    }
+                }
             for (std::size_t qi = 0; qi < NQ; ++qi) {
                 const double q = kQ[qi];
                 std::vector<TailEstimate> te{fb->tails(q)};
                 for (auto& e : tc) te.push_back(dynamic_cast<const TailEstimator*>(e.get())->tails(q));
                 te.push_back(known.tails(q));
+                for (std::size_t k = 0; k < kNDens; ++k) te.push_back({dchi[k][2 * qi], dchi[k][2 * qi + 1], NAN, NAN});
                 for (std::size_t m = 0; m < nmain; ++m) {
                     at(qi, 0, m)[t] = float(te[m].chi_L);
                     at(qi, 1, m)[t] = float(te[m].chi_U);
@@ -157,6 +220,8 @@ int main(int argc, char** argv) {
             const double x = special::normal_ppf(u), y = special::normal_ppf(v);
             fb->update(x, y);
             for (auto& e : tc) e->update(x, y);
+            hb->update(x, y);
+            for (auto& d : dens) d.update(x, y);
             if (t >= 30) known.update_uv(u, v);   // same warm-up as the rank-PIT counters
         }
         for (std::size_t qi = 0; qi < NQ; ++qi)
