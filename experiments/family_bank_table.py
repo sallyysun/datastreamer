@@ -56,25 +56,27 @@ for tail in ["chiL", "chiU"]:
     for win in ["whole", "rec_0_100", "rec_100_500", "rec_500_1500"]:
         table(f"{tail}_rmse", win, 1000, f"{tail}(0.05) RMSE x1e-3 vs ratio estimator", ["ratio_99", "ratio_399", "ratio_1999"])
 
-print("\n## Shape switches: ticks after the switch for the new shape's summed weight to reach 50% / 90%\n")
-print("| switch | new shape | weight at t=2499 | t50 median [IQR] | t90 median [IQR] | never 50% | never 90% |")
-print("| --- | --- | --- | --- | --- | --- | --- |")
-for c in shapes:
-    s = pd.read_csv(f"results/family_bank_switch_{first}_{c}.csv")
-    q = lambda x: f"{x[x >= 0].median():.0f} [{x[x >= 0].quantile(.25):.0f}, {x[x >= 0].quantile(.75):.0f}]"
-    print(f"| {c} | {s.new_shape[0]} | {s.pre_weight_new.mean():.3f} | {q(s.t50)} | {q(s.t90)} | "
-          f"{(s.t50 < 0).sum()}/{len(s)} | {(s.t90 < 0).sum()}/{len(s)} |")
+SH = ["gaussian", "t", "clayton", "clayton90", "clayton270", "gumbel", "gumbel90", "gumbel270"]
+q = lambda x: f"{x[x >= 0].median():.0f} [{x[x >= 0].quantile(.25):.0f}, {x[x >= 0].quantile(.75):.0f}]" if (x >= 0).any() else "—"
+print("\n## Shape switches: ticks after tick 2500 for a shape's summed weight to reach 50% / 90%\n")
+print("Switch rows: the new shape after a real switch. Null rows: constant path, no switch, every shape but the DGP's.\n")
+print("| copula | scenario | shape | weight at t=2499 | t50 median [IQR] | t90 median [IQR] | reached 50% | reached 90% |")
+print("| --- | --- | --- | --- | --- | --- | --- | --- |")
+for c in shapes + fams:
+    s = pd.read_csv(f"results/family_bank_switch_{first}{sfx(c)}.csv")
+    for (sc, sh), g in s.groupby(["scenario", "new_shape"], sort=False):
+        print(f"| {c} | {sc} | {sh} | {g.pre_weight_new.mean():.3f} | {q(g.t50)} | {q(g.t90)} | "
+              f"{(g.t50 >= 0).sum()}/{len(g)} | {(g.t90 >= 0).sum()}/{len(g)} |")
 
 print("\n## Seed-mean shape weights and memory, averaged over ticks (pre = [500, 2500), post = [2500, 5000))\n")
-print("| copula | scenario | span | " + " | ".join(["gaussian", "t", "clayton", "clayton90", "gumbel", "gumbel90"]) + " | mem |")
-print("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+print("| copula | scenario | span | " + " | ".join(SH) + " | mem |")
+print("| --- | --- | --- | " + " | ".join("---" for _ in SH) + " | --- |")
 for c in fams + shapes:
     p = pd.read_csv(f"results/family_bank_path_{first}{sfx(c)}.csv")
     for sc, g in p.groupby("scenario"):
         for span, (a, b) in [("pre", (500, 2500)), ("post", (2500, 5000))]:
             h = g[(g.t >= a) & (g.t < b)].groupby("series").value.mean()
-            print(f"| {c} | {sc} | {span} | " + " | ".join(f"{h['w_' + k]:.2f}" for k in
-                  ["gaussian", "t", "clayton", "clayton90", "gumbel", "gumbel90"]) + f" | {h['mem']:.0f} |")
+            print(f"| {c} | {sc} | {span} | " + " | ".join(f"{h['w_' + k]:.2f}" for k in SH) + f" | {h['mem']:.0f} |")
 
 print("\n## Regret of the family bank's mixture log loss against B_{T,m}(delta) (bound at eta = 1)\n")
 r = pd.concat(pd.read_csv(f"results/bank_regret_family_{first}{sfx(c)}.csv") for c in fams)

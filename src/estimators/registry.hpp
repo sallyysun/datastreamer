@@ -12,6 +12,7 @@
 #include "dependence/estimator.hpp"
 #include "dependence/estimator_bank.hpp"
 #include "dependence/family_bank.hpp"
+#include "dependence/tail_chi.hpp"
 #include "dependence/forgetting_bank.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermite_cusum.hpp"
@@ -425,12 +426,19 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
         }
     }
     // Family bank: arms over copula shapes (Gaussian, t4, Clayton, Gumbel, and Clayton/Gumbel rotated
-    // by 90 degrees) x memories M = 99, 399, 1999, each an online MPL scored by its own copula log
+    // by 90 and 270 degrees) x memories M = 99, 399, 1999, each an online MPL scored by its own copula log
     // density; eta = 1, delta = delta* for m = 1. family_bank_uniform freezes the weights (the
     // regret probe replays them). notes/studies/thesis_bank_family.md.
     if (key == "family_bank") return std::make_unique<FamilyBank>(FamilyBank::Config{}, "family_bank");
     if (key == "family_bank_uniform")
         return std::make_unique<FamilyBank>(FamilyBank::Config{.eta = 0.0, .delta = 0.0}, "family_bank_uniform");
+    // Model-free EW corner counter for chi_L(q), chi_U(q) at q = 0.05, 0.10 (TailEstimator), memory M
+    // in ticks; estimate() is the EW rank rho_S. notes/studies/thesis_bank_tails.md.
+    if (key == "tail_chi_399" || key == "tail_chi_1999" || key == "tail_chi_4999") {
+        static const std::vector<std::string> names = {"tail_chi_399", "tail_chi_1999", "tail_chi_4999"};
+        return std::make_unique<TailChi>(TailChi::Config{.memory = std::stod(key.substr(9))},
+                                         std::find(names.begin(), names.end(), key)->c_str());
+    }
     // Online MPL (thesis section 4.3.2): sequential rank pseudo-observations into
     // expected-Fisher scoring (section 3.5.4), one per Table 3.1 family we have.
     if (key == "mpl_gaussian" || key == "mpl_clayton" || key == "mpl_gumbel" || key == "mpl_t") {
@@ -749,7 +757,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_var_chart", "kalman_var_chart_slow", "kalman_var_cusum", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "xiao_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
-        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "xiao_bank_log", "hermite_bank_log", "mle_bank_log", "xiao_bank_own", "hermite_bank_own", "mle_bank_own", "xiao_bank_sq32", "hermite_bank_sq32", "mle_bank_sq32", "xiao_bank_uniform", "hermite_bank_uniform", "mle_bank_uniform", "xiao_bank_block", "hermite_bank_block", "mle_bank_block", "family_bank", "family_bank_uniform", "mpl_gaussian", "mpl_clayton", "mpl_gumbel", "mpl_t", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
+        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "xiao_bank_log", "hermite_bank_log", "mle_bank_log", "xiao_bank_own", "hermite_bank_own", "mle_bank_own", "xiao_bank_sq32", "hermite_bank_sq32", "mle_bank_sq32", "xiao_bank_uniform", "hermite_bank_uniform", "mle_bank_uniform", "xiao_bank_block", "hermite_bank_block", "mle_bank_block", "family_bank", "family_bank_uniform", "tail_chi_399", "tail_chi_1999", "tail_chi_4999", "mpl_gaussian", "mpl_clayton", "mpl_gumbel", "mpl_t", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

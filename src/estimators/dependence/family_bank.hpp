@@ -13,6 +13,7 @@
 #include "estimator.hpp"
 #include "marginal_rank_pit.hpp"
 #include "parametric_copula.hpp"
+#include "tail_estimator.hpp"
 
 // Family bank: thesis Algorithm 1 with arms over copula shapes x memories. Each arm is a forgetting
 // online MPL (CopulaFit, expected Fisher scoring) on the shared rank PIT, scored by its own
@@ -20,20 +21,29 @@
 // proper copula densities on one scale and the section 5.3.4 log-loss bound holds at eta = 1.
 // Outputs: rho_S of the mixture (sum w_k rho_S,k), and tails linear in C (lambda_L, lambda_U,
 // chi_L(q), chi_U(q)) as the same weighted sums. Clayton and Gumbel also come rotated by 90 degrees
-// (c(1-u, v)) so that negative dependence has an arm. notes/studies/thesis_bank_family.md.
+// (c(1-u, v)) and 270 degrees (c(u, 1-v)) so that negative dependence has an arm; the two are
+// transposes of each other, not equal, since neither family is radially symmetric.
+// notes/studies/thesis_bank_family.md.
 namespace copula {
 
-enum class Shape { Gaussian, StudentT, Clayton, Clayton90, Gumbel, Gumbel90 };
+enum class Shape { Gaussian, StudentT, Clayton, Clayton90, Gumbel, Gumbel90, Clayton270, Gumbel270 };
+constexpr int kShapes = 8;
 
 inline Family base_family(Shape s) {
     switch (s) {
         case Shape::StudentT: return Family::StudentT;
-        case Shape::Clayton: case Shape::Clayton90: return Family::Clayton;
-        case Shape::Gumbel: case Shape::Gumbel90: return Family::Gumbel;
+        case Shape::Clayton: case Shape::Clayton90: case Shape::Clayton270: return Family::Clayton;
+        case Shape::Gumbel: case Shape::Gumbel90: case Shape::Gumbel270: return Family::Gumbel;
         case Shape::Gaussian: default: return Family::Gaussian;
     }
 }
-inline bool rotated(Shape s) { return s == Shape::Clayton90 || s == Shape::Gumbel90; }
+inline bool rot90(Shape s) { return s == Shape::Clayton90 || s == Shape::Gumbel90; }
+inline bool rot270(Shape s) { return s == Shape::Clayton270 || s == Shape::Gumbel270; }
+inline bool rotated(Shape s) { return rot90(s) || rot270(s); }
+// The base copula's coordinates of a pair: 90 degrees is (1-u, v), 270 degrees is (u, 1-v).
+inline std::pair<double, double> base_uv(Shape s, double u, double v) {
+    return rot90(s) ? std::pair{1.0 - u, v} : rot270(s) ? std::pair{u, 1.0 - v} : std::pair{u, v};
+}
 
 struct Tails { double lam_L, lam_U, chi_L, chi_U; };
 
@@ -70,11 +80,14 @@ inline double base_cdf(Family f, double par, double nu, double a, double b) {
 }
 
 // Exact tails of one shape at parameter par. chi_L(q) = C(q,q)/q, chi_U(q) = P(U>1-q, V>1-q)/q.
-// Rotation u -> 1-u: C90(a, b) = b - C(1-a, b); both diagonal corners become off-diagonal ones.
+// Rotations put the base copula's tail in an off-diagonal corner, so lambda_L = lambda_U = 0:
+// C90(a, b) = b - C(1-a, b), C270(a, b) = a - C(a, 1-b).
 inline Tails exact_tails(Shape s, double par, double nu, double q) {
     const Family f = base_family(s);
-    if (rotated(s))
+    if (rot90(s))
         return {0.0, 0.0, (q - base_cdf(f, par, nu, 1.0 - q, q)) / q, (q - base_cdf(f, par, nu, q, 1.0 - q)) / q};
+    if (rot270(s))
+        return {0.0, 0.0, (q - base_cdf(f, par, nu, q, 1.0 - q)) / q, (q - base_cdf(f, par, nu, 1.0 - q, q)) / q};
     switch (f) {
         case Family::Clayton:
             return {std::pow(2.0, -1.0 / par), 0.0, Clayton::cdf(q, q, par) / q,
@@ -112,16 +125,16 @@ inline double elliptical_chi(Family f, double rho, double nu, double q) {
 
 }  // namespace copula
 
-class FamilyBank : public DependenceEstimator {
+class FamilyBank : public DependenceEstimator, public TailEstimator {
 public:
     struct Config {
         std::vector<copula::Shape> shapes{copula::Shape::Gaussian, copula::Shape::StudentT, copula::Shape::Clayton,
-                                          copula::Shape::Clayton90, copula::Shape::Gumbel, copula::Shape::Gumbel90};
+                                          copula::Shape::Clayton90, copula::Shape::Clayton270, copula::Shape::Gumbel,
+                                          copula::Shape::Gumbel90, copula::Shape::Gumbel270};
         std::vector<int> memories{99, 399, 1999};   // retention lambda = 1 - 2/(M+1)
         double eta = 1.0;
-        double delta = 2.1e-4;         // delta* = K m / ((K-1)(T-1)) at K = 18, m = 1, T = 4970
+        double delta = 2.1e-4;         // delta* = K m / ((K-1)(T-1)) at K = 24, m = 1, T = 4970
         double nu = 4.0;
-        double q = 0.05;               // threshold of the reported chi(q)
         std::size_t pit_window = 500;
         std::size_t warm_up = 30;
     };
@@ -168,8 +181,8 @@ public:
         for (double& wk : w_) wk = (1.0 - config_.delta) * wk / total + share;
 
         for (auto& a : arms_) {
-            const double ua = copula::rotated(a.shape) ? 1.0 - u : u;
-            a.fit.update_uv(ua, v);
+            const auto [ua, va] = copula::base_uv(a.shape, u, v);
+            a.fit.update_uv(ua, va);
         }
         ++n_;
     }
@@ -183,8 +196,8 @@ public:
 
     // Log density of arm k at (u, v) under its current fit, on the copula scale.
     double arm_log_density(std::size_t k, double u, double v) const {
-        const auto& a = arms_[k];
-        return a.fit.logpdf_uv(copula::rotated(a.shape) ? 1.0 - u : u, v);
+        const auto [ua, va] = copula::base_uv(arms_[k].shape, u, v);
+        return arms_[k].fit.logpdf_uv(ua, va);
     }
 
     // Log of the mixture copula density sum_k w_k c_k(u, v): the bank's predictive density.
@@ -207,26 +220,26 @@ public:
         return copula::rotated(arms_[k].shape) ? -r : r;
     }
 
-    copula::Tails arm_tails(std::size_t k) const {
+    copula::Tails arm_tails(std::size_t k, double q) const {
         const auto& a = arms_[k];
         const double p = a.fit.param();
         const copula::Family f = copula::base_family(a.shape);
         if (f == copula::Family::Gaussian || f == copula::Family::StudentT) {
-            const double c = copula::elliptical_chi(f, p, config_.nu, config_.q);
+            const double c = copula::elliptical_chi(f, p, config_.nu, q);
             const double l = f == copula::Family::Gaussian ? 0.0
                 : 2.0 * special::t_cdf(-std::sqrt((config_.nu + 1.0) * (1.0 - p) / (1.0 + p)), config_.nu + 1.0);
             return {l, l, c, c};
         }
-        return copula::exact_tails(a.shape, p, config_.nu, config_.q);
+        return copula::exact_tails(a.shape, p, config_.nu, q);
     }
 
     // Mixture tails: every one is linear in C, so the weighted sum of the arms' values.
-    copula::Tails tails() const {
-        copula::Tails t{0, 0, 0, 0};
+    TailEstimate tails(double q) const override {
+        TailEstimate t{0, 0, 0, 0};
         for (std::size_t k = 0; k < arms_.size(); ++k) {
-            const auto a = arm_tails(k);
-            t.lam_L += w_[k] * a.lam_L;
-            t.lam_U += w_[k] * a.lam_U;
+            const auto a = arm_tails(k, q);
+            t.lambda_L += w_[k] * a.lam_L;
+            t.lambda_U += w_[k] * a.lam_U;
             t.chi_L += w_[k] * a.chi_L;
             t.chi_U += w_[k] * a.chi_U;
         }

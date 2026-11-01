@@ -11,7 +11,9 @@
 //   -> results/family_bank_<first_seed>[_<family>].csv          seed x scenario x window x method x metric
 //      results/family_bank_path_<first_seed>[_<family>].csv     seed-mean shape weights, memory, tails per tick
 //      results/family_bank_switch_<first_seed>[_<family>].csv   shape switches: ticks for the new shape to
-//                                                               reach 50% / 90% of the weight
+//                                                               reach 50% / 90% of the weight; on the constant
+//                                                               path (no switch), the same for every other
+//                                                               shape from tick 2500 (false switches)
 
 #include <cmath>
 #include <cstdio>
@@ -32,7 +34,7 @@ constexpr double kQ = 0.05, kNu = 4.0;
 const std::vector<std::string> kBanks{"xiao_bank_log", "hermite_bank_log", "mle_bank_log",
                                       "xiao_bank_own", "hermite_bank_own", "mle_bank_own"};
 const std::vector<int> kRatioMem{99, 399, 1999};
-const char* kShapeName[] = {"gaussian", "t", "clayton", "clayton90", "gumbel", "gumbel90"};
+const char* kShapeName[] = {"gaussian", "t", "clayton", "clayton90", "gumbel", "gumbel90", "clayton270", "gumbel270"};
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
     if (s == "constant" || s == "shape") return std::make_unique<ConstantDependence>(0.6);
@@ -99,13 +101,15 @@ int main(int argc, char** argv) {
     if (!out || !pout || !sout) { std::fprintf(stderr, "cannot write results/ (run from experiments/)\n"); return 1; }
     std::fprintf(out, "copula,scenario,seed,window,method,metric,value\n");
     std::fprintf(pout, "copula,scenario,t,series,value\n");
-    std::fprintf(sout, "copula,seed,new_shape,t50,t90,pre_weight_new\n");
+    std::fprintf(sout, "copula,scenario,seed,new_shape,t50,t90,pre_weight_new\n");
 
     for (const std::string& sc : scenarios) {
         // Seed means per tick: 6 shape weights, memory, truth / bank / ratio_399 chi_L and chi_U, rho.
-        const std::vector<std::string> series{"w_gaussian", "w_t", "w_clayton", "w_clayton90", "w_gumbel", "w_gumbel90",
-                                              "mem", "rho_true", "rho_family", "chiL_true", "chiL_family", "chiL_ratio399",
-                                              "chiU_true", "chiU_family", "chiU_ratio399", "lamL_family", "lamU_family"};
+        std::vector<std::string> series;
+        for (const char* n : kShapeName) series.push_back(std::string("w_") + n);
+        for (const char* n : {"mem", "rho_true", "rho_family", "chiL_true", "chiL_family", "chiL_ratio399",
+                              "chiU_true", "chiU_family", "chiU_ratio399", "lamL_family", "lamU_family"})
+            series.push_back(n);
         std::vector<std::vector<double>> path(series.size(), std::vector<double>(kN, 0.0));
         for (int s = 0; s < seeds; ++s) {
             auto dep = make_dep(sc);
@@ -130,8 +134,9 @@ int main(int argc, char** argv) {
             const std::size_t nb = 1 + kBanks.size();
             std::vector<std::vector<float>> se(rho_m.size(), std::vector<float>(kN)), ex(nb, std::vector<float>(kN)),
                 cl(chi_m.size(), std::vector<float>(kN)), cu(chi_m.size(), std::vector<float>(kN));
-            long t50 = -1, t90 = -1;
-            double pre_new = 0;
+            std::vector<long> t50(copula::kShapes, -1), t90(copula::kShapes, -1);
+            std::vector<double> pre_w(copula::kShapes, 0.0);
+            const bool null_path = !shape && sc == "constant";
 
             for (std::size_t t = 0; t < kN; ++t) {
                 const auto smp = src.next();
@@ -151,7 +156,7 @@ int main(int argc, char** argv) {
                     ex[1 + b][t] = float(lc - fbk->log_density(u0, v0));
                 }
                 for (std::size_t k = 0; k < K; ++k) se[nb + k][t] = float(std::pow(fb->arm_rho(k) - smp.rho_s, 2));
-                const auto ft = fb->tails();
+                const auto ft = fb->tails(kQ);
                 cl[0][t] = float(std::pow(ft.chi_L - tt.chi_L, 2));
                 cu[0][t] = float(std::pow(ft.chi_U - tt.chi_U, 2));
                 for (std::size_t r = 0; r < ratios.size(); ++r) {
@@ -159,21 +164,21 @@ int main(int argc, char** argv) {
                     cu[1 + r][t] = float(std::pow(ratios[r].chi_U() - tt.chi_U, 2));
                 }
 
-                std::vector<double> sw(6, 0.0);
+                std::vector<double> sw(copula::kShapes, 0.0);
                 double mem = 0;
                 for (std::size_t k = 0; k < K; ++k) {
                     sw[int(fb->arm(k).shape)] += fb->weight(k);
                     mem += fb->weight(k) * fb->arm(k).mem;
                 }
-                const double vals[] = {sw[0], sw[1], sw[2], sw[3], sw[4], sw[5], mem, smp.rho_s, fb->estimate(),
-                                       tt.chi_L, ft.chi_L, ratios[1].chi_L(), tt.chi_U, ft.chi_U, ratios[1].chi_U(),
-                                       ft.lam_L, ft.lam_U};
+                std::vector<double> vals(sw);
+                for (double x : {mem, smp.rho_s, fb->estimate(), tt.chi_L, ft.chi_L, ratios[1].chi_L(), tt.chi_U,
+                                 ft.chi_U, ratios[1].chi_U(), ft.lambda_L, ft.lambda_U})
+                    vals.push_back(x);
                 for (std::size_t i = 0; i < series.size(); ++i) path[i][t] += vals[i] / seeds;
-                if (shape) {
-                    const double wn = sw[int(S1)];
-                    if (t == kChange - 1) pre_new = wn;
-                    if (t >= kChange && t50 < 0 && wn >= 0.5) t50 = long(t - kChange);
-                    if (t >= kChange && t90 < 0 && wn >= 0.9) t90 = long(t - kChange);
+                for (int j = 0; j < copula::kShapes; ++j) {
+                    if (t == kChange - 1) pre_w[j] = sw[j];
+                    if (t >= kChange && t50[j] < 0 && sw[j] >= 0.5) t50[j] = long(t - kChange);
+                    if (t >= kChange && t90[j] < 0 && sw[j] >= 0.9) t90[j] = long(t - kChange);
                 }
 
                 fb->update(smp.x, smp.y);
@@ -182,9 +187,10 @@ int main(int argc, char** argv) {
                 const double u = px.transform(smp.x), v = py.transform(smp.y);
                 if (scorable) for (auto& r : ratios) r.update(u, v);
             }
-            if (shape)
-                std::fprintf(sout, "%s,%u,%s,%ld,%ld,%.4f\n", cop_name.c_str(), first + s, kShapeName[int(S1)], t50, t90,
-                             pre_new);
+            for (int j = 0; j < copula::kShapes; ++j)
+                if ((shape && j == int(S1)) || (null_path && j != int(S0)))
+                    std::fprintf(sout, "%s,%s,%u,%s,%ld,%ld,%.4f\n", cop_name.c_str(), sc.c_str(), first + s,
+                                 kShapeName[j], t50[j], t90[j], pre_w[j]);
             for (const auto& w : windows(sc)) {
                 const double n = double(w.b - w.a);
                 auto emit = [&](const std::string& m, const char* metric, const std::vector<float>& x, double scale, bool root) {
