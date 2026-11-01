@@ -1,6 +1,6 @@
 // Chapter 6 data for thesis Algorithm 1 (ForgettingBank): for Xiao, Hermite and online-MPL
-// components, the five fixed memories, the squared-loss bank, the log-loss bank and the
-// uniform-weight control, plus each component's own variable forgetting factor (VFF) at a slow
+// components, the five fixed memories, the squared-loss bank (tuned eta = 1, and the theory's
+// eta = 1/32 as bank_sq32), the log-loss bank and the uniform-weight control, plus each component's own variable forgetting factor (VFF) at a slow
 // and a fast rate, all fed the same shared rank pseudo-observations.
 // Metrics per tick: squared error of rho against the true rho_S, and excess log loss at the true
 // PIT, log c_true - log c_{g^{-1}(rho_hat)} (Gaussian method-of-moments density, section 4.3.1).
@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> methods;
     for (int m : kMem) methods.push_back("fixed_" + std::to_string(m));
-    for (const char* m : {"bank", "bank_log", "uniform", "vff_slow", "vff_fast"}) methods.push_back(m);
+    for (const char* m : {"bank", "bank_log", "uniform", "vff_slow", "vff_fast", "bank_sq32"}) methods.push_back(m);
     const std::size_t M = methods.size(), K = kMem.size();
 
     std::FILE* out = std::fopen(("results/thesis_bank" + sfx + ".csv").c_str(), "w");
@@ -120,6 +120,7 @@ int main(int argc, char** argv) {
                 auto* sq = dynamic_cast<ForgettingBank*>(e_sq.get());
                 auto* lg = dynamic_cast<ForgettingBank*>(e_log.get());
                 auto* un = dynamic_cast<ForgettingBank*>(e_uni.get());
+                auto e_s32 = make_estimator(kFamilies[c] + "_bank_sq32");
                 PitFed vs{make_vff(kFamilies[c], 0.05)}, vf{make_vff(kFamilies[c], 0.5)};
 
                 std::vector<std::vector<float>> se(M, std::vector<float>(kN)), ex(M, std::vector<float>(kN));
@@ -136,6 +137,7 @@ int main(int argc, char** argv) {
                     rho[K + 2] = un->estimate();
                     rho[K + 3] = vs.e->estimate();
                     rho[K + 4] = vf.e->estimate();
+                    rho[K + 5] = e_s32->estimate();
                     for (std::size_t i = 0; i < M; ++i) {
                         se[i][t] = float((rho[i] - smp.rho_s) * (rho[i] - smp.rho_s));
                         ex[i][t] = float(lc - mom_logc(rho[i], u, v));
@@ -145,6 +147,7 @@ int main(int argc, char** argv) {
                     un->update(smp.x, smp.y);
                     vs.update(smp.x, smp.y);
                     vf.update(smp.x, smp.y);
+                    e_s32->update(smp.x, smp.y);
                     if (sc == "jump")
                         for (std::size_t k = 0; k < K; ++k) {
                             wsum[2 * c][t][k] += sq->weight(k);

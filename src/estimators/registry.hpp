@@ -358,6 +358,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
     // *_bank_own scores each component by its own predictive density (Loss::Own;
     // notes/studies/thesis_bank_own_density.md); eta 0.25, delta 3e-3, tuned on seeds 1-30 for
     // the excess log loss of the bank's mixture density, not for RMSE.
+    // *_bank_sq32 is the squared bank at the theory's eta = 1/32 (section 5.3.4), delta as *_bank;
+    // notes/studies/thesis_bank_sq32.md.
     // *_bank_uniform freezes the weights (eta = delta = 0): the "average the arms"
     // control. *_bank_block is the earlier EstimatorBank
     // (20-tick blocks, eta_t = 1/(2 v_t)), kept so adaptive_memory.md reproduces.
@@ -367,11 +369,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             return key.size() > sfx.size() && key.compare(key.size() - sfx.size(), sfx.size(), sfx) == 0;
         };
         const char* base = nullptr;
-        if (key == "xiao_bank" || key == "xiao_bank_log" || key == "xiao_bank_own" || key == "xiao_bank_uniform"
+        if (key == "xiao_bank" || key == "xiao_bank_log" || key == "xiao_bank_own" || key == "xiao_bank_sq32" || key == "xiao_bank_uniform"
             || key == "xiao_bank_block") base = "xiao";
-        if (key == "hermite_bank" || key == "hermite_bank_log" || key == "hermite_bank_own"
+        if (key == "hermite_bank" || key == "hermite_bank_log" || key == "hermite_bank_own" || key == "hermite_bank_sq32"
             || key == "hermite_bank_uniform" || key == "hermite_bank_block") base = "hermite";
-        if (key == "mle_bank" || key == "mle_bank_log" || key == "mle_bank_own" || key == "mle_bank_uniform"
+        if (key == "mle_bank" || key == "mle_bank_log" || key == "mle_bank_own" || key == "mle_bank_sq32" || key == "mle_bank_uniform"
             || key == "mle_bank_block") base = "mle";
         if (base) {
             const std::string b(base);
@@ -397,9 +399,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                                                     .expected_info = true, .burn_in = 50}, "m"));
             }
             static const std::vector<std::string> names = {
-                "xiao_bank", "xiao_bank_log", "xiao_bank_own", "xiao_bank_uniform", "xiao_bank_block",
-                "hermite_bank", "hermite_bank_log", "hermite_bank_own", "hermite_bank_uniform", "hermite_bank_block",
-                "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_uniform", "mle_bank_block"};
+                "xiao_bank", "xiao_bank_log", "xiao_bank_own", "xiao_bank_sq32", "xiao_bank_uniform", "xiao_bank_block",
+                "hermite_bank", "hermite_bank_log", "hermite_bank_own", "hermite_bank_sq32", "hermite_bank_uniform",
+                "hermite_bank_block",
+                "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_sq32", "mle_bank_uniform", "mle_bank_block"};
             const char* name = std::find(names.begin(), names.end(), key)->c_str();
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);
@@ -411,6 +414,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 cfg.loss = ForgettingBank::Loss::Own;
                 cfg.eta = 0.25;
                 cfg.delta = 3.0e-3;
+            } else if (ends_with("_sq32")) {
+                cfg.eta = 1.0 / 32.0;  // largest eta at which squared loss is exp-concave (section 5.3.4)
             } else if (ends_with("_uniform")) {
                 cfg.eta = 0.0;
                 cfg.delta = 0.0;
@@ -736,7 +741,7 @@ inline const std::vector<std::string>& all_estimator_keys() {
         "gaussian_mle_cusum_rob", "gaussian_mle_cusum_rob_noreset", "gaussian_mle_cum_cusum", "gaussian_mle_periodic_defl",
         "gaussian_mle_l95", "gaussian_mle_l98", "gaussian_mle_l995", "gaussian_mle_l999", "kalman_periodic_inf", "kalman_q003", "kalman_q01", "kalman_q03", "kalman_q1", "kalman_q10", "kalman_glr",
         "kalman_ewma_chart", "kalman_var_chart", "kalman_var_chart_slow", "kalman_var_cusum", "kalman_sr", "hermite_cusum", "hermite_cusum_noreset", "hermite_cusum_soft", "hermite_cusum_chasing", "hermite_cusum2", "hermite_cusum2_noreset", "hermite_vff", "xiao_vff", "hermite_pit", "gaussian_mle_vff", "kalman_vff", "particle", "particle_fast", "gaussian_mle_param", "gaussian_mle_fisher", "gaussian_mle_best", "gaussian_mle_einfo", "gaussian_mle_pr", "gaussian_mle_damp", "gaussian_mle_pit", "kalman_mid", "ekf", "ukf",
-        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "xiao_bank_log", "hermite_bank_log", "mle_bank_log", "xiao_bank_own", "hermite_bank_own", "mle_bank_own", "xiao_bank_uniform", "hermite_bank_uniform", "mle_bank_uniform", "xiao_bank_block", "hermite_bank_block", "mle_bank_block", "mpl_gaussian", "mpl_clayton", "mpl_gumbel", "mpl_t", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
+        "hermite_o20", "hermite_o40", "xiao_b8", "xiao_b40", "xiao_bank", "hermite_bank", "mle_bank", "xiao_bank_log", "hermite_bank_log", "mle_bank_log", "xiao_bank_own", "hermite_bank_own", "mle_bank_own", "xiao_bank_sq32", "hermite_bank_sq32", "mle_bank_sq32", "xiao_bank_uniform", "hermite_bank_uniform", "mle_bank_uniform", "xiao_bank_block", "hermite_bank_block", "mle_bank_block", "mpl_gaussian", "mpl_clayton", "mpl_gumbel", "mpl_t", "tail_cusum", "tail_cusum_slow", "kalman_bank", "kalman_bank_sticky", "kalman_bank_quick", "kalman_bank_uniform",
         "kalman_bocpd", "kalman_bocpd_fast",
         "clayton_mle", "clayton_mle_ew",
         "gumbel_mle", "gumbel_mle_ew",

@@ -96,6 +96,24 @@ Negative means the bank beats the comparator.
 
 Details: `notes/studies/thesis_bank_regret.md`.
 
+### Squared bank at the theory's η = 1/32 (`*_bank_sq32`, δ = 1e-4)
+
+- **Regret:** within 32·B_{T,m}(δ) in all 1440 runs and for every m. The static maximum is 15.9
+  (drift) and 9.8 (jump) against 64.2. Its mean regret is still higher than the η = 1 bank's: 7.8 vs 4.8
+  on drift, 3.9 vs −7.6 on jump.
+- **δ\* = 2.5e-4 (m = 1):** within 1 of the δ = 1e-4 version.
+- **ρ_S RMSE ×10⁻³, by scenario:**
+
+| scenario | − bank (η = 1) | − bank_log | − uniform | − best fixed |
+| --- | --- | --- | --- | --- |
+| drift | +3.0 to +5.3 | +3.7 to +8.8 | −10.0 to −14.4 | +8.7 to +11.5 |
+| jump | +14.9 to +17.9 | +20.1 to +25.1 | −4.8 to −8.8 | +4.0 to +5.9 |
+
+- **W/L/T on drift + jump:** 0/24/0 against both η = 1 banks, and 24/0/0 against uniform.
+- **After the jump:** +67 to +88 behind the η = 1 bank in ticks 0–100.
+
+Details: `notes/studies/thesis_bank_sq32.md`; table script `experiments/sq32_table.py`.
+
 ## Own-density bank (`*_bank_own`, η = 0.25, δ = 3e-3)
 
 Each arm is scored by its own predictive density:

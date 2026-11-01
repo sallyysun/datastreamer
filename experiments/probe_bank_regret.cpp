@@ -7,7 +7,9 @@
 //        "log_point" log loss of the Gaussian MoM density at the bank's own rho (sum_k w_k rho_k),
 //                    same weights (not covered: the density at the mean rho is not the mixture);
 //        "sq"        squared loss (p_hat - sum_k w_k rho_k)^2 at the tuned eta=1 (not covered: needs
-//                    eta <= 1/32).
+//                    eta <= 1/32);
+//        "sq32"      squared loss at eta = 1/32, delta = 1e-4 (covered: bound 32 B);
+//        "sq32_dstar" the same at the theory's delta* = K m/((K-1)(T-1)) for m = 1.
 // Notes: notes/studies/thesis_bank_regret.md.
 //
 // Usage (from experiments/):  ./probe_bank_regret <first_seed> <seeds>   (COPULA=gaussian|clayton|gumbel|t)
@@ -180,6 +182,8 @@ int main(int argc, char** argv) {
                 run("log_mix", true, kEtaLog, kDeltaLog);
                 run("sq", false, kEtaSq, kDeltaSq);
                 run("log_mix_hedge", true, kEtaLog, 0.0);
+                run("sq32", false, 1.0 / 32.0, kDeltaSq);
+                run("sq32_dstar", false, 1.0 / 32.0, double(K) / (double(K - 1) * double(T - 1)));
             }
         }
         std::fprintf(stderr, "%s %s done\n", cop_name.c_str(), sc.c_str());

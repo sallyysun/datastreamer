@@ -150,6 +150,8 @@ exp-concave. Smaller learning rates give up the adaptation. At $\eta=0.1$, the s
 the grid and still above $1/32$, the squared bank is $2.6\times10^{-3}$ behind the hindsight-best
 memory on \emph{jump}, against $11.8\times10^{-3}$ ahead at $\eta=1$ (evaluation seeds, mean over
 families and estimators).
+The squared bank at $\eta=1/32$ is also run, as the version the bound covers
+(\texttt{*\_bank\_sq32}, $\delta=10^{-4}$); Section~\ref{sec:regret} reports it.
 
 \paragraph{Uniform average.} The same five arms with weights frozen at $1/K$ ($\eta=\delta=0$).
 This control separates the effect of \emph{choosing} among memories from the effect of merely
@@ -661,8 +663,24 @@ runs. Most of these are on $t_4$ data, where a mixture of Gaussian copulas fits 
 than any single one, and the worst run is $213$ nats over. The squared bank at its tuned $\eta=1$
 lies outside the theory: measured against $B_{T,0}(\delta)/\eta$ with $\eta=1$, it exceeds the
 bound in 688 of the 720 \emph{drift} runs. Every run is still inside $32\,B_{T,m}(\delta)$, the
-bound a bank with $\eta=1/32$ would carry. That bank, however, does not adapt
-(Section~\ref{sec:methods}).
+bound a bank with $\eta=1/32$ would carry.
+
+\emph{The squared bank at $\eta=1/32$ is covered, and pays for it in accuracy.} Run with the same
+arms and $\delta=10^{-4}$, it stays inside $32\,B_{T,m}(\delta)$ in all 1440 runs and for every $m$,
+with room to spare: its largest static regret is $15.9$ on \emph{drift} and $9.8$ on \emph{jump},
+against a bound of $64.2$, and against one-switch sequences it reaches at most $9\%$ of the bound.
+Its measured regret is nonetheless \emph{larger} than that of the $\eta=1$ bank, whose
+guarantee it is meant to supply: static regret $7.8$ against $4.8$ on \emph{drift} and $3.9$
+against $-7.6$ on \emph{jump} (means). The bound is satisfied because it is $32$ times larger, not
+because the bank learns better. In $\rho_S$ it loses to the $\eta=1$ squared bank and to the log
+bank in all 24 \emph{drift} and \emph{jump} cells: by $3$--$5\times10^{-3}$ RMSE on \emph{drift} and
+$15$--$18\times10^{-3}$ on \emph{jump} against the $\eta=1$ bank, and by $4$--$9$ and $20$--$25$
+against the log bank. It still beats the uniform average in every one of these cells ($5$--$14$),
+but trails the hindsight-best fixed memory by $4$--$12$. After the jump it is slowest of all:
+$67$--$88\times10^{-3}$ behind the $\eta=1$ bank in the first 100 ticks and $37$--$55$ over ticks
+100--500. Using the theory's $\delta^*=Km/((K-1)(T-1))\approx2.5\times10^{-4}$ for $m=1$ instead of
+$10^{-4}$ changes its mean regret by less than $1$ nat. The log bank is the only variant here that is
+both covered by the bound at the learning rate it is run at and competitive in $\rho_S$.
 
 % -----------------------------------------------------------------------------
 \section{Changes in shape and tail dependence}
