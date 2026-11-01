@@ -134,5 +134,6 @@ Data source given for each; ★ = data already on disk, only a script is needed.
 - **The §6.5 metrics in the PDF:** ISE and recovery time are not computed.
 - **§6.5 tail-dependence results:** still from the earlier stationary probes (`tail_dependence.md`);
   marked `\pending`.
-- **Not built:** a family bank (arms over copula families) and a χ (tail-coefficient) bank.
+- **Built after this handover:** the family bank (`family_bank`, `notes/studies/thesis_bank_family.md`) and
+  finite-q tails with the `tail_chi` corner counter (`notes/studies/thesis_bank_tails.md`).
 - **probe_bank_regret:** not yet run for the own bank.

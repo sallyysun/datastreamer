@@ -469,3 +469,27 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 | t₄ | jump | Xiao | -6.5 ± 1.1 | +0.0 ± 0.1 |
 | t₄ | jump | Hermite | -6.3 ± 1.2 | -0.1 ± 0.1 |
 | t₄ | jump | MPL | -6.6 ± 1.2 | -0.0 ± 0.1 |
+
+## Family bank (`family_bank`): copula shapes × memories (2026-11-01)
+
+The family bank has 24 arms. The shapes are Gaussian, t₄, Clayton and Gumbel, with Clayton and Gumbel
+also rotated by 90° and 270°; the memories are M = 99, 399 and 1999. Each arm is an online MPL scored by
+its own copula log density, with η = 1 and δ = δ* ≈ 2.1e-4. All runs are seeds 42–101, Linux. Full
+tables: `notes/studies/thesis_bank_family.md` (ρ_S, density, switches, regret) and
+`notes/studies/thesis_bank_tails.md` (χ(q)).
+
+- **Regret.** It stays within B_{T,m}(δ) in 480/480 runs at every m. The static regret on drift reaches
+  0.99 of the bound.
+- **Shape switches at constant ρ_S.** The new family reaches 50% of the weight after a median of 78–180
+  ticks (60/60 seeds); Gauss → t is the slowest, at 180. On the no-switch null, a wrong shape reaches 50%
+  in 0–7 of 60 seeds.
+- **Density.** Its excess log loss is lower than that of every other bank in every non-Gaussian cell, by
+  2.2–145 ×10⁻³ nats/tick.
+- **ρ_S RMSE.**
+  - It beats xiao_log in 9/9 non-Gaussian constant/drift/jump cells.
+  - It loses on oscillate (+9 to +87), because its shortest memory is M = 99 rather than 39.
+  - It loses slightly on Gaussian drift and jump against mle_log, and on the shape switches against the
+    log banks (+2 to +6).
+- **χ(q).** It beats the ratio estimator and the `tail_chi` corner counter in every regime its arms
+  contain. It loses to `tail_chi_1999` on a Clayton/Gumbel mixture DGP (+9 to +20 ×10⁻³), which no single
+  arm contains.
