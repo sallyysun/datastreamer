@@ -10,10 +10,14 @@
 //                    eta <= 1/32);
 //        "sq32"      squared loss at eta = 1/32, delta = 1e-4 (covered: bound 32 B);
 //        "sq32_dstar" the same at the theory's delta* = K m/((K-1)(T-1)) for m = 1.
+// With a third argument `family`, the component is FamilyBank (18 arms, shapes x memories) instead,
+// scored by each arm's own copula log density: "log_mix" (eta = 1, delta* = 2.1e-4, the registry's) and
+// "log_mix_hedge" (delta = 0). notes/studies/thesis_bank_family.md.
 // Notes: notes/studies/thesis_bank_regret.md.
 //
 // Usage (from experiments/):  ./probe_bank_regret <first_seed> <seeds>   (COPULA=gaussian|clayton|gumbel|t)
 //   -> results/bank_regret_<first_seed>[_<family>].csv
+//      ./probe_bank_regret <first_seed> <seeds> family  -> results/bank_regret_family_<first_seed>[_<family>].csv
 
 #include <algorithm>
 #include <cmath>
@@ -87,21 +91,26 @@ int main(int argc, char** argv) {
     const std::string cop_name = env ? env : "gaussian";
     const std::string sfx = cop_name == "gaussian" ? "" : "_" + cop_name;
     const int jmax = kSwitches.back();
+    const bool family = argc > 3 && std::string(argv[3]) == "family";
+    const std::vector<std::string> components = family ? std::vector<std::string>{"family"} : kComponents;
 
-    const std::string path = "results/bank_regret_" + std::to_string(first) + sfx + ".csv";
+    const std::string path = std::string("results/bank_regret_") + (family ? "family_" : "") + std::to_string(first) + sfx + ".csv";
     std::FILE* out = std::fopen(path.c_str(), "w");
     if (!out) { std::fprintf(stderr, "cannot write results/ (run from experiments/)\n"); return 1; }
     std::fprintf(out, "copula,scenario,seed,component,bank,T,m,L_bank,L_best,regret,bound,best_arm_mem\n");
 
     for (const std::string sc : {"drift", "jump"}) {
         for (int s = 0; s < seeds; ++s) {
-            for (const auto& comp : kComponents) {
+            for (const auto& comp : components) {
                 auto dep = make_dep(sc);
                 auto cop = dgp::make_copula(cop_name);
                 CopulaSource src(*dep, *cop, first + s);
                 auto e = make_estimator(comp + "_bank_uniform");
                 auto* bank = dynamic_cast<ForgettingBank*>(e.get());
-                const std::size_t K = bank->size();
+                auto* fbank = dynamic_cast<FamilyBank*>(e.get());
+                const std::size_t K = bank ? bank->size() : fbank->size();
+                std::vector<int> mems;  // arm memory, in the bank's arm order
+                for (std::size_t k = 0; k < K; ++k) mems.push_back(bank ? std::vector<int>{39, 99, 199, 399, 1999}[k] : fbank->arm(k).mem);
                 RankPit px{kPit}, py{kPit};
                 // Per scored tick: arm rho, PIT pair, losses.
                 std::vector<std::vector<double>> rho(K), lsq(K), llog(K);
@@ -116,17 +125,18 @@ int main(int argc, char** argv) {
                         double worst = 0;
                         std::vector<double> lg(K);
                         for (std::size_t k = 0; k < K; ++k) {
-                            const double r = bank->model(k).estimate();
+                            const double r = bank ? bank->model(k).estimate() : fbank->arm_rho(k);
                             rho[k].push_back(r);
                             lsq[k].push_back((p - r) * (p - r));
-                            lg[k] = -copula::Gaussian::log_density(
-                                u, v, copula::param_from_spearman(copula::Family::Gaussian, r));
+                            lg[k] = bank ? -copula::Gaussian::log_density(
+                                               u, v, copula::param_from_spearman(copula::Family::Gaussian, r))
+                                         : -fbank->arm_log_density(k, u, v);
                             if (std::isfinite(lg[k])) worst = std::max(worst, lg[k]);
                         }
                         // Same guard as ForgettingBank: a non-finite loss becomes the tick's worst finite loss.
                         for (std::size_t k = 0; k < K; ++k) llog[k].push_back(std::isfinite(lg[k]) ? lg[k] : worst);
                     }
-                    bank->update(smp.x, smp.y);
+                    e->update(smp.x, smp.y);
                 }
                 const std::size_t T = pp.size();
 
@@ -169,7 +179,6 @@ int main(int argc, char** argv) {
                         for (double x : L[k]) a += x;
                         if (a < bsum) { bsum = a; barm = k; }
                     }
-                    const int mems[] = {39, 99, 199, 399, 1999};  // ForgettingBank arm order in registry.hpp
                     auto emit = [&](const std::string& b, double Lb) {
                         for (int m : kSwitches)
                             std::fprintf(out, "%s,%s,%u,%s,%s,%zu,%d,%.4f,%.4f,%.4f,%.4f,%d\n", cop_name.c_str(),
@@ -177,8 +186,13 @@ int main(int argc, char** argv) {
                                          penalty(T, m, K, delta) / eta, mems[barm]);
                     };
                     emit(name, Lmix);
-                    if (log && delta > 0) emit("log_point", Lpt);
+                    if (log && delta > 0 && bank) emit("log_point", Lpt);
                 };
+                if (fbank) {
+                    run("log_mix", true, 1.0, 2.1e-4);
+                    run("log_mix_hedge", true, 1.0, 0.0);
+                    continue;
+                }
                 run("log_mix", true, kEtaLog, kDeltaLog);
                 run("sq", false, kEtaSq, kDeltaSq);
                 run("log_mix_hedge", true, kEtaLog, 0.0);
