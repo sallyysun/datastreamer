@@ -1,6 +1,7 @@
 // Chapter 6 data for thesis Algorithm 1 (ForgettingBank): for Xiao, Hermite and online-MPL
 // components, the five fixed memories, the squared-loss bank, the log-loss bank and the
-// uniform-weight control, all fed the same shared rank pseudo-observations.
+// uniform-weight control, plus each component's own variable forgetting factor (VFF) at a slow
+// and a fast rate, all fed the same shared rank pseudo-observations.
 // Metrics per tick: squared error of rho against the true rho_S, and excess log loss at the true
 // PIT, log c_true - log c_{g^{-1}(rho_hat)} (Gaussian method-of-moments density, section 4.3.1).
 // Plan and caveats: notes/thesis/chapter6_plan.md.
@@ -42,6 +43,31 @@ copula::Family family_of(const std::string& f) {
     return copula::Family::Gaussian;
 }
 
+// A VFF estimator fed the bank's inputs: probit of a 500-tick rank PIT, as ForgettingBank does.
+struct PitFed {
+    std::unique_ptr<DependenceEstimator> e;
+    RankPit px{500}, py{500};
+    void update(double x, double y) {
+        const double u = px.transform(x), v = py.transform(y);
+        e->update(RankPit::probit(u), RankPit::probit(v));
+    }
+};
+
+// Every VFF starts at M = 199 ticks (the bank's middle arm) and is clamped to the bank's span
+// where its rule allows it (Xiao); Hermite's clamp is fixed at [0.2, 20] x lambda.
+std::unique_ptr<DependenceEstimator> make_vff(const std::string& c, double rate) {
+    if (c == "xiao")
+        return std::make_unique<XiaoSpearmanEstimator>(
+            XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.99, .calibration = 100,
+                                          .vff_rate = rate, .vff_mem_min = 39, .vff_mem_max = 1999}, "vff");
+    if (c == "hermite")
+        return std::make_unique<HermiteEstimator>(
+            HermiteEstimator::Config{.order = 10, .lambda = 0.01, .burn_in = 50, .vff_rate = rate}, "vff");
+    return std::make_unique<ParametricCopulaMLE>(
+        ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .lambda = 0.99, .vff_rate = rate,
+                                    .expected_info = true, .burn_in = 50}, "vff");
+}
+
 double mom_logc(double rho, double u, double v) {
     return copula::Gaussian::log_density(u, v, copula::param_from_spearman(copula::Family::Gaussian, rho));
 }
@@ -70,7 +96,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> methods;
     for (int m : kMem) methods.push_back("fixed_" + std::to_string(m));
-    for (const char* m : {"bank", "bank_log", "uniform"}) methods.push_back(m);
+    for (const char* m : {"bank", "bank_log", "uniform", "vff_slow", "vff_fast"}) methods.push_back(m);
     const std::size_t M = methods.size(), K = kMem.size();
 
     std::FILE* out = std::fopen(("results/thesis_bank" + sfx + ".csv").c_str(), "w");
@@ -94,6 +120,7 @@ int main(int argc, char** argv) {
                 auto* sq = dynamic_cast<ForgettingBank*>(e_sq.get());
                 auto* lg = dynamic_cast<ForgettingBank*>(e_log.get());
                 auto* un = dynamic_cast<ForgettingBank*>(e_uni.get());
+                PitFed vs{make_vff(kFamilies[c], 0.05)}, vf{make_vff(kFamilies[c], 0.5)};
 
                 std::vector<std::vector<float>> se(M, std::vector<float>(kN)), ex(M, std::vector<float>(kN));
                 std::vector<double> rho(M);
@@ -107,6 +134,8 @@ int main(int argc, char** argv) {
                     rho[K] = sq->estimate();
                     rho[K + 1] = lg->estimate();
                     rho[K + 2] = un->estimate();
+                    rho[K + 3] = vs.e->estimate();
+                    rho[K + 4] = vf.e->estimate();
                     for (std::size_t i = 0; i < M; ++i) {
                         se[i][t] = float((rho[i] - smp.rho_s) * (rho[i] - smp.rho_s));
                         ex[i][t] = float(lc - mom_logc(rho[i], u, v));
@@ -114,6 +143,8 @@ int main(int argc, char** argv) {
                     sq->update(smp.x, smp.y);
                     lg->update(smp.x, smp.y);
                     un->update(smp.x, smp.y);
+                    vs.update(smp.x, smp.y);
+                    vf.update(smp.x, smp.y);
                     if (sc == "jump")
                         for (std::size_t k = 0; k < K; ++k) {
                             wsum[2 * c][t][k] += sq->weight(k);

@@ -97,5 +97,10 @@ over [500, 5000), as the difference from the per-cell hindsight-best fixed memor
 CI half-widths are 0.1–3.7. These are **not thesis results** yet: tune η and δ on separate seeds
 first, then rerun with 60 evaluation seeds (`chapter6_plan.md` Part C).
 
+**VFF arms (later the same day).** `probe_thesis_bank` also runs each component's VFF at rates
+0.05 and 0.5 (methods `vff_slow`, `vff_fast`) on the bank's own inputs. For Clayton, Gumbel and t
+the earlier rows reproduce byte for byte. `experiments/thesis_bank_table.py` makes the paired
+tables. Results: `notes/studies/thesis_bank.md`, "Against variable forgetting factors".
+
 Note: `experiments/Makefile` targets have no header dependencies. After editing a header,
 rebuild with `make -B <target>`.
