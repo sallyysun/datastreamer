@@ -15,6 +15,7 @@ adaptation to changing dependence?*
 | `src/protocol/` | `SymbolTick`, serializer, topic matching. |
 | `client/` | React/Vite browser viewer. **Strict viewer** — renders what it receives, computes nothing. |
 | `experiments/` | Offline harness (own Makefile, deliberately not built by the root one) + `plot.py`, `live_probe.py`, `analysis.ipynb`, `results/`. |
+| `docs/` | Results write-ups for the thesis chapters (`chapter6_results.md`: every Chapter 6 bank number). |
 | `notes/` | See below. |
 | `external/` | Reference implementations: `hermiter` (R), `onlineNPCORR` (Python), `uWebSockets`. |
 

@@ -80,7 +80,10 @@ dependence paths are listed in Table~\ref{tab:scenarios}.
 The scenarios are chosen so that the memory that minimises error is different in each:
 \emph{constant} rewards the longest memory available, \emph{oscillate} the shortest, and
 \emph{drift} something in between. \emph{jump} rewards long memory before the change and short
-memory just after it, so no fixed memory is right for the whole run.
+memory just after it, so no fixed memory is right for the whole run. \emph{drift} and \emph{jump}
+are the two kinds of change the thesis is concerned with, and they are the focus of
+Sections~\ref{sec:adaptive} and~\ref{sec:loss} and the only scenarios used to tune the bank;
+\emph{constant} and \emph{oscillate} are reported as controls.
 
 \subsection{Estimators and forgetting}
 \label{sec:estimators}
@@ -111,17 +114,27 @@ $\lambda\in\{0.05,0.02,0.01,0.005,0.001\}$. These five runs are also the five ar
 $K=5$, scored on the shared pseudo-observations. Two losses are used:
 \begin{itemize}
   \item squared loss $\ell_{k,t}=(\hat p_t-\hat\rho^{(k)}_{t-1})^2$ with
-    $\hat p_t=12(\hat U_t-\tfrac12)(\hat V_t-\tfrac12)$, $\eta=0.5$, $\delta=10^{-4}$;
+    $\hat p_t=12(\hat U_t-\tfrac12)(\hat V_t-\tfrac12)$, $\eta=1$, $\delta=10^{-4}$;
   \item log loss $\ell_{k,t}=-\log c_{g^{-1}(\hat\rho^{(k)}_{t-1})}(\hat U_t,\hat V_t)$, where
     $c_{g^{-1}(\rho)}$ is the Gaussian copula whose Spearman's rho is $\rho$ (the method-of-moments
-    density of Section~4.3.1), with $\eta=1$, $\delta=4\times10^{-4}$.
+    density of Section~4.3.1), with $\eta=1$, $\delta=3\times10^{-4}$.
 \end{itemize}
 The method-of-moments density is what allows Xiao and Hermite, which report only $\hat\rho_S$, to
 be scored by log loss at all. Scoring begins once the rank window holds 30 observations; a
 non-finite loss, which can only arise at the boundary of the unit square, is replaced by the
-largest finite loss of that tick. The values of $\eta$ and $\delta$ were carried over from an
-earlier block-update version of the bank and have not been tuned for Algorithm~1
-\pending{replace with: tuned on seeds 1--30 over the grid \dots}.
+largest finite loss of that tick.
+
+The learning rate and fixed share were tuned on seeds 1--30, which are disjoint from the 60
+evaluation seeds, over $\eta\in\{0.1,0.25,0.5,1,2,4,8,16\}$ (squared loss; from $0.25$ for log loss)
+and $\delta\in\{0,10^{-5},3\times10^{-5},10^{-4},3\times10^{-4},4\times10^{-4},10^{-3},3\times10^{-3},10^{-2}\}$.
+The objective was whole-run RMSE in excess of the hindsight-best fixed memory, averaged over the
+\emph{drift} and \emph{jump} scenarios, all four families and all three estimators: a single
+$(\eta,\delta)$ for each loss, because a practitioner knows neither the family nor the scenario.
+The arms do not depend on $(\eta,\delta)$, so each seed runs them once and replays the weight
+recursion for every grid point; this reproduces the bank exactly. The surface is flat near the
+optimum (for the log bank every point with $\eta\in[0.5,2]$ and $\delta\in[10^{-5},10^{-3}]$ is within
+$2\times10^{-3}$ of the best), the optimum is the same for every estimator, and a large $\eta$ with
+$\delta>0$ is unstable: single-tick noise then flips the weights.
 
 \paragraph{Uniform average.} The same five arms with weights frozen at $1/K$ ($\eta=\delta=0$).
 This control separates the effect of \emph{choosing} among memories from the effect of merely
@@ -173,10 +186,11 @@ standard library, so results are not bit-comparable across platforms.
 
 Two reference points are used. The \emph{hindsight-best fixed memory} is the arm with the lowest
 mean error in each scenario, family and estimator, chosen after seeing the results; it is not
-achievable online and is a demanding benchmark. The \emph{pre-chosen fixed memory} is the single
-arm with the best mean over all four scenarios, which is what a practitioner who had to commit to
-one memory in advance would pick; it is $M=99$ for the Gaussian and $t_4$ families and $M=199$ for
-Clayton and Gumbel, for all three estimators.
+achievable online and is a ceiling rather than a target. The \emph{pre-chosen fixed memory} is the
+single arm with the best mean over \emph{drift} and \emph{jump} together, which is what a
+practitioner who had to commit to one memory in advance, without knowing which kind of change is
+coming, would pick; it is $M=199$ for every family and estimator. The bank is judged a success if
+it beats every single fixed memory and every VFF, not if it beats the hindsight-best one.
 
 % -----------------------------------------------------------------------------
 \section{The effect of a fixed forgetting factor}
@@ -233,116 +247,155 @@ scenario.
 \section{Adaptive memory: bank, variable forgetting factor and fixed memory}
 \label{sec:adaptive}
 
-\subsection{Overall accuracy}
+This section and the next concentrate on \emph{drift} and \emph{jump}, the two scenarios in which
+the dependence actually changes in the way the thesis is concerned with: slowly and abruptly. The
+\emph{constant} and \emph{oscillate} results are summarised at the end of
+Section~\ref{sec:overall} for completeness.
 
-Table~\ref{tab:bank_rmse} gives whole-run Spearman RMSE for Xiao in every family and scenario.
-The pattern for Hermite and MPL is the same for the bank and is discussed below for the VFF.
+The question asked of each adaptive method is the practical one. A practitioner does not know in
+advance whether the dependence will drift or jump, so cannot choose the memory that turns out to
+be best in hindsight. The bar the bank has to clear is therefore to beat \emph{any one} fixed
+memory, and any one variable forgetting factor, that could have been committed to beforehand.
+The hindsight-best memory is reported alongside, as a ceiling rather than a target.
+
+\subsection{Overall accuracy}
+\label{sec:overall}
+
+Table~\ref{tab:bank_rmse} gives whole-run Spearman RMSE for every family, estimator and the two
+scenarios.
 
 \begin{table}[ht]
   \centering
-  \caption{Spearman RMSE ($\times10^{-3}$), Xiao components, whole run $[500,5000)$, 60 seeds.
-    ``Best fixed'' is the hindsight-best arm, with its memory in brackets. ``VFF'' is the better of
-    the two rates, also chosen in hindsight. Paired $\pm2$\,SE intervals for the differences are
-    $0.0$--$1.9$ for the banks and up to $7.8$ for the VFF.}
+  \caption{Spearman RMSE ($\times10^{-3}$), whole run $[500,5000)$, mean over 60 seeds. ``Best
+    fixed'' is the hindsight-best arm of each row, with its memory in brackets; $M=199$ is the
+    memory a practitioner would commit to in advance (Section~\ref{sec:design}). ``VFF'' is the
+    better of the two rates, chosen in hindsight. Bold: lowest mean in the row outside the
+    ``best fixed'' column. Paired $\pm2$\,SE intervals for differences between methods are
+    at most $2.3$.}
   \label{tab:bank_rmse}
   \small
-  \begin{tabular}{llrrrrr}
+  \begin{tabular}{lllrrrrrr}
     \toprule
-    Family & Scenario & Best fixed & Squared bank & Log bank & Uniform & VFF \\
+    Family & Scenario & Estimator & Best fixed & $M=199$ & Squared bank & Log bank & Uniform & VFF \\
     \midrule
-    Gaussian & constant  & 20.3 (1999) & 28.3 & 26.8 & 52.6 & \textbf{21.0} \\
-             & drift     & 68.2 (199)  & 70.8 & 71.0 & 89.4 & \textbf{67.7} \\
-             & jump      & 81.7 (199)  & 76.1 & \textbf{61.6} & 93.3 & 81.7 \\
-             & oscillate & 188.5 (39)  & 188.9 & 192.3 & 294.6 & 276.8 \\
+    Gaussian & drift & Xiao & 68.2 (199) & 68.2 & 73.3 & 70.6 & 89.4 & \textbf{67.7} \\
+     & drift & Hermite & 69.9 (399) & \textbf{71.0} & 74.7 & 72.2 & 93.4 & \textbf{71.0} \\
+     & drift & MPL & 63.9 (199) & \textbf{63.9} & 69.1 & 67.0 & 85.5 & 81.3 \\
+     & jump & Xiao & 81.7 (199) & 81.7 & 68.7 & \textbf{62.0} & 93.3 & 81.7 \\
+     & jump & Hermite & 84.5 (199) & 84.5 & 71.5 & \textbf{63.8} & 95.7 & 84.6 \\
+     & jump & MPL & 78.2 (199) & 78.2 & 64.2 & \textbf{59.6} & 88.9 & 75.2 \\
     \addlinespace
-    Clayton  & constant  & 19.5 (1999) & 29.4 & 27.9 & 55.2 & 21.9 \\
-             & drift     & 60.7 (399)  & 63.8 & 63.2 & 81.7 & 69.0 \\
-             & jump      & 83.1 (199)  & 78.1 & \textbf{66.3} & 93.7 & 80.7 \\
-             & oscillate & 170.5 (39)  & 170.8 & 172.2 & 175.5 & 195.2 \\
+    Clayton & drift & Xiao & 60.7 (399) & 67.8 & 67.0 & \textbf{62.9} & 81.7 & 69.0 \\
+     & drift & Hermite & 61.8 (399) & 71.0 & 68.4 & \textbf{64.4} & 84.1 & 71.1 \\
+     & drift & MPL & 57.7 (399) & 64.7 & 63.7 & \textbf{60.2} & 79.4 & 85.8 \\
+     & jump & Xiao & 83.1 (199) & 83.1 & 71.4 & \textbf{66.2} & 93.7 & 80.7 \\
+     & jump & Hermite & 85.9 (199) & 85.9 & 75.1 & \textbf{70.0} & 95.4 & 86.0 \\
+     & jump & MPL & 84.3 (199) & 84.3 & 74.2 & \textbf{68.4} & 99.0 & 85.9 \\
     \addlinespace
-    Gumbel   & constant  & 19.9 (1999) & 28.9 & 29.1 & 55.4 & 24.4 \\
-             & drift     & 62.1 (399)  & 65.5 & 65.2 & 83.1 & 70.3 \\
-             & jump      & 83.2 (199)  & 78.1 & \textbf{64.5} & 94.4 & 80.7 \\
-             & oscillate & 172.4 (39)  & 172.5 & 174.7 & 176.8 & 188.2 \\
+    Gumbel & drift & Xiao & 62.1 (399) & 68.7 & 68.1 & \textbf{64.9} & 83.1 & 70.3 \\
+     & drift & Hermite & 62.3 (399) & 71.0 & 69.1 & \textbf{65.5} & 84.7 & 71.1 \\
+     & drift & MPL & 57.6 (399) & 65.2 & 63.8 & \textbf{61.0} & 79.1 & 86.6 \\
+     & jump & Xiao & 83.2 (199) & 83.2 & 71.3 & \textbf{64.7} & 94.4 & 80.7 \\
+     & jump & Hermite & 84.9 (199) & 84.9 & 73.0 & \textbf{65.3} & 95.5 & 85.0 \\
+     & jump & MPL & 80.5 (199) & 80.5 & 69.1 & \textbf{63.6} & 91.4 & 81.0 \\
     \addlinespace
-    $t_4$    & constant  & 21.2 (1999) & 31.3 & 35.0 & 57.6 & 44.0 \\
-             & drift     & 70.1 (399)  & 73.3 & 76.1 & 91.4 & 90.6 \\
-             & jump      & 85.5 (199)  & 81.2 & \textbf{70.5} & 96.4 & 82.6 \\
-             & oscillate & 191.1 (39)  & 191.5 & 204.8 & 292.5 & 202.9 \\
+    $t_4$ & drift & Xiao & 70.1 (399) & \textbf{71.8} & 76.2 & 75.4 & 91.4 & 90.6 \\
+     & drift & Hermite & 71.0 (399) & \textbf{74.9} & 77.6 & 76.9 & 95.2 & 75.0 \\
+     & drift & MPL & 69.6 (399) & \textbf{75.6} & 76.9 & 77.0 & 94.3 & 102.1 \\
+     & jump & Xiao & 85.5 (199) & 85.5 & 74.8 & \textbf{70.5} & 96.4 & 82.6 \\
+     & jump & Hermite & 87.9 (199) & 87.9 & 77.0 & \textbf{71.8} & 97.7 & 88.0 \\
+     & jump & MPL & 85.7 (199) & 85.7 & 73.4 & \textbf{70.2} & 95.2 & 91.9 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{Against a single memory chosen in advance.} Both banks beat the pre-chosen memory in all
-48 cells (four families, four scenarios, three estimators), by between $3$ and $93\times10^{-3}$,
-with every interval excluding zero. This is the practical case the bank was designed for: the user does not
-know in advance how fast the dependence will move, and the bank removes the need to know.
-
-\paragraph{Against the hindsight-best memory.} This benchmark knows which scenario it is in.
-\begin{itemize}
-  \item On \emph{jump} both banks beat it in all 12 family--estimator cells. The log bank gains
-    $15$--$21\times10^{-3}$ (Gaussian Xiao: $-20.1\pm1.3$), the squared bank $4$--$7$
-    ($-5.6\pm1.3$). No fixed memory can do this, because the best memory before the change is
-    not the best after it.
-  \item On \emph{constant} and \emph{drift} the banks pay for their flexibility: $+6.5$ to
-    $+15\times10^{-3}$ on \emph{constant} and $+2.5$ to $+8$ on \emph{drift}. On \emph{constant}
-    the best arm is the longest and the fixed share $\delta$ keeps a little weight on the short,
-    noisy arms at every tick.
-  \item On \emph{oscillate} the squared bank sits on the shortest arm and is within
-    $2\times10^{-3}$ of it. The log bank is $2$--$18$ worse, most on $t_4$ data, where the Gaussian
-    density it scores with is misspecified.
-\end{itemize}
-
-\paragraph{Uniform averaging.} Averaging the same five arms with fixed equal weights is worse than
-both banks, and worse than the hindsight-best arm, in 46 of the 48 cells, by up to
-$117\times10^{-3}$. The two exceptions are ties: Hermite on \emph{oscillate} with Clayton and Gumbel
-data, where the true $\rho_S$ is near zero for half of each period and every method's error is
-similar. The gain of the bank therefore comes from \emph{choosing} among memories, not from
-averaging them.
-
-\paragraph{Against the variable forgetting factor.} Over the 48 cells (four families, four
-scenarios, three estimators), each bank is compared with the better of the two VFF rates
-(Table~\ref{tab:bank_vff_counts}).
+\paragraph{Against every single fixed memory.} Table~\ref{tab:bank_counts} counts, for each bank,
+the cells in which it is better or worse than each fixed memory, the uniform average and the
+better VFF rate. Pooled over \emph{drift} and \emph{jump}, which is what a practitioner who does
+not know which of the two is coming would experience, both banks beat every one of the five fixed
+memories, both VFF rates and the uniform average in all 12 family--estimator pairs. Against the
+committed memory $M=199$ the log bank gains $5.7$--$12.5\times10^{-3}$, and the squared bank
+$3.2$--$7.0$.
 
 \begin{table}[ht]
   \centering
-  \caption{Bank against the better VFF rate, 48 cells, 60 seeds. A win or loss requires the
-    paired $\pm2$\,SE interval to exclude zero.}
-  \label{tab:bank_vff_counts}
-  \begin{tabular}{lcc}
+  \caption{Bank against each alternative, RMSE, 12 family--estimator cells per scenario, 60 seeds:
+    better / worse / tie. A win or loss requires the paired $\pm2$\,SE interval to exclude zero.
+    ``Pooled'' compares the mean of each seed's \emph{drift} and \emph{jump} RMSE.}
+  \label{tab:bank_counts}
+  \small
+  \begin{tabular}{llccccccc}
     \toprule
-     & RMSE: better / worse / tie & Excess log loss: better / worse / tie \\
+    Bank & Scenario & $M=39$ & $M=99$ & $M=199$ & $M=399$ & $M=1999$ & Uniform & VFF \\
     \midrule
-    Squared bank & 41 / 5 / 2 & 29 / 15 / 4 \\
-    Log bank     & 41 / 6 / 1 & 37 / 6 / 5 \\
+    Log     & jump   & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 \\
+            & drift  & 12/0/0 & 12/0/0 & 6/6/0  & 0/12/0 & 12/0/0 & 12/0/0 & 9/3/0 \\
+            & pooled & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 \\
+    \addlinespace
+    Squared & jump   & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 \\
+            & drift  & 12/0/0 & 12/0/0 & 2/5/5  & 0/12/0 & 12/0/0 & 12/0/0 & 9/3/0 \\
+            & pooled & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 & 12/0/0 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-The count overstates the contest, because two of the three VFF rules barely work. The Hermite VFF
-scores within $0.1\times10^{-3}$ of a fixed $M=199$ in every cell: its ratio of fast to slow
-coefficient changes stays close to one, so $\lambda_t$ hardly moves. The MPL VFF at the fast rate
-drives its memory to the shortest value allowed and loses $74$--$145\times10^{-3}$ to the best fixed
-memory. Only the Xiao rule adapts in a meaningful way, and it gives the fair comparison:
+\paragraph{Jump.} On an abrupt change the log bank beats every fixed memory, including the one
+that is best in hindsight, in all 12 cells, by $14.9$--$20.7\times10^{-3}$ (Gaussian Xiao:
+$-19.7\pm1.3$); the squared bank does so by $10.1$--$13.9$. Every fixed memory is a compromise
+between the long memory that is right before the change and the short memory that is right after
+it. The bank does not have to compromise, because it holds both and moves its weight between them
+(Section~\ref{sec:recovery}).
+
+\paragraph{Drift.} Under slow drift the right memory is long and changes little, so the
+hindsight-best arm ($M=199$ or $399$ on Gaussian data, $M=399$ elsewhere) is hard to beat: the log bank is
+$2.2$--$7.4\times10^{-3}$ behind it, and the squared bank $4.8$--$7.3$. Against the committed
+memory $M=199$ the result depends on the family. On Clayton and Gumbel data the log bank is better
+in all six cells ($-3.8$ to $-6.6$), because the best memory there is $399$ and the bank finds it.
+On Gaussian and $t_4$ data it is worse in all six ($+1.2$ to $+3.6$), because $M=199$ is already
+close to right. The cost comes from the fixed share: $\delta$ keeps a little weight on the short,
+noisy arms at every tick, which is what makes the bank fast on \emph{jump} and slightly noisy on
+\emph{drift}. Where the log bank does lose to $M=199$ on \emph{drift}, its gain over $M=199$ on
+\emph{jump} is $4$ to $17$ times that loss.
+
+\paragraph{Uniform averaging.} Averaging the same five arms with fixed equal weights is worse than
+both banks in all 24 cells, by $16$--$32\times10^{-3}$ for the log bank, and worse than the
+committed memory $M=199$ as well. The gain of the bank therefore comes from \emph{choosing} among
+memories, not from averaging them.
+
+\paragraph{Against the variable forgetting factor.} Both banks beat the better VFF rate on
+\emph{jump} in all 12 cells, and on \emph{drift} in 9 of 12. This is with the VFF's rate chosen
+in hindsight for each cell, which favours the VFF. The count overstates the contest, because two
+of the three VFF rules barely work. The Hermite VFF scores within $0.1\times10^{-3}$ of a fixed
+$M=199$ in every cell: its ratio of fast to slow coefficient changes stays close to one, so
+$\lambda_t$ hardly moves. The MPL VFF at the slow rate, its better rate on these two scenarios,
+is $17$--$33\times10^{-3}$ worse than the best fixed memory on \emph{drift} and within $\pm6$ of it
+on \emph{jump}; at the fast rate it drives its memory to the shortest value allowed. Only the Xiao rule adapts in a meaningful way, and it
+gives the fair comparison:
 \begin{itemize}
-  \item \emph{constant}: the Xiao VFF lengthens its memory to the cap of 1999 ticks and comes within
-    $0.7$--$4.4\times10^{-3}$ of the best arm ($22.8$ on $t_4$), so it beats both banks by about
-    $5$--$7$.
+  \item \emph{jump}: the slow Xiao VFF does little better than the best fixed memory ($-2.8$ to
+    $0.0$), while the log bank gains a further $12$--$20\times10^{-3}$ on it.
   \item \emph{drift}: on Gaussian data the slow Xiao VFF is the best method overall
-    ($-0.6\pm0.4$ against the best arm); on the other families it trails the banks.
-  \item \emph{jump}: the slow VFF does no better than the best fixed memory ($-2.8$ to $0$), while
-    the log bank gains a further $12$--$20\times10^{-3}$.
-  \item \emph{oscillate}: neither rate follows a period of 400 ticks ($+12$ to $+88$), while the
-    bank simply moves its weight onto the shortest arm.
+    ($-0.6\pm0.4$ against the best arm, $+3.0\pm1.0$ for the log bank against it). On Clayton and
+    Gumbel data it trails the log bank by $5$--$6$, and on $t_4$ data by $15$: the heavier-tailed
+    residuals of the $t$ copula push its memory too short.
 \end{itemize}
-In short, a VFF is competitive when the right memory is long and fixed, or changes slowly; the bank
-is better when the dependence changes abruptly or quickly. A reading consistent with
-Figure~\ref{fig:weights} is that a VFF \emph{integrates} evidence of change into one memory, and so
-reacts gradually, whereas the bank \emph{re-weights} memories that already exist, and can move
-weight to a short arm within tens of ticks. This statement concerns the three VFF rules defined in
-Section~\ref{sec:methods}; it is not a claim about variable forgetting in general.
+The three cells the log bank loses to the VFF are Gaussian Xiao and Hermite and $t_4$ Hermite on
+\emph{drift}, each by $1.2$--$3.0\times10^{-3}$; the Hermite two are against a VFF that is in
+effect the fixed $M=199$. In short, a VFF is competitive when the right memory changes slowly,
+and the bank is better when the dependence changes abruptly. A reading consistent with
+Figure~\ref{fig:weights} is that a VFF \emph{integrates} evidence of change into one memory, and
+so reacts gradually, whereas the bank \emph{re-weights} memories that already exist, and can move
+weight to a short arm within tens of ticks. This statement concerns the three VFF rules defined
+in Section~\ref{sec:methods}; it is not a claim about variable forgetting in general.
+
+\paragraph{Constant and oscillating dependence.} For completeness: on \emph{constant} dependence
+the best memory is the longest, and both banks are $6$--$14\times10^{-3}$ behind it, the price of
+the fixed share; they still beat $M=199$ in all 12 cells. On \emph{oscillate} the best memory is
+the shortest, and the banks are at most $17\times10^{-3}$ behind it, the log bank most behind on
+$t_4$ data. Neither scenario was used to tune $\eta$ or $\delta$.
 
 \subsection{Recovery after a jump}
+\label{sec:recovery}
 
 Table~\ref{tab:recovery} breaks the \emph{jump} run into windows around the change.
 
@@ -362,8 +415,8 @@ Table~\ref{tab:recovery} breaks the \emph{jump} run into windows around the chan
     Fixed $M=399$  & 47.8  & 481.3 & 184.0 & 26.3 & 123.3 \\
     Fixed $M=1999$ & \textbf{30.0} & 572.0 & 444.0 & 231.4 & 262.9 \\
     \addlinespace
-    Squared bank   & 40.6  & 394.4 & 66.1 & 54.3 & 94.7 \\
-    Log bank       & 42.1  & 315.3 & 59.1 & 32.5 & \textbf{72.8} \\
+    Squared bank   & 41.2  & 332.6 & 68.0 & 53.5 & 83.6 \\
+    Log bank       & 41.2  & 320.3 & 59.8 & 32.8 & \textbf{73.9} \\
     Uniform        & 71.4  & 380.1 & 146.9 & 63.2 & 107.5 \\
     VFF, slow      & 67.1  & 404.0 & 89.0 & \textbf{25.6} & 91.3 \\
     VFF, fast      & 62.5  & 507.8 & 263.4 & 101.5 & 165.1 \\
@@ -372,22 +425,27 @@ Table~\ref{tab:recovery} breaks the \emph{jump} run into windows around the chan
 \end{table}
 
 Each window has a different best fixed memory: 1999 ticks before the change, 39 in the first 100
-ticks, 99 for the next 400 and 399 after that. The log bank is close to the best arm in each window
-without knowing where the change is, and over the whole post-change period it is better than every
-fixed memory. The cost is the first 100 ticks after the change, where it is $1.5$ times the error of
-the shortest arm: the bank needs evidence before it moves its weight, and in that time it still
-holds the long memory that was right before the change.
+ticks, 99 for the next 400 and 399 after that. The log bank is never the best method within a
+window, but it is close to the best arm in each one without knowing where the change is, and over
+the whole post-change period it is better than every fixed memory. Its largest cost is in the
+first 100 ticks after the change, where it is $112\times10^{-3}$ behind the shortest arm (about
+$1.5$ times its error): the bank needs evidence before it moves its weight, and in that time it
+still holds the long memory that was right before the change. Thereafter it is $12\times10^{-3}$ behind
+the best arm in the 100--500 window and $7$ behind in the 500--1500 window.
 
-Figure~\ref{fig:weights} shows how the weight moves. Before the change both banks put 70--80\% of
-their weight on the longest arm. Within about 50 ticks of the change almost all of the weight moves
-to $M=39$. After that the two banks differ. The log bank passes the weight up the arms in order
-($39\to99\to199\to399$) as evidence for the new regime accumulates, and its weight-averaged memory
-$\sum_k w_kM_k$ grows from about 45 to 280 ticks over the following 1500 ticks. The squared bank
-stays on $M=39$ for much longer, which is why it is worse 500--1500 ticks after the change. A
-plausible reason is that the squared-loss target $\hat p_t$ has variance of order one per tick,
-so the per-tick difference in loss between neighbouring arms is small relative to its noise, while
-the log loss separates them faster; the two banks also have different $\eta$ and $\delta$, so this
-is not yet attributable to the loss alone (Section~\ref{sec:loss}).
+Figure~\ref{fig:weights} shows how the weight moves. Before the change the squared bank puts 86\%
+of its weight on the longest arm and the log bank 72\%, with most of the rest on $M=399$. Both
+move more than half of the weight to $M=39$ within 35 ticks of the change. After that the two banks
+differ. The log bank passes the weight up the arms in order ($39\to99\to199\to399$) as evidence
+for the new regime accumulates: 500 ticks after the change most of its weight is on $M=99$ and
+$M=199$, and its weight-averaged memory $\sum_kw_kM_k$ grows from about 40 to 270 ticks over the
+following 1500 ticks. The squared bank holds 74\% of its weight on $M=39$ 500 ticks after the
+change and 42\% after 1000, which is why it is $21\times10^{-3}$ worse than the log bank 500--1500
+ticks after the change. The squared-loss target $\hat p_t$ has variance of order one per tick, so
+the per-tick difference in loss between neighbouring arms is small relative to its noise, while
+the log loss separates them faster. Since the two banks now share $\eta=1$ and differ in $\delta$
+only by its tuned value for each loss, this difference is attributable to the loss
+(Section~\ref{sec:loss}).
 
 \begin{figure}[ht]
   \centering
@@ -402,17 +460,21 @@ is not yet attributable to the loss alone (Section~\ref{sec:loss}).
 The VFF behaves differently. Its slow rate is the best method of all 500--1500 ticks after the
 change ($25.6$), but it takes hundreds of ticks to get there, and its fast rate is unstable on
 Gaussian data. On $t_4$ data, the fast VFF is the best method after the change
-($53.1$ against $83.2$ for the log bank) but the worst before it ($154.4$ against $49.1$): it shortens
-its memory in response to the heavier-tailed residuals of the $t$ copula even when the dependence
-is not changing. A VFF tuned to react quickly also reacts to things that are not changes.
+($53.1$ against $83.7$ for the log bank) but the worst before it ($154.4$ against $48.0$): it
+shortens its memory in response to the heavier-tailed residuals of the $t$ copula even when the
+dependence is not changing. A VFF tuned to react quickly also reacts to things that are not
+changes.
 
 % -----------------------------------------------------------------------------
 \section{Which loss to score with}
 \label{sec:loss}
 
 Section~5.3.1 argued that the squared and log losses agree to second order when the predictive
-family is correct, and can disagree otherwise. Because every method here is scored on both
-metrics, the experiment gives the full cross-classification of training loss against evaluation
+family is correct, and can disagree otherwise. The two banks were tuned separately, each for its
+own loss, on seeds 1--30 (Section~\ref{sec:methods}); they share $\eta=1$ and differ only in the
+tuned fixed share ($\delta=10^{-4}$ squared, $3\times10^{-4}$ log). The comparison below is
+therefore between the two losses, each at its own best setting. Because every method is scored on
+both metrics, the experiment gives the cross-classification of training loss against evaluation
 metric (Table~\ref{tab:loss}).
 
 \begin{table}[ht]
@@ -423,45 +485,53 @@ metric (Table~\ref{tab:loss}).
   \small
   \begin{tabular}{lrrrr}
     \toprule
-    & \multicolumn{2}{c}{Gaussian} & \multicolumn{2}{c}{$t_4$} \\
+    & \multicolumn{2}{c}{drift} & \multicolumn{2}{c}{jump} \\
     \cmidrule(lr){2-3}\cmidrule(lr){4-5}
-    Scenario & RMSE & Excess log loss & RMSE & Excess log loss \\
+    Family & RMSE & Excess log loss & RMSE & Excess log loss \\
     \midrule
-    constant  & $-1.5\pm1.2$  & $-0.1\pm0.1$ & $+3.7\pm1.7$  & $+0.6\pm0.2$ \\
-    drift     & $+0.2\pm0.4$  & $-0.1\pm0.1$ & $+2.8\pm0.7$  & $+0.5\pm0.1$ \\
-    jump      & $-14.5\pm1.2$ & $-4.9\pm0.5$ & $-10.7\pm1.6$ & $-3.6\pm0.7$ \\
-    oscillate & $+3.5\pm0.5$  & $+0.4\pm0.0$ & $+13.3\pm1.5$ & $+2.8\pm0.3$ \\
+    Gaussian & $-2.7\pm0.7$ & $-0.6\pm0.1$ & $-6.7\pm1.1$ & $-3.3\pm0.5$ \\
+    Clayton  & $-4.1\pm1.1$ & $-0.4\pm0.1$ & $-5.1\pm1.7$ & $-5.1\pm0.9$ \\
+    Gumbel   & $-3.2\pm1.0$ & $-0.5\pm0.1$ & $-6.6\pm1.0$ & $-3.6\pm0.6$ \\
+    $t_4$    & $-0.8\pm0.8$ & $-0.2\pm0.1$ & $-4.2\pm1.6$ & $-2.3\pm0.7$ \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 Three things follow.
 
-\emph{The two metrics rank the banks the same way.} In every row of Table~\ref{tab:loss}, and in
-the full 48 cells (log bank better in 14 on RMSE and 15 on log loss), the sign of the RMSE
-difference and the sign of the log-loss difference agree wherever both are distinguishable from
-zero. With a Gaussian method-of-moments density the log loss is a function of
-$\hat\rho^{(k)}$ alone, so this is expected: both losses measure how far each arm's $\rho$ is from
-the data.
+\emph{The log bank is the better bank.} Over all 24 \emph{drift} and \emph{jump} cells (four
+families, three estimators) it is better than the squared bank in RMSE in 21 and ties in the other
+3, all of them $t_4$ \emph{drift}; in excess log loss it is better in 22 and ties in 2. Its margin
+is largest on \emph{jump} ($3.1$--$7.7\times10^{-3}$ in RMSE), where the speed with which it passes
+weight back up the arms (Figure~\ref{fig:weights}) matters most. It is the bank used in the
+summary below.
 
-\emph{The log bank wins clearly on abrupt change and in every family.} On \emph{jump} it beats the
-squared bank by $10.7$--$14.5\times10^{-3}$ in RMSE, including on the three families where its
-Gaussian density is wrong.
+\emph{The two metrics rank the banks the same way.} Wherever both differences are distinguishable
+from zero they have the same sign. With a Gaussian method-of-moments density the log loss is a
+function of $\hat\rho^{(k)}$ alone, so this is expected: both losses measure how far each arm's
+$\rho$ is from the data.
 
-\emph{When the family is wrong and the dependence is stationary or smooth, the log bank pays.} On
-$t_4$ data it is worse than the squared bank on \emph{constant}, \emph{drift} and \emph{oscillate}.
-The Gaussian density puts too little mass in the joint tails of a $t$ copula, so a $t$ observation
-in the corner is penalised as if it were evidence against the current $\rho$, which favours the
-short arms. The squared loss uses only the product $(\hat U_t-\tfrac12)(\hat V_t-\tfrac12)$ and is
-not affected in the same way.
+\emph{Misspecification costs the log bank its margin, not its lead.} On $t_4$ \emph{drift}, the one
+case where the Gaussian scoring density is wrong and the dependence moves slowly, the two banks
+tie. The Gaussian density puts too little mass in the joint tails of a $t$ copula, so a $t$
+observation in the corner is penalised as if it were evidence against the current $\rho$, which
+favours the short arms. The squared loss uses only the product
+$(\hat U_t-\tfrac12)(\hat V_t-\tfrac12)$ and is not affected in the same way. On \emph{jump} the
+log bank still wins on $t_4$ data by $3$--$5\times10^{-3}$. Outside the two focus scenarios the
+misspecification shows more clearly: on stationary and oscillating $t_4$ data the log bank is
+worse than the squared bank (by up to $13\times10^{-3}$ on \emph{oscillate}).
 
-Two cautions. First, the two banks differ in $\eta$ and $\delta$ as well as in the loss
-($\eta=0.5,\delta=10^{-4}$ against $\eta=1,\delta=4\times10^{-4}$), so the comparison is between two
-configurations, not two losses \pending{rerun with $\eta,\delta$ tuned separately for each loss on
-seeds 1--30, then report the same table}. Second, the excess log loss of every method on Clayton,
-Gumbel and $t$ data contains a misspecification term of $30$--$80\times10^{-3}$ nats per tick, the
-divergence between the true family and the Gaussian copula with the same $\rho_S$, which no memory
-can remove. Differences in excess log loss between methods remain meaningful, but levels across
+Two cautions. First, the squared bank's excess log loss is unreliable with Hermite components on
+\emph{jump}: its mean is inflated by a few seeds in which it puts weight on the short Hermite arm
+while that arm's estimate is near $\pm1$, where the Gaussian density is extremely peaked
+($24.8$ against $8.8\times10^{-3}$ nats for the log bank on Gaussian data, with a seed standard
+deviation of $28$). Tuning also traded the squared bank's log loss for RMSE: at $\eta=1$ it loses
+about $2\times10^{-3}$ nats per tick against $\eta=0.5$, while the log bank's RMSE and log-loss
+optima coincide. Second, the excess log loss of every method on Clayton, Gumbel and $t$ data
+contains a misspecification term, the divergence between the true family and the Gaussian
+copula with the same $\rho_S$, which no memory can remove: it is why even the best arm's excess
+log loss is $16$--$117\times10^{-3}$ nats per tick on those families, against $4$--$12$ on
+Gaussian data. Differences in excess log loss between methods remain meaningful, but levels across
 families are not comparable.
 
 \pending{Planned refinement: score each estimator by its own predictive density (the MPL family
@@ -561,22 +631,28 @@ pairs per second on one core.
   \item \emph{Memory is the first-order design choice.} The best fixed memory ranges from about 36
     ticks to more than 30\,000 across the scenarios, and choosing it changes RMSE by a factor of 2 to
     17; choosing between estimators at the same memory changes it by 3--15\%.
-  \item \emph{The bank removes the need to know the memory in advance.} It beats any single memory
-    chosen in advance in every scenario, family and estimator, and on an abrupt change it beats
-    even the best memory chosen in hindsight (log bank: $15$--$21\times10^{-3}$ in RMSE).
-  \item \emph{The price is a few $10^{-3}$ when the right memory is fixed}, mainly from the fixed
-    share, and a slow first 100 ticks after a change, while the bank gathers evidence.
+  \item \emph{The bank removes the need to know the memory in advance.} Pooled over drift and
+    jump, the log bank beats every one of the five fixed memories, both VFF rates and the uniform
+    average in every family and estimator; against the memory one would commit to in advance
+    ($M=199$) it gains $6$--$13\times10^{-3}$ in RMSE.
+  \item \emph{On an abrupt change it beats even the best memory chosen in hindsight}, by
+    $15$--$21\times10^{-3}$ for the log bank, in all 12 family--estimator cells. Its one slow
+    period is the first 100 ticks after the change, while it gathers evidence.
+  \item \emph{Under slow drift it pays a few $10^{-3}$.} It is $2$--$7\times10^{-3}$ behind the
+    hindsight-best memory and, on Gaussian and $t_4$ data, $1$--$4$ behind $M=199$; on Clayton and
+    Gumbel it beats $M=199$. The cost comes from the fixed share, and where it is paid the gain on
+    jumps is $4$--$17$ times as large.
   \item \emph{Choosing beats averaging.} Uniform weights over the same arms are worse than the bank
-    in 46 of 48 cells and tie in the other two.
-  \item \emph{Against variable forgetting factors}, the bank is better in 41 of 48 cells in RMSE.
-    The one VFF rule that adapts (Xiao's) is better on stationary and slowly drifting dependence,
-    and worse on abrupt and periodic change. The other two rules are inert or unstable as tuned,
-    and these conclusions apply to these rules only.
-  \item \emph{Log loss helps on abrupt change and hurts under misspecification.} With a Gaussian
-    scoring density, the log bank is best on jumps in every family, and worse than the squared bank
-    on stationary $t_4$ data.
+    in all 24 drift and jump cells.
+  \item \emph{Against variable forgetting factors}, the bank is better in all 12 jump cells and 9 of
+    12 drift cells in RMSE, even with the VFF's rate chosen in hindsight. The one VFF rule that
+    adapts (Xiao's) is competitive only on slowly drifting Gaussian dependence. The other two
+    rules are inert or unstable as tuned, and these conclusions apply to these rules only.
+  \item \emph{Score the bank with log loss.} With $\eta$ and $\delta$ tuned separately for each
+    loss, the log bank beats the squared bank in 21 of 24 drift and jump cells and ties in the other
+    three ($t_4$ drift, where its Gaussian scoring density is misspecified). It moves weight back up
+    to longer arms faster after a change.
   \item \emph{Tail dependence needs a different memory.} Tail estimators behave like dependence
     estimators on a stream thinned by $q$, so a bank for tail dependence needs longer arms; this,
     and a bank over families, are the extensions left for future work.
 \end{enumerate}
-\pending{Revisit items 2, 3 and 6 after $\eta,\delta$ are tuned on separate seeds.}
