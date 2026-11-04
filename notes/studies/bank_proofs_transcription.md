@@ -486,5 +486,389 @@ $$
 The first term is approximation error, the second is lag behind a changing target, and the variance
 term decreases with effective sample size. No Gaussian observation model is assumed.
 
-*(Collapsed in the photo: "Setup and assumptions"; "Proof: weighted feature moments, then Taylor
-expansion"; "Full bias and MSE when approximation bias persists".)*
+### Setup and assumptions
+
+Fix $\tau>0$, $\Delta=\tau/n\to0$, a finite number of estimators, and fixed finite-dimensional bounded
+feature maps $\psi_k$. Observations $Z_{i,\Delta}$ are independent within each experiment. Define
+
+$$
+\hat s_{k,1}=\psi_k(Z_1),\qquad\hat s_{k,i}=(1-\lambda_k)\hat s_{k,i-1}+\lambda_k\psi_k(Z_i),
+$$
+
+$$
+\hat\rho_{k,i}=g_k(\hat s_{k,i}),\qquad\lambda_k\sim A_k\Delta^{2/3},\quad A_k>0,\qquad N_k=\frac{2-\lambda_k}{\lambda_k}.
+$$
+
+For observations at physical time $s$, let
+
+$$
+m_k(s)=\mathbb E\psi_k(Z_s),\qquad\Sigma_{kj}(s)={\rm Cov}(\psi_k(Z_s),\psi_j(Z_s)),\qquad\rho_k^\circ(s)=g_k(m_k(s)).
+$$
+
+Assume $m_k\in C^2([0,\tau])$, the cross-covariances are continuous, and $g_k$ has bounded derivatives
+through order three on a neighbourhood of the bounded state region. Features and their dimensions stay
+fixed as $\Delta\to0$. Forecasts formed through $n-1$ target time $\tau$. Subscripts $\Delta$ are
+suppressed.
+
+All quantities below without a time argument are evaluated at $\tau$. Define the gradient, Hessian and
+projected covariance by
+
+$$
+G_k=\nabla g_k(m_k),\qquad J_k=\nabla^2g_k(m_k),\qquad\Gamma_{kj}=G_k^\top\Sigma_{kj}G_j,\qquad v_k=\Gamma_{kk}.
+$$
+
+$N_k$ is the long-history effective sample size. The exact initialized finite weights have exponentially
+small corrections in this asymptotic regime.
+
+### Proof: weighted feature moments, then Taylor expansion
+
+**1. Express the state as a weighted sum.** At time $n-1$, write
+$\hat s_{k,n-1}=\sum_{i=1}^{n-1}a_{k,i}\psi_k(Z_i)$. Its weights are
+
+$$
+a_{k,1}=(1-\lambda_k)^{n-2},\qquad a_{k,i}=\lambda_k(1-\lambda_k)^{n-1-i}\quad(2\le i\le n-1).
+$$
+
+Initialization contributes only exponentially small errors because $n\lambda_k\asymp\Delta^{-1/3}\to\infty$.
+For the corresponding infinite geometric weights, mean age and squared age are
+
+$$
+\sum_{r=1}^\infty r\lambda_k(1-\lambda_k)^{r-1}=\lambda_k^{-1},\qquad\sum_{r=1}^\infty r^2\lambda_k(1-\lambda_k)^{r-1}=\frac{2-\lambda_k}{\lambda_k^2}.
+$$
+
+Set $d_k=\hat s_{k,n-1}-m_k(\tau)$. Taylor expansion of $m_k(\tau-r\Delta)$, with geometric decay
+controlling distant observations, gives
+
+$$
+\mathbb Ed_k=-\frac{\Delta}{\lambda_k}m_k'+\frac{\Delta^2(2-\lambda_k)}{2\lambda_k^2}m_k''+o(\Delta^{2/3}).
+$$
+
+**2. Retain covariance between estimators using the same stream.** Independence across observation
+times gives a sum of same-time cross-covariances. The geometric overlap is
+
+$$
+\sum_{r=1}^\infty\lambda_k\lambda_j(1-\lambda_k)^{r-1}(1-\lambda_j)^{r-1}=\frac{\lambda_k\lambda_j}{\lambda_k+\lambda_j-\lambda_k\lambda_j}=\frac{2}{N_k+N_j}.
+$$
+
+Continuity of $\Sigma_{kj}$ and concentration of the weights near $\tau$ therefore imply
+
+$$
+{\rm Cov}(d_k,d_j)=\frac{2\Sigma_{kj}}{N_k+N_j}+o(\Delta^{2/3}).
+$$
+
+For a fixed-dimensional vector of bounded independent centered features, expansion of the fourth moment
+coordinate by coordinate yields
+
+$$
+\mathbb E\Big\|\sum_ia_{k,i}\{\psi_k(Z_i)-m_k(i\Delta)\}\Big\|^4\le C\Big(\sum_ia_{k,i}^2\Big)^2=O(\Delta^{4/3}).
+$$
+
+The mean drift term is $O(\Delta^{1/3})$, so $\|d_k\|_{L^4}=O(\Delta^{1/3})$. In particular,
+
+$$
+\mathbb E(d_kd_k^\top)=\frac{\Sigma_{kk}}{N_k}+\frac{\Delta^2}{\lambda_k^2}m_k'(m_k')^\top+o(\Delta^{2/3}).
+$$
+
+**3. Pass these moments through the output map.**
+
+$$
+g_k(m_k+d_k)=g_k(m_k)+G_k^\top d_k+\tfrac12d_k^\top J_kd_k+R_k,\qquad|R_k|\le C\|d_k\|^3.
+$$
+
+Thus $\mathbb E|R_k|=O(\Delta)=o(\Delta^{2/3})$. Taking expectations proves the displayed first-order bias
+and the more detailed expansion below, since $(\rho_k^\circ)'=G_k^\top m_k'$.
+
+For the covariance calculation, the remainder after the linear term has $L^2$ norm $O(\Delta^{2/3})$,
+while the centered linear term has $L^2$ norm $O(\Delta^{1/3})$. Cauchy–Schwarz bounds their covariance
+by $O(\Delta)$. Consequently,
+
+$$
+\boxed{\;{\rm Cov}(\hat\rho_{k,n-1},\hat\rho_{j,n-1})=\frac{2\Gamma_{kj}}{N_k+N_j}+o(\Delta^{2/3}).\;}
+$$
+
+Taking $j=k$ proves the variance formula. The same moment argument holds uniformly in the latter half of
+the observation interval. Bounded gradients make each $g_k$ Lipschitz on the state region, giving
+
+$$
+\boxed{\;\sup_{\lfloor n/2\rfloor\le i\le n}\Big\|\max_k|\hat\rho_{k,i-1}-\rho_k^\circ(i\Delta)|\Big\|_4=O(\Delta^{1/3}).\;}
+$$
+
+This is error around each component's population output. It is not automatically error around the true
+Spearman coefficient. ∎
+
+### Full bias and MSE when approximation bias persists
+
+A fixed nonzero approximation bias requires second-order bias terms to obtain MSE accurately through
+order $\Delta^{2/3}$. Define
+
+$$
+B_{1,k}=-(\rho_k^\circ)'\frac{\Delta}{\lambda_k},
+$$
+
+$$
+B_{2,k}=\frac{\Delta^2}{2\lambda_k^2}\big[(2-\lambda_k)G_k^\top m_k''+(m_k')^\top J_km_k'\big]+\frac{{\rm tr}(J_k\Sigma_{kk})}{2N_k}.
+$$
+
+The proof above gives
+
+$$
+{\rm Bias}_{\rho_S}(\hat\rho_{k,n-1})=b_k^{\rm app}+B_{1,k}+B_{2,k}+o(\Delta^{2/3}).
+$$
+
+Since $B_{1,k}=O(\Delta^{1/3})$ and $B_{2,k}=O(\Delta^{2/3})$, squaring the bias and adding the variance
+yields
+
+$$
+{\rm MSE}_{\rho_S}(\hat\rho_{k,n-1})=(b_k^{\rm app})^2+2b_k^{\rm app}B_{1,k}+B_{1,k}^2+2b_k^{\rm app}B_{2,k}+\frac{v_k}{N_k}+o(\Delta^{2/3}).
+$$
+
+If $b_k^{\rm app}=0$, this reduces to squared drift bias plus variance. If it is fixed and nonzero, the
+component MSE converges to $(b_k^{\rm app})^2$. Dropping $2b_k^{\rm app}B_{2,k}$ would omit a term of the
+same order as the variance.
+
+### Application: fixed-order Hermite estimates
+
+*Adaptation of published method · Credit & what differs →*
+
+Take $\psi_k(X,Y)$ to contain the finite collection of Hermite functions $h_r(X)$, $h_s(Y)$, and products
+$h_r(X)h_s(Y)$. Each fixed-order Hermite function is bounded. Their exponentially updated coefficients
+therefore form exactly the finite vector state above.
+
+The centered Spearman plug-in expression in the thesis (printed pp.28–30) is
+
+$$
+\hat\rho_N=12\iint(\hat F_{X,N}(x)-\tfrac12)(\hat F_{Y,N}(y)-\tfrac12)\hat f_{XY,N}(x,y)\,dx\,dy.
+$$
+
+For fixed finite order, this is a polynomial of the coefficient vectors, with fixed integral constants.
+Its derivatives are bounded on the bounded state region. Under the smooth-time and independence
+assumptions, the component theorem thus supplies its bias, variance, shared-stream covariance and local
+fourth-moment rate.
+
+> **Scope:** fixed truncation can leave $b_N^{\rm app}\ne0$. The raw output is bounded by some finite
+> constant depending on the order, not automatically by 1. Adaptive standardization or features computed
+> from evolving estimated marginal transforms need an additional analysis; they are not independent
+> fixed-feature observations.
+
+*Related precedent:* Stephanou and Varughese, Section 5, Theorem 2 and Appendix A, analyse exponentially
+weighted Hermite variance in an i.i.d., fixed-order setting using Taylor expansion. The infill drift and
+second-order bias calculation here is our derivation under the displayed assumptions, not their theorem.
+
+### Application: count matrices, subject to denominator control
+
+*Conditional application · Credit & what differs →*
+
+For fixed cell boundaries, let $\psi(X,Y)$ be the vector of cell indicators. If normalized cell masses
+follow the stated exponential recursion, they satisfy the state assumptions. The final count-based
+correlation is a nonlinear map of these masses.
+
+For cell probabilities $p_{ij}$, define row and column probabilities $\pi_i=\sum_jp_{ij}$,
+$\omega_j=\sum_ip_{ij}$ and midranks $r_i=\sum_{a<i}\pi_a+\pi_i/2$, $s_j=\sum_{b<j}\omega_b+\omega_j/2$. The
+output map is
+
+$$
+g(p)=\frac{\sum_{i,j}p_{ij}(r_i-\frac12)(s_j-\frac12)}{\sqrt{\{\sum_i\pi_i(r_i-\frac12)^2\}\{\sum_j\omega_j(s_j-\frac12)^2\}}}.
+$$
+
+This map is smooth where both denominator factors are positive. To extend the theorem, require population
+rank variances uniformly bounded away from zero and a defined, bounded output for degenerate sample
+matrices. The latter is an implementation condition, not an assumed new fallback.
+
+Under those conditions, bounded independent indicators concentrate exponentially about their means: for
+fixed $\varepsilon>0$, $\Pr(\|\hat s-\mathbb E\hat s\|>\varepsilon)\le C\exp(-c/\lambda)$. A smooth extension
+agreeing with $g$ near the population state can then be used as a proof device. The exceptional region
+contributes less than any power of $\Delta$, so the displayed expansions apply.
+
+Fixed grid resolution may still leave a nonzero population approximation bias. The thesis's exact
+normalized forgetting update and degenerate-matrix behaviour must match these conditions before claiming
+this result for its implementation.
+
+### What can now be passed to the bank theorem?
+
+If every component's population output equals the common true target throughout the local time interval,
+$\rho_k^\circ(s)=\rho_S(s)$, then these calculations give the component constants required by part C:
+
+$$
+b_k=-\frac{\rho_S'(\tau)}{A_k},\qquad V_{kj}=\Gamma_{kj}\frac{A_kA_j}{A_k+A_j}.
+$$
+
+The local fourth-moment condition is also established in that case. Fixed-share combination then gives
+the bias, variance and MSE in part C.
+
+> **What remains:** fixed Hermite order, fixed grids or model misspecification may give different
+> persistent population biases. The existing common-target bank proof does not cover that situation.
+> Online Fisher scoring also needs its own recursion analysis. This is progress on the component
+> calculations, not a completed theorem for every estimator in the actual bank.
+
+*(E. "What remains for online Fisher scoring?" was collapsed in the photo.)*
+
+---
+
+## 8. Part F: how does this compare with Delaigle's proof?
+
+### How does this compare with Delaigle and coauthors' published proof?
+
+Camirand Lemyre, Delaigle and Mao (2026), Proposition 1, p.6, derive bias, variance, MSE and integrated
+versions for their specified recursive kernel estimator from data, smoothness, kernel and tuning
+assumptions. Their remainder control is uniform over density locations, times within the current block
+and the stated candidate smoothing parameters. The proof is in Supplement Appendix B.
+
+**Our part C proves the combination step:** starting from component error expansions, it derives the
+effect of adaptive fixed-share weights. The new component result in part D now derives bias, variance and
+covariance for smooth functions of finite exponentially weighted feature states. It covers fixed-order
+Hermite estimates under explicit assumptions, while retaining their approximation bias. It does not yet
+supply every condition for the actual mixed bank, especially its Fisher component.
+
+Both use the bias–variance identity and control lower-order terms. Their estimator calculations separate
+spatial smoothing, temporal drift and preceding-block contributions. Our weighting calculation uses
+fixed-share contraction, Hölder's inequality and covariance bounds. Their separate Theorem 1, pp.8–9,
+connects cross-validation to asymptotic integrated error; Proposition 1 alone is not the tuning
+guarantee.
+
+Our conditional scalar MSE order $\Delta^{2/3}$ and their kernel-density order $\Delta t^{4/7}$ concern
+different estimation targets and assumptions. They are not a performance ranking. Use the published proof
+as a model for explicit assumptions, leading terms and remainder control, not as a citation proving our
+bank theorem. *Read the paper's theory in more detail.*
+
+> *Transcriber note:* "$\Delta t^{4/7}$" is as printed; probably $(\Delta t)^{4/7}$.
+
+---
+
+## 9. Part G (NEW TO THESIS): what if the estimators retain different approximation biases?
+
+*Derived here · Credit & what differs →*
+
+**Purpose:** remove the common-true-target restriction from the bank's weighting argument.
+**Result:** asymptotic bias, variance and MSE limits for the specified fixed-share bank. The limits can be
+nonzero. This gives leading constants plus $o(1)$, not the finer rate expansion in B–C.
+
+### Question: can we prove limits with persistent component bias?
+
+Fix the physical endpoint $\tau=n\Delta$ and let $\Delta\to0$, so $n\to\infty$. Let $a_k=a_k(\tau)$ be
+estimator $k$'s population limit. It may differ from the true target $\rho_S(\tau)$. We seek to prove
+
+$$
+{\rm Bias}(\hat\rho_{B,n-1})=b_\infty+o(1),\qquad{\rm Var}(\hat\rho_{B,n-1})=v_\infty+o(1),
+$$
+
+$$
+{\rm MSE}(\hat\rho_{B,n-1})=b_\infty^2+v_\infty+o(1).
+$$
+
+Unlike C, we will allow the limiting weights to remain random. We construct their probability law below,
+rather than assuming that they become fixed numbers.
+
+*(Collapsed in the photos: "Assumptions and exact update"; "The limiting random bank and its
+bias–variance constants"; "Why can the bank retain variance after its components stabilize?")*
+
+### The separate discounted-softmax version (NEW TO THESIS)
+
+*Derived here · Credit & what differs →*
+
+For the alternative score recursion $L_{k,i}=\beta L_{k,i-1}+(1-\beta)\ell_{k,i}$,
+$w_{k,i}\propto e^{-\eta L_{k,i}}$, fix $0\le\beta<1$, $0\le\eta<\infty$, and initial scores bounded
+uniformly across the $\Delta$ experiments. Keep the same component and proxy assumptions. Define
+
+$$
+Q=(1-\beta)\sum_{r=0}^\infty\beta^rP^*_{-r},\qquad\pi_k(q)=\frac{e^{-\eta(a_k^2-2a_kq)}}{\sum_je^{-\eta(a_j^2-2a_jq)}},\qquad g(q)=\sum_ka_k\pi_k(q).
+$$
+
+Then $\hat\rho_{B,n-1}\Rightarrow g(Q)$, with convergence of the first two moments. The bias and variance
+limits are $\mathbb Eg(Q)-\rho_S(\tau)$ and ${\rm Var}\{g(Q)\}$.
+
+**Proof.** Put $m=n-1$. Unroll the scores and replace the component outputs in them by their limits:
+
+$$
+L^a_{k,m}=\beta^mL_{k,0}+(1-\beta)\sum_{r=0}^{m-1}\beta^r(a_k-P_{m-r})^2.
+$$
+
+The difference of squares bounds the $L^2$ score replacement error by
+
+$$
+2(R+P_{\max})(1-\beta)\sum_{r=0}^{m-1}\beta^r\|\hat\rho_{k,m-r-1}-a_k\|_2.
+$$
+
+Split at a fixed recent lag $h$. The finite head tends to zero by component convergence; boundedness makes
+the tail $O(\beta^h)$. Thus the score error tends to zero. Let
+$Q_m=(1-\beta)\sum_{r=0}^{m-1}\beta^rP_{m-r}$. Expansion of the squares shows
+
+$$
+L^a_{k,m}=\beta^mL_{k,0}+(1-\beta^m)a_k^2-2a_kQ_m+T_m,
+$$
+
+where $T_m$ is common to all estimators and cancels in softmax. Initial terms vanish; continuity on
+bounded score ranges gives $\|\hat\rho_{B,m}-g(Q_m)\|_2\to0$. Finite-window convergence and the uniform
+geometric tail bound imply $Q_m\Rightarrow Q$. Boundedness gives convergence of moments and the result. ∎
+
+The derivative $g'(q)=2\eta\,{\rm Var}_{\pi(q)}(a_k)$ is positive when $\eta>0$ and the component limits
+differ. Also
+
+$$
+{\rm Var}(Q)=\frac{1-\beta}{1+\beta}{\rm Var}(P_0^*).
+$$
+
+Thus this alternative also generally has positive limiting bank variance with different persistent
+component limits and nondegenerate proxies.
+
+> *Transcriber note:* the minus signs in $\pi_k$'s exponents are faint in the photo; $-\eta(a_k^2-2a_kq)$
+> is the reading consistent with $w\propto e^{-\eta L}$ and with $g'(q)=2\eta{\rm Var}_\pi(a_k)$.
+
+#### A concrete rank-proxy example
+
+Let $U,V$ be independent uniform variables and $P=12(U-1/2)(V-1/2)$. Then the true Spearman target is
+zero, $\mathbb EP=0$, and ${\rm Var}(P)=1$. For illustrative constant component limits $(-a,a)$,
+$0<a\le1$,
+
+$$
+g(q)=a\tanh(2\eta aq).
+$$
+
+Symmetry makes the limiting bank bias zero, but for $\eta>0$,
+
+$$
+\lim{\rm Var}(\hat\rho_B)=\lim{\rm MSE}(\hat\rho_B)=a^2\,\mathbb E\tanh^2(2\eta aQ)>0.
+$$
+
+This is an analytical example, not a claim that the implemented estimators have these limits.
+
+> **What is now proved:** different persistent component limits are permitted in the weighting step,
+> and random limiting weights are accounted for. **Still needed for the …** `[cut off]`
+
+---
+
+## 10. *Bank questions* page (`#bank-questions`): what we still need to check
+
+*(Question 3, "Can changing weights keep the bank's estimate fluctuating?", was collapsed.)*
+
+**4. Where does the forgetting factor enter the Fisher update?**
+**Unresolved.** We need the actual update showing how λ affects the score, accumulated information or
+parameter step. Saying that it enters "through the copula estimate" does not specify that equation.
+*What the thesis currently specifies*
+
+**5. What exactly do we compare each prediction against?**
+**Check the squared-loss proxy.** We need its exact formula and timing, including how estimated margins
+or a rolling estimate enter it. Then we can check whether its behaviour matches the proof's assumptions.
+The squared-loss result does not automatically cover log scoring. *Scoring assumptions*
+
+**6. Do the actual estimators satisfy the proof's assumptions?**
+**Partly established.** We have calculations for specified linear and smooth feature-based constructions.
+We still need to match the actual count-matrix, Hermite and Fisher outputs to the required bounds and
+limits, including any approximation bias. *Component calculations · What checking the implementation
+means*
+
+**7. Does our asymptotic setting match the claim we want to make?**
+**Check the scope.** The infill results study increasingly frequent observations over a fixed time
+interval, with specified tuning assumptions. They do not automatically describe a longer stream sampled
+at a fixed frequency with a fixed forgetting factor. *Infill explained · The linear example's tuning
+assumptions*
+
+**8. Does the bank perform better than choosing one estimator?**
+**These bias–variance proofs do not establish that.** Use the existing experiments to compare the bank
+with its constituent estimators. Regret gives a separate cumulative-loss comparison under its own
+assumptions. *What regret-to-risk tells us*
+
+> **Start with questions 4–6.** They determine whether we can apply the new theorem to the implemented
+> mixed bank. This is a list of checks, not a requirement to develop new methods.
+
+*The results provide theoretical support for the bank. "New to thesis" does not establish research
+novelty. Credit and contribution notes.*
