@@ -353,3 +353,48 @@ rmse, se_rmse`. `param` is λ for the tick-level estimators and `σ_ω²` for th
   statement about *those two configurations*, not about the two method families in general; the
   resolution sweep (`hermite_o20`, `hermite_o40`, `xiao_b8`, `xiao_b40`) is the other axis and
   was not crossed with memory here.
+
+## 9. Absolute check of $M^*=(2\sigma^2/d^2)^{1/3}$ on `drift` (2026-11-04)
+
+**Platform:** Linux x86_64 / libstdc++, `./probe_memory` rerun at `3c8b13d`, 40 seeds (42–81),
+Gaussian, `drift` window `all` (ticks 500–5000). Script: `experiments/fit_mstar.py`. No new
+estimator code; this is `thesis_audit.md` §3 SHOULD-6.
+
+**Inputs, none fitted to the MSE curve.**
+- $d$ is taken from the true path: $r_t$ is linear from −0.5 to 0.8, so
+  $\rho_S=(6/\pi)\arcsin(r/2)$ moves at $d_t$, with an rms of $2.54\times10^{-4}$ per tick (nearly
+  constant).
+- $\sigma^2$ is var × M, taken as the median over $M\in[50,2000]$, from either `drift` itself or
+  `constant`.
+  - The `constant` value is biased low, because `constant` sits at ρ = 0.6, where per-tick
+    variance is smaller than along the drift path.
+
+**Model components.**
+- **Variance:** Xiao's var × M stays within 0.70–0.89 on `drift`, so $\sigma^2/M$ holds.
+- **Lag bias:** with the memory-dependent floor from `constant` subtracted, |bias| divided by
+  $dM/2$ is:
+  - 1.03–1.11 near the optimum;
+  - 0.85–0.98 at long memories;
+  - above 1.2 only below M ≈ 100, where the subtracted floor (taken at ρ = 0.6) is the wrong one.
+
+| Estimator | $\sigma^2$ drift / constant | $M^*$ observed | predicted, drift $\sigma^2$ (ratio) | predicted, constant $\sigma^2$ (ratio) | MSE penalty at predicted |
+| --- | --- | --- | --- | --- | --- |
+| `xiao_ew` | 0.72 / 0.46 | 277 | 282 (1.02) | 243 (0.88) | +0.1 % |
+| `hermite_ew` | 0.81 / 0.56 | 286 | 294 (1.03) | 258 (0.90) | ≈ 0 |
+| `kalman` | 0.82 / 0.52 | 266 | 295 (1.11) | 253 (0.95) | < grid resolution |
+
+- **The formula predicts the drift optimum to within 2–3 % for Xiao and Hermite**, using the
+  path's $d$ and the stream's own $\sigma^2$.
+- **The MSE curve is flat near its minimum.** Using the predicted M instead of the measured one
+  costs ≤ 0.1 % MSE.
+- **With $\sigma^2$ taken from `constant`**, as SHOULD-6 specified, the prediction is 5–12 % short.
+  The cause is $\sigma^2(\rho)$, not the model: what enters is the variance along the path. The
+  constant is still right within the $1/3$ power.
+- **The Kalman ratio is grid-limited.** Its σ_ω² grid has only 4 points in 50–2000 ticks.
+- **What this supersedes:** the rough absolute check in `async_memory.md` (790 vs 636–711) was a
+  different run (T = 20 000) with $\sigma^2\approx1$ assumed.
+- **What it does not cover:**
+  - non-Gaussian families;
+  - the bank;
+  - `oscillate` and `jump`, where d is not locally constant and the cube-root law is not the
+    relevant one; for jumps see the square-root law in `tail_dependence.md`.

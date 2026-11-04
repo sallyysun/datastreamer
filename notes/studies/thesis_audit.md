@@ -480,6 +480,8 @@ start-up choice and the single-platform regeneration remain. MUST-1 to MUST-3 ne
    MSE(M) ≈ σ²/M + (dM/2)² to the bias² and var columns `probe_memory` already writes; σ²
    from `constant`'s var × M, d from the true path. If it holds, M\* = (2σ²/d²)^(1/3) is a
    tested statement rather than a heuristic.
+   ✅ 2026-11-04 (Linux, `memory_sweep.md` §9): observed/predicted 1.02 Xiao, 1.03 Hermite with σ²
+   from the drift stream itself; 0.88–0.95 with σ² from `constant` (σ² depends on ρ).
 7. **One asymmetric misspecified family** (Clayton DGP → Gaussian MPL) on positive-only paths
    (e.g. drift 0.2 → 0.8, oscillate 0.5 ± 0.3). This needs a DGP parameter change only.
 
