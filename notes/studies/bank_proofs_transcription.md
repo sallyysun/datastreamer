@@ -1,7 +1,8 @@
 # Bank proofs: transcription of notebook screenshots (2026-11-04)
 
-Transcribed from 16 photos of the "time-varying dependence in data streams" notebook
-(`127.0.0.1:51907`, pages *Scoring & bank proofs* and *Bank bias & variance*, `#bank-asymptotics`).
+Transcribed from 31 photos of the "time-varying dependence in data streams" notebook
+(`127.0.0.1:51907`, pages *Scoring & bank proofs*, *Bank bias & variance* (`#bank-asymptotics`) and
+*Bank questions* (`#bank-questions`)).
 The text follows the screen as written. `[cut off]` marks text outside the photo. Bracketed
 *Transcriber note* lines are mine and are not part of the notebook.
 
