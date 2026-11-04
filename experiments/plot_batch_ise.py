@@ -1,56 +1,71 @@
-"""rho_S RMSE and copula CDF ISE by scenario: family bank, Gaussian log bank (MPL), Hermite own-density bank, the
-family bank's best fixed arm (hindsight), and the offline batch estimators (oracle segment, two-sided kernel with the
-best bandwidth in hindsight). Geometric mean over the copula families of each scenario; 60 seeds.
+"""Family bank against the online estimators, rho_S RMSE and copula CDF ISE, in the style of ch6_family_summary.png:
+one point per copula x scenario cell (paired mean +- 2 SE over 60 seeds), blue = family bank better beyond 2 SE,
+orange = worse, grey = within; n/19 = cells better. The offline batch estimators (oracle segment, two-sided kernel with
+the best bandwidth in hindsight) see the future, so they are drawn below the line as references, untallied.
 Reads results/batch_ise_42*.csv (probe_batch_ise).
 Usage (from experiments/): python3 plot_batch_ise.py -> ../notes/thesis/figures/ch6_batch_ise.png"""
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
-INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
+INK, INK2, GRID, REF = "#0b0b0b", "#52514e", "#e4e3df", "#a3a29e"
+BLUE, ORANGE = "#2a78d6", "#eb6834"
+plt.rcParams.update({"font.size": 8.5, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2,
+                     "ytick.color": INK2, "axes.spines.top": False, "axes.spines.right": False})
 fams = ["gaussian", "clayton", "gumbel", "t", "gauss2t", "clayton2gumbel", "gauss2clayton"]
 d = pd.concat(pd.read_csv(f"results/batch_ise_42{'' if c == 'gaussian' else '_' + c}.csv") for c in fams)
 d = d[d.window == "whole"]
-m = d.groupby(["copula", "scenario", "metric", "method"]).value.mean()
 
-series = [("family_bank", "family bank (online)", "#2a78d6", "o", "-"),
-          ("mle_bank_log", "Gaussian log bank, MPL (online)", "#eb6834", "s", "-"),
-          ("hermite_bank_own", "Hermite own-density bank (online)", "#1baf7a", "^", "-"),
-          ("best_arm", "best fixed arm, hindsight (online)", "#6250d6", "D", "-"),
-          ("batch_segment", "batch, oracle segment (offline)", INK2, "x", "--"),
-          ("batch_kernel", "batch, two-sided kernel, best h (offline)", INK, "+", "--")]
-scen = ["constant", "drift", "jump", "oscillate", "shape"]
+rows = [("xiao_bank_log", "Xiao bank, Gaussian log loss", True), ("mle_bank_log", "MPL bank, Gaussian log loss", True),
+        ("xiao_bank_own", "Xiao bank, own density", True), ("hermite_bank_own", "Hermite bank, own density", True),
+        ("best_arm", "best single fixed arm (hindsight)", True),
+        ("batch_segment", "reference: batch, knows the change point", False),
+        ("batch_kernel", "reference: batch two-sided kernel, best h", False)]
 
 
-def value(metric, key, c, s):
-    g = m.loc[(c, s, metric)]
+def comparator(g, key):
+    means = g.mean()
     if key == "best_arm":
-        return g[[i for i in g.index if i.startswith("arm_")]].min()
+        return g[means[[c for c in means.index if c.startswith("arm_")]].idxmin()]
     if key == "batch_kernel":
-        return g[[i for i in g.index if i.startswith("batch_kernel_")]].min()
+        return g[means[[c for c in means.index if c.startswith("batch_kernel_")]].idxmin()]
     return g[key]
 
 
-fig, ax = plt.subplots(1, 2, figsize=(10.5, 4.2))
-for a, metric, scale, title in [(ax[0], "rmse", 1000, r"(a) RMSE of $\rho_S$ ($\times10^{-3}$, log)"),
-                                (ax[1], "ise_x1e4", 1, r"(b) Copula ISE $\int(\hat C-C)^2$ ($\times10^{-4}$, log)")]:
-    for key, lab, col, mk, ls in series:
-        ys = []
-        for s in scen:
-            cells = [(c, sc) for (c, sc) in m.index.droplevel([2, 3]).unique() if sc == s]
-            ys.append(np.exp(np.mean([np.log(value(metric, key, c, sc) * scale) for c, sc in cells])))
-        a.plot(range(len(scen)), ys, marker=mk, color=col, ls=ls, lw=1.4, ms=6, label=lab)
-    a.set_yscale("log")
-    a.set_xticks(range(len(scen)), ["constant", "drift", "jump", "oscillate", "shape switch"])
-    a.grid(color=GRID, lw=0.6)
-    a.set_axisbelow(True)
-    a.set_title(title, loc="left", fontsize=9, color=INK)
-    for sp in ("top", "right"): a.spines[sp].set_visible(False)
-fig.legend(*ax[0].get_legend_handles_labels(), loc="lower center", ncol=3, fontsize=7.5, frameon=False)
-fig.suptitle("Online banks against offline batch estimators, whole run, geometric mean over copula families, 60 seeds",
-             fontsize=9, color=INK)
-fig.tight_layout(rect=(0, 0.1, 1, 0.95))
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
+for ax, metric, scale, title, xlab in [
+        (axes[0], "rmse", 1000, r"(a) Tracking $\rho_S$", r"family bank minus competitor, RMSE ($\times10^{-3}$, symlog)"),
+        (axes[1], "ise_x1e4", 1, r"(b) Whole copula: ISE $\int(\hat C-C)^2$",
+         r"family bank minus competitor, ISE ($\times10^{-4}$, symlog)")]:
+    w = d[d.metric == metric].pivot_table(index=["copula", "scenario", "seed"], columns="method", values="value") * scale
+    cells = w.index.droplevel(-1).unique()
+    for j, (key, lab, contest) in enumerate(rows):
+        y0 = -j - (0.6 if not contest else 0)
+        better = 0
+        for i, cell in enumerate(cells):
+            g = w.loc[cell]
+            x = (g.family_bank - comparator(g, key)).dropna()
+            m, h = x.mean(), 2 * x.std(ddof=1) / len(x) ** .5
+            col = (BLUE if m + h < 0 else ORANGE if m - h > 0 else INK2) if contest else REF
+            better += m + h < 0
+            y = y0 + (i - (len(cells) - 1) / 2) * 0.5 / len(cells)
+            ax.errorbar(m, y, xerr=h, fmt="o", ms=3, color=col, ecolor=col, elinewidth=0.8, capsize=0)
+        if contest:
+            ax.text(1.03, y0, f"{better}/{len(cells)}", transform=ax.get_yaxis_transform(), va="center", fontsize=7.5,
+                    color=INK2)
+    ax.axhline(-4.8, color=INK2, lw=0.6, ls=":")
+    ax.axvline(0, color=INK, lw=0.8)
+    ax.set_xscale("symlog", linthresh=1 if metric != "rmse" else 10)
+    ax.grid(axis="x", color=GRID, lw=0.6)
+    ax.set_title(title, loc="left", fontsize=9, color=INK)
+    ax.set_xlabel(xlab)
+axes[0].set_yticks([-j - (0.6 if not c else 0) for j, (_, _, c) in enumerate(rows)], [l for _, l, _ in rows])
+for t, (_, _, c) in zip(axes[0].get_yticklabels(), rows):
+    if not c: t.set_color(REF)
+fig.suptitle("Family bank against online competitors, 19 copula x scenario cells, 60 seeds. Left of 0 = family bank "
+             "better; blue/orange = better/worse beyond 2 SE; n/19 = cells better.\nGrey rows below the line are offline "
+             "references that see the future, not contestants.", fontsize=8.5, color=INK)
+fig.tight_layout(rect=(0, 0, 0.97, 0.92), w_pad=3)
 fig.savefig("../notes/thesis/figures/ch6_batch_ise.png", dpi=170)
 print("wrote ch6_batch_ise.png")

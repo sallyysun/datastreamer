@@ -33,9 +33,10 @@ reported ×10⁻⁴. How each estimator's $\hat C_t$ is obtained:
 
 Scored at every tick. Online estimators are scored on the estimate held before the tick.
 
-### Offline batch estimators
+### Offline batch estimators (references, not contestants)
 
-These see the whole sample, future included. The margins are global ranks, i.e. the full-sample
+These see the whole sample, future included, so no online method can be expected to match them. They are
+reported as reference points, and kept out of the online comparison and its tallies. The margins are global ranks, i.e. the full-sample
 pseudo-observations.
 
 | Estimator | What it is |
@@ -57,17 +58,17 @@ The full tables, including windows 0–100 and 100–500 ticks after the change,
 | Gaussian log banks (Xiao / MPL) | 13/4/2, 13/6/0 | It loses on oscillate in every family, where its shortest memory, 99, lags, and against MPL also on Gaussian drift and jump, where the Gaussian working model is right. On Clayton constant: 0.07 against 1.43. |
 | Own-density banks (Xiao / Hermite) | 19/0/0, 19/0/0 | Their nonparametric densities, integrated, are 1.2–16 against 0.07–7. |
 | Its own best fixed arm (hindsight) | 7/12/0 | It wins on jump, on two of the shape switches and on $t$ oscillate. It loses on constant, drift, three oscillate cells and Gauss → $t$, by 0.02–0.44. |
-| **Offline, full sample** | 14/5/0 | It loses on the constant paths, where the full-sample empirical copula is the best possible estimator (0.04 against 0.07–0.09), and on Gauss → t. |
-| **Offline, oracle segment** | 11/8/0 | It loses on constant and jump, where the oracle knows the change point (jump: 0.31–0.39 against 0.60–0.69). |
-| **Offline, two-sided kernel (best h)** | **19/0/0** | The weighted empirical copula is nonparametric and noisier than the bank's parametric mixture, even with the future and a tuned bandwidth. |
+| *Reference:* offline, full sample | 14/5/0 | It loses on the constant paths, where the full-sample empirical copula is the best possible estimator (0.04 against 0.07–0.09), and on Gauss → t. |
+| *Reference:* offline, oracle segment | 11/8/0 | It loses on constant and jump, where the oracle knows the change point (jump: 0.31–0.39 against 0.60–0.69). |
+| *Reference:* offline, two-sided kernel (best h) | **19/0/0** | The weighted empirical copula is nonparametric and noisier than the bank's parametric mixture, even with the future and a tuned bandwidth. |
 
 ### ρ_S RMSE, whole run (19 cells)
 
 | Comparator | W/L/T | Detail |
 | --- | --- | --- |
 | Log banks | 10/8/1 (Xiao), 8/8/3 (MPL) | as in `thesis_bank_family.md` |
-| **Offline, two-sided kernel (best h)** | **0/18/1** | drift 28–32 against 56–72; oscillate 98–107 against 182–273; constant 13–15 against 23–26; jump 57–61 against 59–69. The tie is Clayton jump (58.7 against 59.0). |
-| Offline, oracle segment | 8/11/0 | It wins on drift and oscillate, where a single segment is the whole run. It loses on constant, jump and shape (8–14). |
+| *Reference:* offline, two-sided kernel (best h) | **0/18/1** | drift 28–32 against 56–72; oscillate 98–107 against 182–273; constant 13–15 against 23–26; jump 57–61 against 59–69. The tie is Clayton jump (58.7 against 59.0). |
+| *Reference:* offline, oracle segment | 8/11/0 | It wins on drift and oscillate, where a single segment is the whole run. It loses on constant, jump and shape (8–14). |
 
 **The ρ_S gap to the offline kernel is the price of being causal.** On drift the online banks are about
 twice the error of a two-sided smoother that uses the future. On jump they come within 0–8 ×10⁻³ of it,
@@ -89,13 +90,13 @@ because a symmetric kernel also smears an abrupt change.
 
 ## What it says
 
-1. **For the copula, the family bank is the best estimator tested, offline ones included,** wherever
-   its families contain the truth.
+1. **For the copula, the family bank is the best online estimator tested,** wherever its families contain
+   the truth. Among the references:
    - It beats the offline kernel empirical copula in all 19 cells, even though the kernel has the
      future and a bandwidth tuned in hindsight.
    - Only the full-sample or oracle-segment empirical copula beats it, and only on stationary stretches
      or with knowledge of the change point.
-2. **For ρ_S, offline smoothing is clearly better.** The online-vs-offline gap is about 2× on drift and
+2. **For ρ_S, the offline reference shows how much causality costs.** The online-vs-offline gap is about 2× on drift and
    oscillate, 1.7× on constant, and small on jump. That gap is the cost of causality, and no online
    method closes it.
 3. **The ISE agrees with the excess log loss (KL).**
