@@ -117,5 +117,8 @@ probe_family_bank:
 probe_tail_bank:
 	$(CXX) probe_tail_bank.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o probe_tail_bank
 
+probe_tail_ci:
+	$(CXX) probe_tail_ci.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o probe_tail_ci
+
 probe_bank_regret:
 	$(CXX) probe_bank_regret.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_regret
