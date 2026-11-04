@@ -123,5 +123,8 @@ probe_tail_ci:
 probe_batch_ise:
 	$(CXX) probe_batch_ise.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_batch_ise
 
+probe_family_path:
+	$(CXX) probe_family_path.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o probe_family_path
+
 probe_bank_regret:
 	$(CXX) probe_bank_regret.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_regret
