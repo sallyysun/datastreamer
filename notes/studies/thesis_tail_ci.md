@@ -1,4 +1,4 @@
-# Online confidence intervals for the EW corner counter χ̂(q) (2026-11-04, in progress)
+# Online confidence intervals for the EW corner counter χ̂(q) (2026-11-04)
 
 **Goal.** Online intervals for finite-q tail dependence, and their coverage under change. This is a
 small extension of `thesis_bank_tails.md`.
@@ -11,19 +11,16 @@ github.com/Tobias-Brock/olbootstrapping.
 - Each bootstrap replicate carries an autoregressive multiplier, so the state per replicate is fixed.
 - It gives pointwise intervals and uniform-in-time bands.
 
-**Status.**
-
-- The paper and code could not be read: `arxiv.org`, `proceedings.mlr.press` and `github.com` do not
-  resolve from this session.
-- The bootstrap is therefore **not implemented yet**.
-- What exists is the harness and the analytic baseline it must beat.
+**Source.** Algorithm 1 is implemented from the paper's PDF (§4.2), which was uploaded to the session.
+The authors' Python code was not reachable from this session, so the implementation has not been
+cross-checked against it.
 
 | | |
 | --- | --- |
 | Code | `experiments/probe_tail_ci.cpp` |
 | Platform | Linux / g++ `-O2` |
 | Seeds | 42–101 (60) |
-| Run | `make probe_tail_ci EIGEN=/usr CXX=g++ && for r in gaussian gauss2clayton clayton2gumbel gauss2t gauss_ar t_persist gauss2t_dep; do ./probe_tail_ci $r 42 60; done` (5 s on 4 cores) |
+| Run | `make probe_tail_ci EIGEN=/usr CXX=g++ && for r in gaussian gauss2clayton clayton2gumbel gauss2t gauss_ar t_persist gauss2t_dep; do ./probe_tail_ci $r 42 60; done` (about 1 min on 4 cores); figure `python3 plot_tail_ci.py` → `notes/thesis/figures/ch6_tail_ci.png` |
 
 ## Analytic baseline
 
@@ -67,7 +64,94 @@ tails; nominal 90%.
 - the smoothed $\bar\chi_t=\mathrm{EW}_\alpha(\chi_s(q))$, which is what an EW estimator actually
   estimates.
 
-## Results: analytic interval, coverage of a nominal 90% (mean over 60 seeds and both tails)
+## The online bootstrap (Algorithm 1 of Nagler, Brock and Palm 2026), adapted to b/a
+
+**Effective sample size.** For each memory, $\alpha=2/(M+1)$, the effective sample size is
+$\nu=(2-\alpha)/\alpha$, and B = 100 replicates (B₁ = 20 for the scale, B₂ = 80 for the sup-quantile).
+
+**Multipliers.**
+
+- $Z^{(b)}_t=\rho Z^{(b)}_{t-1}+\sqrt{1-\rho^2}\,\zeta^{(b)}_t$, with $\rho=1-\nu^{-1/3}$, the
+  paper's default persistence exponent $1/3$.
+- $V^{(b)}_t=T(Z^{(b)}_t)$, with $T=t^{-1}_{2+\nu^{1/3}}\circ\Phi$ tabulated in $z$.
+- The paper's **iid** baseline is the same algorithm with persistence exponent 0, i.e. $\rho=0$.
+
+**Bootstrapped error.** The paper bootstraps $V^{(b)}_t(X_t-\hat\mu(t-1))$ through the same smoother.
+$\hat\chi=b/a$ is a ratio, so it is linearised as in the analytic interval: the input is
+$r_t=(J_t-b_{t-1})-\hat\chi_{t-1}(K_t-a_{t-1})$, where $J$ and $K$ are the joint and marginal corner
+indicators, and $\hat\delta^{*(b)}_t=\mathrm{EW}_\alpha(V^{(b)}r)_t/a_t$.
+
+**Pointwise interval.** $\hat\chi\pm z_{0.95}\hat\sigma^*$, where $\hat\sigma^*$ is the
+standard deviation of replicates 1–20.
+
+**Uniform band.** $\hat\chi\pm\hat q^*_k\hat\sigma^*$ over (t₁, T].
+
+- $\hat q^*_k$ is the $(1-\alpha/K)$ quantile, over replicates 21–100, of the running maximum
+  $\max_s|\hat\delta^*_s|/\hat\sigma^*_s$.
+- It is recalibrated at $t_0+2^{k-1}(t_1-t_0)$: $t_0=600$ (burn-in), $t_1=1000$, K = 5 blocks up to
+  T = 10 000.
+
+**Timing.** Intervals are evaluated after tick t is absorbed, which pairs $\hat\chi(t)$ with
+$\bar\chi(t)$ as the paper pairs $\hat\mu(t)$ with $\mu_\eta(t)$.
+
+**Cost.** The extra state is B doubles per estimator for the errors, B for the running maxima, and B per
+memory for the multipliers; at B = 100 that is about 2.4 kB per (q, M, tail). Time per tick is O(B).
+
+## Results: bootstrap vs analytic, nominal 90%, smoothed target, 60 seeds
+
+**Pointwise coverage, whole run, q = 0.05 / 0.10.**
+
+| data | M | analytic | bootstrap, iid | bootstrap, AR |
+| --- | --- | --- | --- | --- |
+| Gaussian, independent | 399 | 0.88 / 0.90 | 0.89 / 0.91 | 0.89 / 0.90 |
+| | 1999 | 0.92 / 0.92 | 0.91 / 0.91 | 0.91 / 0.91 |
+| | 4999 | 0.92 / 0.92 | 0.91 / 0.92 | 0.91 / 0.91 |
+| $t_4$, clustered extremes | 399 | 0.87 / 0.88 | 0.88 / 0.90 | 0.87 / 0.90 |
+| | 1999 | 0.89 / 0.92 | 0.89 / 0.92 | 0.89 / 0.93 |
+| | 4999 | 0.90 / 0.93 | 0.90 / 0.92 | 0.91 / 0.92 |
+| **Gaussian, AR(1) φ = 0.7** | 399 | 0.80 / 0.79 | 0.81 / 0.81 | **0.85 / 0.87** |
+| | 1999 | 0.85 / 0.85 | 0.85 / 0.85 | **0.91 / 0.92** |
+| | 4999 | 0.86 / 0.87 | 0.86 / 0.86 | **0.93 / 0.94** |
+
+**Uniform-in-time coverage over ticks 1000–10 000, both q pooled.**
+
+| data | M | band, iid | band, AR |
+| --- | --- | --- | --- |
+| Gaussian, independent | 399 / 1999 / 4999 | 0.62 / 0.90 / 0.92 | 0.69 / 0.90 / 0.92 |
+| $t_4$, clustered extremes | 399 / 1999 / 4999 | 0.63 / 0.89 / 0.92 | 0.68 / 0.87 / 0.93 |
+| Gaussian, AR(1) φ = 0.7 | 399 / 1999 / 4999 | **0.25 / 0.72 / 0.83** | 0.52 / 0.89 / 0.94 |
+| the four switches (smoothed target) | 399 / 1999 / 4999 | 0.49 / 0.86 / 0.90 | 0.61 / 0.88 / 0.92 |
+
+**Width.** Mean full width over the whole run, both q.
+
+- **Independent data.** The bootstrap pointwise interval matches the analytic one: 0.32 against 0.29 at
+  M = 399, 0.14 at M = 1999, 0.11 at M = 4999.
+- **AR process.** It is 25–30% wider (0.18 against 0.14 at M = 1999), which is the dependence
+  correction.
+- **Uniform band.** About 2.3–2.5× the pointwise width (0.35–0.43 at M = 1999).
+- **M = 399.** The band is about 1.0 wide, the whole $[0,1]$ range, so uninformative.
+
+**Findings.**
+
+1. **Serial dependence is where the bootstrap earns its place.** With AR(1) latents, the analytic
+   interval and the iid bootstrap both under-cover (0.79–0.87). The AR-multiplier bootstrap brings
+   pointwise coverage to 0.91–0.94 at M ≥ 1999, and its band to 0.89–0.94, against 0.72–0.83 for the
+   iid band. This reproduces, for a tail statistic, the paper's main finding, that iid multipliers fail
+   under dependence.
+2. **On independent data the bootstrap adds nothing over the analytic formula** pointwise. It is still
+   the only way to get a calibrated *uniform* band, and its bands are nominal at M ≥ 1999.
+3. **Small memory breaks everything.** At M = 399 there are only $qM\approx20$ corner events in
+   memory. Every method under-covers there, and the bands do so badly (0.25–0.69). This is the
+   small-$\nu$ caveat of the paper (§6.2), made worse by the discreteness of an indicator ratio. Tail
+   intervals need $M\gtrsim 2000$ at q = 0.05.
+4. **Inference cannot fix the adaptation bias.** Against the *instantaneous* $\chi_t$ after a switch,
+   AR-bootstrap pointwise coverage is 0.29 (M = 1999) and 0.15 (M = 4999) in the first 500 ticks. The
+   bands cover the instantaneous path in only 0.32–0.53 of seeds. Against the smoothed $\bar\chi_t$
+   both stay near nominal (0.88–0.94). The interval is calibrated for what an EW estimator estimates;
+   the gap to the instantaneous value is the bias side of the memory trade-off, and it needs a shorter
+   memory or an adaptive estimator, not a better interval.
+
+## Earlier result: analytic interval alone, coverage of a nominal 90% (mean over 60 seeds and both tails)
 
 | regime | target | M = 399 | M = 1999 | M = 4999 |
 | --- | --- | --- | --- | --- |
@@ -89,9 +173,9 @@ tails; nominal 90%.
   because the interval is centred on the wrong quantity. The fix is a shorter memory, or a bank such as
   the family bank, which follows a switch in about 200 ticks.
 
-## Next, once the paper and code are reachable
+## Open
 
-1. Reproduce their exponential-smoothing bootstrap on a scalar series against their Python code.
-2. Add it to `probe_tail_ci` as a second interval: pointwise, and a uniform-in-time band over a window.
-3. Report coverage on the same grid, with the analytic baseline beside it. Then report width, and time
-   and memory per tick against B.
+- Cross-check the implementation against the authors' code (github.com/Tobias-Brock/olbootstrapping) once
+  it is reachable.
+- Xiao's ρ_S (a nonlinear function of the counts) and the family bank need their own linearisation.
+  Not attempted.

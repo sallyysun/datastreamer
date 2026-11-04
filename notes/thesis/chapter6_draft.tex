@@ -899,6 +899,29 @@ one-switch regret rises to $19.8$, where no bound applies. This is the cleanest 
 in the chapter. The mixture density is the forecaster the bound is stated for, with no working
 model in between.
 
+\paragraph{Online intervals for $\hat\chi(q)$.} An exponentially weighted estimate can also carry its
+own uncertainty online. For the corner counter $\hat\chi=b/a$, the delta method with indicator inputs gives
+$\widehat{\mathrm{Var}}(\hat\chi)=(S_2/W_1)\,\hat\chi(1-\hat\chi)/a$, where $W_1$ and $S_2$ are the sums
+of the weights and of their squares. That is the $\chi(1-\chi)/(qM)$ law, and it holds under independence.
+The online bootstrap of Nagler, Brock and Palm (2026, Algorithm~1) relaxes the independence. Each of
+$B=100$ replicates carries an autoregressive multiplier, which costs $O(B)$ state, and the method also
+gives a uniform-in-time band.
+
+At a nominal $90\%$, over 60 seeds and $q=0.05,0.10$, three things hold.
+\begin{itemize}
+  \item On independent data both pointwise intervals cover $0.87$--$0.93$.
+  \item When the latent pair follows an AR(1) process with $\phi=0.7$, the analytic interval and the
+    iid-multiplier bootstrap under-cover ($0.79$--$0.87$). The autoregressive bootstrap restores
+    $0.91$--$0.94$ pointwise at $M\ge1999$, and $0.89$--$0.94$ uniformly over 9000 ticks.
+  \item At $M=399$ every interval under-covers, and the bands are as wide as $[0,1]$. With only
+    $qM\approx20$ corner events in memory there is too little information for inference.
+\end{itemize}
+The intervals target the smoothed $\bar\chi_t=\sum_sw_s\chi_s(q)$, which is what an exponentially
+weighted estimator estimates. Against the instantaneous $\chi_t(q)$ in the 500 ticks after a switch,
+pointwise coverage falls to $0.29$ ($M=1999$) and $0.15$ ($M=4999$). No variance estimate repairs this
+adaptation bias: it is the bias side of the memory trade-off, now seen as coverage. Details:
+\texttt{thesis\_tail\_ci.md}.
+
 \paragraph{Limitations.}
 \begin{itemize}
   \item \emph{It loses when the truth is outside the bank.} On the Clayton/Gumbel mixture the

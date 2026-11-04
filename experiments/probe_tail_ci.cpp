@@ -4,8 +4,14 @@
 // the delta method for b/a with indicator inputs (per-observation variance of b - chi a is b (1 - chi)),
 // with W1 = sum of the EW weights and S2 = sum of their squares, tracked recursively, so it is exact
 // during warm-up; in steady state S2/W1 -> alpha/(2-alpha), the chi(1-chi)/(qM) law.
-// It needs no state beyond the counter's. The online bootstrap of Nagler, Brock and Palm (2026) is to be
-// added as a second interval once the paper is read; this probe is its harness.
+// It needs no state beyond the counter's.
+// Bootstrap: Algorithm 1 of Nagler, Brock and Palm (2026, UAI, PMLR 337), applied to the linearised residual of
+// b/a around the lagged smoother, (J_t - b_{t-1}) - chi_{t-1} (K_t - a_{t-1}), divided by a. Multipliers
+// V = T(Z), Z AR(1) with rho = 1 - nu^(-1/3) ("ar", chi = 1/3) or rho = 0 ("iid", their iid baseline),
+// T = t_{2+nu^(1/3)}^{-1} o Phi. Pointwise intervals: +- z sigma_hat* (sigma_hat* from B1 = 20 replicates).
+// Uniform band: +- q_hat sigma_hat*, q_hat the (1 - alpha/K) quantile over B2 = 80 replicates of the running
+// max |delta*|/sigma_hat*, recalibrated at t0 + 2^(k-1)(t1 - t0). Intervals are evaluated after tick t is
+// absorbed, pairing chi_hat(t) with chi_bar(t) as the paper pairs mu_hat(t) with mu_eta(t).
 // Coverage is reported against two targets: the instantaneous chi_t(q) of the regime in force, and the
 // EW-smoothed target chi_bar_t = EW_alpha(chi_s(q)), which is what an EW estimator estimates.
 // DGPs (copula space, rank-PIT margins as every Chapter 6 estimator, rho_S = 0.582, switch at TAU):
@@ -16,9 +22,13 @@
 //                       gauss2t_dep  gauss_ar -> t_persist at TAU.
 // Note: notes/studies/thesis_tail_ci.md.
 //
-// Usage (from experiments/): ./probe_tail_ci <regime> <first_seed> <seeds>  -> results/tail_ci_<regime>_<first_seed>.csv
+// Usage (from experiments/): ./probe_tail_ci <regime> <first_seed> <seeds>
+//   -> results/tail_ci_<regime>_<first_seed>.csv           pointwise coverage and width by window
+//      results/tail_ci_uniform_<regime>_<first_seed>.csv   uniform-in-time coverage of the bands
 
+#include <algorithm>
 #include <array>
+#include <tuple>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -34,6 +44,11 @@
 namespace {
 
 constexpr std::size_t T = 10000, TAU = 5000, BURN = 1000, WARM = 30;
+// Algorithm 1 of Nagler, Brock and Palm (2026): burn-in t0, first calibration end t1, B = B1 + B2 replicates
+// (B1 for the variance, B2 for the sup-quantile), alpha = 0.1, heavy-tail transform tabulated on [-kTSpan, kTSpan].
+constexpr std::size_t T0 = 600, T1 = 1000;
+constexpr int kB = 100, kB1 = 20, kTGrid = 4000;
+constexpr double kAlpha = 0.1, kTSpan = 8.0;
 const std::vector<double> kQ{0.05, 0.10};
 const std::vector<int> kMem{399, 1999, 4999};
 constexpr double kZ90 = 1.6448536269514722;
@@ -124,77 +139,160 @@ int main(int argc, char** argv) {
     const std::size_t NQ = kQ.size(), NM = kMem.size();
     std::vector<std::array<std::pair<double, double>, 2>> tgts(NQ);   // [q][before/after], computed once
     for (std::size_t qi = 0; qi < NQ; ++qi) tgts[qi] = {target(before, kQ[qi]), target(after, kQ[qi])};
+    std::FILE* uout = std::fopen(("results/tail_ci_uniform_" + rname + "_" + std::to_string(first) + ".csv").c_str(), "w");
+    std::fprintf(uout, "regime,seed,q,tail,M,interval,target,horizon,covered,mean_width\n");
+
+    // Per memory: EWMA weight, effective sample size nu = (2 - alpha)/alpha, multiplier persistence for the
+    // AR bootstrap rho = 1 - nu^(-1/3) (chi = 1/3, the paper's default) and for its iid baseline rho = 0, and
+    // the heavy-tail transform T = t_{2 + nu^(1/3)}^{-1} o Phi, tabulated in z.
+    struct Mem { double al, nu, rho; std::vector<double> T; };
+    std::vector<Mem> mem;
+    for (int M : kMem) {
+        Mem m{2.0 / (M + 1.0), 0, 0, {}};
+        m.nu = (2 - m.al) / m.al;
+        m.rho = 1 - std::pow(m.nu, -1.0 / 3.0);
+        const double df = 2 + std::cbrt(m.nu);
+        for (int g = 0; g <= kTGrid; ++g) m.T.push_back(special::t_ppf(special::normal_cdf(-kTSpan + 2 * kTSpan * g / kTGrid), df));
+        mem.push_back(m);
+    }
+    auto Tz = [&](const Mem& m, double z) {
+        const double x = (std::clamp(z, -kTSpan, kTSpan) + kTSpan) / (2 * kTSpan) * kTGrid;
+        const int g = std::min(int(x), kTGrid - 1);
+        return m.T[g] + (x - g) * (m.T[g + 1] - m.T[g]);
+    };
+    // Calibration blocks: [t0, t1] is burn-in + first calibration, then blocks t0 + 2^(k-1)(t1 - t0).
+    std::vector<std::size_t> bounds;
+    for (std::size_t k = 1;; ++k) {
+        const std::size_t b = T0 + (std::size_t(1) << (k - 1)) * (T1 - T0);
+        bounds.push_back(b);
+        if (b >= T) break;
+    }
+    const double Kblk = double(bounds.size() - 1);   // blocks after t1 that intersect (t1, T]
+    const char* kInt[] = {"analytic", "iid_point", "ar_point", "iid_band", "ar_band"};
+    constexpr int NI = 5;
+
     for (int s = 0; s < seeds; ++s) {
         const unsigned seed = first + s;
         Source pre(before, seed), post(after, seed + 100000u);
+        std::mt19937 brng(seed * 7919u + 13u);
+        std::normal_distribution<double> nrm(0.0, 1.0);
         RankPit px{500}, py{500};
-        // counters [q][M]: aL, bL, aU, bU; smoothed targets [q][M][tail]
-        std::vector<std::array<double, 4>> cnt(NQ * NM, {0, 0, 0, 0});
-        std::vector<std::array<double, 2>> sm(NQ * NM, {0, 0});
+        std::vector<std::array<double, 4>> cnt(NQ * NM, {0, 0, 0, 0});   // aL, bL, aU, bU
+        std::vector<std::array<double, 2>> smn(NQ * NM, {0, 0});        // EW numerators of the smoothed target
         std::vector<double> W1(NM, 0.0), S2(NM, 0.0);
-        bool sm_init = false;
-        // hits[q][M][tail][target][t], width[q][M][tail][t]
-        std::vector<std::vector<char>> hit(NQ * NM * 2 * 2, std::vector<char>(T, 0));
-        std::vector<std::vector<float>> wid(NQ * NM * 2, std::vector<float>(T, 0));
+        // Bootstrap state. Multipliers per [variant][M][b]; error replicates per [variant][q][M][tail][b].
+        std::vector<double> Z(2 * NM * kB, 0.0);
+        std::vector<double> D(2 * NQ * NM * 2 * kB, 0.0), mx(2 * NQ * NM * 2 * kB, 0.0), qhat(2 * NQ * NM * 2, NAN);
+        auto zi = [&](int var, std::size_t mi, int b) -> double& { return Z[(var * NM + mi) * kB + b]; };
+        auto ci = [&](int var, std::size_t qi, std::size_t mi, int tl) { return ((var * NQ + qi) * NM + mi) * 2 + tl; };
+        // hit[interval][target][q][M][tail][t], width[interval][q][M][tail][t]
+        const std::size_t NC = NQ * NM * 2;
+        std::vector<std::vector<char>> hit(NI * 2 * NC, std::vector<char>(T, 0));
+        std::vector<std::vector<float>> wid(NI * NC, std::vector<float>(T, NAN));
+        std::vector<double> V(kB);
         for (std::size_t t = 0; t < T; ++t) {
             const auto [u0, v0] = t < TAU ? pre.next() : post.next();
-            for (std::size_t qi = 0; qi < NQ; ++qi) {
-                const auto& tg = tgts[qi][t < TAU ? 0 : 1];
-                for (std::size_t mi = 0; mi < NM; ++mi) {
-                    const double al = 2.0 / (kMem[mi] + 1.0);
-                    const std::size_t k = qi * NM + mi;
-                    auto& sk = sm[k];
-                    if (!sm_init) sk = {tg.first, tg.second};
-                    else { sk[0] += al * (tg.first - sk[0]); sk[1] += al * (tg.second - sk[1]); }
-                    for (int tl = 0; tl < 2; ++tl) {
-                        const double a = cnt[k][2 * tl], b = cnt[k][2 * tl + 1];
-                        const double chi = a > 1e-12 ? b / a : 0.0;
-                        const double se = a > 1e-12 ? std::sqrt(S2[mi] * chi * (1 - chi) / (a * W1[mi])) : 1.0;
-                        const double lo = chi - kZ90 * se, hi = chi + kZ90 * se;
-                        const double inst = tl ? tg.second : tg.first, smt = sk[tl];
-                        const std::size_t h = ((k * 2 + tl) * 2);
-                        hit[h][t] = inst >= lo && inst <= hi;
-                        hit[h + 1][t] = smt >= lo && smt <= hi;
-                        wid[k * 2 + tl][t] = float(hi - lo);
+            const bool scorable = px.size() >= WARM;
+            const double u = px.transform(special::normal_ppf(u0)), v = py.transform(special::normal_ppf(v0));
+            if (!scorable) continue;
+            for (std::size_t mi = 0; mi < NM; ++mi) {
+                const auto& m = mem[mi];
+                W1[mi] = (1 - m.al) * W1[mi] + m.al;
+                S2[mi] = (1 - m.al) * (1 - m.al) * S2[mi] + m.al * m.al;
+                for (int var = 0; var < 2; ++var) {
+                    const double rho = var ? m.rho : 0.0;
+                    for (int b = 0; b < kB; ++b) {
+                        double& z = zi(var, mi, b);
+                        z = rho * z + std::sqrt(1 - rho * rho) * nrm(brng);
                     }
                 }
             }
-            sm_init = true;
-            const bool scorable = px.size() >= WARM;
-            const double u = px.transform(special::normal_ppf(u0)), v = py.transform(special::normal_ppf(v0));
-            if (scorable) {
+            for (std::size_t qi = 0; qi < NQ; ++qi) {
+                const double q = kQ[qi];
+                const auto& tg = tgts[qi][t < TAU ? 0 : 1];
+                const bool lu = u <= q, uu = u > 1 - q;
+                const double J[2] = {double(lu && v <= q), double(uu && v > 1 - q)}, Kk[2] = {double(lu), double(uu)};
                 for (std::size_t mi = 0; mi < NM; ++mi) {
-                    const double al = 2.0 / (kMem[mi] + 1.0);
-                    W1[mi] = (1 - al) * W1[mi] + al;
-                    S2[mi] = (1 - al) * (1 - al) * S2[mi] + al * al;
-                }
-                for (std::size_t qi = 0; qi < NQ; ++qi)
-                    for (std::size_t mi = 0; mi < NM; ++mi) {
-                        const double al = 2.0 / (kMem[mi] + 1.0), q = kQ[qi];
-                        auto& c = cnt[qi * NM + mi];
-                        const bool lu = u <= q, uu = u > 1 - q;
-                        c[0] += al * (lu - c[0]);
-                        c[1] += al * ((lu && v <= q) - c[1]);
-                        c[2] += al * (uu - c[2]);
-                        c[3] += al * ((uu && v > 1 - q) - c[3]);
+                    const auto& m = mem[mi];
+                    const std::size_t k = qi * NM + mi;
+                    auto& c = cnt[k];
+                    for (int tl = 0; tl < 2; ++tl) {
+                        const double a0 = c[2 * tl], b0 = c[2 * tl + 1];
+                        const double chi0 = a0 > 1e-12 ? b0 / a0 : 0.0;
+                        // Linearised residual of b/a around the lagged smoother (Algorithm 1's X_t - mu_hat(t-1)).
+                        const double r = (J[tl] - b0) - chi0 * (Kk[tl] - a0);
+                        for (int var = 0; var < 2; ++var) {
+                            double* d = &D[ci(var, qi, mi, tl) * kB];
+                            for (int b = 0; b < kB; ++b) d[b] += m.al * (Tz(m, zi(var, mi, b)) * r - d[b]);
+                        }
+                        c[2 * tl] += m.al * (Kk[tl] - a0);
+                        c[2 * tl + 1] += m.al * (J[tl] - b0);
+                        smn[k][tl] += m.al * ((tl ? tg.second : tg.first) - smn[k][tl]);
                     }
+                    for (int tl = 0; tl < 2; ++tl) {
+                        const double a = c[2 * tl], b = c[2 * tl + 1];
+                        if (a <= 1e-12) continue;
+                        const double chi = b / a;
+                        const double inst = tl ? tg.second : tg.first, smt = smn[k][tl] / W1[mi];
+                        const std::size_t cc = k * 2 + tl;
+                        auto mark = [&](int iv, double half) {
+                            hit[(iv * 2 + 0) * NC + cc][t] = std::fabs(chi - inst) <= half;
+                            hit[(iv * 2 + 1) * NC + cc][t] = std::fabs(chi - smt) <= half;
+                            wid[iv * NC + cc][t] = float(2 * half);
+                        };
+                        mark(0, kZ90 * std::sqrt(S2[mi] * chi * (1 - chi) / (a * W1[mi])));
+                        for (int var = 0; var < 2; ++var) {
+                            const std::size_t id = ci(var, qi, mi, tl);
+                            const double* d = &D[id * kB];
+                            double s1 = 0, s2 = 0;
+                            for (int b = 0; b < kB1; ++b) { s1 += d[b] / a; s2 += (d[b] / a) * (d[b] / a); }
+                            const double sd = std::sqrt(std::max(s2 / kB1 - (s1 / kB1) * (s1 / kB1), 1e-18));
+                            mark(1 + var, kZ90 * sd);
+                            if (t > T0)
+                                for (int b = kB1; b < kB; ++b) mx[id * kB + b] = std::max(mx[id * kB + b], std::fabs(d[b] / a) / sd);
+                            if (std::find(bounds.begin(), bounds.end(), t) != bounds.end() && t >= T1) {
+                                std::vector<double> mm(mx.begin() + id * kB + kB1, mx.begin() + (id + 1) * kB);
+                                std::sort(mm.begin(), mm.end());
+                                const double lev = 1 - kAlpha / Kblk;
+                                qhat[id] = mm[std::min<std::size_t>(mm.size() - 1, std::size_t(std::ceil(lev * mm.size())) - 1)];
+                            }
+                            if (t > T1) mark(3 + var, qhat[id] * sd);
+                        }
+                    }
+                }
             }
         }
         for (std::size_t qi = 0; qi < NQ; ++qi)
             for (std::size_t mi = 0; mi < NM; ++mi)
-                for (int tl = 0; tl < 2; ++tl)
-                    for (const auto& w : kWins) {
-                        const std::size_t k = qi * NM + mi, h = (k * 2 + tl) * 2;
-                        double ci = 0, cs = 0, wd = 0;
-                        for (std::size_t t = w.a; t < w.b; ++t) { ci += hit[h][t]; cs += hit[h + 1][t]; wd += wid[k * 2 + tl][t]; }
-                        const double n = double(w.b - w.a);
-                        for (int g = 0; g < 2; ++g)
-                            std::fprintf(out, "%s,%u,%.2f,%s,%d,analytic,%s,%s,%.5f,%.5f\n", rname.c_str(), seed, kQ[qi],
-                                         tl ? "upper" : "lower", kMem[mi], g ? "smoothed" : "instant", w.name,
-                                         (g ? cs : ci) / n, wd / n);
+                for (int tl = 0; tl < 2; ++tl) {
+                    const std::size_t cc = (qi * NM + mi) * 2 + tl;
+                    for (int iv = 0; iv < NI; ++iv) {
+                        for (const auto& w : kWins) {
+                            const std::size_t a = std::max(w.a, iv >= 3 ? T1 + 1 : w.a);
+                            double h0 = 0, h1 = 0, wd = 0;
+                            for (std::size_t t = a; t < w.b; ++t) { h0 += hit[(iv * 2) * NC + cc][t]; h1 += hit[(iv * 2 + 1) * NC + cc][t]; wd += wid[iv * NC + cc][t]; }
+                            const double n = double(w.b - a);
+                            for (int g = 0; g < 2; ++g)
+                                std::fprintf(out, "%s,%u,%.2f,%s,%d,%s,%s,%s,%.5f,%.5f\n", rname.c_str(), seed, kQ[qi],
+                                             tl ? "upper" : "lower", kMem[mi], kInt[iv], g ? "smoothed" : "instant", w.name,
+                                             (g ? h1 : h0) / n, wd / n);
+                        }
+                        if (iv < 3) continue;
+                        // Uniform coverage: every tick of the horizon inside the band.
+                        for (const auto& [hn, a, b] : {std::tuple{"t1_T", T1 + 1, T}, std::tuple{"t1_tau", T1 + 1, TAU}})
+                            for (int g = 0; g < 2; ++g) {
+                                bool all = true;
+                                double wd = 0;
+                                for (std::size_t t = a; t < b; ++t) { all = all && hit[(iv * 2 + g) * NC + cc][t]; wd += wid[iv * NC + cc][t]; }
+                                std::fprintf(uout, "%s,%u,%.2f,%s,%d,%s,%s,%s,%d,%.5f\n", rname.c_str(), seed, kQ[qi],
+                                             tl ? "upper" : "lower", kMem[mi], kInt[iv], g ? "smoothed" : "instant", hn,
+                                             int(all), wd / double(b - a));
+                            }
                     }
+                }
         std::fprintf(stderr, "%s seed %u\n", rname.c_str(), seed);
     }
+    std::fclose(uout);
     std::fclose(out);
     return 0;
 }
