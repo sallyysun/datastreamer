@@ -29,6 +29,7 @@
 #include "dependence/mle_score_cusum.hpp"
 #include "dependence/rank_score_cusum.hpp"
 #include "dependence/parametric_copula.hpp"
+#include "dependence/recursive_mpl.hpp"
 #include "dependence/nonlinear_kalman.hpp"
 #include "dependence/particle_filter.hpp"
 #include "dependence/windowed_rank.hpp"
@@ -395,10 +396,16 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                     models.push_back(std::make_unique<GaussianCopulaMLE>(
                         GaussianCopulaMLE::Config{.lambda = lam, .burn_in = 50}, "m"));
             } else {
-                for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
-                    models.push_back(std::make_unique<ParametricCopulaMLE>(
-                        ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .lambda = lam,
-                                                    .expected_info = true, .burn_in = 50}, "m"));
+                // Constant-gain recursive Gaussian MPL (notes/studies/budget_mpl.md). The bank passes
+                // z = probit(u) from its shared rank window; ExactNormal maps it back to u = Phi(z), so
+                // each arm sees the bank's pseudo-observations with no second standardisation.
+                // Gains are the old retentions' 1 - lambda: memories 39 ... 1999.
+                for (double gain : {0.05, 0.02, 0.01, 0.005, 0.001}) {
+                    RecursiveMPL::Config c{};
+                    c.margin = RecursiveMPL::Margin::ExactNormal;
+                    c.gain = gain;
+                    models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
+                }
             }
             static const std::vector<std::string> names = {
                 "xiao_bank", "xiao_bank_log", "xiao_bank_own", "xiao_bank_sq32", "xiao_bank_uniform", "xiao_bank_block",

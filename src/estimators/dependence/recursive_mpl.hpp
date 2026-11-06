@@ -5,8 +5,12 @@
 #include <cstddef>
 #include <memory>
 
-#include "ds_margin.hpp"
 #include "estimator.hpp"
+#include "predictive_density.hpp"
+#if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/Makefile DS_INC)
+#include "ds_margin.hpp"
+#define RECURSIVE_MPL_HAS_DS 1
+#endif
 #include "kll_sketch.hpp"
 #include "marginal_rank_pit.hpp"
 #include "parametric_copula.hpp"
@@ -15,7 +19,7 @@
 //   r_n = clip(r_{n-1} + gain * I(r_{n-1})^{-1} s_n(r_{n-1}), +-r_max).
 // Pseudo-observations come from the marginal state BEFORE the current pair is inserted.
 // Spec and results: notes/studies/budget_mpl.md.
-class RecursiveMPL : public DependenceEstimator {
+class RecursiveMPL : public DependenceEstimator, public PredictiveDensity {
 public:
     enum class Margin { Kll, DsKll, ExactNormal, RankWindow };
     enum class Update { ConstantGain, CopulaFit };   // CopulaFit: the registered MPL's recursion
@@ -39,6 +43,14 @@ public:
         if (c_.margin == Margin::DsKll) make_ds();
     }
 
+    // Gaussian copula log density at the current r, for banks that score arms by their own density.
+    double log_predictive(double u, double v) const override {
+        u = std::clamp(u, c_.delta, 1.0 - c_.delta);
+        v = std::clamp(v, c_.delta, 1.0 - c_.delta);
+        const double r = (c_.update == Update::CopulaFit) ? fit_.param() : r_;
+        return copula::Gaussian::log_density(u, v, r);
+    }
+
     void update(double x, double y) override {
         double u = 0.5, v = 0.5;
         std::size_t seen = n_;
@@ -48,8 +60,10 @@ public:
                 kx_.insert(x); ky_.insert(y);
                 break;
             case Margin::DsKll:
+#ifdef RECURSIVE_MPL_HAS_DS
                 u = dx_->cdf(x); v = dy_->cdf(y);
                 dx_->insert(x); dy_->insert(y);
+#endif
                 break;
             case Margin::ExactNormal:
                 u = 0.5 * std::erfc(-x / std::sqrt(2.0));
@@ -88,7 +102,9 @@ public:
         const std::size_t core = (c_.update == Update::CopulaFit ? 2 : 1) * sizeof(double) + sizeof(c_);
         switch (c_.margin) {
             case Margin::Kll:        return core + kx_.store_bytes() + ky_.store_bytes();
+#ifdef RECURSIVE_MPL_HAS_DS
             case Margin::DsKll:      return core + dx_->store_bytes() + dy_->store_bytes();
+#endif
             case Margin::RankWindow: return core + px_.store_bytes() + py_.store_bytes();
             default:                 return core;
         }
@@ -99,9 +115,11 @@ public:
 private:
     // Fresh sketches, and DataSketches' coin generator reseeded so the run is reproducible.
     void make_ds() {
+#ifdef RECURSIVE_MPL_HAS_DS
         ds_margin::seed(c_.seed);
         dx_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
         dy_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
+#endif
     }
 
     Config c_;
@@ -109,7 +127,9 @@ private:
     std::size_t n_ = 0;
     double r_ = 0.0;
     KllSketch kx_, ky_;
+#ifdef RECURSIVE_MPL_HAS_DS
     std::unique_ptr<ds_margin::Kll> dx_, dy_;   // only for Margin::DsKll
+#endif
     RankPit px_, py_;
     copula::CopulaFit fit_;
 };
