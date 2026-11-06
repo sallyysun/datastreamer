@@ -178,6 +178,17 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
     - **Single-seed RMSE** (seed 42 only, illustrative): jump 62 / 64 / 57 and drift 55 / 58 / 54
       (×10⁻³, Xiao / Hermite / MPL).
 
+15. **Kalman and BOCPD under the Chapter 6 protocol** (`budget_mpl.md` §17; paired against the MPL
+    log bank, mean over 4 families, ×10⁻³).
+    - **BOCPD** is best on constant (−4.7) and jump (−3.2), but far worse on drift (+36) and
+      oscillate (+120). It is also slower in the first 100 ticks after the jump (about 365 vs about
+      320).
+    - **The original Kalman bank (sticky)** is robust but behind everywhere: +6 to +9, and +33 on
+      oscillate.
+    - **VFF, CUSUM, GLR and the single-rate filters** are well behind.
+    - **Conclusion:** the estimator log banks are the only methods within about 5 of the best in
+      every scenario.
+
 ### 0.5 Which estimator wins where (from the results above)
 
 | Situation | Best | Evidence |

@@ -795,6 +795,57 @@ agree within about 1):
   - Softmax alone hands everything to N_eff = 99 and stays there (bank memory ≈ 100 for 2500 ticks).
   - Fixed share goes to 39, then climbs through 99 and 199 to 399.
 
+## 17. Kalman and BOCPD under the Chapter 6 protocol (2026-11-06)
+
+**Setup.**
+- Probe: `experiments/probe_kalman_ch6.cpp`; table: `experiments/kalman_ch6_table.py` →
+  `results/kalman_ch6_table.txt`.
+- The Chapter 6 protocol: seeds 42–101, 4 families, constant / drift / jump / oscillate, N = 5000,
+  scored on [500, 5000). Paired with the regenerated log banks on the same streams.
+- The Kalman methods observe 20-tick block Spearman correlations: a local-level filter on z = atanh ρ.
+
+**Paired against the MPL log bank, whole run, mean over the 4 families** (×10⁻³, ± 2 SE;
+negative = better than the MPL bank):
+
+| Method | constant | drift | jump | oscillate |
+| --- | --- | --- | --- | --- |
+| `kalman_bocpd` (run-length posterior, hazard 1/1000) | **−4.7 ± 1.4** | +36.4 ± 1.8 | **−3.2 ± 1.3** | +119.7 ± 7.2 |
+| `kalman_bank_sticky` (the original bank, §14.16) | +5.7 ± 1.2 | +6.1 ± 1.1 | +8.6 ± 1.0 | +32.9 ± 2.2 |
+| `kalman_bank` | +17.4 ± 1.4 | +12.4 ± 1.2 | +7.4 ± 1.0 | +35.4 ± 2.3 |
+| `kalman_vff` | +17.7 ± 1.3 | +6.5 ± 1.6 | +32.0 ± 1.7 | +55.0 ± 3.1 |
+| `kalman` (slow, q small) | −2.7 ± 1.0 | +42.4 ± 1.8 | +63.0 ± 1.4 | +137.4 ± 10.4 |
+| `kalman_fast` | +49.1 | +32.1 | +29.0 | +78.9 |
+| `kalman_bocpd_fast` | +44.4 | +32.9 | +20.5 | +57.1 |
+| `kalman_cusum` / `kalman_glr` | +52.8 / +51.4 | +33.8 / +32.8 | +57.3 / +49.2 | +105.4 / +103.9 |
+
+**On jump, by family** (whole run; MPL bank / BOCPD):
+
+| | Gaussian | Clayton | Gumbel | t₄ |
+| --- | --- | --- | --- | --- |
+| whole run | 58.6 / 60.9 | 65.8 / 61.1 | 62.7 / 61.1 | 70.4 / 61.8 |
+| first 100 ticks after | 310 / 369 | 323 / 368 | 320 / 369 | 323 / 360 |
+| after the change, `kalman_bocpd_fast` | | | | 293–304 |
+
+**What it shows.**
+- **BOCPD is the best method on piecewise-constant streams, and the worst on smooth change.**
+  - It beats the MPL bank on `constant` (−4.7) and on `jump` (−3.2: better on Clayton, Gumbel and
+    t₄, slightly worse on Gaussian).
+  - It is 36 worse on drift and 120 worse on oscillate. Its model is "constant between changes", so
+    smooth drift looks like a stream of tiny changes it never declares.
+  - It is also slow to react: the first 100 ticks after the jump are 360–369 against the bank's
+    310–323. It wins the whole run by being near-cumulative before and after the change.
+- **The original Kalman bank is robust but behind the estimator banks everywhere:** +6 to +9 on
+  constant, drift and jump, and +33 on oscillate.
+  - Its arms see only one observation per 20-tick block, a block Spearman correlation, so it uses
+    the data less efficiently than the per-tick MPL arms.
+  - Its weighting is Bayes plus a Markov step, close to Hedge with η = 1 and fixed share.
+- **The single-rate filters and the hard-reset detectors** (CUSUM, GLR) are well behind on
+  everything.
+- **No single method wins everywhere.**
+  - The log banks win drift and oscillate, and are within about 5 of the best on constant and jump.
+  - BOCPD wins constant and jump, but fails badly on smooth change.
+  - That is the bank's selling point: it is robust across kinds of change.
+
 ## 8. Reproduction
 
 ```bash
