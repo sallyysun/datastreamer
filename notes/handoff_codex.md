@@ -25,6 +25,21 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
   - **Families:** main figures show Gaussian + Clayton; appendix figures show all four families.
 - **Hedge is not inherently Bayesian.** It equals Bayesian model averaging only for log loss at η = 1.
 
+## 0. Decision (2026-11-06, late): which MPL the bank uses
+
+**Sally's decision: the bank keeps the MPL used in all of this session's results.**
+- **The recursion:** constant-gain Fisher scoring in ρ, r ← clip(r + λ I(r)⁻¹ s(r), ±0.999), with
+  start-up gain max(λ, 1/m).
+- **The keys:** `mle_bank*` (commits `40ebc21` and `ddd7cab`).
+- **Not** the revised thesis §4.3.2 (θ-space discounted-information Fisher scoring) proposed by
+  another session.
+  - `RecursiveMPL` has §4.3.2 (`Update::FisherTheta`) and the exact discounted arg max
+    (`Update::Exact`, the root of −Wρ³ + Pρ² + (W−S)ρ + P; checked against brute force to within 4e-5)
+    as **optional modes only**. They are not wired into any bank.
+  - The other session (`session_01HveeZtaL7QYjcPz5w4FzKq`) was told of the decision and its reversal.
+  - **The thesis text must describe the constant-gain arms,** or state how they differ from §4.3.2.
+    In steady state they agree (gain = 1 − κ); they differ in coordinate and start-up.
+
 ## 1. Thesis frame (agreed with Sally)
 
 **Three estimators:**

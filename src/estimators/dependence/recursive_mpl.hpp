@@ -15,14 +15,19 @@
 #include "marginal_rank_pit.hpp"
 #include "parametric_copula.hpp"
 
-// Recursive Fisher-scaled pseudo-likelihood for the Gaussian copula, with a constant gain:
-//   r_n = clip(r_{n-1} + gain * I(r_{n-1})^{-1} s_n(r_{n-1}), +-r_max).
-// Pseudo-observations come from the marginal state BEFORE the current pair is inserted.
+// Recursive pseudo-likelihood for the Gaussian copula. Pseudo-observations come from the marginal state
+// BEFORE the current pair is inserted. Update modes (kappa = 1 - gain):
+//   ConstantGain   r <- clip(r + gain I(r)^-1 s(r), +-r_max)                       (spec of 2026-11-06 a.m.)
+//   FisherTheta    thesis 4.3.2: theta = atanh r, H <- kappa H + (1 + r^2), H_0 = 1,
+//                  theta <- Pi[theta + s_theta / H] with |r| <= r_max; no step clamp     (current thesis)
+//   Exact          arg max of Q_t(r) = sum kappa^k log c_r(a_k, b_k): the root in (-1, 1) of
+//                  -W r^3 + P r^2 + (W - S) r + P, W = sum kappa^k, S = sum kappa^k (a^2+b^2), P = sum kappa^k ab
+//   CopulaFit      the pre-2026-11-06 registered recursion (step clamp, unprojected phi)
 // Spec and results: notes/studies/budget_mpl.md.
 class RecursiveMPL : public DependenceEstimator, public PredictiveDensity {
 public:
     enum class Margin { Kll, DsKll, ExactNormal, RankWindow };
-    enum class Update { ConstantGain, CopulaFit };   // CopulaFit: the registered MPL's recursion
+    enum class Update { ConstantGain, FisherTheta, Exact, CopulaFit };
 
     struct Config {
         Margin margin = Margin::Kll;
@@ -83,6 +88,7 @@ public:
         v = std::clamp(v, c_.delta, 1.0 - c_.delta);
         if (c_.update == Update::CopulaFit) { fit_.update_uv(u, v); return; }
         const double z1 = RankPit::probit(u), z2 = RankPit::probit(v);
+        if (c_.update == Update::FisherTheta || c_.update == Update::Exact) { step_discounted(z1, z2); return; }
         const double r = r_, q = 1.0 - r * r;
         const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);
         const double info = (1.0 + r * r) / (q * q);
@@ -97,14 +103,15 @@ public:
     }
 
     void reset() override {
-        n_ = 0; m_ = 0; r_ = 0.0;
+        n_ = 0; m_ = 0; r_ = 0.0; theta_ = 0.0; H_ = 1.0; W_ = S_ = P_ = 0.0;
         kx_.reset(); ky_.reset(); px_.reset(); py_.reset(); fit_.reset();
         if (c_.margin == Margin::DsKll) make_ds();
     }
 
     // Marginal state plus r (or CopulaFit's phi and information); the unused margin is not counted.
     std::size_t store_bytes() const override {
-        const std::size_t core = (c_.update == Update::CopulaFit ? 2 : 1) * sizeof(double) + sizeof(c_);
+        const std::size_t words = c_.update == Update::Exact ? 4 : (c_.update == Update::ConstantGain ? 1 : 2);
+        const std::size_t core = words * sizeof(double) + sizeof(c_);
         switch (c_.margin) {
             case Margin::Kll:        return core + kx_.store_bytes() + ky_.store_bytes();
 #ifdef RECURSIVE_MPL_HAS_DS
@@ -118,6 +125,37 @@ public:
     const char* name() const override { return name_; }
 
 private:
+    void step_discounted(double a, double b) {
+        const double kappa = 1.0 - c_.gain;
+        if (c_.update == Update::FisherTheta) {
+            const double r = r_, q = 1.0 - r * r;
+            const double s_r = r / q + ((1.0 + r * r) * a * b - r * (a * a + b * b)) / (q * q);
+            H_ = kappa * H_ + (1.0 + r * r);                   // expected information in theta, at theta_{t-1}
+            const double tmax = std::atanh(c_.r_max);
+            theta_ = std::clamp(theta_ + s_r * q / H_, -tmax, tmax);   // s_theta = s_r dr/dtheta
+            r_ = std::tanh(theta_);
+            return;
+        }
+        W_ = kappa * W_ + 1.0;
+        S_ = kappa * S_ + a * a + b * b;
+        P_ = kappa * P_ + a * b;
+        // f(-1) = S + 2P >= 0 and f(1) = 2P - S <= 0: a root in [-1, 1] always exists. Newton from the
+        // previous root, kept inside a shrinking bracket (bisection when Newton leaves it).
+        const auto f = [&](double r) { return -W_ * r * r * r + P_ * r * r + (W_ - S_) * r + P_; };
+        const auto df = [&](double r) { return -3.0 * W_ * r * r + 2.0 * P_ * r + (W_ - S_); };
+        double lo = -1.0, hi = 1.0, r = r_;
+        for (int it = 0; it < 60; ++it) {
+            const double fr = f(r);
+            if (fr > 0.0) lo = r; else hi = r;
+            const double d = df(r);
+            double nr = (d != 0.0) ? r - fr / d : 0.5 * (lo + hi);
+            if (!(nr > lo && nr < hi)) nr = 0.5 * (lo + hi);
+            if (std::abs(nr - r) < 1e-12) { r = nr; break; }
+            r = nr;
+        }
+        r_ = std::clamp(r, -c_.r_max, c_.r_max);
+    }
+
     // Fresh sketches, and DataSketches' coin generator reseeded so the run is reproducible.
     void make_ds() {
 #ifdef RECURSIVE_MPL_HAS_DS
@@ -132,6 +170,8 @@ private:
     std::size_t n_ = 0;
     std::size_t m_ = 0;   // copula updates so far
     double r_ = 0.0;
+    double theta_ = 0.0, H_ = 1.0;          // FisherTheta
+    double W_ = 0.0, S_ = 0.0, P_ = 0.0;    // Exact
     KllSketch kx_, ky_;
 #ifdef RECURSIVE_MPL_HAS_DS
     std::unique_ptr<ds_margin::Kll> dx_, dy_;   // only for Margin::DsKll
