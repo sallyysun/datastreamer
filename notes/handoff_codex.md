@@ -17,6 +17,119 @@ Read `CLAUDE.md` first: layout, the estimator contract, λ conventions, platform
 - **Hedge (fixed-share) is not inherently Bayesian.** It coincides with Bayesian model averaging
   only for log loss at η = 1.
 
+## 0. Consolidated summary of all results (read this first)
+
+State as of commit `baede99` on `bank-vff-study`, all local and unpushed. Linux / libstdc++.
+RMSE is of ρ_S ×10⁻² (budget study) or ×10⁻³ (banks). Detail and every table are in §3 and in the
+cited notes.
+
+### 0.1 The estimators, as implemented now
+
+| Name in the thesis | Code | Where used |
+| --- | --- | --- |
+| Xiao | `XiaoSpearmanEstimator` (B×B counts, frozen cut-points, counts × λ each tick) | budget study, banks |
+| Hermite | `HermiteEstimator` (order N series, standardised margins) | budget study, banks |
+| Recursive MPL (spec) | `RecursiveMPL`: z = Φ⁻¹(Û); r ← clip(r + λ·I(r)⁻¹·s(r), ±0.999); ρ̂ = (6/π) asin(r/2); δ = 10⁻³; 30-obs warm-up | budget study (KLL / DataSketches margins); bank arms (`mle_bank*`, ExactNormal pass-through of the bank's 500-tick window ranks, `startup = true`: gain max(λ, 1/m)) |
+| Old MPL | `ParametricCopulaMLE` / `CopulaFit` (atanh coordinates, discounted information, second standardisation) | still used by the MPL VFF comparator, the family bank's arms, and the `mleold_*` keys |
+
+The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ in start-up and margins
+(`budget_mpl.md` §11).
+
+### 0.2 Headline findings
+
+1. **The optimal memory is predicted by the bias–variance formula.** On Gaussian drift,
+   M* = (2σ²/d²)^(1/3) gives Xiao 282 against a measured 277, Hermite 294 against 286, Kalman 295
+   against 266 (grid-limited). σ² must be the variance along the path; using `constant`'s σ² gives
+   ratios of 0.88–0.95.
+
+2. **Under a matched memory budget, the MPL is the most accurate for ρ_S in 9 of 12 cells,** once its
+   margins use Apache DataSketches KLL.
+   - At 16 KiB, test RMSE ×10⁻² (Xiao / Hermite / MPL + DataSketches):
+     - Gaussian 3.49 / 3.61 / **3.01**, 6.75 / 6.79 / **6.25**, 8.22 / 8.25 / **7.91**;
+     - Clayton 3.64 / 3.75 / **3.45**, 5.93 / 5.94 / **5.64**, **8.29** / 8.33 / 8.49;
+     - Gumbel 3.64 / 3.74 / **3.34**, 6.07 / 6.03 / **5.49**, 8.32 / 8.36 / **8.12**;
+     - t₄ **3.91** / 4.06 / 3.94, 6.84 / 6.92 / **6.72**, **8.52** / 8.64 / 8.63.
+   - Xiao wins Clayton jump; the t₄ gaps are within noise. The SEs are unpaired.
+   - **Memory stops mattering for all three.**
+     - Xiao and Hermite plateau by about 8–16 KiB (B ≈ 20–30, N ≈ 30–43).
+     - The MPL plateaus at 5.8–10 KB (k = 256–512), within 0.0003 of exact-PIT RMSE.
+   - **After a jump:** the MPL has the lowest post-change RMSE in all four families (e.g. Gaussian
+     7.84 against Xiao 9.83). The delays are the same (45–50 ticks), so this is not faster reaction.
+
+3. **The MPL's memory is all marginal state, and it depends on the implementation.**
+   - The copula state is 72 bytes.
+   - My own KLL sketch needed 37.5 KB at k = 256: doubles, plus per-level vectors that keep their
+     high-water capacity.
+   - DataSketches KLL needs 5.8 KB, with identical rank accuracy and identical MPL RMSE.
+   - So "MPL is smaller than Xiao (5.8 vs 8–12 KB)" holds only with a tight sketch. It is not
+     inherent to the method.
+
+4. **Time per tick** (idle machine): all chosen configurations cost under 2.5 µs.
+   - Xiao is Θ(B²): 63 µs at B = 180, with no accuracy gain.
+   - Hermite is Θ(N²).
+   - The MPL is O(S) for the rank scan, plus O(1).
+   - Measured exponents match: Xiao update 1.99; Hermite approaching 2; MPL linear in S.
+
+5. **Banks** (`docs/chapter6_results.md`, regenerated with the spec MPL arms; 60 seeds, 4 families ×
+   3 estimators):
+   - **The log bank:**
+     - beats every fixed memory, both VFF rates and uniform, pooled over drift + jump: 12/12;
+     - beats the hindsight-best fixed memory on every jump, by −14.9 to −20.7 ×10⁻³;
+     - loses to it on every drift, by +2.2 to +7.4;
+     - against M = 199 on drift: better on Clayton/Gumbel, worse on Gaussian/t (up to +4.0).
+   - **Log loss beats squared** in 21/24 cells, with 3 ties.
+   - **Regret bound:** 0 violations in 1440 runs at every m.
+   - **Adaptive weighting helps after abrupt changes, not under smooth drift.**
+
+6. **The new MPL bank arms are as good as or better than the old ones** (`budget_mpl.md` §12, paired).
+   - With the start-up rule (b), they match or beat the old arms in 11 of 12 whole-run cells.
+   - Without it, (a) loses 13–16 ×10⁻³ in the first 2000 ticks.
+   - The earlier five-seed gap was start-up, not the update rule.
+
+7. **ρ_S accuracy is not copula accuracy** (existing bank-level ISE; this involves the family bank,
+   which is now out of the three-estimator scope).
+   - Family bank against the Gaussian MPL bank, CDF ISE ratio up to **20.9×** (Clayton constant),
+     while the ρ_S RMSE ratio is ≤ 1.42.
+   - In both shape switches the MPL bank is *better* on ρ_S and 5× worse on ISE.
+   - **Density ISE is designed but not run.** It must be measured on the normal-score scale, because
+     the copula-density ISE on [0,1]² diverges for tail-dependent families.
+
+8. **Tails: model bias against speed** (`thesis_bank_tails.md`, family bank, already run).
+   - The family bank tracks χ(q) far faster than corner counters after family switches.
+   - On the Clayton/Gumbel **mixture** (π = 0.75 → 0.25, ρ_S fixed at 0.582) it loses over the whole
+     run to the M = 1999 counter (73 vs 62 lower tail, 84 vs 64 upper), but wins after the switch
+     (90 vs 150–170).
+   - The cause: it puts 0.82 of its weight on the single Clayton arm instead of estimating π, which
+     gives a +20 bias. Log loss at η = 1 is Bayesian averaging over arms, which picks one arm.
+   - The fix would be a mixture arm. Not built.
+   - None of the three estimators tracks tail shape well.
+
+### 0.3 Known problems that affect claims
+
+- **The Hermite `store_bytes()` undercounts about 3×** (W_ and A_fast_ are not counted), so its
+  budget-study memory is understated. Not fixed: a thesis-audit decision.
+- **The Student-t ρ_S table is a data race under threads.**
+  - It corrupted one budget run, which was rerun with a warm-up.
+  - The source is unfixed, and a task is queued.
+  - `tail_validate`'s t rows may be affected.
+- **The budget-study SEs are unpaired**, and there is no bias/variance split: per-seed output is not
+  saved.
+- **Validation tuning is per family × scenario**: an offline benchmark, not deployable tuning.
+- **The DataSketches coin generator is clock-seeded**; it is reseeded per estimator in
+  `ds_margin::seed()`.
+
+### 0.4 Still to do (ask Sally first)
+
+1. Update `chapter6_draft.tex` MPL-bank numbers from the regenerated `chapter6_results.md`.
+2. Regenerate the own-density section's MPL numbers (needs `probe_bank_tune` on seeds 1–30 and the
+   shape files).
+3. The Hermite `store_bytes()` fix.
+4. Density ISE in `probe_budget` (normal-score scale), with per-seed output: this also gives the
+   paired CIs and the bias/variance split.
+5. Tail mixture at more mixing levels (0.6 → 0.4, 0.9 → 0.1); optionally a mixture arm.
+6. Optionally switch the family-bank arms to the spec MPL (about 70 min rerun).
+7. Fix the t-table race in `src/estimators/copula_family.hpp`.
+
 ## 1. Thesis framing she settled on
 
 - **Estimators:** three only, Xiao (counting matrix), Hermite (series), and recursive Gaussian MPL.
