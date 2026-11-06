@@ -153,6 +153,16 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
       - `ch6_bank_path_mpl.png`: spec MPL bank, drift and jump, N_eff labels;
       - `ch6_bank_path_softmax_vs_fs.png`: jump, softmax only against fixed share.
 
+13. **Xiao against Hermite against MPL banks: figure** `ch6_bank_compare.png` (`plot_bank_compare.py`,
+    regenerated Chapter 6 data).
+    - **(a) Whole-run RMSE by family and scenario:** the MPL bank is lowest everywhere except t₄
+      drift, where Xiao is lowest.
+    - **(b) Jump, paired differences from the MPL bank, by window:**
+      - before the change, Xiao and Hermite are 1–2 ×10⁻³ *better*;
+      - in the first 500 ticks after it, they are 8–11 worse;
+      - 500–1500 after, 2–7 worse;
+      - over the whole run, Xiao is 1.5 worse and Hermite 3.4 worse.
+
 ### 0.5 Which estimator wins where (from the results above)
 
 | Situation | Best | Evidence |
