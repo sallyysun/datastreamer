@@ -1,0 +1,145 @@
+== sanity: mleold log bank, whole run (x1e-3); chapter6_results.md has Gaussian 67.0 drift, 59.6 jump ==
+drift {'gaussian': 67.0, 'clayton': 60.2, 'gumbel': 61.0, 't': 77.0}
+jump {'gaussian': 59.6, 'clayton': 68.4, 'gumbel': 63.6, 't': 70.2}
+
+== RMSE (x1e-3) and paired differences, mean ± 2 SE (* = beyond 2 SE) ==
+scenario    window     method   copula     b     a   old        b_old         a_old           b_a
+   drift     whole   bank_log gaussian  67.3  67.5  67.0  +0.30±0.74    +0.48±1.01    -0.19±0.80 
+   drift     whole   bank_log  clayton  57.7  56.5  60.2  -2.54±0.44*   -3.72±0.39*   +1.18±0.40*
+   drift     whole   bank_log   gumbel  58.8  57.6  61.0  -2.18±0.47*   -3.39±0.40*   +1.20±0.34*
+   drift     whole   bank_log        t  77.8  78.2  77.0  +0.83±0.67*   +1.26±1.05*   -0.44±0.96 
+   drift     whole       bank gaussian  69.4  70.1  69.1  +0.36±0.71    +1.01±1.26    -0.65±1.18 
+   drift     whole       bank  clayton  61.3  60.5  63.7  -2.35±0.54*   -3.19±0.55*   +0.84±0.50*
+   drift     whole       bank   gumbel  61.7  60.9  63.8  -2.08±0.55*   -2.88±0.48*   +0.80±0.48*
+   drift     whole       bank        t  77.4  78.2  76.9  +0.51±0.69    +1.27±1.02*   -0.77±0.94 
+   drift     whole fixed_1999 gaussian 222.1 196.3 195.8 +26.31±1.53*   +0.47±1.22   +25.84±1.76*
+   drift     whole fixed_1999  clayton 154.2 153.6 146.0  +8.17±0.30*   +7.61±0.18*   +0.57±0.34*
+   drift     whole fixed_1999   gumbel 153.5 152.9 145.2  +8.30±0.34*   +7.71±0.24*   +0.59±0.35*
+   drift     whole fixed_1999        t 219.4 193.1 193.0 +26.45±1.33*   +0.15±1.57   +26.30±2.08*
+   drift     whole  fixed_199 gaussian  63.3  63.3  63.9  -0.61±0.54*   -0.68±0.53*   +0.07±0.02*
+   drift     whole  fixed_199  clayton  62.3  62.3  64.7  -2.46±0.38*   -2.46±0.39*   -0.00±0.01 
+   drift     whole  fixed_199   gumbel  63.1  63.1  65.2  -2.20±0.42*   -2.20±0.42*   -0.00±0.01 
+   drift     whole  fixed_199        t  74.5  74.5  75.6  -1.04±0.68*   -1.10±0.66*   +0.05±0.03*
+   drift     early   bank_log gaussian  77.7  77.8  71.4  +6.34±1.46*   +6.37±2.04*   -0.03±1.75 
+   drift     early   bank_log  clayton  44.3  36.1  43.1  +1.16±1.05*   -7.08±0.73*   +8.24±0.97*
+   drift     early   bank_log   gumbel  44.6  36.4  43.4  +1.16±1.06*   -7.05±0.73*   +8.21±0.97*
+   drift     early   bank_log        t  88.5  87.1  82.0  +6.56±1.52*   +5.11±2.13*   +1.45±1.84 
+   drift     early       bank gaussian  79.6  80.5  73.6  +5.99±1.51*   +6.88±2.45*   -0.89±2.36 
+   drift     early       bank  clayton  44.0  34.5  42.7  +1.27±1.36    -8.19±1.42*   +9.46±1.46*
+   drift     early       bank   gumbel  44.4  35.0  43.1  +1.33±1.40    -8.09±1.44*   +9.42±1.47*
+   drift     early       bank        t  89.1  89.2  83.0  +6.09±1.62*   +6.18±2.03*   -0.09±1.81 
+   drift     early fixed_1999 gaussian 161.3 105.4 122.0 +39.22±3.44*  -16.68±4.48*  +55.90±5.69*
+   drift     early fixed_1999  clayton  28.1  18.8  28.5  -0.34±1.99    -9.65±1.26*   +9.31±2.36*
+   drift     early fixed_1999   gumbel  28.1  18.9  28.6  -0.47±1.94    -9.66±1.27*   +9.19±2.33*
+   drift     early fixed_1999        t 162.2 105.6 122.8 +39.39±3.25*  -17.21±5.69*  +56.60±6.91*
+   drift     early  fixed_199 gaussian  71.8  71.6  67.4  +4.38±1.24*   +4.19±1.19*   +0.19±0.06*
+   drift     early  fixed_199  clayton  67.7  67.7  67.3  +0.42±0.41*   +0.43±0.41*   -0.00±0.02 
+   drift     early  fixed_199   gumbel  68.1  68.1  67.7  +0.42±0.41*   +0.43±0.41*   -0.00±0.03 
+   drift     early  fixed_199        t  83.4  83.3  79.4  +4.05±1.33*   +3.91±1.28*   +0.14±0.07*
+    jump     whole   bank_log gaussian  58.6  62.7  59.6  -1.08±0.51*   +3.11±0.52*   -4.19±0.45*
+    jump     whole   bank_log  clayton  65.8  69.9  68.4  -2.56±0.56*   +1.56±0.57*   -4.12±0.48*
+    jump     whole   bank_log   gumbel  62.7  66.7  63.6  -0.91±0.70*   +3.17±0.73*   -4.08±0.51*
+    jump     whole   bank_log        t  70.4  74.8  70.2  +0.18±0.62    +4.56±0.61*   -4.38±0.54*
+    jump     whole       bank gaussian  63.3  67.0  64.2  -0.97±0.49*   +2.82±0.59*   -3.78±0.51*
+    jump     whole       bank  clayton  71.5  74.8  74.2  -2.71±0.65*   +0.61±0.73    -3.31±0.66*
+    jump     whole       bank   gumbel  67.8  71.4  69.1  -1.28±0.72*   +2.35±0.83*   -3.63±0.73*
+    jump     whole       bank        t  72.1  76.3  73.4  -1.24±0.79*   +2.92±0.85*   -4.16±0.74*
+    jump     whole fixed_1999 gaussian 202.8 212.4 191.3 +11.55±0.49*  +21.18±0.50*   -9.63±0.34*
+    jump     whole fixed_1999  clayton 204.6 214.4 194.2 +10.44±0.35*  +20.20±0.47*   -9.77±0.43*
+    jump     whole fixed_1999   gumbel 198.7 208.1 187.7 +11.02±0.38*  +20.45±0.63*   -9.43±0.50*
+    jump     whole fixed_1999        t 200.6 210.1 189.4 +11.28±0.47*  +20.80±0.58*   -9.51±0.43*
+    jump     whole  fixed_199 gaussian  78.8  78.8  78.2  +0.64±0.28*   +0.64±0.27*   -0.00±0.01 
+    jump     whole  fixed_199  clayton  83.6  83.6  84.3  -0.75±0.38*   -0.75±0.38*   -0.00±0.02 
+    jump     whole  fixed_199   gumbel  81.1  81.1  80.5  +0.62±0.41*   +0.61±0.41*   +0.00±0.01 
+    jump     whole  fixed_199        t  85.8  85.8  85.7  +0.08±0.41    +0.08±0.40    +0.00±0.02 
+    jump     early   bank_log gaussian  44.1  57.5  44.0  +0.13±1.57   +13.55±1.39*  -13.42±1.30*
+    jump     early   bank_log  clayton  43.7  58.2  42.4  +1.37±1.64   +15.88±1.38*  -14.51±1.57*
+    jump     early   bank_log   gumbel  43.8  58.0  42.6  +1.20±2.12   +15.39±1.48*  -14.19±1.59*
+    jump     early   bank_log        t  54.6  68.0  53.6  +0.93±1.82   +14.32±1.63*  -13.40±1.79*
+    jump     early       bank gaussian  44.4  57.1  43.4  +1.00±1.77   +13.72±1.93*  -12.72±1.83*
+    jump     early       bank  clayton  44.3  57.5  42.1  +2.21±1.81*  +15.44±1.91*  -13.23±2.26*
+    jump     early       bank   gumbel  43.0  56.5  41.1  +1.95±2.30   +15.38±1.99*  -13.43±2.30*
+    jump     early       bank        t  52.6  66.9  51.8  +0.82±2.06   +15.10±2.31*  -14.29±2.22*
+    jump     early fixed_1999 gaussian  32.4  72.7  32.1  +0.31±2.80   +40.62±3.09*  -40.31±5.22*
+    jump     early fixed_1999  clayton  28.2  68.2  28.4  -0.25±3.41   +39.76±3.64*  -40.00±5.79*
+    jump     early fixed_1999   gumbel  30.2  67.1  29.9  +0.27±3.31   +37.17±5.26*  -36.91±7.42*
+    jump     early fixed_1999        t  34.0  71.7  36.0  -1.99±2.82   +35.71±3.98*  -37.71±5.91*
+    jump     early  fixed_199 gaussian  64.6  64.6  65.5  -0.92±0.86*   -0.90±0.85*   -0.01±0.04 
+    jump     early  fixed_199  clayton  66.9  66.9  67.0  -0.04±1.14    -0.04±1.12    +0.00±0.05 
+    jump     early  fixed_199   gumbel  66.1  66.1  65.9  +0.18±1.21    +0.17±1.19    +0.01±0.04 
+    jump     early  fixed_199        t  79.4  79.3  79.5  -0.11±1.07    -0.12±1.04    +0.01±0.05 
+    jump      post   bank_log gaussian  68.4  67.8  70.0  -1.61±0.39*   -2.20±0.46*   +0.59±0.21*
+    jump      post   bank_log  clayton  79.0  78.6  83.4  -4.41±0.49*   -4.87±0.53*   +0.46±0.21*
+    jump      post   bank_log   gumbel  73.9  73.2  76.2  -2.29±0.52*   -2.92±0.62*   +0.63±0.29*
+    jump      post   bank_log        t  81.5  81.5  81.6  -0.11±0.48    -0.17±0.52    +0.06±0.23 
+    jump      post       bank gaussian  75.3  75.1  77.1  -1.75±0.41*   -1.93±0.56*   +0.18±0.33 
+    jump      post       bank  clayton  86.6  86.5  91.4  -4.82±0.70*   -4.97±0.75*   +0.15±0.35 
+    jump      post       bank   gumbel  81.8  81.7  84.9  -3.03±0.59*   -3.16±0.82*   +0.13±0.50 
+    jump      post       bank        t  84.6  84.3  86.7  -2.12±0.72*   -2.46±0.72*   +0.34±0.30*
+    jump      post fixed_1999 gaussian 270.5 278.8 254.9 +15.56±0.76*  +23.87±0.30*   -8.31±0.53*
+    jump      post fixed_1999  clayton 273.3 282.4 259.2 +14.07±0.61*  +23.16±0.30*   -9.10±0.40*
+    jump      post fixed_1999   gumbel 264.9 273.9 250.3 +14.63±0.68*  +23.65±0.31*   -9.02±0.44*
+    jump      post fixed_1999        t 267.4 275.8 252.0 +15.42±0.73*  +23.76±0.30*   -8.33±0.51*
+    jump      post  fixed_199 gaussian  88.2  88.2  86.6  +1.58±0.24*   +1.58±0.24*   +0.00±0.00 
+    jump      post  fixed_199  clayton  94.3  94.3  95.6  -1.30±0.35*   -1.30±0.35*   +0.00±0.00 
+    jump      post  fixed_199   gumbel  90.4  90.4  89.8  +0.62±0.32*   +0.62±0.32*   +0.00±0.00 
+    jump      post  fixed_199        t  90.8  90.8  90.6  +0.20±0.45    +0.20±0.45    +0.00±0.00 
+    jump rec_0_100   bank_log gaussian 310.4 307.1 312.7  -2.27±1.27*   -5.53±1.72*   +3.27±1.15*
+    jump rec_0_100   bank_log  clayton 322.7 319.4 327.9  -5.20±1.23*   -8.48±1.88*   +3.28±1.31*
+    jump rec_0_100   bank_log   gumbel 319.8 315.8 323.6  -3.85±1.27*   -7.82±2.23*   +3.98±1.70*
+    jump rec_0_100   bank_log        t 323.4 321.2 327.9  -4.46±2.03*   -6.70±2.50*   +2.23±1.43*
+    jump rec_0_100       bank gaussian 323.6 322.3 325.5  -1.95±1.31*   -3.23±2.05*   +1.28±1.67 
+    jump rec_0_100       bank  clayton 338.2 336.9 342.0  -3.83±1.73*   -5.11±2.76*   +1.28±2.34 
+    jump rec_0_100       bank   gumbel 338.1 336.9 341.1  -3.08±1.30*   -4.19±2.80*   +1.12±2.58 
+    jump rec_0_100       bank        t 347.1 345.1 351.5  -4.45±1.97*   -6.43±2.32*   +1.98±1.71*
+    jump rec_0_100 fixed_1999 gaussian 569.2 586.5 572.6  -3.44±1.52*  +13.89±0.69*  -17.33±1.10*
+    jump rec_0_100 fixed_1999  clayton 558.1 577.0 563.0  -4.94±1.25*  +14.01±0.67*  -18.94±0.83*
+    jump rec_0_100 fixed_1999   gumbel 555.6 574.3 560.0  -4.42±1.36*  +14.34±0.70*  -18.76±0.93*
+    jump rec_0_100 fixed_1999        t 565.5 582.9 569.0  -3.47±1.42*  +13.85±0.65*  -17.32±1.08*
+    jump rec_0_100  fixed_199 gaussian 396.1 396.1 392.6  +3.41±0.78*   +3.41±0.78*   +0.00±0.00 
+    jump rec_0_100  fixed_199  clayton 397.2 397.2 395.6  +1.62±1.11*   +1.62±1.11*   +0.00±0.00 
+    jump rec_0_100  fixed_199   gumbel 398.1 398.1 396.5  +1.62±0.82*   +1.62±0.82*   +0.00±0.00 
+    jump rec_0_100  fixed_199        t 395.0 395.0 393.4  +1.58±0.95*   +1.58±0.95*   +0.00±0.00 
+constant     whole   bank_log gaussian  24.3  37.0  27.5  -3.18±1.53*   +9.51±1.48*  -12.69±0.90*
+constant     whole   bank_log  clayton  24.4  38.7  29.3  -4.89±1.49*   +9.36±1.29*  -14.26±0.96*
+constant     whole   bank_log   gumbel  29.4  40.7  30.4  -0.99±1.71   +10.37±1.37*  -11.36±0.99*
+constant     whole   bank_log        t  35.1  48.6  37.2  -2.13±1.54*  +11.41±1.72*  -13.54±1.64*
+constant     whole       bank gaussian  25.1  40.9  27.7  -2.58±1.48*  +13.22±1.88*  -15.80±1.44*
+constant     whole       bank  clayton  27.1  44.2  31.0  -3.92±1.45*  +13.22±1.66*  -17.14±1.36*
+constant     whole       bank   gumbel  30.7  45.0  31.2  -0.52±1.51   +13.83±1.68*  -14.35±1.54*
+constant     whole       bank        t  32.9  49.6  34.4  -1.55±1.67   +15.14±1.76*  -16.70±1.83*
+constant     whole fixed_1999 gaussian  17.7 127.2  21.1  -3.36±2.20* +106.09±1.26* -109.45±2.52*
+constant     whole fixed_1999  clayton  15.8 128.3  22.4  -6.55±2.18* +105.89±1.20* -112.44±2.59*
+constant     whole fixed_1999   gumbel  20.7 124.5  21.7  -1.02±2.29  +102.77±2.11* -103.79±3.38*
+constant     whole fixed_1999        t  21.4 125.1  23.2  -1.76±2.30  +101.94±1.60* -103.70±3.12*
+constant     whole  fixed_199 gaussian  40.4  40.4  43.1  -2.67±0.86*   -2.67±0.84*   +0.00±0.03 
+constant     whole  fixed_199  clayton  44.9  44.9  48.5  -3.63±0.88*   -3.63±0.87*   +0.00±0.03 
+constant     whole  fixed_199   gumbel  47.3  47.3  49.1  -1.76±1.05*   -1.79±1.04*   +0.03±0.03*
+constant     whole  fixed_199        t  54.9  54.8  57.4  -2.53±0.96*   -2.56±0.94*   +0.03±0.03 
+constant     early   bank_log gaussian  30.7  47.2  35.1  -4.41±2.65*  +12.09±2.44*  -16.51±1.49*
+constant     early   bank_log  clayton  28.9  48.4  36.4  -7.45±2.59*  +11.99±2.13*  -19.44±1.55*
+constant     early   bank_log   gumbel  32.4  47.9  35.3  -2.86±2.74*  +12.66±2.27*  -15.52±1.72*
+constant     early   bank_log        t  38.9  59.5  42.8  -3.90±2.68*  +16.72±3.09*  -20.62±3.03*
+constant     early       bank gaussian  32.1  54.7  35.7  -3.60±2.66*  +19.02±3.46*  -22.62±2.72*
+constant     early       bank  clayton  32.4  57.6  38.7  -6.27±2.38*  +18.85±3.07*  -25.13±2.28*
+constant     early       bank   gumbel  34.6  56.5  36.1  -1.50±2.48   +20.33±3.25*  -21.83±2.71*
+constant     early       bank        t  40.1  65.5  42.5  -2.42±2.98   +22.95±3.37*  -25.38±3.12*
+constant     early fixed_1999 gaussian  22.8 213.8  27.5  -4.63±4.24* +186.36±2.23* -190.98±4.33*
+constant     early fixed_1999  clayton  18.9 215.5  29.3 -10.42±3.96* +186.22±1.77* -196.64±4.20*
+constant     early fixed_1999   gumbel  24.1 210.2  26.8  -2.69±3.91  +183.41±3.25* -186.11±5.40*
+constant     early fixed_1999        t  23.4 210.8  28.5  -5.13±4.06* +182.28±2.57* -187.41±5.05*
+constant     early  fixed_199 gaussian  41.5  41.5  45.5  -4.00±1.73*   -4.01±1.69*   +0.01±0.09 
+constant     early  fixed_199  clayton  45.2  45.1  50.5  -5.37±1.97*   -5.39±1.95*   +0.02±0.07 
+constant     early  fixed_199   gumbel  45.4  45.3  48.1  -2.68±2.03*   -2.78±2.00*   +0.10±0.09*
+constant     early  fixed_199        t  55.2  55.1  58.6  -3.44±1.95*   -3.52±1.89*   +0.07±0.09 
+
+== (b): log bank minus fixed arms, whole run (x1e-3, paired) ==
+scenario   copula best_fixed  log_bank   minus_best   minus_M199 sq_minus_best
+   drift gaussian  fixed_199      67.3  +3.99±0.71*  +3.99±0.71*   +6.10±0.95*
+   drift  clayton  fixed_399      57.7  +3.10±0.90*  -4.59±1.56*   +6.71±1.48*
+   drift   gumbel  fixed_399      58.8  +4.14±1.19*  -4.27±1.59*   +7.10±1.43*
+   drift        t  fixed_399      77.8  +7.39±1.44*  +3.29±1.36*   +6.99±1.56*
+    jump gaussian  fixed_199      58.6 -20.24±1.20* -20.24±1.20*  -15.53±1.64*
+    jump  clayton  fixed_199      65.8 -17.76±1.42* -17.76±1.42*  -12.05±1.54*
+    jump   gumbel  fixed_199      62.7 -18.46±1.32* -18.46±1.32*  -13.33±1.53*
+    jump        t  fixed_199      70.4 -15.38±1.93* -15.38±1.93*  -13.68±1.98*

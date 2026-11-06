@@ -378,6 +378,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             || key == "hermite_bank_uniform" || key == "hermite_bank_block") base = "hermite";
         if (key == "mle_bank" || key == "mle_bank_log" || key == "mle_bank_own" || key == "mle_bank_sq32" || key == "mle_bank_uniform"
             || key == "mle_bank_block") base = "mle";
+        // Variants for the start-up comparison (budget_mpl.md §12), not in all_estimator_keys():
+        // mlea = constant gain from the first update; mleold = the pre-2026-11-06 ParametricCopulaMLE arms.
+        for (const char* v : {"mlea", "mleold"})
+            for (const char* sfx : {"_bank", "_bank_log", "_bank_own", "_bank_sq32", "_bank_uniform"})
+                if (key == std::string(v) + sfx) base = v;
         if (base) {
             const std::string b(base);
             const bool block = ends_with("_block");
@@ -391,6 +396,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 for (double lam : {0.05, 0.02, 0.01, 0.005, 0.001})
                     models.push_back(std::make_unique<HermiteEstimator>(
                         HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "m"));
+            } else if (b == "mleold") {
+                for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
+                    models.push_back(std::make_unique<ParametricCopulaMLE>(
+                        ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .lambda = lam,
+                                                    .expected_info = true, .burn_in = 50}, "m"));
             } else if (block) {
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<GaussianCopulaMLE>(
@@ -399,11 +409,13 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 // Constant-gain recursive Gaussian MPL (notes/studies/budget_mpl.md). The bank passes
                 // z = probit(u) from its shared rank window; ExactNormal maps it back to u = Phi(z), so
                 // each arm sees the bank's pseudo-observations with no second standardisation.
-                // Gains are the old retentions' 1 - lambda: memories 39 ... 1999.
+                // Gains are the old retentions' 1 - lambda: memories 39 ... 1999. Start-up gain
+                // max(gain, 1/m) for mle (the thesis version); constant from the start for mlea.
                 for (double gain : {0.05, 0.02, 0.01, 0.005, 0.001}) {
                     RecursiveMPL::Config c{};
                     c.margin = RecursiveMPL::Margin::ExactNormal;
                     c.gain = gain;
+                    c.startup = (b == "mle");
                     models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
                 }
             }
@@ -411,7 +423,9 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 "xiao_bank", "xiao_bank_log", "xiao_bank_own", "xiao_bank_sq32", "xiao_bank_uniform", "xiao_bank_block",
                 "hermite_bank", "hermite_bank_log", "hermite_bank_own", "hermite_bank_sq32", "hermite_bank_uniform",
                 "hermite_bank_block",
-                "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_sq32", "mle_bank_uniform", "mle_bank_block"};
+                "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_sq32", "mle_bank_uniform", "mle_bank_block",
+                "mlea_bank", "mlea_bank_log", "mlea_bank_own", "mlea_bank_sq32", "mlea_bank_uniform",
+                "mleold_bank", "mleold_bank_log", "mleold_bank_own", "mleold_bank_sq32", "mleold_bank_uniform"};
             const char* name = std::find(names.begin(), names.end(), key)->c_str();
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);

@@ -33,6 +33,9 @@ public:
         double delta = 1e-3;
         double r_max = 0.999;
         std::size_t warmup = 30;   // marginal observations before the copula updates
+        // Gain max(gain, 1/m) on the m-th copula update: a running mean until m = 1/gain, then the
+        // constant gain. Same rule as HermiteEstimator::init_first_obs. Off = constant from the start.
+        bool startup = false;
         unsigned seed = 1;
     };
 
@@ -83,7 +86,9 @@ public:
         const double r = r_, q = 1.0 - r * r;
         const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);
         const double info = (1.0 + r * r) / (q * q);
-        r_ = std::clamp(r + c_.gain * s / info, -c_.r_max, c_.r_max);
+        ++m_;
+        const double g = c_.startup ? std::max(c_.gain, 1.0 / static_cast<double>(m_)) : c_.gain;
+        r_ = std::clamp(r + g * s / info, -c_.r_max, c_.r_max);
     }
 
     double estimate() const override {
@@ -92,7 +97,7 @@ public:
     }
 
     void reset() override {
-        n_ = 0; r_ = 0.0;
+        n_ = 0; m_ = 0; r_ = 0.0;
         kx_.reset(); ky_.reset(); px_.reset(); py_.reset(); fit_.reset();
         if (c_.margin == Margin::DsKll) make_ds();
     }
@@ -125,6 +130,7 @@ private:
     Config c_;
     const char* name_;
     std::size_t n_ = 0;
+    std::size_t m_ = 0;   // copula updates so far
     double r_ = 0.0;
     KllSketch kx_, ky_;
 #ifdef RECURSIVE_MPL_HAS_DS

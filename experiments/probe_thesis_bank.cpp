@@ -7,6 +7,7 @@
 // Plan and caveats: notes/thesis/chapter6_plan.md.
 //
 // Usage (from experiments/):  ./probe_thesis_bank [seeds=20]   (COPULA=gaussian|clayton|gumbel|t)
+//   COMPONENTS=mle,mlea,mleold TAG=startup  runs only those components into results/thesis_bank_startup[_fam].csv
 //   -> results/thesis_bank[_<family>].csv          seed x scenario x window x method
 //      results/thesis_bank_weights[_<family>].csv  mean bank weights per tick, jump scenario
 
@@ -27,7 +28,7 @@ namespace {
 constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
 constexpr unsigned kBaseSeed = 42;
 const std::vector<int> kMem{39, 99, 199, 399, 1999};
-const std::vector<std::string> kFamilies{"xiao", "hermite", "mle"};
+std::vector<std::string> kFamilies{"xiao", "hermite", "mle"};   // COMPONENTS=a,b,... overrides
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
     if (s == "constant") return std::make_unique<ConstantDependence>(0.6);
@@ -74,7 +75,7 @@ double mom_logc(double rho, double u, double v) {
 
 struct Win { const char* name; std::size_t a, b; };
 std::vector<Win> windows(const std::string& s) {
-    std::vector<Win> w{{"whole", kBurn, kN}};
+    std::vector<Win> w{{"whole", kBurn, kN}, {"early", kBurn, 2000}};
     if (s == "jump") {
         w.push_back({"pre", kBurn, kChange});
         w.push_back({"rec_0_100", kChange, kChange + 100});
@@ -92,7 +93,17 @@ int main(int argc, char** argv) {
     const char* env = std::getenv("COPULA");
     const std::string cop_name = env ? env : "gaussian";
     const copula::Family F = family_of(cop_name);
-    const std::string sfx = cop_name == "gaussian" ? "" : "_" + cop_name;
+    const char* tag = std::getenv("TAG");   // output suffix, so a variant run doesn't overwrite the thesis CSVs
+    const std::string sfx = (tag ? std::string("_") + tag : std::string()) + (cop_name == "gaussian" ? "" : "_" + cop_name);
+    if (const char* comps = std::getenv("COMPONENTS")) {
+        kFamilies.clear();
+        std::string c(comps);
+        for (std::size_t a = 0, b; a <= c.size(); a = b + 1) {
+            b = c.find(',', a);
+            if (b == std::string::npos) b = c.size();
+            if (b > a) kFamilies.push_back(c.substr(a, b - a));
+        }
+    }
 
     std::vector<std::string> methods;
     for (int m : kMem) methods.push_back("fixed_" + std::to_string(m));

@@ -515,6 +515,75 @@ numerically, not 3–4.
   - It is not implemented: waiting on Sally.
 - **The η and δ tuned in `probe_bank_tune` were tuned with the old arms.** They are kept.
 
+## 12. MPL bank: start-up rule and the old arms, paired (2026-11-06)
+
+**Run:** `probe_thesis_bank` with `COMPONENTS=mle,mlea,mleold TAG=startup`, 4 families × 60 seeds
+(42–101), the same streams as Chapter 6. Output: `results/thesis_bank_startup[_fam].csv`, tables in
+`experiments/startup_table.py` → `results/startup_table.txt`. Single-threaded, so the t-table race
+does not apply.
+
+**The three variants:**
+- **(b) `mle`** (the thesis version): constant-gain RecursiveMPL with start-up gain max(λ, 1/m).
+- **(a) `mlea`:** constant gain from the first update.
+- **`mleold`:** the previous `ParametricCopulaMLE` arms.
+
+**Sanity:** `mleold` reproduces the Chapter 6 MPL numbers exactly (log bank, Gaussian: 67.0 drift
+and 59.6 jump).
+
+**Log bank, RMSE ×10⁻³:** paired difference, mean ± 2 SE; * = beyond 2 SE.
+
+| Scenario, window | Family | (b) | (a) | old | (b) − old | (a) − old | (b) − (a) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| drift, whole | Gaussian | 67.3 | 67.5 | 67.0 | +0.3 ± 0.7 | +0.5 ± 1.0 | −0.2 ± 0.8 |
+| | Clayton | 57.7 | 56.5 | 60.2 | −2.5 ± 0.4* | −3.7 ± 0.4* | +1.2 ± 0.4* |
+| | Gumbel | 58.8 | 57.6 | 61.0 | −2.2 ± 0.5* | −3.4 ± 0.4* | +1.2 ± 0.3* |
+| | t₄ | 77.8 | 78.2 | 77.0 | +0.8 ± 0.7* | +1.3 ± 1.1* | −0.4 ± 1.0 |
+| jump, whole | Gaussian | 58.6 | 62.7 | 59.6 | −1.1 ± 0.5* | +3.1 ± 0.5* | −4.2 ± 0.5* |
+| | Clayton | 65.8 | 69.9 | 68.4 | −2.6 ± 0.6* | +1.6 ± 0.6* | −4.1 ± 0.5* |
+| | Gumbel | 62.7 | 66.7 | 63.6 | −0.9 ± 0.7* | +3.2 ± 0.7* | −4.1 ± 0.5* |
+| | t₄ | 70.4 | 74.8 | 70.2 | +0.2 ± 0.6 | +4.6 ± 0.6* | −4.4 ± 0.5* |
+| jump, early [500, 2000) | all four | 43.7–54.6 | 57.5–68.0 | 42.4–53.6 | +0.1 to +1.4 (n.s.) | +13.6 to +15.9* | −13.4 to −14.5* |
+| jump, post-change | Gaussian / Clayton / Gumbel / t₄ | 68.4 / 79.0 / 73.9 / 81.5 | 67.8 / 78.6 / 73.2 / 81.5 | 70.0 / 83.4 / 76.2 / 81.6 | −1.6* / −4.4* / −2.3* / −0.1 | −2.2* / −4.9* / −2.9* / −0.2 | +0.6* / +0.5* / +0.6* / +0.1 |
+| constant, whole | all four | 24.3–35.1 | 37.0–48.6 | 27.5–37.2 | −1.0 to −4.9 (3 of 4 *) | +9.4 to +11.4* | −11.4 to −14.3* |
+
+**What it shows:**
+1. **The five-seed difference was start-up, not the update rule.**
+   - (a) loses to the old arms by 13–16 in the first 2000 ticks of `jump`, and by 9–11 over a whole
+     `constant` run.
+   - (b) removes all of that.
+2. **(b) is as good as or better than the old arms in 11 of 12 whole-run cells:**
+   - 8 better beyond 2 SE;
+   - 3 ties (Gaussian drift, t₄ jump, Gumbel constant).
+   - The exception is t₄ drift, worse by 0.8 ± 0.7.
+   - After the change it is better in 3 of 4 families (−1.6 to −4.4).
+3. **(a) is slightly better than (b) on Clayton and Gumbel `drift`** (−1.2). That's an artefact:
+   those paths start at the independence edge (Clayton and Gumbel can't go negative, so the clipped
+   drift begins at ρ_S ≈ 0), which is exactly where (a)'s r̂ = 0 starts.
+4. **One genuine rule difference, in the slowest arm alone.**
+   - On `jump`, the M = 1999 arm is 10–12 worse under (b) than under the old arms over the whole run,
+     with no difference in the early window.
+   - The likely cause: the old arm divides by *accumulated* information H = Σ λʲ I(r̂_{t−j}). After a
+     jump upward, H still reflects the smaller information at the old level, so the old arm takes
+     larger steps. (b) uses the current I(r̂)⁻¹, which is smaller at r̂ ≈ 0.8.
+   - The bank barely weights that arm after a jump, so the bank is unaffected.
+
+**Bank against fixed memory under (b)** (log bank, whole run, paired, ×10⁻³):
+
+| | Gaussian | Clayton | Gumbel | t₄ |
+| --- | --- | --- | --- | --- |
+| drift: minus best fixed (M) | +4.0 ± 0.7 (199) | +3.1 ± 0.9 (399) | +4.1 ± 1.2 (399) | +7.4 ± 1.4 (399) |
+| drift: minus M = 199 | +4.0 ± 0.7 | −4.6 ± 1.6 | −4.3 ± 1.6 | +3.3 ± 1.4 |
+| jump: minus best fixed (M = 199) | −20.2 ± 1.2 | −17.8 ± 1.4 | −18.5 ± 1.3 | −15.4 ± 1.9 |
+
+**The same pattern as the old arms in `chapter6_results.md`** (old drift +3.1 / +2.5 / +3.4 / +7.4;
+old jump −18.5 / −16.0 / −16.9 / −15.5):
+- it beats the hindsight-best fixed memory on every jump;
+- it loses to it on every drift;
+- against M = 199 on drift it is better on Clayton and Gumbel, and worse on Gaussian and t₄.
+
+**The Chapter 6 bank conclusions are unchanged by the switch.** The `chapter6_results.md` MPL rows
+are still to be regenerated from the (b) arms. That is waiting on Sally before any rewrite.
+
 ## 8. Reproduction
 
 ```bash
