@@ -4,13 +4,21 @@ Every number behind §6.3 (adaptive memory) and §6.4 (which loss) of
 `notes/thesis/chapter6_draft.tex`, after tuning η and δ. Platform: Linux / libstdc++, N = 5000 ticks,
 scored over [500, 5000), change at t = 2500 in `jump`. Evaluation seeds 42–101 (60); tuning seeds 1–30.
 
-> ⚠️ **2026-11-06: the MPL-bank rows below are stale.**
-> - The `mle_bank*` arms are now the constant-gain recursive MPL (`RecursiveMPL`, commit `40ebc21`).
-> - Previously they were `ParametricCopulaMLE` with atanh-coordinate discounted-information Fisher
->   scoring and a second standardisation.
-> - The Xiao and Hermite rows are unaffected.
-> - Rerun `probe_thesis_bank` and `ch6_results_md.py` to regenerate. See
->   `notes/studies/budget_mpl.md` §11.
+> **2026-11-06: MPL rows regenerated with the new arms.**
+> - **The arms:** constant-gain recursive MPL with start-up gain max(λ, 1/m) (`RecursiveMPL`,
+>   `startup = true`), fed the bank's window ranks directly. See `notes/studies/budget_mpl.md`
+>   §11–§12.
+> - **Regenerated** on the same seeds 42–101: `probe_thesis_bank`, `probe_bank_tune 42 60` and
+>   `probe_bank_regret 42 60`, all four families. This covers every table under "Full tables", the
+>   headline, the Chapter 5 regret check and the η = 1/32 section.
+> - **Xiao and Hermite rows are bit-identical** to the previous run.
+> - **Not regenerated:**
+>   - η and δ, tuned on seeds 1–30 with the old arms, are kept.
+>   - The own-density section's MPL numbers (flagged there).
+>   - The MPL VFF comparator, which is still `ParametricCopulaMLE` with `vff_rate`.
+>   - Figure 6.1 (Xiao, unaffected).
+> - **The previous CSVs** are backed up outside the repo. The old-arm numbers are reproduced by the
+>   `mleold_*` keys (§12).
 
 - **Probes:** `experiments/probe_thesis_bank.cpp` (all methods, `results/thesis_bank[_fam].csv`,
   weights in `thesis_bank_weights[_fam].csv`); `experiments/probe_bank_tune.cpp` (η, δ grid,
@@ -42,11 +50,11 @@ The single memory with the best mean over drift + jump is **M = 199** for every 
 | Question | Log bank (recommended) | Squared bank |
 | --- | --- | --- |
 | Pooled over drift + jump: beats every fixed M, both VFF rates, uniform? | **Yes, 12/12 family × estimator pairs each** | Yes, 12/12 |
-| Pooled gain over M = 199 (RMSE ×10⁻³) | **−5.7 to −12.5** | −3.2 to −7.0 |
-| Jump: beats the hindsight-best M | **12/12, −14.9 to −20.7** | 12/12, −10.1 to −13.9 |
+| Pooled gain over M = 199 (RMSE ×10⁻³) | **−5.7 to −12.5** | −3.2 to −7.3 |
+| Jump: beats the hindsight-best M | **12/12, −14.9 to −20.7** | 12/12, −10.7 to −15.5 |
 | Jump: beats the better VFF | 12/12 | 12/12 |
-| Drift: against M = 199 | better 6 (Clayton, Gumbel: −3.8 to −6.6), worse 6 (Gaussian, t: +1.2 to +3.6) | better 2, worse 5, tie 5 |
-| Drift: against the hindsight-best M | worse 12/12, +2.2 to +7.4 | worse 12/12, +4.8 to +7.3 |
+| Drift: against M = 199 | better 6 (Clayton, Gumbel: −3.8 to −6.6), worse 6 (Gaussian, t: +1.2 to +4.0) | better 2, worse 6, tie 4 |
+| Drift: against the hindsight-best M | worse 12/12, +2.2 to +7.4 | worse 12/12, +4.8 to +7.1 |
 | Drift: against the better VFF | better 9, worse 3 (+1.2 to +3.0) | better 9, worse 3 |
 | Log bank vs squared bank, drift + jump | better in 21/24 cells, tie in 3 (t₄ drift) | — |
 
@@ -79,7 +87,7 @@ so each seed runs them once and replays the weight recursion; at the old values 
   B_{T,1} ≈ 12.5 nats over the whole run. The bound is on the mixture's log loss, not on RMSE.
 - **Squared bank:** not covered. Exp-concavity needs η ≤ 1/32, and the tuned η is 1. On held-out
   jump at δ = 1e-4 (mean over families and estimators, against the hindsight-best memory):
-  η = 0.1 gives +2.6 and η = 1 gives −11.8 ×10⁻³. Small η gives up the adaptation.
+  η = 0.1 gives +2.2 and η = 1 gives −12.4 ×10⁻³. Small η gives up the adaptation.
 
 ### Empirical check (`probe_bank_regret`, 1440 runs = 60 seeds × 4 families × 3 estimators × drift/jump)
 
@@ -88,34 +96,34 @@ Negative means the bank beats the comparator.
 
 | m | drift mean | drift max | jump mean | jump max | bound B_{T,m} |
 | --- | --- | --- | --- | --- | --- |
-| 0 | 1.09 | 2.61 | −17.21 | 0.21 | 2.80 |
-| 1 | 4.85 | 8.15 | −3.59 | 6.00 | 12.52 |
-| 2 | 8.29 | 15.45 | 12.38 | 16.49 | 22.24 |
-| 5 | 16.31 | 29.15 | 27.79 | 40.70 | 51.41 |
+| 0 | 1.15 | 2.61 | −17.69 | 0.38 | 2.80 |
+| 1 | 4.83 | 8.15 | −3.79 | 6.00 | 12.52 |
+| 2 | 8.38 | 15.45 | 12.37 | 16.64 | 22.24 |
+| 5 | 16.54 | 29.15 | 28.23 | 40.70 | 51.41 |
 
 - **No violation in any run, for any m ∈ {0, 1, 2, 3, 5, 10, 20, 50}.** The bound is close to tight
   for static regret on drift.
 - **δ = 0 (plain Hedge):** static regret mean 1.47, max 1.61, against log K = 1.61. Against
   one-switch sequences it reaches 43.8, compared with 8.2 with fixed share.
-- **Gaussian density at the bank's ρ (not the mixture):** breaks the static bound in 233 of 1440
+- **Gaussian density at the bank's ρ (not the mixture):** breaks the static bound in 249 of 1440
   runs, mostly t, worst 213 nats. Report the mixture's log loss.
-- **Squared bank at η = 1:** exceeds B_{T,0}/1 in 709 runs (688 of 720 on drift), and is within
+- **Squared bank at η = 1:** exceeds B_{T,0}/1 in 712 runs (690 of 720 on drift), and is within
   32·B in all of them.
 
 Details: `notes/studies/thesis_bank_regret.md`.
 
 ### Squared bank at the theory's η = 1/32 (`*_bank_sq32`, δ = 1e-4)
 
-- **Regret:** within 32·B_{T,m}(δ) in all 1440 runs and for every m. The static maximum is 15.9
-  (drift) and 9.8 (jump) against 64.2. Its mean regret is still higher than the η = 1 bank's: 7.8 vs 4.8
-  on drift, 3.9 vs −7.6 on jump.
+- **Regret:** within 32·B_{T,m}(δ) in all 1440 runs and for every m. The static maximum is 15.5
+  (drift) and 8.3 (jump) against 64.2. Its mean regret is still higher than the η = 1 bank's: 7.5 vs 4.9
+  on drift, 3.7 vs −7.8 on jump.
 - **δ\* = 2.5e-4 (m = 1):** within 1 of the δ = 1e-4 version.
 - **ρ_S RMSE ×10⁻³, by scenario:**
 
 | scenario | − bank (η = 1) | − bank_log | − uniform | − best fixed |
 | --- | --- | --- | --- | --- |
-| drift | +3.0 to +5.3 | +3.7 to +8.8 | −10.0 to −14.4 | +8.7 to +11.5 |
-| jump | +14.9 to +17.9 | +20.1 to +25.1 | −4.8 to −8.8 | +4.0 to +5.9 |
+| drift | +3.0 to +4.9 | +3.2 to +8.7 | −10.0 to −14.4 | +8.8 to +11.3 |
+| jump | +14.9 to +18.5 | +19.3 to +25.1 | −4.2 to −8.7 | +2.9 to +5.2 |
 
 - **W/L/T on drift + jump:** 0/24/0 against both η = 1 banks, and 24/0/0 against uniform.
 - **After the jump:** +67 to +88 behind the η = 1 bank in ticks 0–100.
@@ -131,6 +139,13 @@ Each arm is scored by its own predictive density:
 - MPL: fitted Gaussian.
 
 The bank's density is their mixture. Tuned on seeds 1–30 for that mixture's excess log loss.
+
+> ⚠️ **The MPL numbers in this section are from the old arms. They have not been regenerated.**
+> - They depend on the own-density tuning (`bank_tune_1*`) and the shape-switch files
+>   (`bank_tune_42_gauss2t`, `_clayton2gumbel`), which were not rerun.
+> - With the new arms, an MPL arm's own density *is* the Gaussian copula at r̂, which equals the MoM
+>   density at its ρ̂. So the MPL own bank and the MPL MoM log bank now score arms identically, and
+>   differ only in η and δ.
 Details: `notes/studies/thesis_bank_own_density.md`.
 
 W/L/T over the 24 drift + jump cells, held out (seeds 42–101), own bank against:
@@ -187,28 +202,28 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Gaussian | drift | Xiao | 68.2 (199) | 68.2 | 73.3 | 70.6 | 89.4 | 67.7 (slow) | +2.4 ± 1.0 | +2.4 ± 1.0 | +3.0 ± 1.0 | +5.1 ± 1.1 | +5.7 ± 1.2 |
 | Gaussian | drift | Hermite | 69.9 (399) | 71.0 | 74.7 | 72.2 | 93.4 | 71.0 (slow) | +2.3 ± 0.8 | +1.2 ± 1.1 | +1.2 ± 1.1 | +4.8 ± 1.2 | +3.7 ± 1.2 |
-| Gaussian | drift | MPL | 63.9 (199) | 63.9 | 69.1 | 67.0 | 85.5 | 81.3 (slow) | +3.1 ± 1.0 | +3.1 ± 1.0 | -14.3 ± 1.9 | +5.1 ± 1.2 | -12.2 ± 1.9 |
+| Gaussian | drift | MPL | 63.3 (199) | 63.3 | 69.4 | 67.3 | 86.7 | 81.3 (slow) | +4.0 ± 0.7 | +4.0 ± 0.7 | -14.0 ± 1.8 | +6.1 ± 0.9 | -11.8 ± 1.8 |
 | Gaussian | jump | Xiao | 81.7 (199) | 81.7 | 68.7 | 62.0 | 93.3 | 81.7 (slow) | -19.7 ± 1.3 | -19.7 ± 1.3 | -19.7 ± 1.4 | -13.0 ± 1.6 | -13.0 ± 1.6 |
 | Gaussian | jump | Hermite | 84.5 (199) | 84.5 | 71.5 | 63.8 | 95.7 | 84.6 (slow) | -20.7 ± 1.5 | -20.7 ± 1.5 | -20.8 ± 1.5 | -12.9 ± 1.7 | -13.0 ± 1.7 |
-| Gaussian | jump | MPL | 78.2 (199) | 78.2 | 64.2 | 59.6 | 88.9 | 75.2 (slow) | -18.5 ± 1.2 | -18.5 ± 1.2 | -15.6 ± 1.2 | -13.9 ± 1.6 | -11.0 ± 1.4 |
+| Gaussian | jump | MPL | 78.8 (199) | 78.8 | 63.3 | 58.6 | 88.6 | 75.2 (slow) | -20.2 ± 1.2 | -20.2 ± 1.2 | -16.7 ± 1.3 | -15.5 ± 1.6 | -12.0 ± 1.5 |
 | Clayton | drift | Xiao | 60.7 (399) | 67.8 | 67.0 | 62.9 | 81.7 | 69.0 (slow) | +2.2 ± 0.9 | -4.9 ± 1.3 | -6.2 ± 1.4 | +6.3 ± 1.5 | -2.0 ± 1.9 |
 | Clayton | drift | Hermite | 61.8 (399) | 71.0 | 68.4 | 64.4 | 84.1 | 71.1 (slow) | +2.6 ± 1.0 | -6.6 ± 1.5 | -6.6 ± 1.5 | +6.6 ± 1.5 | -2.7 ± 1.8 |
-| Clayton | drift | MPL | 57.7 (399) | 64.7 | 63.7 | 60.2 | 79.4 | 85.8 (slow) | +2.5 ± 0.8 | -4.5 ± 1.4 | -25.6 ± 1.9 | +5.9 ± 1.4 | -22.2 ± 2.3 |
+| Clayton | drift | MPL | 54.6 (399) | 62.3 | 61.3 | 57.7 | 75.2 | 85.8 (slow) | +3.1 ± 0.9 | -4.6 ± 1.6 | -28.1 ± 1.9 | +6.7 ± 1.5 | -24.5 ± 2.3 |
 | Clayton | jump | Xiao | 83.1 (199) | 83.1 | 71.4 | 66.2 | 93.7 | 80.7 (slow) | -16.9 ± 1.5 | -16.9 ± 1.5 | -14.5 ± 1.6 | -11.7 ± 1.7 | -9.4 ± 1.7 |
 | Clayton | jump | Hermite | 85.9 (199) | 85.9 | 75.1 | 70.0 | 95.4 | 86.0 (slow) | -15.9 ± 1.7 | -15.9 ± 1.7 | -16.0 ± 1.7 | -10.8 ± 1.8 | -10.9 ± 1.8 |
-| Clayton | jump | MPL | 84.3 (199) | 84.3 | 74.2 | 68.4 | 99.0 | 85.9 (slow) | -16.0 ± 1.3 | -16.0 ± 1.3 | -17.5 ± 1.3 | -10.1 ± 1.6 | -11.7 ± 1.7 |
+| Clayton | jump | MPL | 83.6 (199) | 83.6 | 71.5 | 65.8 | 96.5 | 85.9 (slow) | -17.8 ± 1.4 | -17.8 ± 1.4 | -20.1 ± 1.3 | -12.1 ± 1.5 | -14.4 ± 1.7 |
 | Gumbel | drift | Xiao | 62.1 (399) | 68.7 | 68.1 | 64.9 | 83.1 | 70.3 (slow) | +2.8 ± 1.1 | -3.8 ± 1.3 | -5.3 ± 1.5 | +6.0 ± 1.4 | -2.2 ± 1.8 |
 | Gumbel | drift | Hermite | 62.3 (399) | 71.0 | 69.1 | 65.5 | 84.7 | 71.1 (slow) | +3.2 ± 1.3 | -5.5 ± 1.6 | -5.6 ± 1.6 | +6.8 ± 1.6 | -2.1 ± 1.8 |
-| Gumbel | drift | MPL | 57.6 (399) | 65.2 | 63.8 | 61.0 | 79.1 | 86.6 (slow) | +3.4 ± 1.1 | -4.3 ± 1.5 | -25.7 ± 1.8 | +6.2 ± 1.3 | -22.8 ± 1.9 |
+| Gumbel | drift | MPL | 54.6 (399) | 63.1 | 61.7 | 58.8 | 75.2 | 86.6 (slow) | +4.1 ± 1.2 | -4.3 ± 1.6 | -27.9 ± 1.9 | +7.1 ± 1.4 | -24.9 ± 2.0 |
 | Gumbel | jump | Xiao | 83.2 (199) | 83.2 | 71.3 | 64.7 | 94.4 | 80.7 (slow) | -18.6 ± 1.3 | -18.6 ± 1.3 | -16.0 ± 1.3 | -12.0 ± 1.5 | -9.4 ± 1.6 |
 | Gumbel | jump | Hermite | 84.9 (199) | 84.9 | 73.0 | 65.3 | 95.5 | 85.0 (slow) | -19.6 ± 1.5 | -19.6 ± 1.5 | -19.6 ± 1.5 | -11.9 ± 1.6 | -12.0 ± 1.6 |
-| Gumbel | jump | MPL | 80.5 (199) | 80.5 | 69.1 | 63.6 | 91.4 | 81.0 (slow) | -16.9 ± 1.3 | -16.9 ± 1.3 | -17.4 ± 1.4 | -11.4 ± 1.5 | -11.9 ± 1.6 |
+| Gumbel | jump | MPL | 81.1 (199) | 81.1 | 67.8 | 62.7 | 90.5 | 81.0 (slow) | -18.5 ± 1.3 | -18.5 ± 1.3 | -18.3 ± 1.6 | -13.3 ± 1.5 | -13.2 ± 1.7 |
 | t₄ | drift | Xiao | 70.1 (399) | 71.8 | 76.2 | 75.4 | 91.4 | 90.6 (slow) | +5.3 ± 1.2 | +3.6 ± 1.1 | -15.2 ± 2.0 | +6.1 ± 1.3 | -14.4 ± 2.2 |
 | t₄ | drift | Hermite | 71.0 (399) | 74.9 | 77.6 | 76.9 | 95.2 | 75.0 (slow) | +5.9 ± 1.2 | +1.9 ± 1.1 | +1.9 ± 1.1 | +6.6 ± 1.5 | +2.6 ± 1.5 |
-| t₄ | drift | MPL | 69.6 (399) | 75.6 | 76.9 | 77.0 | 94.3 | 102.1 (slow) | +7.4 ± 1.3 | +1.4 ± 1.4 | -25.1 ± 1.9 | +7.3 ± 1.6 | -25.2 ± 2.2 |
+| t₄ | drift | MPL | 70.4 (399) | 74.5 | 77.4 | 77.8 | 94.5 | 102.1 (slow) | +7.4 ± 1.4 | +3.3 ± 1.4 | -24.3 ± 2.2 | +7.0 ± 1.6 | -24.7 ± 2.3 |
 | t₄ | jump | Xiao | 85.5 (199) | 85.5 | 74.8 | 70.5 | 96.4 | 82.6 (slow) | -14.9 ± 1.8 | -14.9 ± 1.8 | -12.1 ± 1.6 | -10.7 ± 1.8 | -7.9 ± 1.7 |
 | t₄ | jump | Hermite | 87.9 (199) | 87.9 | 77.0 | 71.8 | 97.7 | 88.0 (slow) | -16.1 ± 1.9 | -16.1 ± 1.9 | -16.2 ± 1.9 | -10.9 ± 2.0 | -11.0 ± 2.0 |
-| t₄ | jump | MPL | 85.7 (199) | 85.7 | 73.4 | 70.2 | 95.2 | 91.9 (slow) | -15.5 ± 1.9 | -15.5 ± 1.9 | -21.6 ± 1.5 | -12.4 ± 2.0 | -18.5 ± 2.0 |
+| t₄ | jump | MPL | 85.8 (199) | 85.8 | 72.1 | 70.4 | 93.9 | 91.9 (slow) | -15.4 ± 1.9 | -15.4 ± 1.9 | -21.4 ± 1.6 | -13.7 ± 2.0 | -19.7 ± 2.1 |
 
 ### Whole run, RMSE ×10⁻³: constant and oscillate (controls)
 
@@ -218,43 +233,43 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Gaussian | constant | Xiao | 20.3 (1999) | 49.5 | 28.7 | 26.1 | 52.6 | 21.0 (fast) | +5.7 ± 1.1 | -23.4 ± 1.3 | +5.1 ± 1.5 | +8.3 ± 1.8 | +7.6 ± 2.0 |
 | Gaussian | constant | Hermite | 21.0 (1999) | 53.6 | 29.4 | 26.7 | 56.2 | 53.7 (slow) | +5.7 ± 1.2 | -26.9 ± 1.5 | -27.0 ± 1.5 | +8.4 ± 1.9 | -24.3 ± 1.8 |
-| Gaussian | constant | MPL | 21.1 (1999) | 43.1 | 27.7 | 27.5 | 45.8 | 59.4 (slow) | +6.4 ± 1.3 | -15.6 ± 1.2 | -31.9 ± 1.5 | +6.6 ± 1.4 | -31.7 ± 1.7 |
+| Gaussian | constant | MPL | 17.7 (1999) | 40.4 | 25.1 | 24.3 | 41.6 | 59.4 (slow) | +6.6 ± 1.3 | -16.1 ± 1.0 | -35.1 ± 1.6 | +7.4 ± 1.5 | -34.3 ± 1.9 |
 | Gaussian | oscillate | Xiao | 188.5 (39) | 352.5 | 190.1 | 191.6 | 294.6 | 276.8 (fast) | +3.1 ± 0.5 | -160.9 ± 1.2 | -85.2 ± 5.6 | +1.6 ± 0.2 | -86.7 ± 5.5 |
 | Gaussian | oscillate | Hermite | 195.5 (39) | 354.0 | 197.8 | 200.7 | 295.4 | 352.1 (fast) | +5.1 ± 0.8 | -153.4 ± 1.6 | -151.4 ± 1.6 | +2.3 ± 0.3 | -154.3 ± 1.3 |
-| Gaussian | oscillate | MPL | 176.7 (39) | 352.8 | 178.9 | 178.4 | 293.9 | 192.5 (fast) | +1.7 ± 0.1 | -174.4 ± 1.5 | -14.1 ± 1.3 | +2.1 ± 0.3 | -13.6 ± 1.4 |
+| Gaussian | oscillate | MPL | 182.5 (39) | 356.5 | 185.8 | 184.7 | 293.6 | 192.5 (fast) | +2.1 ± 0.2 | -171.8 ± 1.5 | -7.8 ± 1.6 | +3.2 ± 0.5 | -6.7 ± 1.6 |
 | Clayton | constant | Xiao | 19.5 (1999) | 52.5 | 30.7 | 26.9 | 55.2 | 21.9 (fast) | +7.3 ± 1.0 | -25.6 ± 1.3 | +5.0 ± 1.7 | +11.1 ± 1.9 | +8.8 ± 2.4 |
 | Clayton | constant | Hermite | 19.3 (1999) | 57.3 | 31.4 | 27.2 | 59.6 | 57.4 (slow) | +7.9 ± 1.1 | -30.1 ± 1.3 | -30.2 ± 1.3 | +12.1 ± 2.2 | -25.9 ± 2.0 |
-| Clayton | constant | MPL | 22.4 (1999) | 48.5 | 31.0 | 29.3 | 52.4 | 69.6 (slow) | +6.9 ± 1.1 | -19.2 ± 1.1 | -40.3 ± 1.3 | +8.6 ± 1.7 | -38.6 ± 1.8 |
+| Clayton | constant | MPL | 15.8 (1999) | 44.9 | 27.1 | 24.4 | 46.5 | 69.6 (slow) | +8.6 ± 1.4 | -20.5 ± 1.1 | -45.2 ± 1.8 | +11.3 ± 2.2 | -42.5 ± 2.3 |
 | Clayton | oscillate | Xiao | 170.5 (39) | 204.3 | 175.3 | 172.1 | 175.5 | 195.2 (fast) | +1.7 ± 1.0 | -32.2 ± 1.2 | -23.1 ± 3.4 | +4.8 ± 0.9 | -19.9 ± 3.7 |
 | Clayton | oscillate | Hermite | 177.9 (39) | 205.8 | 181.6 | 177.3 | 176.4 | 205.1 (fast) | -0.6 ± 1.1 | -28.5 ± 1.1 | -27.8 ± 1.1 | +3.7 ± 0.9 | -23.5 ± 1.3 |
-| Clayton | oscillate | MPL | 164.3 (39) | 202.4 | 169.0 | 165.8 | 173.4 | 169.5 (slow) | +1.5 ± 0.8 | -36.7 ± 1.3 | -3.7 ± 1.1 | +4.8 ± 0.9 | -0.5 ± 1.2 |
+| Clayton | oscillate | MPL | 168.8 (39) | 205.6 | 174.3 | 171.0 | 174.7 | 169.5 (slow) | +2.2 ± 0.9 | -34.5 ± 1.4 | +1.5 ± 1.0 | +5.5 ± 1.1 | +4.8 ± 1.2 |
 | Gumbel | constant | Xiao | 19.9 (1999) | 52.7 | 29.9 | 28.0 | 55.4 | 24.4 (fast) | +8.1 ± 1.5 | -24.6 ± 1.5 | +3.7 ± 2.0 | +10.0 ± 2.2 | +5.6 ± 2.5 |
 | Gumbel | constant | Hermite | 20.3 (1999) | 56.7 | 30.7 | 28.7 | 59.4 | 56.8 (slow) | +8.4 ± 1.6 | -28.0 ± 1.7 | -28.1 ± 1.7 | +10.4 ± 2.2 | -26.1 ± 2.1 |
-| Gumbel | constant | MPL | 21.7 (1999) | 49.1 | 31.2 | 30.4 | 52.1 | 69.2 (slow) | +8.6 ± 1.5 | -18.7 ± 1.3 | -38.8 ± 1.8 | +9.5 ± 2.0 | -38.0 ± 2.2 |
+| Gumbel | constant | MPL | 20.7 (1999) | 47.3 | 30.7 | 29.4 | 48.6 | 69.2 (slow) | +8.7 ± 1.8 | -17.9 ± 1.2 | -39.8 ± 2.5 | +10.0 ± 1.9 | -38.5 ± 2.9 |
 | Gumbel | oscillate | Xiao | 172.4 (39) | 205.3 | 177.1 | 174.6 | 176.8 | 188.2 (fast) | +2.3 ± 1.0 | -30.6 ± 1.2 | -13.6 ± 3.7 | +4.8 ± 0.9 | -11.1 ± 3.7 |
 | Gumbel | oscillate | Hermite | 179.6 (39) | 206.4 | 182.3 | 179.5 | 177.8 | 205.8 (fast) | -0.1 ± 1.3 | -27.0 ± 1.1 | -26.4 ± 1.1 | +2.8 ± 1.2 | -23.5 ± 1.3 |
-| Gumbel | oscillate | MPL | 164.0 (39) | 203.3 | 169.5 | 166.1 | 173.9 | 169.9 (slow) | +2.1 ± 1.0 | -37.2 ± 1.3 | -3.8 ± 1.1 | +5.6 ± 1.1 | -0.4 ± 1.3 |
+| Gumbel | oscillate | MPL | 168.8 (39) | 206.5 | 175.2 | 171.7 | 175.4 | 169.9 (slow) | +2.9 ± 1.1 | -34.8 ± 1.3 | +1.8 ± 1.1 | +6.4 ± 1.1 | +5.3 ± 1.3 |
 | t₄ | constant | Xiao | 21.2 (1999) | 55.2 | 32.4 | 33.9 | 57.6 | 44.0 (fast) | +12.6 ± 2.1 | -21.4 ± 1.4 | -10.2 ± 4.0 | +11.2 ± 2.2 | -11.6 ± 4.4 |
 | t₄ | constant | Hermite | 21.5 (1999) | 59.9 | 33.5 | 34.8 | 61.6 | 60.0 (slow) | +13.3 ± 2.2 | -25.1 ± 1.6 | -25.2 ± 1.6 | +12.0 ± 2.3 | -26.4 ± 2.1 |
-| t₄ | constant | MPL | 23.2 (1999) | 57.4 | 34.4 | 37.2 | 60.1 | 84.5 (slow) | +14.1 ± 2.4 | -20.2 ± 1.8 | -47.3 ± 2.4 | +11.2 ± 2.3 | -50.1 ± 2.2 |
+| t₄ | constant | MPL | 21.4 (1999) | 54.9 | 32.9 | 35.1 | 56.2 | 84.5 (slow) | +13.7 ± 2.1 | -19.8 ± 1.7 | -49.4 ± 3.0 | +11.4 ± 2.0 | -51.7 ± 3.1 |
 | t₄ | oscillate | Xiao | 191.1 (39) | 350.8 | 194.3 | 203.3 | 292.5 | 202.9 (fast) | +12.3 ± 1.5 | -147.4 ± 1.9 | +0.4 ± 2.4 | +3.3 ± 0.4 | -8.6 ± 1.7 |
 | t₄ | oscillate | Hermite | 198.9 (39) | 351.7 | 203.5 | 216.1 | 292.9 | 349.7 (fast) | +17.2 ± 1.7 | -135.6 ± 2.1 | -133.6 ± 2.1 | +4.6 ± 0.6 | -146.2 ± 1.4 |
-| t₄ | oscillate | MPL | 196.0 (39) | 352.0 | 201.2 | 205.9 | 293.5 | 218.1 (fast) | +9.8 ± 1.1 | -146.2 ± 2.3 | -12.3 ± 2.0 | +5.2 ± 0.8 | -16.9 ± 1.9 |
+| t₄ | oscillate | MPL | 202.4 (39) | 356.3 | 209.9 | 216.6 | 293.0 | 218.1 (fast) | +14.3 ± 1.4 | -139.7 ± 2.4 | -1.5 ± 2.4 | +7.6 ± 1.0 | -8.2 ± 2.4 |
 
 ### Win / loss / tie counts, RMSE ×10⁻³ (12 family × estimator cells per row)
 
 | Bank | Scenario | M=39 | M=99 | M=199 | M=399 | M=1999 | Uniform | VFF | Hindsight best |
 |---|---|---|---|---|---|---|---|---|---|
 | Log | jump | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 |
-| Log | drift | 12/0/0 | 12/0/0 | 6/6/0 | 0/12/0 | 12/0/0 | 12/0/0 | 9/3/0 | 0/12/0 |
+| Log | drift | 12/0/0 | 12/0/0 | 6/6/0 | 0/11/1 | 12/0/0 | 12/0/0 | 9/3/0 | 0/12/0 |
 | Log | pooled | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 |
 | Log | constant | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 0/12/0 | 12/0/0 | 9/3/0 | 0/12/0 |
-| Log | oscillate | 0/10/2 | 11/0/1 | 12/0/0 | 12/0/0 | 12/0/0 | 10/1/1 | 11/0/1 | 0/10/2 |
+| Log | oscillate | 0/10/2 | 11/0/1 | 12/0/0 | 12/0/0 | 12/0/0 | 10/1/1 | 8/2/2 | 0/10/2 |
 | Squared | jump | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 |
-| Squared | drift | 12/0/0 | 12/0/0 | 2/5/5 | 0/12/0 | 12/0/0 | 12/0/0 | 9/3/0 | 0/12/0 |
+| Squared | drift | 12/0/0 | 12/0/0 | 2/6/4 | 0/12/0 | 12/0/0 | 12/0/0 | 9/3/0 | 0/12/0 |
 | Squared | pooled | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 |
 | Squared | constant | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 0/12/0 | 12/0/0 | 9/3/0 | 0/12/0 |
-| Squared | oscillate | 0/12/0 | 8/2/2 | 12/0/0 | 12/0/0 | 12/0/0 | 8/2/2 | 10/0/2 | 0/12/0 |
+| Squared | oscillate | 0/12/0 | 8/2/2 | 12/0/0 | 12/0/0 | 12/0/0 | 6/2/4 | 10/2/0 | 0/12/0 |
 
 ### Whole run, excess log loss ×10⁻³ nats/tick: drift and jump
 
@@ -264,28 +279,28 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Gaussian | drift | Xiao | 4.2 (199) | 4.2 | 5.0 | 4.5 | 7.4 | 4.2 (slow) | +0.3 ± 0.1 | +0.3 ± 0.1 | +0.3 ± 0.1 | +0.8 ± 0.1 | +0.8 ± 0.1 |
 | Gaussian | drift | Hermite | 4.6 (199) | 4.6 | 5.2 | 4.7 | 7.9 | 4.6 (slow) | +0.1 ± 0.1 | +0.1 ± 0.1 | +0.1 ± 0.1 | +0.6 ± 0.2 | +0.6 ± 0.2 |
-| Gaussian | drift | MPL | 3.5 (199) | 3.5 | 4.3 | 3.9 | 6.7 | 5.7 (slow) | +0.4 ± 0.0 | +0.4 ± 0.0 | -1.8 ± 0.1 | +0.7 ± 0.1 | -1.4 ± 0.2 |
+| Gaussian | drift | MPL | 3.3 (199) | 3.3 | 4.1 | 3.7 | 6.7 | 5.7 (slow) | +0.4 ± 0.0 | +0.4 ± 0.0 | -2.0 ± 0.1 | +0.8 ± 0.1 | -1.6 ± 0.2 |
 | Gaussian | jump | Xiao | 10.5 (199) | 10.5 | 10.6 | 7.4 | 16.4 | 10.0 (slow) | -3.2 ± 0.3 | -3.2 ± 0.3 | -2.6 ± 0.3 | +0.1 ± 0.6 | +0.7 ± 0.6 |
 | Gaussian | jump | Hermite | 12.2 (199) | 12.2 | 24.8 | 8.8 | 17.3 | 12.3 (slow) | -3.5 ± 0.4 | -3.5 ± 0.4 | -3.5 ± 0.4 | +12.6 ± 7.1 | +12.6 ± 7.1 |
-| Gaussian | jump | MPL | 8.7 (99) | 9.0 | 8.0 | 6.1 | 14.6 | 7.7 (slow) | -2.5 ± 0.2 | -2.8 ± 0.3 | -1.5 ± 0.1 | -0.6 ± 0.4 | +0.4 ± 0.3 |
+| Gaussian | jump | MPL | 8.8 (99) | 9.4 | 8.4 | 6.1 | 14.5 | 7.7 (slow) | -2.7 ± 0.2 | -3.2 ± 0.3 | -1.5 ± 0.2 | -0.5 ± 0.4 | +0.7 ± 0.4 |
 | Clayton | drift | Xiao | 35.9 (399) | 36.3 | 36.7 | 36.3 | 38.3 | 36.4 (slow) | +0.3 ± 0.1 | -0.0 ± 0.1 | -0.1 ± 0.1 | +0.7 ± 0.1 | +0.2 ± 0.2 |
 | Clayton | drift | Hermite | 36.1 (399) | 36.9 | 36.9 | 36.5 | 38.6 | 36.9 (slow) | +0.5 ± 0.1 | -0.3 ± 0.1 | -0.3 ± 0.1 | +0.9 ± 0.2 | +0.0 ± 0.2 |
-| Clayton | drift | MPL | 35.8 (399) | 36.0 | 36.3 | 36.1 | 38.3 | 38.9 (slow) | +0.2 ± 0.1 | +0.0 ± 0.1 | -2.8 ± 0.1 | +0.5 ± 0.1 | -2.5 ± 0.2 |
+| Clayton | drift | MPL | 35.4 (399) | 35.7 | 36.0 | 35.7 | 37.6 | 38.9 (slow) | +0.3 ± 0.1 | +0.1 ± 0.1 | -3.1 ± 0.1 | +0.6 ± 0.1 | -2.9 ± 0.2 |
 | Clayton | jump | Xiao | 112.8 (199) | 112.8 | 115.5 | 110.4 | 113.2 | 111.5 (slow) | -2.4 ± 0.4 | -2.4 ± 0.4 | -1.1 ± 0.3 | +2.8 ± 0.9 | +4.0 ± 0.9 |
 | Clayton | jump | Hermite | 116.7 (399) | 117.6 | 156.2 | 113.0 | 114.9 | 117.6 (slow) | -3.7 ± 0.8 | -4.6 ± 1.1 | -4.6 ± 1.1 | +39.5 ± 24.5 | +38.6 ± 24.4 |
-| Clayton | jump | MPL | 110.3 (199) | 110.3 | 110.5 | 108.6 | 114.7 | 111.7 (slow) | -1.7 ± 0.3 | -1.7 ± 0.3 | -3.1 ± 0.2 | +0.2 ± 0.4 | -1.2 ± 0.4 |
+| Clayton | jump | MPL | 110.6 (199) | 110.6 | 112.0 | 108.9 | 113.8 | 111.7 (slow) | -1.7 ± 0.3 | -1.7 ± 0.3 | -2.8 ± 0.2 | +1.3 ± 0.6 | +0.3 ± 0.6 |
 | Gumbel | drift | Xiao | 16.5 (199) | 16.5 | 17.0 | 16.6 | 19.1 | 16.7 (slow) | +0.0 ± 0.1 | +0.0 ± 0.1 | -0.1 ± 0.1 | +0.5 ± 0.2 | +0.3 ± 0.2 |
 | Gumbel | drift | Hermite | 16.5 (399) | 16.8 | 17.2 | 16.7 | 19.3 | 16.8 (slow) | +0.1 ± 0.1 | -0.2 ± 0.1 | -0.2 ± 0.1 | +0.7 ± 0.2 | +0.4 ± 0.3 |
-| Gumbel | drift | MPL | 16.0 (399) | 16.1 | 16.4 | 16.1 | 18.5 | 18.9 (slow) | +0.1 ± 0.1 | +0.0 ± 0.1 | -2.7 ± 0.1 | +0.4 ± 0.1 | -2.5 ± 0.2 |
+| Gumbel | drift | MPL | 15.6 (399) | 15.7 | 16.1 | 15.8 | 17.8 | 18.9 (slow) | +0.2 ± 0.1 | +0.1 ± 0.1 | -3.1 ± 0.1 | +0.5 ± 0.1 | -2.8 ± 0.2 |
 | Gumbel | jump | Xiao | 41.7 (199) | 41.7 | 42.4 | 38.8 | 46.9 | 40.6 (slow) | -2.9 ± 0.4 | -2.9 ± 0.4 | -1.8 ± 0.4 | +0.7 ± 0.7 | +1.7 ± 0.7 |
 | Gumbel | jump | Hermite | 43.8 (199) | 43.8 | 68.4 | 40.9 | 47.8 | 43.8 (slow) | -2.9 ± 0.8 | -2.9 ± 0.8 | -2.9 ± 0.8 | +24.6 ± 15.9 | +24.6 ± 15.9 |
-| Gumbel | jump | MPL | 40.5 (199) | 40.5 | 40.1 | 37.9 | 45.8 | 40.6 (slow) | -2.6 ± 0.3 | -2.6 ± 0.3 | -2.8 ± 0.2 | -0.4 ± 0.5 | -0.5 ± 0.4 |
+| Gumbel | jump | MPL | 40.8 (199) | 40.8 | 40.8 | 37.9 | 45.3 | 40.6 (slow) | -2.9 ± 0.3 | -2.9 ± 0.3 | -2.7 ± 0.3 | +0.0 ± 0.5 | +0.2 ± 0.5 |
 | t₄ | drift | Xiao | 34.3 (199) | 34.3 | 35.4 | 35.2 | 37.9 | 38.0 (slow) | +0.9 ± 0.1 | +0.9 ± 0.1 | -2.8 ± 0.3 | +1.0 ± 0.2 | -2.6 ± 0.4 |
 | t₄ | drift | Hermite | 34.7 (399) | 34.8 | 35.5 | 35.5 | 38.5 | 34.8 (slow) | +0.9 ± 0.2 | +0.7 ± 0.2 | +0.7 ± 0.2 | +0.9 ± 0.1 | +0.7 ± 0.2 |
-| t₄ | drift | MPL | 34.2 (399) | 34.6 | 35.1 | 35.1 | 38.1 | 39.1 (slow) | +0.9 ± 0.1 | +0.5 ± 0.1 | -4.0 ± 0.3 | +0.9 ± 0.1 | -4.1 ± 0.3 |
+| t₄ | drift | MPL | 34.1 (399) | 34.3 | 35.0 | 35.1 | 37.7 | 39.1 (slow) | +1.0 ± 0.2 | +0.8 ± 0.1 | -4.0 ± 0.3 | +0.9 ± 0.1 | -4.2 ± 0.4 |
 | t₄ | jump | Xiao | 46.6 (199) | 46.6 | 46.7 | 44.4 | 53.4 | 46.2 (slow) | -2.3 ± 0.6 | -2.3 ± 0.6 | -1.9 ± 0.5 | +0.0 ± 0.8 | +0.4 ± 0.7 |
 | t₄ | jump | Hermite | 48.8 (199) | 48.8 | 65.8 | 47.8 | 54.0 | 48.8 (slow) | -1.0 ± 2.1 | -1.0 ± 2.1 | -1.0 ± 2.1 | +17.0 ± 10.7 | +17.0 ± 10.7 |
-| t₄ | jump | MPL | 46.2 (199) | 46.2 | 45.4 | 43.8 | 52.1 | 48.1 (slow) | -2.4 ± 0.4 | -2.4 ± 0.4 | -4.3 ± 0.4 | -0.8 ± 0.6 | -2.7 ± 0.6 |
+| t₄ | jump | MPL | 46.3 (199) | 46.3 | 45.8 | 44.2 | 51.3 | 48.1 (slow) | -2.1 ± 0.5 | -2.1 ± 0.5 | -3.9 ± 0.4 | -0.5 ± 0.7 | -2.3 ± 0.7 |
 
 ### Whole run, excess log loss ×10⁻³ nats/tick: constant and oscillate (controls)
 
@@ -295,43 +310,43 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Gaussian | constant | Xiao | 0.7 (1999) | 4.1 | 1.4 | 1.2 | 4.4 | 0.8 (fast) | +0.5 ± 0.0 | -2.9 ± 0.2 | +0.4 ± 0.1 | +0.7 ± 0.1 | +0.6 ± 0.2 |
 | Gaussian | constant | Hermite | 0.8 (1999) | 4.8 | 1.5 | 1.3 | 5.1 | 4.8 (slow) | +0.5 ± 0.1 | -3.6 ± 0.2 | -3.6 ± 0.2 | +0.7 ± 0.1 | -3.4 ± 0.2 |
-| Gaussian | constant | MPL | 0.7 (1999) | 3.0 | 1.2 | 1.3 | 3.3 | 5.6 (slow) | +0.5 ± 0.1 | -1.8 ± 0.1 | -4.3 ± 0.2 | +0.5 ± 0.1 | -4.4 ± 0.2 |
+| Gaussian | constant | MPL | 0.6 (1999) | 3.0 | 1.2 | 1.1 | 3.1 | 5.6 (slow) | +0.5 ± 0.1 | -1.9 ± 0.1 | -4.5 ± 0.2 | +0.6 ± 0.2 | -4.4 ± 0.2 |
 | Gaussian | oscillate | Xiao | 30.3 (39) | 81.3 | 30.6 | 30.7 | 59.3 | 53.5 (fast) | +0.4 ± 0.0 | -50.6 ± 1.2 | -22.8 ± 1.7 | +0.3 ± 0.0 | -22.9 ± 1.7 |
 | Gaussian | oscillate | Hermite | 34.2 (39) | 81.9 | 34.6 | 34.6 | 59.5 | 81.2 (fast) | +0.4 ± 0.1 | -47.3 ± 1.3 | -46.5 ± 1.3 | +0.4 ± 0.0 | -46.5 ± 1.3 |
-| Gaussian | oscillate | MPL | 25.2 (39) | 81.4 | 25.6 | 25.5 | 59.0 | 32.5 (fast) | +0.3 ± 0.0 | -55.9 ± 1.2 | -7.0 ± 0.3 | +0.4 ± 0.0 | -6.9 ± 0.3 |
+| Gaussian | oscillate | MPL | 27.7 (39) | 83.0 | 28.2 | 28.1 | 58.9 | 32.5 (fast) | +0.3 ± 0.0 | -54.9 ± 1.2 | -4.4 ± 0.3 | +0.5 ± 0.1 | -4.2 ± 0.3 |
 | Clayton | constant | Xiao | 76.9 (1999) | 80.9 | 77.9 | 77.7 | 81.1 | 77.2 (fast) | +0.8 ± 0.1 | -3.2 ± 0.2 | +0.5 ± 0.1 | +1.0 ± 0.2 | +0.7 ± 0.2 |
 | Clayton | constant | Hermite | 76.9 (1999) | 82.1 | 78.1 | 77.8 | 82.3 | 82.1 (slow) | +0.9 ± 0.1 | -4.3 ± 0.3 | -4.3 ± 0.3 | +1.2 ± 0.2 | -4.0 ± 0.3 |
-| Clayton | constant | MPL | 77.0 (1999) | 80.0 | 77.7 | 77.7 | 80.3 | 83.6 (slow) | +0.8 ± 0.1 | -2.3 ± 0.2 | -5.9 ± 0.3 | +0.8 ± 0.2 | -5.8 ± 0.2 |
+| Clayton | constant | MPL | 76.8 (1999) | 80.0 | 77.7 | 77.6 | 80.2 | 83.6 (slow) | +0.8 ± 0.1 | -2.4 ± 0.2 | -6.0 ± 0.3 | +0.9 ± 0.2 | -5.9 ± 0.3 |
 | Clayton | oscillate | Xiao | 41.3 (99) | 48.3 | 42.1 | 41.1 | 41.0 | 46.0 (fast) | -0.2 ± 0.3 | -7.2 ± 0.6 | -4.9 ± 1.0 | +0.9 ± 0.3 | -3.9 ± 1.1 |
 | Clayton | oscillate | Hermite | 42.2 (99) | 48.7 | 44.5 | 42.7 | 41.2 | 48.6 (fast) | +0.5 ± 0.2 | -6.0 ± 0.5 | -5.8 ± 0.5 | +2.3 ± 0.4 | -4.1 ± 0.6 |
-| Clayton | oscillate | MPL | 39.1 (39) | 47.8 | 39.8 | 39.2 | 40.6 | 40.0 (slow) | +0.1 ± 0.2 | -8.7 ± 0.7 | -0.8 ± 0.3 | +0.7 ± 0.2 | -0.2 ± 0.2 |
+| Clayton | oscillate | MPL | 40.8 (39) | 48.7 | 41.5 | 40.9 | 40.9 | 40.0 (slow) | +0.1 ± 0.2 | -7.8 ± 0.7 | +0.9 ± 0.2 | +0.7 ± 0.3 | +1.5 ± 0.2 |
 | Gumbel | constant | Xiao | 29.7 (1999) | 33.5 | 30.6 | 30.4 | 33.8 | 30.1 (fast) | +0.7 ± 0.1 | -3.1 ± 0.3 | +0.3 ± 0.2 | +0.9 ± 0.2 | +0.5 ± 0.2 |
 | Gumbel | constant | Hermite | 29.8 (1999) | 34.5 | 30.8 | 30.6 | 34.8 | 34.5 (slow) | +0.8 ± 0.1 | -3.9 ± 0.3 | -4.0 ± 0.3 | +1.0 ± 0.2 | -3.8 ± 0.3 |
-| Gumbel | constant | MPL | 29.8 (1999) | 32.9 | 30.6 | 30.6 | 33.2 | 36.6 (slow) | +0.8 ± 0.1 | -2.3 ± 0.2 | -6.0 ± 0.3 | +0.8 ± 0.2 | -6.0 ± 0.3 |
+| Gumbel | constant | MPL | 29.6 (1999) | 32.8 | 30.6 | 30.5 | 33.0 | 36.6 (slow) | +0.8 ± 0.1 | -2.4 ± 0.2 | -6.1 ± 0.3 | +1.0 ± 0.2 | -6.0 ± 0.3 |
 | Gumbel | oscillate | Xiao | 31.2 (99) | 38.1 | 32.1 | 31.0 | 30.9 | 34.2 (fast) | -0.2 ± 0.3 | -7.0 ± 0.6 | -3.1 ± 0.9 | +0.9 ± 0.4 | -2.0 ± 1.0 |
 | Gumbel | oscillate | Hermite | 32.2 (99) | 38.5 | 34.7 | 32.7 | 31.2 | 38.4 (fast) | +0.4 ± 0.2 | -5.8 ± 0.5 | -5.7 ± 0.5 | +2.5 ± 0.7 | -3.6 ± 0.8 |
-| Gumbel | oscillate | MPL | 28.9 (39) | 37.7 | 29.8 | 29.0 | 30.4 | 30.0 (slow) | +0.2 ± 0.1 | -8.6 ± 0.7 | -1.0 ± 0.3 | +1.0 ± 0.2 | -0.2 ± 0.3 |
+| Gumbel | oscillate | MPL | 30.7 (39) | 38.5 | 31.6 | 30.8 | 30.6 | 30.0 (slow) | +0.1 ± 0.2 | -7.8 ± 0.7 | +0.8 ± 0.3 | +1.0 ± 0.2 | +1.7 ± 0.3 |
 | t₄ | constant | Xiao | 34.6 (1999) | 38.6 | 35.7 | 35.9 | 39.0 | 37.3 (fast) | +1.3 ± 0.2 | -2.7 ± 0.3 | -1.3 ± 0.8 | +1.0 ± 0.2 | -1.6 ± 0.8 |
 | t₄ | constant | Hermite | 34.7 (1999) | 39.8 | 36.5 | 36.1 | 40.1 | 39.8 (slow) | +1.4 ± 0.2 | -3.7 ± 0.4 | -3.7 ± 0.4 | +1.8 ± 1.1 | -3.3 ± 1.2 |
-| t₄ | constant | MPL | 34.8 (1999) | 39.1 | 35.6 | 36.2 | 39.5 | 44.9 (slow) | +1.3 ± 0.1 | -2.9 ± 0.3 | -8.8 ± 0.5 | +0.8 ± 0.2 | -9.3 ± 0.4 |
+| t₄ | constant | MPL | 34.5 (1999) | 38.9 | 35.4 | 35.9 | 39.1 | 44.9 (slow) | +1.4 ± 0.1 | -3.0 ± 0.3 | -9.1 ± 0.5 | +0.9 ± 0.2 | -9.5 ± 0.5 |
 | t₄ | oscillate | Xiao | 63.9 (39) | 114.8 | 64.6 | 66.5 | 92.1 | 66.2 (fast) | +2.6 ± 0.3 | -48.3 ± 1.5 | +0.2 ± 0.7 | +0.7 ± 0.1 | -1.6 ± 0.6 |
 | t₄ | oscillate | Hermite | 70.0 (39) | 115.3 | 71.0 | 72.8 | 92.3 | 114.4 (fast) | +2.8 ± 0.4 | -42.5 ± 1.6 | -41.6 ± 1.6 | +0.9 ± 0.1 | -43.5 ± 1.5 |
-| t₄ | oscillate | MPL | 64.1 (39) | 115.2 | 65.1 | 66.5 | 92.3 | 76.8 (slow) | +2.4 ± 0.2 | -48.7 ± 1.5 | -10.3 ± 0.6 | +1.0 ± 0.1 | -11.7 ± 0.5 |
+| t₄ | oscillate | MPL | 67.8 (39) | 117.1 | 69.2 | 71.1 | 92.2 | 76.8 (slow) | +3.3 ± 0.3 | -46.0 ± 1.6 | -5.6 ± 0.7 | +1.4 ± 0.2 | -7.6 ± 0.5 |
 
 ### Win / loss / tie counts, excess log loss ×10⁻³ nats/tick (12 family × estimator cells per row)
 
 | Bank | Scenario | M=39 | M=99 | M=199 | M=399 | M=1999 | Uniform | VFF | Hindsight best |
 |---|---|---|---|---|---|---|---|---|---|
 | Log | jump | 12/0/0 | 12/0/0 | 11/0/1 | 12/0/0 | 12/0/0 | 12/0/0 | 11/0/1 | 11/0/1 |
-| Log | drift | 12/0/0 | 12/0/0 | 2/6/4 | 1/8/3 | 12/0/0 | 12/0/0 | 9/3/0 | 0/11/1 |
+| Log | drift | 12/0/0 | 12/0/0 | 2/8/2 | 1/8/3 | 12/0/0 | 12/0/0 | 9/3/0 | 0/11/1 |
 | Log | pooled | 12/0/0 | 12/0/0 | 11/0/1 | 12/0/0 | 12/0/0 | 12/0/0 | 11/0/1 | 11/0/1 |
 | Log | constant | 12/0/0 | 12/0/0 | 12/0/0 | 12/0/0 | 0/12/0 | 12/0/0 | 9/3/0 | 0/12/0 |
-| Log | oscillate | 4/7/1 | 8/2/2 | 12/0/0 | 12/0/0 | 12/0/0 | 8/2/2 | 11/0/1 | 0/9/3 |
-| Squared | jump | 12/0/0 | 7/3/2 | 2/6/4 | 7/4/1 | 11/0/1 | 7/5/0 | 3/8/1 | 2/6/4 |
+| Log | oscillate | 4/6/2 | 8/2/2 | 12/0/0 | 12/0/0 | 12/0/0 | 6/2/4 | 9/2/1 | 0/8/4 |
+| Squared | jump | 12/0/0 | 6/3/3 | 1/7/4 | 7/4/1 | 11/0/1 | 7/5/0 | 1/8/3 | 1/7/4 |
 | Squared | drift | 12/0/0 | 12/0/0 | 0/11/1 | 0/12/0 | 12/0/0 | 12/0/0 | 5/6/1 | 0/12/0 |
-| Squared | pooled | 12/0/0 | 8/0/4 | 0/8/4 | 7/5/0 | 11/0/1 | 7/2/3 | 5/7/0 | 0/8/4 |
+| Squared | pooled | 12/0/0 | 8/0/4 | 0/9/3 | 7/5/0 | 11/0/1 | 7/2/3 | 5/7/0 | 0/9/3 |
 | Squared | constant | 12/0/0 | 12/0/0 | 12/0/0 | 11/0/1 | 0/12/0 | 12/0/0 | 9/3/0 | 0/12/0 |
-| Squared | oscillate | 2/10/0 | 7/4/1 | 12/0/0 | 12/0/0 | 12/0/0 | 8/4/0 | 10/0/2 | 0/12/0 |
+| Squared | oscillate | 2/10/0 | 6/4/2 | 12/0/0 | 12/0/0 | 12/0/0 | 6/6/0 | 10/2/0 | 0/12/0 |
 
 ### Log bank − squared bank (paired, mean ± 2 SE; negative = log bank better)
 
@@ -339,52 +354,52 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|
 | Gaussian | drift | Xiao | -2.7 ± 0.7 | -0.6 ± 0.1 |
 | Gaussian | drift | Hermite | -2.5 ± 0.6 | -0.5 ± 0.1 |
-| Gaussian | drift | MPL | -2.0 ± 0.6 | -0.4 ± 0.1 |
+| Gaussian | drift | MPL | -2.1 ± 0.7 | -0.4 ± 0.1 |
 | Gaussian | jump | Xiao | -6.7 ± 1.1 | -3.3 ± 0.5 |
 | Gaussian | jump | Hermite | -7.7 ± 1.1 | -16.1 ± 7.1 |
-| Gaussian | jump | MPL | -4.6 ± 1.0 | -1.9 ± 0.3 |
+| Gaussian | jump | MPL | -4.7 ± 1.1 | -2.2 ± 0.3 |
 | Gaussian | constant | Xiao | -2.6 ± 1.6 | -0.2 ± 0.1 |
 | Gaussian | constant | Hermite | -2.7 ± 1.8 | -0.2 ± 0.1 |
-| Gaussian | constant | MPL | -0.2 ± 1.0 | +0.0 ± 0.1 |
+| Gaussian | constant | MPL | -0.8 ± 1.2 | -0.1 ± 0.1 |
 | Gaussian | oscillate | Xiao | +1.5 ± 0.5 | +0.1 ± 0.0 |
 | Gaussian | oscillate | Hermite | +2.9 ± 0.7 | -0.0 ± 0.1 |
-| Gaussian | oscillate | MPL | -0.5 ± 0.3 | -0.1 ± 0.0 |
+| Gaussian | oscillate | MPL | -1.1 ± 0.5 | -0.2 ± 0.1 |
 | Clayton | drift | Xiao | -4.1 ± 1.1 | -0.4 ± 0.1 |
 | Clayton | drift | Hermite | -4.0 ± 1.0 | -0.4 ± 0.2 |
-| Clayton | drift | MPL | -3.4 ± 1.1 | -0.3 ± 0.1 |
+| Clayton | drift | MPL | -3.6 ± 1.2 | -0.3 ± 0.1 |
 | Clayton | jump | Xiao | -5.1 ± 1.7 | -5.1 ± 0.9 |
 | Clayton | jump | Hermite | -5.1 ± 1.9 | -43.2 ± 24.3 |
-| Clayton | jump | MPL | -5.9 ± 1.4 | -1.9 ± 0.4 |
+| Clayton | jump | MPL | -5.7 ± 1.6 | -3.1 ± 0.6 |
 | Clayton | constant | Xiao | -3.8 ± 1.9 | -0.2 ± 0.2 |
 | Clayton | constant | Hermite | -4.3 ± 2.1 | -0.3 ± 0.3 |
-| Clayton | constant | MPL | -1.7 ± 1.7 | -0.0 ± 0.1 |
+| Clayton | constant | MPL | -2.7 ± 2.0 | -0.1 ± 0.2 |
 | Clayton | oscillate | Xiao | -3.2 ± 0.7 | -1.0 ± 0.2 |
 | Clayton | oscillate | Hermite | -4.3 ± 0.7 | -1.7 ± 0.4 |
-| Clayton | oscillate | MPL | -3.3 ± 0.7 | -0.7 ± 0.1 |
+| Clayton | oscillate | MPL | -3.3 ± 0.8 | -0.6 ± 0.2 |
 | Gumbel | drift | Xiao | -3.2 ± 1.0 | -0.5 ± 0.1 |
 | Gumbel | drift | Hermite | -3.6 ± 1.0 | -0.6 ± 0.2 |
-| Gumbel | drift | MPL | -2.9 ± 0.8 | -0.3 ± 0.1 |
+| Gumbel | drift | MPL | -3.0 ± 0.9 | -0.3 ± 0.1 |
 | Gumbel | jump | Xiao | -6.6 ± 1.0 | -3.6 ± 0.6 |
 | Gumbel | jump | Hermite | -7.6 ± 1.1 | -27.5 ± 15.8 |
-| Gumbel | jump | MPL | -5.5 ± 0.9 | -2.3 ± 0.4 |
+| Gumbel | jump | MPL | -5.1 ± 0.9 | -2.9 ± 0.4 |
 | Gumbel | constant | Xiao | -1.9 ± 1.8 | -0.2 ± 0.2 |
 | Gumbel | constant | Hermite | -2.0 ± 2.1 | -0.2 ± 0.2 |
-| Gumbel | constant | MPL | -0.8 ± 1.7 | -0.0 ± 0.2 |
+| Gumbel | constant | MPL | -1.3 ± 1.6 | -0.1 ± 0.2 |
 | Gumbel | oscillate | Xiao | -2.5 ± 0.7 | -1.1 ± 0.2 |
 | Gumbel | oscillate | Hermite | -2.9 ± 0.7 | -2.0 ± 0.6 |
-| Gumbel | oscillate | MPL | -3.4 ± 0.9 | -0.8 ± 0.2 |
+| Gumbel | oscillate | MPL | -3.5 ± 1.0 | -0.9 ± 0.2 |
 | t₄ | drift | Xiao | -0.8 ± 0.8 | -0.2 ± 0.1 |
 | t₄ | drift | Hermite | -0.7 ± 0.9 | -0.0 ± 0.1 |
-| t₄ | drift | MPL | +0.1 ± 1.0 | +0.1 ± 0.1 |
+| t₄ | drift | MPL | +0.4 ± 1.0 | +0.1 ± 0.1 |
 | t₄ | jump | Xiao | -4.2 ± 1.6 | -2.3 ± 0.7 |
 | t₄ | jump | Hermite | -5.3 ± 1.6 | -18.0 ± 10.6 |
-| t₄ | jump | MPL | -3.1 ± 1.7 | -1.6 ± 0.5 |
+| t₄ | jump | MPL | -1.7 ± 1.8 | -1.6 ± 0.6 |
 | t₄ | constant | Xiao | +1.4 ± 1.8 | +0.3 ± 0.2 |
 | t₄ | constant | Hermite | +1.3 ± 2.1 | -0.4 ± 1.2 |
-| t₄ | constant | MPL | +2.8 ± 1.9 | +0.5 ± 0.2 |
+| t₄ | constant | MPL | +2.3 ± 1.8 | +0.5 ± 0.2 |
 | t₄ | oscillate | Xiao | +9.0 ± 1.4 | +1.9 ± 0.3 |
 | t₄ | oscillate | Hermite | +12.6 ± 1.6 | +1.9 ± 0.4 |
-| t₄ | oscillate | MPL | +4.6 ± 1.2 | +1.4 ± 0.3 |
+| t₄ | oscillate | MPL | +6.7 ± 1.4 | +2.0 ± 0.3 |
 
 ### Recovery around the jump at t = 2500, Xiao, RMSE ×10⁻³
 
@@ -455,28 +470,28 @@ Means over 60 seeds. Δ columns are paired differences, mean ± 2 SE; negative =
 |---|---|---|---|---|
 | Gaussian | drift | Xiao | +2.6 ± 0.6 | -0.4 ± 0.1 |
 | Gaussian | drift | Hermite | +2.4 ± 0.6 | -0.4 ± 0.1 |
-| Gaussian | drift | MPL | +2.2 ± 0.5 | -0.3 ± 0.1 |
+| Gaussian | drift | MPL | +2.3 ± 0.5 | -0.4 ± 0.1 |
 | Gaussian | jump | Xiao | -7.4 ± 1.0 | +0.4 ± 0.1 |
 | Gaussian | jump | Hermite | -7.9 ± 0.9 | +0.4 ± 0.1 |
-| Gaussian | jump | MPL | -6.6 ± 1.0 | +0.4 ± 0.1 |
+| Gaussian | jump | MPL | -6.7 ± 0.9 | +0.4 ± 0.1 |
 | Clayton | drift | Xiao | +3.2 ± 1.0 | -0.3 ± 0.1 |
 | Clayton | drift | Hermite | +3.2 ± 0.9 | -0.3 ± 0.1 |
-| Clayton | drift | MPL | +2.8 ± 0.9 | -0.3 ± 0.1 |
+| Clayton | drift | MPL | +3.5 ± 0.8 | -0.4 ± 0.1 |
 | Clayton | jump | Xiao | -6.8 ± 1.1 | -0.0 ± 0.1 |
 | Clayton | jump | Hermite | -6.7 ± 1.1 | -0.0 ± 0.1 |
-| Clayton | jump | MPL | -6.6 ± 1.0 | +0.2 ± 0.1 |
+| Clayton | jump | MPL | -6.4 ± 1.1 | +0.1 ± 0.1 |
 | Gumbel | drift | Xiao | +2.6 ± 0.9 | -0.3 ± 0.1 |
 | Gumbel | drift | Hermite | +3.1 ± 1.0 | -0.3 ± 0.1 |
-| Gumbel | drift | MPL | +2.5 ± 0.9 | -0.4 ± 0.1 |
+| Gumbel | drift | MPL | +3.1 ± 0.9 | -0.4 ± 0.1 |
 | Gumbel | jump | Xiao | -6.8 ± 0.9 | +0.2 ± 0.1 |
 | Gumbel | jump | Hermite | -6.8 ± 0.9 | +0.1 ± 0.1 |
-| Gumbel | jump | MPL | -6.2 ± 1.0 | +0.2 ± 0.1 |
+| Gumbel | jump | MPL | -6.2 ± 1.1 | +0.1 ± 0.1 |
 | t₄ | drift | Xiao | +2.9 ± 0.6 | -0.7 ± 0.1 |
 | t₄ | drift | Hermite | +3.0 ± 0.8 | -0.8 ± 0.1 |
-| t₄ | drift | MPL | +3.2 ± 0.9 | -0.8 ± 0.1 |
+| t₄ | drift | MPL | +3.2 ± 0.9 | -0.9 ± 0.1 |
 | t₄ | jump | Xiao | -6.5 ± 1.1 | +0.0 ± 0.1 |
 | t₄ | jump | Hermite | -6.3 ± 1.2 | -0.1 ± 0.1 |
-| t₄ | jump | MPL | -6.6 ± 1.2 | -0.0 ± 0.1 |
+| t₄ | jump | MPL | -6.4 ± 1.2 | -0.1 ± 0.1 |
 
 ## Family bank (`family_bank`): copula shapes × memories (2026-11-01)
 

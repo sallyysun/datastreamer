@@ -481,9 +481,20 @@ are still to be regenerated from the (b) arms. That is waiting on Sally before a
    - **Start-up rule: done.** `RecursiveMPL::Config::startup`, max(λ, 1/m), on for `mle_bank*` (the
      thesis version, b). `mlea_*` = constant from the start (a); `mleold_*` = the old arms. Paired
      results are in §3.10: (b) ≥ old in 11/12 cells, and the bank conclusions are unchanged.
-   - **Still to do (ask first):** rerun default `probe_thesis_bank` (only the MPL rows change; it now
-     also writes an `early` window), then `ch6_results_md.py`, and update
-     `docs/chapter6_results.md` (stale banner) and the Chapter 6 draft.
+   - **Chapter 6 bank results regenerated with (b)** (2026-11-06).
+     - Reran `probe_thesis_bank`, `probe_bank_tune 42 60` and `probe_bank_regret 42 60`, all four
+       families. Xiao and Hermite are bit-identical.
+     - Updated `docs/chapter6_results.md`: the full tables, the headline, the regret check and the
+       η = 1/32 section. Its banner lists what was not regenerated.
+     - **Headline changes:**
+       - log bank drift against M = 199: worse range +1.2 to +4.0 (was +3.6);
+       - squared bank jump against hindsight: −10.7 to −15.5;
+       - squared drift against M = 199: 2/6/4;
+       - regret: still 0 violations in 1440 runs, at every m.
+     - **Not yet done:**
+       - the own-density section's MPL numbers;
+       - the Chapter 6 TeX draft (`notes/thesis/chapter6_draft.tex`), whose MPL-bank numbers still
+         quote the old arms.
    - **What the MPL is now:**
      - Budget study: `RecursiveMPL` with KLL, or DataSketches KLL, margins.
      - Bank study: `RecursiveMPL` fed the bank's 500-tick window ranks.
