@@ -380,14 +380,32 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             || key == "mle_bank_block") base = "mle";
         // Variants for the start-up comparison (budget_mpl.md §12), not in all_estimator_keys():
         // mlea = constant gain from the first update; mleold = the pre-2026-11-06 ParametricCopulaMLE arms.
-        for (const char* v : {"mlea", "mleold"})
+        for (const char* v : {"mlea", "mleold", "mixed"})
             for (const char* sfx : {"_bank", "_bank_log", "_bank_own", "_bank_sq32", "_bank_uniform"})
                 if (key == std::string(v) + sfx) base = v;
         if (base) {
             const std::string b(base);
             const bool block = ends_with("_block");
             std::vector<std::unique_ptr<DependenceEstimator>> models;
-            if (b == "xiao") {
+            if (b == "mixed") {
+                // Mixed bank (budget_mpl.md §13): the five Xiao, five Hermite and five spec-MPL arms of
+                // the single-estimator banks, all on the bank's shared pseudo-observations. Not in
+                // all_estimator_keys().
+                for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
+                    models.push_back(std::make_unique<XiaoSpearmanEstimator>(
+                        XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = lam,
+                                                      .calibration = 100}, "m"));
+                for (double lam : {0.05, 0.02, 0.01, 0.005, 0.001})
+                    models.push_back(std::make_unique<HermiteEstimator>(
+                        HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "m"));
+                for (double gain : {0.05, 0.02, 0.01, 0.005, 0.001}) {
+                    RecursiveMPL::Config c{};
+                    c.margin = RecursiveMPL::Margin::ExactNormal;
+                    c.gain = gain;
+                    c.startup = true;
+                    models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
+                }
+            } else if (b == "xiao") {
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<XiaoSpearmanEstimator>(
                         XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = lam,
@@ -425,7 +443,8 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 "hermite_bank_block",
                 "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_sq32", "mle_bank_uniform", "mle_bank_block",
                 "mlea_bank", "mlea_bank_log", "mlea_bank_own", "mlea_bank_sq32", "mlea_bank_uniform",
-                "mleold_bank", "mleold_bank_log", "mleold_bank_own", "mleold_bank_sq32", "mleold_bank_uniform"};
+                "mleold_bank", "mleold_bank_log", "mleold_bank_own", "mleold_bank_sq32", "mleold_bank_uniform",
+                "mixed_bank", "mixed_bank_log", "mixed_bank_own", "mixed_bank_sq32", "mixed_bank_uniform"};
             const char* name = std::find(names.begin(), names.end(), key)->c_str();
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);

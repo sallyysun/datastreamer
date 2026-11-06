@@ -584,6 +584,60 @@ old jump −18.5 / −16.0 / −16.9 / −15.5):
 **The Chapter 6 bank conclusions are unchanged by the switch.** The `chapter6_results.md` MPL rows
 are still to be regenerated from the (b) arms. That is waiting on Sally before any rewrite.
 
+## 13. Mixed bank: Xiao + Hermite + MPL arms together (2026-11-06)
+
+**Setup.**
+- Key `mixed_bank*` (registry; not in `all_estimator_keys()`): the 5 Xiao, 5 Hermite and 5 spec-MPL
+  arms (with the start-up rule) of the single-estimator banks, K = 15. Same η and δ as each loss
+  variant, and the shared 500-tick rank window.
+- Run: `probe_thesis_bank` with `COMPONENTS=mixed TAG=mixed`, 4 families × 60 seeds (42–101), the same
+  streams as the regenerated Chapter 6 banks.
+- Tables: `experiments/mixed_table.py` → `results/mixed_table.txt`. Weight shares are from a
+  20-seed side run.
+
+**Log bank, whole-run RMSE ×10⁻³.** Mixed, and mixed minus the best single bank (paired ± 2 SE;
+* = beyond 2 SE):
+
+| | Gaussian | Clayton | Gumbel | t₄ |
+| --- | --- | --- | --- | --- |
+| drift | 68.1, +0.7 ± 0.8 vs MPL | 60.2, **+2.5 ± 0.7*** vs MPL | 61.3, **+2.5 ± 0.7*** vs MPL | 75.6, +0.1 ± 1.0 vs Xiao (−2.2* vs MPL) |
+| jump | 59.5, **+1.0 ± 0.6*** vs MPL | 65.4, −0.5 ± 0.9 vs MPL | 62.5, −0.2 ± 0.8 vs MPL | 69.4, **−1.0 ± 0.7*** vs MPL |
+| constant | 24.7, +0.4 ± 0.8 | 25.8, +1.4 ± 0.8* | 28.8, +0.7 ± 1.0 vs Xiao | 35.3, +1.4 ± 1.3* vs Xiao |
+| oscillate | 185.0, +0.3 ± 0.4 | 169.9, −1.1 ± 0.7* | 171.5, −0.2 ± 0.8 | 204.1, +0.8 ± 0.9 vs Xiao (−12.5* vs MPL) |
+
+- **Against Xiao's bank:** better in 13 of 16 cells.
+- **Against the best single bank:**
+  - better in 2 cells (t₄ jump, Clayton oscillate);
+  - worse in 5 (Clayton and Gumbel drift, Gaussian jump, Clayton constant, t₄ constant), by 1.0–2.5;
+  - tied in the rest.
+- **The squared bank** shows the same pattern: worse than the MPL bank by up to +3.2 on drift.
+
+**Mean weight by estimator type, log bank:**
+
+| | Gaussian | Clayton | Gumbel | t₄ |
+| --- | --- | --- | --- | --- |
+| drift: Xiao / Hermite / MPL | .15 / .40 / .44 | .38 / .31 / .31 | .36 / .33 / .31 | .27 / .45 / .29 |
+| jump: Xiao / Hermite / MPL | .28 / .25 / .46 | .34 / .31 / .35 | .31 / .30 / .39 | .34 / .35 / .32 |
+
+**What it shows.**
+- **The bank cannot tell the estimator types apart.**
+  - All three predict nearly the same ρ_S from the same pseudo-observations, so their per-tick
+    losses barely differ.
+  - The weight spreads about ⅓ each, even onto Hermite, which is never the best single bank.
+  - The bank still separates *memories* (fast against slow arms) but not *estimators*.
+- **So the mixed bank behaves like an average across estimator types.**
+  - It loses a little where the MPL is clearly best: Clayton and Gumbel drift, +2.5.
+  - It gains where the MPL is weak: t₄ drift (−2.2 vs MPL), and t₄ oscillate (−12.5 vs MPL).
+- **It is a hedge, not an improvement.** It is never far from the best single bank (at most +2.5),
+  and it removes the MPL bank's few bad cells.
+- **Cost:** 15 arms, about 42 KB and about 8–9 µs per tick, against about 17 KB and about 2 µs for
+  the MPL bank alone.
+
+**For the thesis:**
+- Combining estimator types adds robustness, not accuracy.
+- Weighting by one-step loss separates memories, because a wrong memory is wrong for many ticks.
+  It cannot separate estimators whose predictions differ by less than the per-tick noise.
+
 ## 8. Reproduction
 
 ```bash

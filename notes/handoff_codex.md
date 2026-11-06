@@ -104,6 +104,14 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
    - The fix would be a mixture arm. Not built.
    - None of the three estimators tracks tail shape well.
 
+9. **A mixed bank (Xiao + Hermite + MPL arms, K = 15) is a hedge, not an improvement**
+   (`budget_mpl.md` §13).
+   - Against the best single bank it is worse in 5 of 16 cells (by up to +2.5 ×10⁻³) and better in
+     2 (t₄ jump; it also beats the MPL bank by 12.5 on t₄ oscillate).
+   - The weights spread about ⅓ per estimator type, because the bank can tell memories apart but
+     not estimators.
+   - It costs 2.5× the MPL bank's memory and about 4× its time.
+
 ### 0.3 Known problems that affect claims
 
 - **The Hermite `store_bytes()` undercounts about 3×** (W_ and A_fast_ are not counted), so its
