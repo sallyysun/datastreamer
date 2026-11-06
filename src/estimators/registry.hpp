@@ -380,6 +380,15 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             || key == "mle_bank_block") base = "mle";
         // Variants for the start-up comparison (budget_mpl.md §12), not in all_estimator_keys():
         // mlea = constant gain from the first update; mleold = the pre-2026-11-06 ParametricCopulaMLE arms.
+        // <base>cum: the same five arms plus one cumulative (no-forgetting) arm, K = 6 (budget_mpl.md §15).
+        bool with_cum = false;
+        for (const char* v : {"xiaocum", "hermitecum", "mlecum"})
+            for (const char* sfx : {"_bank", "_bank_log", "_bank_own", "_bank_sq32", "_bank_uniform"})
+                if (key == std::string(v) + sfx) {
+                    const std::string vs(v);
+                    base = vs == "xiaocum" ? "xiao" : vs == "hermitecum" ? "hermite" : "mle";
+                    with_cum = true;
+                }
         for (const char* v : {"mlea", "mleold", "mixed"})
             for (const char* sfx : {"_bank", "_bank_log", "_bank_own", "_bank_sq32", "_bank_uniform"})
                 if (key == std::string(v) + sfx) base = v;
@@ -437,6 +446,22 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                     models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
                 }
             }
+            if (with_cum) {
+                if (b == "xiao")
+                    models.push_back(std::make_unique<XiaoSpearmanEstimator>(
+                        XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.0,
+                                                      .calibration = 100}, "m"));
+                else if (b == "hermite")
+                    models.push_back(std::make_unique<HermiteEstimator>(
+                        HermiteEstimator::Config{.order = 10, .lambda = 0.0, .burn_in = 50}, "m"));
+                else {
+                    RecursiveMPL::Config c{};
+                    c.margin = RecursiveMPL::Margin::ExactNormal;
+                    c.gain = 1e-12;     // with the start-up rule the gain is 1/m: a running mean
+                    c.startup = true;
+                    models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
+                }
+            }
             static const std::vector<std::string> names = {
                 "xiao_bank", "xiao_bank_log", "xiao_bank_own", "xiao_bank_sq32", "xiao_bank_uniform", "xiao_bank_block",
                 "hermite_bank", "hermite_bank_log", "hermite_bank_own", "hermite_bank_sq32", "hermite_bank_uniform",
@@ -444,7 +469,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 "mle_bank", "mle_bank_log", "mle_bank_own", "mle_bank_sq32", "mle_bank_uniform", "mle_bank_block",
                 "mlea_bank", "mlea_bank_log", "mlea_bank_own", "mlea_bank_sq32", "mlea_bank_uniform",
                 "mleold_bank", "mleold_bank_log", "mleold_bank_own", "mleold_bank_sq32", "mleold_bank_uniform",
-                "mixed_bank", "mixed_bank_log", "mixed_bank_own", "mixed_bank_sq32", "mixed_bank_uniform"};
+                "mixed_bank", "mixed_bank_log", "mixed_bank_own", "mixed_bank_sq32", "mixed_bank_uniform",
+                "xiaocum_bank", "xiaocum_bank_log", "xiaocum_bank_own", "xiaocum_bank_sq32", "xiaocum_bank_uniform",
+                "hermitecum_bank", "hermitecum_bank_log", "hermitecum_bank_own", "hermitecum_bank_sq32",
+                "hermitecum_bank_uniform",
+                "mlecum_bank", "mlecum_bank_log", "mlecum_bank_own", "mlecum_bank_sq32", "mlecum_bank_uniform"};
             const char* name = std::find(names.begin(), names.end(), key)->c_str();
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);

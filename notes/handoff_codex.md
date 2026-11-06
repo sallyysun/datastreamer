@@ -122,7 +122,18 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
       bank's 26–34 and M = 199's 50–55. The same holds before the jump.
     - **So the bank beats raw Xiao everywhere except stationary stretches,** where it pays an
       "insurance premium" of 8–16. Hermite and the MPL behave the same.
-    - Adding a cumulative arm (M = ∞) to the bank is an untested idea to cut that premium.
+11. **A cumulative arm in the bank is a trade, not a win** (`budget_mpl.md` §15).
+    - **The setup:** 5 forgetting arms plus 1 never-forgetting arm, K = 6.
+    - **Where it helps:**
+      - On `constant` it cuts the stationary premium by 2–3.6 ×10⁻³, closing about 25–30% of the gap
+        to the pure cumulative estimator.
+      - Before the jump it helps by 2–5.5.
+    - **Where it costs:** +1 to +8 after the jump (worst on t₄), and +0.1 to +2.9 on drift.
+    - **Why:**
+      - Even on `constant`, the bank gives the cumulative arm only about 0.45 of its weight. Its
+        predictions barely differ from M = 1999's, so the losses can't separate them.
+      - Before a change, more weight sits on slow arms, so the bank reacts more slowly.
+    - **Recommendation:** keep the five-arm bank. A restart-on-detection version is untested.
 
 ### 0.5 Which estimator wins where (from the results above)
 

@@ -684,6 +684,51 @@ All differences are beyond 2 SE (± 1.5–4).
    estimator. That is the insurance premium for 4–6× smaller error when something does change.
    - Adding a cumulative arm (M = ∞) to the bank would likely shrink that premium. Untested.
 
+## 15. A cumulative (no-forgetting) arm in the bank (2026-11-06)
+
+**Setup.**
+- Keys `xiaocum_*`, `hermitecum_*`, `mlecum_*`: the usual five forgetting arms plus one cumulative arm
+  (K = 6), with the same η and δ as the five-arm banks.
+- Run in `probe_noforget` on the same streams (4 families × 60 seeds). Table:
+  `experiments/cumarm_table.py` → `results/cumarm_table.txt`.
+
+**Six-arm bank minus five-arm bank, RMSE ×10⁻³** (paired ± 2 SE; all three estimators and both losses
+agree within about 1):
+
+| Window | Gaussian | Clayton | Gumbel | t₄ |
+| --- | --- | --- | --- | --- |
+| constant, whole | −2.1 to −2.8 | −2.6 to −3.2 | −1.9 to −3.6 | −2.2 to −3.1 |
+| jump, first 2000 ticks | −2.0 to −4.1 | −2.6 to −5.5 | −2.3 to −4.4 | −2.5 to −4.0 |
+| jump, after the change | +0.9 to +1.3 | +1.2 to +3.9 | +1.2 to +2.4 | +1.6 to +8.4 |
+| jump, whole | −0.5 to +0.7 | 0 to +1.6 | +0.2 to +0.6 | +0.5 to +4.5 |
+| drift, whole | +0.9 to +1.4 | +0.2 to +0.7 | +0.1 to +0.8 | +1.5 to +2.9 |
+
+**Weight on the cumulative arm** (Xiao log bank; the MPL is similar):
+
+| | Weight |
+| --- | --- |
+| constant | 0.41–0.46 |
+| jump, whole run | 0.17–0.18 |
+| jump, after the change | 0.01–0.02 |
+| drift | 0.04–0.18 |
+
+**What it shows.**
+- **It helps on stable stretches, but only partly.** It cuts the bank's stationary penalty from
+  8–16 to 5–14 ×10⁻³, closing about 25–30% of the gap to the pure cumulative estimator.
+  - The bank gives the cumulative arm only about 0.45 of its weight, even on `constant`. Over 4500
+    ticks its predictions barely differ from the M = 1999 arm's, so one-step loss can't separate
+    them. This is the same limit as the mixed bank (§13).
+- **It costs after changes.** It is +1 to +8 worse after the jump (worst on t₄), and +0.1 to +2.9
+  worse on drift.
+  - Before the change, more of the weight sits on slow arms. So at the change, the bank has further
+    to move to reach the fast arms.
+  - The cumulative arm itself is dropped almost at once (weight 0.01–0.02).
+- **Net: a trade, not a win.** Whole-run `jump` is −0.5 to +4.5, and drift is slightly worse.
+- **Recommendation:** keep the five-arm bank. A cumulative arm is worth it only if long stable
+  stretches dominate the stream.
+- **A restart-on-detection version is untested.** It could keep the stationary gain without the
+  post-change cost.
+
 ## 8. Reproduction
 
 ```bash
