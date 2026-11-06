@@ -638,6 +638,52 @@ are still to be regenerated from the (b) arms. That is waiting on Sally before a
 - Weighting by one-step loss separates memories, because a wrong memory is wrong for many ticks.
   It cannot separate estimators whose predictions differ by less than the per-tick noise.
 
+## 14. Forgetting against no forgetting (2026-11-06)
+
+**Setup.**
+- Probe: `experiments/probe_noforget.cpp`; table: `experiments/noforget_table.py` →
+  `results/noforget_table.txt`.
+- 4 families × 60 seeds (42–101), on the `probe_thesis_bank` streams. The sanity check matches
+  `chapter6_results.md`: Xiao log bank, Gaussian, 70.6 drift and 62.0 jump.
+- For each estimator, three versions are compared:
+  - **no forgetting:** cumulative, on the bank's rank-PIT inputs. That is the `xiao` and `hermite`
+    registry keys, and RecursiveMPL with gain 1/m, a running mean.
+  - **one fixed memory:** its M = 199 arm;
+  - **its log bank.**
+- Raw Xiao on its own frozen cut-points (`xiao_raw_cum`) is within 1 ×10⁻³ of the cumulative
+  rank-fed Xiao everywhere.
+
+**Whole-run RMSE ×10⁻³, Xiao** (Hermite and the MPL show the same pattern, within a few units):
+
+| Scenario | no forgetting | M = 199 | log bank | bank − no forgetting |
+| --- | --- | --- | --- | --- |
+| constant (Gaussian / Clayton / Gumbel / t₄) | 18.1 / 16.2 / 16.1 / 17.8 | 49.5 / 52.5 / 52.7 / 55.2 | 26.1 / 26.9 / 28.0 / 33.9 | **+8.0 / +10.6 / +12.0 / +16.0** (worse) |
+| drift | 384.5 / 273.9 / 274.4 / 382.9 | 68.2 / 67.8 / 68.7 / 71.8 | 70.6 / 62.9 / 64.9 / 75.4 | −314 / −211 / −210 / −308 |
+| jump | 319.1 / 316.6 / 315.2 / 318.2 | 81.7 / 83.1 / 83.2 / 85.5 | 62.0 / 66.2 / 64.7 / 70.5 | −257 / −250 / −251 / −248 |
+| jump, early [500, 2000) | 30.8 / 26.0 / 26.7 / 32.3 | 67.4 / 70.7 / 65.7 / 73.0 | 43.5 / 44.0 / 41.2 / 50.3 | +12.7 / +18.0 / +14.5 / +18.0 (worse) |
+| oscillate | 411.1 / 225.3 / 225.0 / 410.9 | 352.5 / 204.3 / 205.3 / 350.8 | 191.6 / 172.1 / 174.6 / 203.3 | −220 / −53 / −50 / −208 |
+
+All differences are beyond 2 SE (± 1.5–4).
+
+**Answers.**
+1. **Does forgetting beat no forgetting? Yes, by a factor of 4–6 whenever the dependence moves.**
+   - Drift: about 0.07 against 0.27–0.39.
+   - Jump: about 0.065 against 0.32.
+   - After the jump: about 0.08 against 0.43.
+   - A cumulative estimator converges to the *time average* of ρ_S, so its error grows with the size
+     of the change.
+   - **When nothing moves, no forgetting is best.** On constant, and in the first 2000 ticks before
+     the jump, the cumulative estimator beats both M = 199 (by 31–45) and the bank (by 8–18). Pure
+     variance; no bias to trade.
+2. **Does the bank beat raw (no-forgetting) Xiao?**
+   - **Yes, massively,** on drift, jump and oscillate: by 210–314, 248–257 and 50–220 ×10⁻³.
+   - **No on constant:** +8 to +16 worse. Its longest arm is M = 1999, which is still shorter than
+     "all data", and fixed share keeps some weight on short arms.
+   - It is still far better than a single M = 199 on constant (26–34 against 50–55).
+3. **The bank's cost when nothing changes** is about 8–16 ×10⁻³ against the ideal no-forgetting
+   estimator. That is the insurance premium for 4–6× smaller error when something does change.
+   - Adding a cumulative arm (M = ∞) to the bank would likely shrink that premium. Untested.
+
 ## 8. Reproduction
 
 ```bash

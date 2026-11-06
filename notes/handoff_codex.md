@@ -112,6 +112,18 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
      not estimators.
    - It costs 2.5× the MPL bank's memory and about 4× its time.
 
+10. **Forgetting against no forgetting** (`budget_mpl.md` §14; 60 seeds × 4 families; same
+    streams as Chapter 6).
+    - **Forgetting wins by 4–6× whenever ρ_S moves** (Xiao log bank against cumulative Xiao):
+      - drift 63–75 against 274–385 ×10⁻³;
+      - jump 62–71 against 315–319;
+      - oscillate 172–203 against 225–411.
+    - **When nothing moves, no forgetting is best.** On constant, cumulative is 16–18, against the
+      bank's 26–34 and M = 199's 50–55. The same holds before the jump.
+    - **So the bank beats raw Xiao everywhere except stationary stretches,** where it pays an
+      "insurance premium" of 8–16. Hermite and the MPL behave the same.
+    - Adding a cumulative arm (M = ∞) to the bank is an untested idea to cut that premium.
+
 ### 0.5 Which estimator wins where (from the results above)
 
 | Situation | Best | Evidence |
