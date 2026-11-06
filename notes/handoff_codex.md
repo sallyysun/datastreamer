@@ -135,6 +135,21 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
       - Before a change, more weight sits on slow arms, so the bank reacts more slowly.
     - **Recommendation:** keep the five-arm bank. A restart-on-detection version is untested.
 
+12. **Softmax alone against softmax + fixed share** (`budget_mpl.md` §16; figure
+    `ch6_bank_weights_neff.png`, arms labelled by N_eff).
+    - **Softmax alone (plain Hedge, δ = 0):**
+      - The noisy fast arm's weight collapses before the change, so it can't be revived.
+      - After the jump the weight goes to N_eff = 99, not 39, and then gets stuck there for 2000
+        ticks: the slow arms' accumulated loss is too large.
+    - **Fixed share** (δ = 3·10⁻⁴; floor about δ/K): jumps to 39, then hands up 39 → 99 → 199 → 399.
+      The bank's memory goes 41 → 284.
+    - **Jump RMSE:**
+      - whole run 60.3 vs 78.1;
+      - first 100 ticks 324 vs 463;
+      - late 24.9 vs 29.8.
+    - **The cost:** about 1–5% when nothing changes (before the jump 43.7 vs 41.6; drift 68.0 vs
+      67.1).
+
 ### 0.5 Which estimator wins where (from the results above)
 
 | Situation | Best | Evidence |

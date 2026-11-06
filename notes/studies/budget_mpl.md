@@ -729,6 +729,63 @@ agree within about 1):
 - **A restart-on-detection version is untested.** It could keep the stationary gain without the
   post-change cost.
 
+## 16. Softmax alone against softmax + fixed share: how the weights move (2026-11-06)
+
+**Setup.**
+- Probe: `experiments/probe_bank_weights.cpp`. Figure: `experiments/plot_bank_weights_neff.py` →
+  `notes/thesis/figures/ch6_bank_weights_neff.png` (jump) and `_drift.png`.
+- MPL log bank (spec arms with the start-up rule), η = 1, Gaussian, 60 seeds (42–101).
+- Arms are labelled by effective memory N_eff = (2 − g)/g: 39, 99, 199, 399, 1999. The cumulative
+  arm has N_eff = t.
+- **Three variants:**
+  - (a) softmax only, i.e. plain Hedge, δ = 0;
+  - (b) softmax + fixed share, δ = 3·10⁻⁴ (the thesis bank);
+  - (c) as (b), plus a cumulative arm.
+
+**The two steps of the update, each tick:**
+1. **Softmax (Hedge):** w_k ← w_k·exp(−η·loss_k), then normalise. Each arm's weight is the softmax of
+   its *total* past loss, so an arm that has been bad for a long time ends up with an astronomically
+   small weight.
+2. **Fixed share:** w_k ← (1 − δ)·w_k + δ/K. Every tick, a fraction δ of all the weight is spread
+   evenly. No arm can fall below about δ/K, which is about 6·10⁻⁵, so every arm can be revived
+   within a few ticks of becoming the best.
+
+**Results** (RMSE ×10⁻³, from the mean squared-error paths):
+
+| Variant | jump whole | before | 0–100 after | 100–500 after | 500+ after | drift whole |
+| --- | --- | --- | --- | --- | --- | --- |
+| (a) softmax only | 78.1 | **41.6** | 462.7 | 44.4 | 29.8 | **67.1** |
+| (b) + fixed share | **60.3** | 43.7 | **324.1** | 44.7 | **24.9** | 68.0 |
+| (c) + cumulative arm | 60.0 | **40.6** | 328.2 | 45.2 | 25.5 | 69.0 |
+
+**Bank memory Σ w_k N_eff,k:**
+
+| | just before the jump (t = 2495) | 100 after | 500 after | 2000 after |
+| --- | --- | --- | --- | --- |
+| (a) softmax only | 1606 | 139 | 100 | 114 |
+| (b) + fixed share | 1515 | **41** | 87 | **284** |
+
+**What the figure shows.**
+- **Softmax only can't reach the fastest arm after the jump.**
+  - Before the change, the N_eff = 39 arm was the noisiest, and its weight collapsed to essentially
+    zero (about e^(−large)).
+  - After the jump the weight goes to N_eff = 99 instead, the fastest arm that still had weight left.
+    The bank's first 100 ticks are 43% worse (463 vs 324).
+- **It then gets stuck.**
+  - The slower arms (199, 399) were badly wrong for the first few hundred ticks after the jump. That
+    pushed their total loss so high that they never recover.
+  - The bank stays at N_eff ≈ 100 for the remaining 2000 ticks, even after the slow arms have
+    re-converged and would be better. Late error: 29.8 against 24.9.
+- **Fixed share does the hand-over.** The weight runs 39 → 99 → 199 → 399 over about 1500 ticks, and
+  the bank's memory climbs from 41 to 284. That is the "start fast, lengthen as evidence
+  accumulates" behaviour.
+- **Fixed share costs a little when nothing changes:** 43.7 vs 41.6 before the jump, and 68.0 vs 67.1
+  on drift. Its uniform δ/K floor keeps a little weight on poor arms.
+- **Net:** on `jump` it is 23% lower over the whole run (60.3 vs 78.1), for about a 1–5% cost on
+  stationary stretches and on drift.
+- **The cumulative arm (c)** takes about 0.4 of the weight before the jump and helps there (40.6). It
+  is dropped at once after the jump (§15).
+
 ## 8. Reproduction
 
 ```bash
