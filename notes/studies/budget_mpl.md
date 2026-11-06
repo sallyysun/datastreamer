@@ -968,6 +968,59 @@ These agree in direction with the 60-seed means in §18.
 - **MPL:** the same under every loss. Its ISE is pinned to the Gaussian-shape floor (about 3.7 on
   Clayton).
 
+### 19.1 How each bank's η and δ were tuned
+
+All three banks share the same protocol. Only the objective differs.
+
+**The shared protocol:**
+- **Data:** tuning on seeds 1–30, evaluation on held-out seeds 42–101 (the Chapter 6 seeds).
+- **Scenarios:** `drift` and `jump` only. `constant` and `oscillate` are controls, never used for
+  tuning.
+- **One (η, δ) per loss,** shared by every family and every estimator, because a practitioner does
+  not know the family in advance.
+- **Computation:** `experiments/probe_bank_tune.cpp`. The arms and the shared rank PIT do not depend
+  on (η, δ), so each seed runs the arms once and replays the softmax + fixed-share recursion for
+  every grid point. At the registry values this reproduces `probe_thesis_bank` exactly.
+- **The objective is regret:** the bank's whole-run error minus the hindsight-best fixed memory of
+  each cell, averaged over the 24 cells (4 families × 2 scenarios × 3 estimators) and the seeds.
+
+| Bank (registry key) | Arms scored by | Objective | Grid | Chosen | Tuning regret |
+| --- | --- | --- | --- | --- | --- |
+| **log bank** (`*_bank_log`) | −log c_Gauss(ρ̂_k), the Gaussian at the arm's ρ̂ | ρ_S RMSE | η ∈ {0.25, …, 16}; δ ∈ {0, 1e-5, 3e-5, 1e-4, 3e-4, 4e-4, 1e-3, 3e-3, 1e-2} | **η = 1, δ = 3·10⁻⁴** | −6.8 ×10⁻³ RMSE (old 1, 4e-4: −6.6) |
+| **squared bank** (`*_bank`) | (12(Û−½)(V̂−½) − ρ̂_k)² | ρ_S RMSE | η ∈ {0.1, …, 16}; δ as above | **η = 1, δ = 10⁻⁴** | −3.3 (old 0.5, 1e-4: −1.2) |
+| **own-density bank** (`*_bank_own`) | −log ĉ_k, the arm's own density | excess log loss of the mixture Σ w_k ĉ_k at the true PIT | η ∈ {0.05, 0.1, 0.25, 0.5, 1, 2}; δ ∈ {0, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2} | **η = 0.25, δ = 3·10⁻³** | −9.5 ×10⁻³ nats/tick |
+
+**Details** (`thesis_bank_tuning.md`, `thesis_bank_own_density.md`):
+- **Log bank:**
+  - The surface is flat near the optimum. Every point with η ∈ [0.5, 2] and δ ∈ [1e-5, 1e-3] lies
+    within about 2 of the best.
+  - The per-estimator optima agree.
+  - Its RMSE optimum is also its log-loss optimum.
+- **Large η needs δ = 0 or it breaks.**
+  - With η ≥ 4 and δ > 0, single-tick noise flips the weights (+20 to +70).
+  - With δ = 0, the weights lock onto one arm (+4).
+- **Own-density bank:**
+  - The optimum is interior. η ∈ [0.1, 0.5] with δ ∈ [1e-3, 3e-3] is within about 1.5 of the best.
+  - The estimators disagree: Hermite alone would take η = 0.05, δ = 3e-3; Xiao alone η = 1, δ = 0.
+    0.25 and 3e-3 is the shared compromise.
+  - On RMSE, no own-bank setting comes close to the log bank: the best own regret is +20.8, against
+    −6.8.
+- **Why the own bank's numbers differ.**
+  - A smaller η (0.25) means a gentler softmax. A larger δ (3e-3, 10× the log bank's) means more
+    weight spread to every arm each tick.
+  - Density losses are noisier than ρ-based losses, and the objective rewards a smooth mixture. So
+    tuning leans towards averaging.
+  - That is why the tuned own bank's stacked weights look smooth, and almost uniform for the MPL,
+    whose arms' densities are nearly identical.
+- **Theory caveat.**
+  - Log loss is 1-exp-concave, so the regret bound holds directly at η = 1. At η = 0.25 it becomes
+    B/η = 4B.
+  - For the squared bank, the bound needs η ≤ 1/32. That is why `*_bank_sq32` exists.
+  - Open decision for Sally: η = 1 for the own bank, so its bound holds exactly?
+- **Script note.** `tune_own_table.py`'s held-out section defaults to η = 1, δ = 3e-4 when no
+  arguments are given. That is not the tuned choice. Pass `0.25 0.003` to reproduce the held-out
+  table.
+
 **For the thesis:**
 - The scoring rule decides what the bank optimises.
   - **Log loss on the Gaussian density at ρ̂** chooses memories for ρ. Its copula is only as good as

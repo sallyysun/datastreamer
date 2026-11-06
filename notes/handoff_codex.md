@@ -154,6 +154,19 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
     - **Which gives the better copula:** the Gaussian-at-ρ̂ density for Xiao always, and for Hermite
       on Gaussian data. Hermite's own density on Clayton (1.5 vs 3.8 ×10⁻³).
     - ISE can't weight arms online; it can only evaluate each choice.
+16. **How each bank was tuned** (`budget_mpl.md` §19.1; `thesis_bank_tuning.md`,
+    `thesis_bank_own_density.md`).
+    - **The protocol:** seeds 1–30 for tuning, 42–101 held out; drift + jump only; one (η, δ) per
+      loss for all families and estimators; replay in `probe_bank_tune.cpp`. The objective is regret
+      against each cell's hindsight-best fixed memory.
+    - **The chosen values:**
+      - log bank η = 1, δ = 3·10⁻⁴, on ρ_S RMSE;
+      - squared bank η = 1, δ = 10⁻⁴, on ρ_S RMSE;
+      - own-density bank η = 0.25, δ = 3·10⁻³, on the mixture density's excess log loss.
+    - The own bank's gentler η and 10× larger δ are why its weights look smooth.
+    - **Theory:** the log-loss bound is exact at η = 1 and becomes 4B at 0.25. The squared bound needs
+      η ≤ 1/32.
+    - `tune_own_table.py` defaults to η = 1 in its held-out section: pass `0.25 0.003`.
 
 ## 3a. Code map (this session)
 
