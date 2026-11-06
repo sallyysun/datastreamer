@@ -4,6 +4,14 @@ Every number behind §6.3 (adaptive memory) and §6.4 (which loss) of
 `notes/thesis/chapter6_draft.tex`, after tuning η and δ. Platform: Linux / libstdc++, N = 5000 ticks,
 scored over [500, 5000), change at t = 2500 in `jump`. Evaluation seeds 42–101 (60); tuning seeds 1–30.
 
+> ⚠️ **2026-11-06: the MPL-bank rows below are stale.**
+> - The `mle_bank*` arms are now the constant-gain recursive MPL (`RecursiveMPL`, commit `40ebc21`).
+> - Previously they were `ParametricCopulaMLE` with atanh-coordinate discounted-information Fisher
+>   scoring and a second standardisation.
+> - The Xiao and Hermite rows are unaffected.
+> - Rerun `probe_thesis_bank` and `ch6_results_md.py` to regenerate. See
+>   `notes/studies/budget_mpl.md` §11.
+
 - **Probes:** `experiments/probe_thesis_bank.cpp` (all methods, `results/thesis_bank[_fam].csv`,
   weights in `thesis_bank_weights[_fam].csv`); `experiments/probe_bank_tune.cpp` (η, δ grid,
   `results/bank_tune_<first>[_fam].csv`).

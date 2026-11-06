@@ -364,6 +364,85 @@ empirical CDF):
   plateau inside the 16 KiB budget, where my sketch held it to k = 64.
   - That needs the budget rerun to confirm: `mpl_dskll` is already in `probe_budget`'s grid.
 
+## 11. Spec vs code, and the MPL bank switched to the spec (2026-11-06)
+
+### The agreed specification
+
+Two online marginal summaries give paired pseudo-observations. These feed a recursive Gaussian
+copula score update, which gives the fitted copula and the Spearman estimate.
+
+1. **Pseudo-observations:** Û = T_δ(F̂_{X,n−1}(X_n)), V̂ likewise, with z = Φ⁻¹(Û, V̂).
+2. **Score:** s(r) = r/(1−r²) + [(1+r²)z₁z₂ − r(z₁²+z₂²)]/(1−r²)².
+3. **Fisher information:** I(r) = (1+r²)/(1−r²)².
+4. **Update:** r̂_n = Π_{±0.999}[r̂_{n−1} + λ·I(r̂_{n−1})⁻¹·s_n(r̂_{n−1})].
+5. **Outputs:** ρ̂ = (6/π) arcsin(r̂/2) and Ĉ = C^Gauss_{r̂}.
+
+### Line-by-line check before the switch
+
+**`RecursiveMPL`, constant-gain mode (the budget study): matches the spec.**
+- Ranks are queried before insertion and are strict-less ranks over n. They are clipped to
+  δ = 10⁻³, passed through the probit, and use the same score, information, update, clamp and
+  output.
+- **Differences:**
+  - The copula updates only after 30 marginal observations.
+  - No prequential score is computed inside the estimator.
+  - Ĉ is mathematical only: no CDF method, so no ISE.
+  - The `RankWindow` margin uses (below+1)/(n+2), not below/n.
+
+**The old `mle_bank*` arms (`ParametricCopulaMLE` → `CopulaFit`): a different recursion.**
+1. **Parameter:** φ = atanh r̂, with each step capped at |Δφ| ≤ 0.5.
+2. **Discounted information:** Δφ = s_φ/H_t, with H_t = λ_ret·H_{t−1} + (1 + r̂²) and H₀ = 1.
+   - In steady state Δr ≈ (1 − λ_ret)·I(r)⁻¹·s_r, which is the spec with λ = 1 − λ_ret.
+   - At start-up the gain is about 1/t.
+3. **A second marginal step:** the bank's window ranks (below+1)/(n+2) are passed as z = Φ⁻¹(u).
+   Each arm then re-standardised z with its own cumulative mean and variance:
+   u′ = Φ((z − m̂)/ŝ), clipped to [10⁻⁹, 1 − 10⁻⁹].
+4. **Start-up:** the arms updated from tick 1, and reported 0 until 51 observations.
+
+The §5 ablation (`CopulaFit` on KLL within 0.15 ×10⁻² of constant gain) tested points 1–2
+numerically, not 3–4.
+
+### The change (commit `40ebc21`)
+
+- **The `mle_bank`, `_log`, `_own`, `_sq32` and `_uniform` arms are now `RecursiveMPL`.**
+  - Constant gain λ ∈ {0.05, 0.02, 0.01, 0.005, 0.001}, i.e. the old 1 − λ_ret, so the memories
+    are still 39 to 1999 ticks.
+  - The margin is `ExactNormal`. The bank passes z = Φ⁻¹(u), and Φ(z) recovers the bank's u
+    exactly, so there is no second standardisation.
+- **`RecursiveMPL` implements `PredictiveDensity`** (the Gaussian copula at r̂), which
+  `mle_bank_own` needs.
+- **Builds without DataSketches still work.** The DataSketches margin is compiled only when its
+  headers are on the include path (`__has_include`), so `experiment`, `multiseed` and the
+  consumer build without it (checked).
+- **Not changed:**
+  - `mle_bank_block` (`GaussianCopulaMLE` arms).
+  - The MPL variable-forgetting comparator in `probe_thesis_bank.cpp`, which still uses
+    `ParametricCopulaMLE` with `vff_rate`.
+
+**5-seed smoke test** (Gaussian jump, RMSE; new arms against old):
+
+| | new | old |
+| --- | --- | --- |
+| squared bank | .0681 | .0660 |
+| log bank | .0605 | .0570 |
+| own-density bank | .0652 | .0647 |
+| sq32 bank | .0786 | .0794 |
+| uniform | .0868 | .0855 |
+| memory | 16.9 KB | 18.8 KB |
+
+### Consequences
+
+- **The MPL-bank rows in `docs/chapter6_results.md` and the Chapter 6 draft are stale.**
+  `probe_thesis_bank` builds its fixed arms from the same registry keys, so rerunning it
+  regenerates them. The Xiao and Hermite rows do not move.
+- **Start-up handicap, open decision.**
+  - The spec's gain is constant from the first observation, starting at r̂ = 0. The gain-0.001 arm
+    therefore needs about 2000 ticks to warm up. The old arms started like a running mean.
+  - The proposed fix is λ_n = max(λ, 1/n). It is identical to the spec after about 1/λ
+    observations, and is the same rule as Hermite's `init_first_obs`.
+  - It is not implemented: waiting on Sally.
+- **The η and δ tuned in `probe_bank_tune` were tuned with the old arms.** They are kept.
+
 ## 8. Reproduction
 
 ```bash

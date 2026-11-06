@@ -49,7 +49,9 @@ Read `CLAUDE.md` first: layout, the estimator contract, λ conventions, platform
 | Time-complexity analysis from code, checked against measured slopes | `budget_mpl.md` §9 | ✅ |
 | ISE figures from existing bank data | `plot_ise_levels.py`, `plot_ise_story.py`, `notes/thesis/figures/ch6_ise_*.png` | ✅, but they use the family bank, which is now out of scope |
 | Chapter 6 subsection "Comparing algorithms under a common budget" | `notes/thesis/chapter6_draft.tex` | ✅ |
-| Results note | `notes/studies/budget_mpl.md` (§1–§10) | ✅ |
+| Results note | `notes/studies/budget_mpl.md` (§1–§11) | ✅ |
+| Spec-vs-code check of the MPL (constant-gain vs registered `CopulaFit`) | `budget_mpl.md` §11 | ✅ |
+| **MPL bank switched to the spec**: `mle_bank*` arms are now `RecursiveMPL` (constant gain, ExactNormal pass-through of the bank's window ranks, no second standardisation); `RecursiveMPL` implements `PredictiveDensity` | `registry.hpp`, `recursive_mpl.hpp`, commit `40ebc21` | ✅ code; ⚠️ Chapter 6 MPL-bank numbers stale |
 
 ## 3. Budget-study findings
 
@@ -97,11 +99,25 @@ RESULTS_PLACEHOLDER
   - The notebook proofs' λ is also the gain.
 - **The MPL's variable-forgetting rule is broken**: 81–102 ×10⁻³ against 64–76 for M = 199 in
   `docs/chapter6_results.md`. So "bank beats VFF" is weak evidence for the MPL.
-- **The registered MPL and the spec's constant-gain recursion are the same in steady state.**
+- **The OLD registered MPL (still used by `ParametricCopulaMLE` keys and the MPL VFF comparator) and the spec's constant-gain recursion are the same in steady state.**
   - The registered one is `CopulaFit`, with decaying information.
   - Measured within 0.15 ×10⁻² of each other.
 
 ## 5. Open items (ask Sally before doing any)
+
+0. **The MPL bank after the switch to the spec (`budget_mpl.md` §11).**
+   - **Start-up rule λ_n = max(λ, 1/n).** Proposed, not implemented. Without it the gain-0.001
+     arm needs about 2000 ticks to warm up from r̂ = 0.
+   - **Then rerun `probe_thesis_bank`** (MPL rows only change), then `ch6_results_md.py`, and update
+     `docs/chapter6_results.md` (which has a stale banner) and the Chapter 6 draft.
+   - **What the MPL is now:**
+     - Budget study: `RecursiveMPL` with KLL, or DataSketches KLL, margins.
+     - Bank study: `RecursiveMPL` fed the bank's 500-tick window ranks.
+     - Same update equation in both.
+   - **Chapter 4 should state:**
+     - the warm-up rule: 30 marginal observations before the copula updates;
+     - δ = 10⁻³;
+     - the window-rank form (below+1)/(n+2) used by the bank.
 
 1. **Density ISE in `probe_budget`:** normal-score scale, checkpoints every 50 ticks, per-seed
    output. That would also give the paired CIs and the bias/variance split.
