@@ -2,7 +2,7 @@
 // Gaussian MPL on two KLL sketches (capacity k), plus the MPL marginal ablation.
 // See notes/studies/budget_mpl.md.
 //
-// Usage: ./probe_budget sweep <n_test> [n_val]  -> results/budget_sweep.csv
+// Usage: ./probe_budget sweep <n_test> [n_val] [family]  -> results/budget_sweep[_family].csv
 //        ./probe_budget time                     -> results/budget_timing.csv
 
 #include <algorithm>
@@ -183,14 +183,15 @@ double recovery_delay(const std::vector<double>& path) {
     return -1.0;
 }
 
-void sweep(std::size_t n_test, std::size_t n_val) {
+void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>& families) {
     const auto cfgs = build_cfgs();
-    std::ofstream out("results/budget_sweep.csv");
+    const std::string sfx = families.size() == 1 ? "_" + families[0] : "";
+    std::ofstream out("results/budget_sweep" + sfx + ".csv");
     out << "family,scenario,split,estimator,approx,gain,peak_bytes,rmse,se_rmse,post_rmse,se_post,"
            "recovery_delay\n";
-    std::ofstream pout("results/budget_paths.csv");
+    std::ofstream pout("results/budget_paths" + sfx + ".csv");
     pout << "family,scenario,estimator,approx,gain,t,est,truth\n";
-    for (const std::string fam : {"gaussian", "clayton", "gumbel", "t"}) {
+    for (const std::string& fam : families) {
         for (const std::string sc : {"constant", "drift", "jump"}) {
             for (int split = 0; split < 2; ++split) {
                 const unsigned base = split ? kTestSeed : kValSeed;
@@ -217,7 +218,7 @@ void sweep(std::size_t n_test, std::size_t n_val) {
             }
         }
     }
-    std::fprintf(stderr, "wrote results/budget_sweep.csv, results/budget_paths.csv\n");
+    std::fprintf(stderr, "wrote results/budget_sweep%s.csv, results/budget_paths%s.csv\n", sfx.c_str(), sfx.c_str());
 }
 
 // Single thread, Gaussian drift, gain 0.02: wall time of update() + estimate() per tick, which
@@ -259,9 +260,14 @@ void timing() {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // copula_family.hpp builds the Student-t rho_S table lazily behind plain statics, which is
+    // a data race under threads (it corrupted every t cell once). Build it here, single-threaded.
+    (void)copula::spearman_from_param(copula::Family::StudentT, 0.5, 4.0);
     const std::string mode = argc > 1 ? argv[1] : "sweep";
     if (mode == "time") { timing(); return 0; }
     const std::size_t n_test = argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 20;
     const std::size_t n_val = argc > 3 ? std::strtoul(argv[3], nullptr, 10) : 20;
-    sweep(n_test, n_val);
+    std::vector<std::string> fams{"gaussian", "clayton", "gumbel", "t"};
+    if (argc > 4) fams = {argv[4]};   // one family only; output files get a _<family> suffix
+    sweep(n_test, n_val, fams);
 }

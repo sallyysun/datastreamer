@@ -56,6 +56,8 @@ def fig_memory():
             ax.axhline(100 * ex.rmse.iloc[0], color=COL["mpl_kll"], lw=1.2, ls="--",
                        label="MPL, exact PIT (oracle)")
             ax.set_xscale("log")
+            ref = frontier(fam, sc, "xiao").rmse.max()
+            ax.set_ylim(top=100 * ref * 1.3)   # k = 8, 16 run off the top; the crossing is what matters
             if j == 0:
                 ax.set_ylabel(r"test RMSE ($\times10^{-2}$)", fontsize=9, color=MUTED)
             if i == len(fams) - 1:
@@ -82,6 +84,7 @@ def fig_runtime():
                 ax.annotate(f"{int(r.approx)}", (r.mean_ns / 1000, 100 * r.rmse), fontsize=7, color=MUTED,
                             xytext=(3, 3), textcoords="offset points")
         ax.set_xscale("log")
+        ax.set_ylim(top=100 * frontier("gaussian", sc, "xiao").rmse.max() * 1.3)
         ax.set_xlabel(r"time per tick, update + estimate ($\mu$s, log)", fontsize=9, color=MUTED)
     axes[0].set_ylabel(r"test RMSE ($\times10^{-2}$)", fontsize=9, color=MUTED)
     axes[0].legend(fontsize=8, frameon=False)
@@ -97,7 +100,7 @@ def fig_recovery():
     fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharey=True)
     fig.patch.set_facecolor(SURF)
     for ax, fam in zip(axes, fams):
-        style(ax, f"{fam} · jump, 64 KiB, tuned on post-change RMSE")
+        style(ax, f"{fam} · jump")
         tr = None
         for est in COL:
             v = val[(val.family == fam) & (val.scenario == "jump") & (val.estimator == est)
@@ -111,7 +114,9 @@ def fig_recovery():
         ax.set_xlabel("tick", fontsize=9, color=MUTED)
         ax.legend(fontsize=7.5, frameon=False, loc="lower right")
     axes[0].set_ylabel(r"mean estimate of $\rho_S$ (100 seeds)", fontsize=9, color=MUTED)
-    fig.tight_layout()
+    fig.suptitle("Recovery after the jump at t = 2500: configurations within 64 KiB, tuned on post-change RMSE "
+                 "[approx, gain]", fontsize=11, color=INK, x=0.01, ha="left")
+    fig.tight_layout(rect=(0, 0, 1, 0.92))
     fig.savefig(OUT + "ch6_budget_recovery.png", dpi=150)
 
 
