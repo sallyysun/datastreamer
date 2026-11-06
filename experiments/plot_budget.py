@@ -12,9 +12,9 @@ warnings.filterwarnings("ignore")
 R = "experiments/results/"
 OUT = "notes/thesis/figures/"
 INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
-COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mpl_kll": "#1baf7a", "mpl_dskll": "#eda100"}
-LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + own KLL (k)", "mpl_dskll": "MPL + DataSketches KLL (k)"}
-MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^", "mpl_dskll": "D"}
+COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mpl_dskll": "#1baf7a"}   # MPL on DataSketches KLL only
+LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + own KLL (k)", "mpl_dskll": "MPL + KLL sketch (k; Apache DataSketches)"}
+MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^", "mpl_dskll": "^"}
 BUDGETS = [16, 64, 256]
 
 df = pd.read_csv(R + "budget_sweep.csv")
@@ -54,7 +54,7 @@ def fig_memory(fams, out):
                 ax.errorbar(f.peak_bytes / 1024, 100 * f.rmse, yerr=200 * f.se_rmse, color=COL[est],
                             marker=MK[est], ms=4.5, lw=2, capsize=0, label=LAB[est])
             ex = frontier(fam, sc, "mpl_exact")
-            ax.axhline(100 * ex.rmse.iloc[0], color=COL["mpl_kll"], lw=1.2, ls="--",
+            ax.axhline(100 * ex.rmse.iloc[0], color=COL["mpl_dskll"], lw=1.2, ls="--",
                        label="MPL, exact PIT (oracle)")
             ax.set_xscale("log")
             ref = frontier(fam, sc, "xiao").rmse.max()
