@@ -364,6 +364,78 @@ empirical CDF):
   plateau inside the 16 KiB budget, where my sketch held it to k = 64.
   - That needs the budget rerun to confirm: `mpl_dskll` is already in `probe_budget`'s grid.
 
+### 10.1 Budget rerun with DataSketches KLL (100 test / 40 val seeds)
+
+**Done, 2026-11-06.** Same seeds as §3.3 (100 test, 40 validation). The own-KLL, Xiao and Hermite
+columns reproduce §3.3 exactly, so the harness is deterministic.
+- **Tables:** `experiments/results/budget_tables.txt`.
+- **Figures:** `ch6_budget_memory.png` (Gaussian + Clayton) and `ch6_budget_memory_all.png` (all
+  families). DataSketches is the yellow series.
+
+**Test RMSE ×10⁻² at 16 KiB** (DataSketches picks k = 256–512, using 5.8–10.3 KB):
+
+| Family | Scenario | Xiao | Hermite | MPL + own KLL (k = 64) | MPL + DataSketches KLL |
+| --- | --- | --- | --- | --- | --- |
+| Gaussian | constant | 3.49 | 3.61 | 3.35 | **3.01** |
+| | drift | 6.75 | 6.79 | 6.43 | **6.25** |
+| | jump | 8.22 | 8.25 | 8.05 | **7.91** |
+| Clayton | constant | 3.64 | 3.75 | 3.91 | **3.45** |
+| | drift | 5.93 | 5.94 | 5.93 | **5.64** |
+| | jump | **8.29** | 8.33 | 8.74 | 8.49 |
+| Gumbel | constant | 3.64 | 3.74 | 3.53 | **3.34** |
+| | drift | 6.07 | 6.03 | 5.83 | **5.49** |
+| | jump | 8.32 | 8.36 | 8.27 | **8.12** |
+| t₄ | constant | **3.91** | 4.06 | 4.04 | 3.94 |
+| | drift | 6.84 | 6.92 | 6.89 | **6.72** |
+| | jump | **8.52** | 8.64 | 8.75 | 8.63 |
+
+- **With DataSketches, the MPL reaches its plateau inside 16 KiB.** Its 16 KiB numbers equal its
+  64 and 256 KiB numbers. So the budget stops mattering for all three estimators.
+- **What remains is the method difference:**
+  - The MPL is best in 9 of 12 cells.
+  - Xiao is best on Clayton jump (by 0.20, about 1.6 unpaired SE), t₄ constant (0.03) and t₄ jump
+    (0.11).
+  - The t₄ gaps are within noise.
+- **Rank error isn't the binding constraint.** In Gaussian drift at g = .01, the RMSE against peak
+  memory is:
+
+  | Memory | 1.1 KB (k = 8) | 1.9 KB (k = 64) | 5.8 KB (k = 256) | 10.3 KB (k = 512) |
+  | --- | --- | --- | --- | --- |
+  | RMSE | .0875 | .0644 | .0626 | .0625 |
+
+  The exact-PIT oracle is .0622, so beyond about 6 KB the remaining error isn't marginal
+  approximation.
+- **Recovery after the jump** (16 KiB; post-change RMSE ×10⁻², delay to 90%):
+
+  | | Xiao | MPL + DataSketches |
+  | --- | --- | --- |
+  | Gaussian | 9.83 / 50 | **7.84 / 45** |
+  | Clayton | 10.23 / 50 | **9.81 / 45** |
+  | Gumbel | 10.51 / 45 | **8.97 / 45** |
+  | t₄ | 10.71 / 45 | **9.39 / 45** |
+
+  Hermite is 10.2–11.4.
+- **Marginal ablation:** DataSketches KLL 256 matches own KLL 256 within 0.02 in all 12 cells.
+  At k = 64 the two are equally coarse.
+- **Time per tick, idle machine** (`results/budget_timing.csv`, re-timed after the run; supersedes
+  §3.3's timing table):
+
+  | | Peak state | Time per tick |
+  | --- | --- | --- |
+  | MPL + DataSketches, k = 64 / 256 / 1024 | 1.9 / 5.8 / 17.7 KB | 0.64 / 1.24 / 3.7 µs |
+  | MPL + own KLL, k = 64 / 256 / 1024 | 13.9 / 37.5 / 82 KB | 0.66 / 1.0 / 1.96 µs |
+  | Xiao, B = 20 / 30 / 180 | | 0.52 / 1.15 / 63 µs |
+  | Hermite, N = 30 / 43 | | 1.9 / 3.1 µs |
+  | exact PIT | | 0.14 µs |
+  | window 500 | | 0.44 µs |
+
+  DataSketches is somewhat slower per tick at large k (iterator overhead), but every configuration
+  that validation picks costs under 2.5 µs.
+
+**Bottom line.** Implemented well, the recursive MPL on rank sketches is both *smaller* than Xiao
+(5.8 KB against 8–12 KB) and more accurate for ρ_S in most cells. The exceptions are Clayton jump
+and t₄, where Xiao is as good or slightly better.
+
 ## 11. Spec vs code, and the MPL bank switched to the spec (2026-11-06)
 
 ### The agreed specification
