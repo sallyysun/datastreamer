@@ -209,6 +209,30 @@ practitioner who had to commit to one memory in advance, without knowing which k
 coming, would pick; it is $M=199$ for every family and estimator. The bank is judged a success if
 it beats every single fixed memory and every VFF, not if it beats the hindsight-best one.
 
+\subsection{Comparing algorithms under a common budget}
+\label{sec:comparing-algorithms}
+
+Online algorithms differ in their memory requirements, processing time and estimation accuracy.
+Comparing their asymptotic complexities alone does not establish which performs better under
+practical streaming constraints: constants differ, and an algorithm's cost per observation is not
+its total cost over a stream.
+
+We therefore compare algorithms under common computational budgets. Every algorithm processes the
+same sequence of observations; none is made to skip observations to match another's speed, since
+that would confound the method with the amount of data it sees. Instead, each algorithm's
+approximation parameter --- the number of bins $B$ for Xiao, the truncation order $N$ for Hermite,
+and the KLL sketch capacity $k$ for the recursive pseudo-likelihood --- is restricted to settings
+whose measured peak state fits a memory budget of 16, 64 or 256\,KiB. Within that restriction the
+approximation parameter and the forgetting gain are chosen on separate validation seeds, and
+accuracy is reported on test seeds. We then report estimation accuracy, recovery after a change and
+processing time per observation.
+
+This lets us compare algorithms with different internal representations --- a counting matrix,
+Hermite basis coefficients and two univariate quantile sketches --- without requiring their
+approximation parameters to be directly comparable. Whether a slower but more accurate estimator
+that must skip observations beats a faster one that sees them all is a separate, real-time
+question, which we do not study here.
+
 % -----------------------------------------------------------------------------
 \section{The effect of a fixed forgetting factor}
 \label{sec:fixed}

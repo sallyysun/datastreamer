@@ -55,6 +55,9 @@ probe_adaptive:
 probe_vff_norm:
 	$(CXX) probe_vff_norm.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_vff_norm
 
+probe_budget:
+	$(CXX) probe_budget.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o probe_budget
+
 probe_memory_tradeoff:
 	$(CXX) probe_memory_tradeoff.cpp -std=c++20 -O2 -o probe_memory_tradeoff
 
@@ -80,9 +83,9 @@ async_noise:
 	$(CXX) async_noise.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o async_noise
 
 clean:
-	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm probe_memory_tradeoff dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise
+	rm -f experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm probe_memory_tradeoff probe_budget dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise
 
-.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm probe_memory_tradeoff dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise clean
+.PHONY: experiment calibrate_arl0 multiseed probe_auc probe_score_scale probe_shape probe_rank_score probe_family probe_bank probe_xiao_pit probe_tail calibrate_tail probe_memory probe_adaptive probe_vff_norm probe_memory_tradeoff probe_budget dump_copula_samples tail_validate tail_change tail_mixture tail_soft async_memory async_noise clean
 
 # The other direction: a make_estimator branch with no all_estimator_keys entry
 # runs never and reports nothing. Compares the two lists in registry.hpp.
