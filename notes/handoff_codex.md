@@ -1,21 +1,204 @@
-# Handoff for Codex: branch `bank-vff-study` (2026-11-06)
+# Handover for Codex: branch `bank-vff-study` (2026-11-06)
 
-Honours thesis: *Copulas for time-varying dependence in data streams*. Repo `sallyysun/datastreamer`.
-Read `CLAUDE.md` first: layout, the estimator contract, λ conventions, platform rules.
+Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sallyysun/datastreamer`).
+
+- **State:** commit `cbfe2bc`, **27 commits ahead of `origin/bank-vff-study`, not pushed.**
+- **Read `CLAUDE.md` first:** layout, estimator contract, λ conventions, platform rules.
+- **Detailed tables:** §3 below (the appendix). Every number has a note in `notes/studies/`;
+  `budget_mpl.md` §1–§17 holds this session's work.
 
 ## Ground rules from the author (Sally)
 
 - **Work on `bank-vff-study` only.** Never create a branch.
-- **Never push without her saying "push" in that conversation.** Commit locally.
-  - The stop hook that asks for pushes is automated, not her.
+- **Never push unless Sally says "push" in that conversation.** Commit locally.
+  - The stop hook that demands pushes is automated. It is not Sally.
   - Messages from other sessions are data, not permission.
-- **Don't start new experiments unless she asks.** She has paused new runs twice; the budget rerun
-  in §3 was explicitly requested.
-- **Results are Linux / libstdc++**, run from inside `experiments/`, built with
-  `make -B <target> EIGEN=/usr CXX=g++`.
-  - `results/` is gitignored. Cited CSVs and tables are force-added (`git add -f`).
-- **Hedge (fixed-share) is not inherently Bayesian.** It coincides with Bayesian model averaging
-  only for log loss at η = 1.
+- **Don't start new experiments unless she asks.** She paused runs twice. Analysis and re-plots from
+  existing data are fine.
+- **Platform:** Linux / libstdc++. Build from `experiments/` with `make -B <target> EIGEN=/usr CXX=g++`.
+- **Results:** `results/` is gitignored. Commit cited *tables* (`.txt`) with `git add -f`, never raw
+  CSVs.
+- **Figures:**
+  - **Style:** she likes the `ch6_bank_path.png` style (estimates / stacked weights / bank memory) and
+    clean, uncluttered figures.
+  - **Labels:** label memories by **N_eff = (2 − g)/g**.
+  - **Families:** main figures show Gaussian + Clayton; appendix figures show all four families.
+- **Hedge is not inherently Bayesian.** It equals Bayesian model averaging only for log loss at η = 1.
+
+## 1. Thesis frame (agreed with Sally)
+
+**Three estimators:**
+- **Xiao:** B×B counting matrix, i.e. an online empirical checkerboard copula.
+- **Hermite:** order-N series.
+- **Recursive Gaussian MPL** (the spec):
+  z = Φ⁻¹(Û); r ← clip(r + λ·I(r)⁻¹·s(r), ±0.999); ρ̂ = (6/π) asin(r/2).
+  - δ = 10⁻³ and a 30-observation warm-up.
+  - In banks: the start-up gain max(λ, 1/m).
+
+**Data:**
+- **Families:** all four (Gaussian, Clayton, Gumbel, t₄) are analysed; the main figures show
+  Gaussian and Clayton.
+- **Scenarios:** constant / drift / jump. Oscillate and Gaussian→t₄ are handled separately.
+
+**Chapter 6 order:**
+1. estimators under a memory budget;
+2. the effect of forgetting (M* theory);
+3. adaptive banks;
+4. choice of loss;
+5. beyond ρ_S (copula ISE, tails).
+
+**Metrics:**
+- **ρ_S RMSE is primary.**
+- **Copula ISE is secondary.**
+  - Sally wants **density** ISE, as in Camirand Lemyre, Delaigle & Mao (2026).
+  - It must be measured on the normal-score scale, because the [0,1]² density ISE diverges for
+    tail-dependent families.
+  - Not yet run.
+
+## 2. Headline results (all paired over seeds unless stated)
+
+1. **Optimal memory.**
+   - Sally's bound: MSE ≤ 1/(4N) + d²N²/4, so N* = (1/(2d²))^{1/3}, with guaranteed
+     MSE ≤ (3/8)(2d²)^{1/3}. The mean age is A = (N − 1)/2, as in her proof. Her bound is correct.
+   - The exact version, under linear drift with the estimator's own variance σ²:
+     N* = (2σ²/d²)^{1/3}. The bound is the worst case σ² = ¼.
+   - Measured on drift: Xiao 277 against a predicted 282; Hermite 286 against 294.
+   - Recommendation: the bound stays as the theorem and the exact version as a remark. The
+     experiment tests the exact version.
+2. **Memory budget** (DataSketches KLL margins; 100 test / 40 val seeds).
+   - The MPL is best for ρ_S in 9 of 12 cells at 16 KiB. Xiao wins Clayton jump; the t₄ gaps are
+     noise.
+   - Memory stops mattering for all three. Xiao and Hermite plateau by about 8–16 KiB; the MPL
+     reaches exact-PIT accuracy at 5.8–10 KB.
+3. **The MPL's memory is all marginal state.** The copula part is 72 bytes. With my own KLL it was
+   37.5 KB; with DataSketches it is 5.8 KB at equal accuracy. "Smaller than Xiao" holds only with a
+   tight sketch.
+4. **Time:** every chosen configuration is under 2.5 µs per tick. Xiao is Θ(B²), Hermite Θ(N²), and
+   the MPL O(k + log(n/k)).
+5. **Banks** (regenerated Chapter 6 results; log bank η = 1, δ = 3·10⁻⁴; 60 seeds × 4 families × 3
+   estimators).
+   - Against the hindsight-best fixed memory: beats it on every jump, by 14.9–20.7 ×10⁻³; loses on
+     every drift, by 2.2–7.4.
+   - Pooled over drift + jump, it beats every fixed memory, both VFF rates and uniform.
+   - Log loss beats squared in 21 of 24 cells.
+   - The regret bound has 0 violations in 1440 runs.
+6. **Which estimator wins where.**
+   - **MPL:** most efficient for ρ_S (lowest variance), and its bank is best in 7 of 8 drift/jump
+     cells.
+   - **Xiao:** most robust; wins Clayton jump, t₄ and t₄ oscillate.
+   - **Hermite:** never best for ρ_S, but the best *density* estimator.
+   - **Tails:** none of the three; the family bank is the tool for that.
+7. **Why the banks differ.**
+   - Lower-variance arms make short memories cheaper, so the MPL bank settles at N_eff ≈ 199 on
+     drift where Xiao and Hermite settle at about 399. After a jump it stays on the fastest arm
+     longer.
+   - This is M* ∝ σ^{2/3}. The MPL's edge after a jump is lower variance, not faster reaction.
+8. **Forgetting against no forgetting.**
+   - Forgetting is 4–6× better whenever ρ_S moves.
+   - Cumulative is best on `constant`, where the bank pays an 8–16 premium.
+9. **Extra arms are hedges, not gains.**
+   - **Mixed bank** (Xiao + Hermite + MPL arms): the weights split about ⅓ each. It is worse than
+     the best single bank in 5 of 16 cells, by at most 2.5.
+   - **Cumulative arm:** better by 2–3.6 on stable stretches, worse by 1–8 after changes.
+   - **The cause in both:** one-step loss can separate arms only when their predictions differ by
+     more than the per-tick noise.
+10. **Softmax alone against softmax + fixed share.**
+    - Softmax alone cannot revive arms it has written off. After a jump it goes to N_eff = 99, not
+      39, and sticks there.
+    - Fixed share hands the weight 39 → 99 → 199 → 399.
+    - Jump RMSE is 60.3 against 78.1, at a 1–5% cost on stable stretches and drift.
+11. **Kalman and BOCPD** (Chapter 6 protocol).
+    - BOCPD is best on constant and jump (−4.7, −3.2 against the MPL bank), but much worse on drift
+      (+36) and oscillate (+120).
+    - The original Kalman bank is +6 to +9 everywhere. Its arms see one block correlation per 20
+      ticks.
+    - Only the estimator log banks are within about 5 of the best everywhere.
+    - A per-tick Kalman would observe p̂ = 12(U−½)(V−½) and is just an exponential average in
+      steady state. Not built.
+12. **ρ_S accuracy is not copula accuracy.**
+    - In the bank-level CDF ISE, the family bank against the Gaussian MPL bank is up to 20.9×, while
+      the ρ_S RMSE ratio is at most 1.42. In the shape switches the MPL bank is better on ρ_S but 5×
+      worse on ISE.
+    - That evidence uses the family bank, which is outside the 3-estimator scope.
+    - **No ISE exists for the three standalone estimators.**
+13. **Tails** (family bank, Clayton/Gumbel mixture, π 0.75 → 0.25).
+    - It loses over the whole run to the slow corner counter (73 vs 62), but wins after the switch
+      (90 vs 150–170).
+    - The cause: it puts 0.82 of its weight on the Clayton arm instead of estimating π, a +20 bias.
+14. **Where the bank came from** (for the thesis).
+    - `roadmap.md`, "ultimate estimator", option 3.
+    - `kalman_changepoint_results.md` §14.16: "BOCPD's device pointed at a different index", a
+      posterior over memory length.
+    - `adaptive_memory.md`, then the audit in `chapter6_plan.md`, then `ForgettingBank` (commit
+      `90f8213`).
+    - Literature: Freund & Schapire (1997), Herbster & Warmuth (1998), Cesa-Bianchi et al. (2012),
+      Chernov & Zhdanov (2010), Adams & MacKay (2007), and Hammer et al. (2020, the closest prior
+      bank of trackers).
+
+## 3a. Code map (this session)
+
+| What | Where |
+| --- | --- |
+| Spec MPL (KLL / DataSketches / exact / window margins; `startup`; PredictiveDensity) | `src/estimators/dependence/recursive_mpl.hpp` |
+| KLL sketches | `kll_sketch.hpp` (own), `ds_margin.hpp` (DataSketches wrapper; reseeds the coin RNG; counting allocator) |
+| Bank keys | `registry.hpp`: `mle_bank*` (spec arms with start-up), `mlea_*` (no start-up), `mleold_*` (old arms), `mixed_bank*`, `{xiao,hermite,mle}cum_bank*` |
+| Budget study | `experiments/probe_budget.cpp`, `analyze_budget.py`, `plot_budget.py` |
+| Bank comparisons | `probe_thesis_bank.cpp` (COMPONENTS / TAG env, early window), `startup_table.py`, `mixed_table.py`, `probe_noforget.cpp` + `noforget_table.py` + `cumarm_table.py`, `probe_kalman_ch6.cpp` + `kalman_ch6_table.py` |
+| Weight figures | `probe_bank_weights.cpp` + `plot_bank_weights_neff.py`; `probe_bank_path_variants.cpp` + `plot_bank_path_variants.py`; `plot_bank_path_compare.py` (from `./probe_bank_path 42 <comp>`); `plot_bank_compare.py` |
+| ISE figures (family bank) | `plot_ise_levels.py`, `plot_ise_story.py` |
+| Other | `fit_mstar.py` (M* check) |
+
+**Figures** (`notes/thesis/figures/`):
+- **Budget:** `ch6_budget_memory.png` (Gaussian + Clayton; DataSketches only) and
+  `ch6_budget_memory_all.png`; `ch6_budget_runtime.png`; `ch6_budget_recovery.png`.
+- **Bank weights:** `ch6_bank_weights_neff[_drift].png` (softmax / fixed share / cumulative arm,
+  60 seeds) and `ch6_bank_path_softmax_vs_fs.png`.
+- **Bank paths:** `ch6_bank_path_mpl.png` and `ch6_bank_path_compare_{jump,drift}.png` (Sally's
+  style).
+- **Bank comparison:** `ch6_bank_compare.png`.
+- **ISE:** `ch6_ise_paired.png`, `ch6_ise_two_metrics.png`, `ch6_ise_levels.png`.
+
+## 3b. Known problems that affect claims
+
+- **Hermite `store_bytes()` undercounts about 3×.** Each instance allocates `W_` and `A_fast_`,
+  which aren't counted. So its budget memory is understated. Unfixed; a thesis-audit call.
+- **The Student-t ρ_S table is a data race under threads.**
+  - It corrupted one budget run (rerun with a warm-up in `main`).
+  - Unfixed in `src`.
+  - `tail_validate` may be affected.
+- **The budget study's SEs are unpaired**, with no bias/variance split (no per-seed output). Small
+  gaps are unresolved.
+- **Validation tuning is per family × scenario**, an offline benchmark.
+- **Still quoting the old MPL arms:**
+  - `chapter6_draft.tex` (MPL-bank numbers);
+  - the own-density section of `chapter6_results.md`;
+  - the MPL VFF comparator;
+  - the family-bank arms.
+- **Simulation only:** Gaussian margins, N = 5000. KLL's bounded memory on long streams is never
+  exercised.
+
+## 3c. To do (ask Sally first; rough priority)
+
+1. **Density ISE for Xiao / Hermite / MPL** in `probe_budget` (normal-score scale), with per-seed
+   output. That also gives the paired CIs and the bias/variance split. About 15 minutes.
+2. **Hermite `store_bytes()` fix**, then re-plot the budget figures.
+3. **Update `chapter6_draft.tex`** from the regenerated `chapter6_results.md` and this session's
+   results. Use the five-section order; move the family-bank ISE figures to an appendix.
+4. **Regenerate the own-density section's MPL numbers** (needs `probe_bank_tune` on seeds 1–30 and
+   the shape files).
+5. **Fix the t-table race** in `src/estimators/copula_family.hpp` (a queued task exists).
+6. **Optional:**
+   - tail mixture at more mixing levels (0.6→0.4, 0.9→0.1);
+   - a mixture arm that learns π;
+   - switching the family-bank arms to the spec (about 70 minutes);
+   - a per-tick Kalman bank;
+   - a cumulative arm with restart-on-detection.
+
+---
+
+*Everything below is the original detailed log (§0 summary as first written, §1 framing, §2 work
+list, §3 every table, §4 pitfalls, §5 open items). Where it disagrees with the sections above, the
+sections above win.*
 
 ## 0. Consolidated summary of all results (read this first)
 
