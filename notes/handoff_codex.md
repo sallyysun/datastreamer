@@ -163,6 +163,21 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
       - 500–1500 after, 2–7 worse;
       - over the whole run, Xiao is 1.5 worse and Hermite 3.4 worse.
 
+14. **Stacked-weight comparison of the three banks, one seed:**
+    `ch6_bank_path_compare_{jump,drift}.png` (`plot_bank_path_compare.py`, from
+    `./probe_bank_path 42 <component>`). Sally's preferred style.
+    - **Drift:**
+      - The Xiao and Hermite banks settle mostly on N_eff = 399.
+      - The MPL bank settles lower, mostly on 199 (bank memory ≈ 250 against ≈ 350).
+      - That is the M* law: M* ∝ σ^{2/3}, and the MPL's lower variance σ² makes its optimal memory
+        shorter.
+    - **Jump:**
+      - Xiao hands from N_eff = 39 to 199 within about 100 ticks.
+      - The MPL bank stays on 39 for about 300 ticks, then hands up gradually.
+      - Hermite goes mostly to 99.
+    - **Single-seed RMSE** (seed 42 only, illustrative): jump 62 / 64 / 57 and drift 55 / 58 / 54
+      (×10⁻³, Xiao / Hermite / MPL).
+
 ### 0.5 Which estimator wins where (from the results above)
 
 | Situation | Best | Evidence |
