@@ -786,6 +786,15 @@ agree within about 1):
 - **The cumulative arm (c)** takes about 0.4 of the weight before the jump and helps there (40.6). It
   is dropped at once after the jump (§15).
 
+**Single-seed figures in the style of `ch6_bank_path.png`.** Probe:
+`experiments/probe_bank_path_variants.cpp`, seed 42. Plot: `experiments/plot_bank_path_variants.py`.
+- **`ch6_bank_path_mpl.png`:** the thesis bank (spec MPL arms, fixed share) on drift and jump, arms
+  labelled N_eff. It replaces the Xiao-arm `ch6_bank_path.png` if the thesis uses the MPL bank.
+- **`ch6_bank_path_softmax_vs_fs.png`:** jump, softmax only against softmax + fixed share, on the
+  same seed.
+  - Softmax alone hands everything to N_eff = 99 and stays there (bank memory ≈ 100 for 2500 ticks).
+  - Fixed share goes to 39, then climbs through 99 and 199 to 399.
+
 ## 8. Reproduction
 
 ```bash

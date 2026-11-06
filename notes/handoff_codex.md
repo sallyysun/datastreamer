@@ -149,6 +149,9 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
       - late 24.9 vs 29.8.
     - **The cost:** about 1–5% when nothing changes (before the jump 43.7 vs 41.6; drift 68.0 vs
       67.1).
+    - **Single-seed figures in Sally's preferred style** (that of `ch6_bank_path.png`; she liked it):
+      - `ch6_bank_path_mpl.png`: spec MPL bank, drift and jump, N_eff labels;
+      - `ch6_bank_path_softmax_vs_fs.png`: jump, softmax only against fixed share.
 
 ### 0.5 Which estimator wins where (from the results above)
 
