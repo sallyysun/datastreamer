@@ -12,9 +12,9 @@ warnings.filterwarnings("ignore")
 R = "experiments/results/"
 OUT = "notes/thesis/figures/"
 INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
-COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mpl_kll": "#1baf7a"}
-LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + KLL (capacity k)"}
-MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^"}
+COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mpl_kll": "#1baf7a", "mpl_dskll": "#eda100"}
+LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + own KLL (k)", "mpl_dskll": "MPL + DataSketches KLL (k)"}
+MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^", "mpl_dskll": "D"}
 BUDGETS = [16, 64, 256]
 
 df = pd.read_csv(R + "budget_sweep.csv")

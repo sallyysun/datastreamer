@@ -22,7 +22,7 @@ def pick(fam, sc, est, cap, metric="rmse", gain=None):
 rows = []
 for (fam, sc), _ in df.groupby(["family", "scenario"]):
     for bname, cap in BUDGETS.items():
-        for est in ["xiao", "hermite", "mpl_kll"]:
+        for est in ["xiao", "hermite", "mpl_kll", "mpl_dskll"]:
             r = pick(fam, sc, est, cap)
             if r is None:
                 continue
@@ -39,7 +39,7 @@ print("\n== jump: post-change RMSE (x1e-2) and recovery delay (ticks), tuned on 
 rows = []
 for fam in df.family.unique():
     for bname, cap in BUDGETS.items():
-        for est in ["xiao", "hermite", "mpl_kll"]:
+        for est in ["xiao", "hermite", "mpl_kll", "mpl_dskll"]:
             r = pick(fam, "jump", est, cap, metric="post_rmse")
             if r is None:
                 continue
@@ -51,7 +51,7 @@ print("\n== Common gain, Gaussian: best approx within 64KiB at each gain, test R
 rows = []
 for sc in ["constant", "drift", "jump"]:
     for g in sorted(df.gain.unique()):
-        for est in ["xiao", "hermite", "mpl_kll"]:
+        for est in ["xiao", "hermite", "mpl_kll", "mpl_dskll"]:
             t, a, _ = pick("gaussian", sc, est, BUDGETS["64KiB"], gain=g)
             rows.append(dict(scenario=sc, gain=g, estimator=est, cell=f"{100*t.rmse:.2f} [{int(a)}]"))
 print(pd.DataFrame(rows).pivot_table(index=["scenario", "gain"], columns="estimator", values="cell", aggfunc="first"))
@@ -59,11 +59,11 @@ print("\n== Marginal ablation (MPL, test RMSE x1e-2 at the val-best gain for eac
 rows = []
 for (fam, sc), _ in df.groupby(["family", "scenario"]):
     r = {"family": fam, "scenario": sc}
-    for est, a in [("mpl_exact", 0), ("mpl_window", 500), ("mpl_kll", 16), ("mpl_kll", 64), ("mpl_kll", 256),
-                   ("mpl_kll", 1024), ("mpl_fit_kll", 256)]:
+    for est, a in [("mpl_exact", 0), ("mpl_window", 500), ("mpl_kll", 64), ("mpl_kll", 256),
+                   ("mpl_dskll", 64), ("mpl_dskll", 256), ("mpl_fit_kll", 256)]:
         v = val.loc[(fam, sc, est, a)].reset_index()
         g = v.loc[v.rmse.idxmin()].gain
         t = test.loc[(fam, sc, est, a, g)]
-        r[f"{est}{'' if est=='mpl_exact' else a}"] = f"{100*t.rmse:.2f}±{100*t.se_rmse:.2f}"
+        r[f"{est.replace('mpl_', '')}{'' if est=='mpl_exact' else a}"] = f"{100*t.rmse:.2f}±{100*t.se_rmse:.2f}"
     rows.append(r)
 print(pd.DataFrame(rows).to_string(index=False))
