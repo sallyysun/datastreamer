@@ -112,6 +112,48 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
      not estimators.
    - It costs 2.5× the MPL bank's memory and about 4× its time.
 
+### 0.5 Which estimator wins where (from the results above)
+
+| Situation | Best | Evidence |
+| --- | --- | --- |
+| ρ_S, copula near-Gaussian or mildly misspecified (Gaussian, Gumbel, Clayton constant and drift) | **MPL** | budget study 16 KiB: lowest in 9/12 cells; MPL bank best in 7/8 drift and jump cells |
+| ρ_S, Clayton jump | **Xiao** | budget study 8.29 vs MPL 8.49 ×10⁻²; Xiao bank 66.2 vs old MPL 68.4 (new MPL 65.8 ≈ tie) |
+| ρ_S, t₄ (heavy symmetric tails) | **Xiao ≈ MPL** | budget gaps within noise; Xiao bank best on t₄ drift (75.4 vs 77.8); t₄ oscillate MPL bank 216.6 vs Xiao 203.3 |
+| Fast oscillation with tail dependence | **Xiao** | t₄ oscillate above; the mixed bank beats the MPL bank by 12.5 there |
+| Smallest error after a jump | **MPL** | lowest post-change RMSE in all 4 families; same reaction delay |
+| Variable forgetting | **Xiao** | the only VFF that adapts meaningfully; best method on Gaussian drift (−0.6 vs best arm). Hermite VFF is inert; MPL VFF is broken |
+| Predictive **density** (own log loss), and following a shape change at fixed ρ_S | **Hermite** | own-density bank: Hermite −18 to −56 ×10⁻³ nats/tick vs MoM, against Xiao −6 to −14 and MPL ≈ 0; Hermite own bank beats M = 1999 on Gauss→t₄ and Clayton→Gumbel |
+| Tail coefficients χ(q) | **none of the three** | the Gaussian MPL has the wrong shape; Xiao's corner cell is a noisy counter; Hermite smooths the corner (under-reads Clayton χ, 0.56 vs 0.62). The family bank is the tool |
+| Lowest time / memory | **MPL** with DataSketches (5.8 KB, about 1.2 µs); Xiao is cheap only at small B (Θ(B²)) | §3.3, §3.9 |
+
+**In one line:**
+- the MPL is the most *efficient* (lowest variance) for ρ_S;
+- Xiao is the most *robust*: nonparametric, best where the Gaussian working model hurts most;
+- Hermite is never best for ρ_S, but is the best *density* estimator of the three.
+
+### 0.6 Copula representations: what was and wasn't used
+
+- **The empirical (step) copula:** only as an *offline reference* in `probe_batch_ise.cpp`
+  (`batch_full`, and the kernel-weighted `batch_kernel_<h>`) for the CDF-ISE study.
+- **The empirical checkerboard copula:** never constructed by name, but **Xiao's estimator is
+  essentially one.**
+  - Its B×B counts over rank cells, read with uniform mass inside each cell, are the checkerboard
+    copula.
+  - `log_density_uv` is its histogram density.
+  - Its mid-rank ρ̂ equals the checkerboard's ρ_S up to a ties-type correction in B.
+  - Never evaluated as a Ĉ: no ISE was computed for it.
+  - "Whether Xiao should report its own checkerboard ρ_S" is an open decision in
+    `notes/thesis/chapter6_handover.md`.
+  - The roadmap frames Xiao as the "online empirical/checkerboard representation of C_t".
+- **The empirical beta copula** (Segers, Sibuya & Tsukahara 2017) and the empirical Bernstein copula:
+  **never used.**
+  - Both need the ranks of all n observations at query time: O(n) state and O(n) per evaluation.
+    They are batch, not streaming.
+  - A forgetting version would need the stored window.
+  - Possible roles:
+    - a better-smoothed *offline* reference than the step empirical copula in the ISE study;
+    - a windowed comparator, not a streaming contestant.
+
 ### 0.3 Known problems that affect claims
 
 - **The Hermite `store_bytes()` undercounts about 3×** (W_ and A_fast_ are not counted), so its
