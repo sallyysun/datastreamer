@@ -184,6 +184,121 @@ statics, which is a data race under threads.
 - The harness now builds the table before spawning threads, and the t family was rerun.
 - `tail_validate.cpp` (std::async over t streams) may be exposed. A fix task is queued.
 
+## 9. Time complexity, derived from the code and checked against §6
+
+**Notation:**
+- D = N + 1 is the number of Hermite basis functions;
+- B is Xiao's bins per margin;
+- k is the KLL capacity, and S is the number of items a sketch retains;
+- n is the stream length so far;
+- K is the number of arms in a bank.
+
+Costs are per tick, for update() followed by estimate(), since the online output is produced every
+tick.
+
+### 9.1 Per-tick cost
+
+| Estimator | update() | estimate() | Per tick | Memory |
+| --- | --- | --- | --- | --- |
+| Xiao, forgetting λ | 2 binary searches O(log B); rescale every count by λ: **B² + 2B** multiplies | mid-ranks O(B); covariance double loop **B²** | **Θ(B²)** | Θ(B²), plus Θ(C) calibration pairs until t = C |
+| Hermite, order N | basis recursion O(D); outer product hxhyᵀ **D²**; ‖outer − A‖ **D²**; A ← A + w(outer − A) **D²** | four D × D matrix–vector products (W·ax, W·ay, A·v, A·z) **4D²** | **Θ(N²)** | Θ(N²) |
+| MPL + KLL, as implemented | 2 rank queries, each a scan of S items: **O(S)**; 2 inserts, amortised O(log k + log(n/k)), worst case O(k log k) at a compaction; copula step O(1) | O(1) (arcsin) | **O(S) = O(k + log(n/k))** | O(k + log(n/k)) |
+| MPL + rank window W | sorted-vector insert and erase O(W), plus a front erase of the FIFO O(W) | O(1) | **O(W)** | Θ(W) |
+| MPL, exact PIT (oracle) | O(1) | O(1) | **O(1)** | O(1) |
+
+**KLL's retained size.** Level capacities are k(2/3)^d, with at least 2 per level, and there are
+H = O(log(n/k)) levels. So
+S ≤ k·Σ_d (2/3)^d + 2H ≤ 3k + O(log(n/k)).
+
+That bound does not depend on n beyond the logarithm. This is the property a sliding window or an
+exact store lacks: their state is Θ(W) or Θ(n).
+
+**Where the time goes in each estimator:**
+- **Xiao: forgetting, not counting.** Without forgetting, update() is O(log B). Multiplying the
+  whole B × B table by λ on every tick is what makes it Θ(B²).
+  - A global scale factor would bring update() down to O(log B): store counts divided by λᵗ, and
+    renormalise when the factor underflows.
+  - estimate() would still be Θ(B²), because inserting one point shifts every mid-rank.
+  - An incremental estimate using 2-D Fenwick trees, as in online Kendall's τ, looks possible in
+    O(log² B). It is not implemented or proven here.
+- **Hermite: the stored matrix.** Θ(D²) is a lower bound for any update that stores A explicitly,
+  since a rank-one update touches every entry.
+  - estimate() is also Θ(D²): it is a quadratic form in a matrix that changes on every tick.
+  - This matches Stephanou & Varughese's "constant in n" claim, which holds for fixed N.
+- **MPL: the rank query, not the copula step.**
+  - Keeping each level sorted and binary-searching it would make the query O(H log k) =
+    O(log(n/k)·log k).
+  - A merged, weighted, sorted view rebuilt at each compaction would make it O(log S).
+
+**Total over a stream:**
+- n·Θ(B²) for Xiao;
+- n·Θ(N²) for Hermite;
+- n·O(k + log(n/k)) for MPL + KLL.
+
+All three are linear in n, which is what makes them streaming-admissible. They differ in the
+constant multiplying n, and in what that constant scales with.
+
+**Banks of K arms:**
+- **K Xiao arms:** Θ(K·B²) time and memory.
+- **K Hermite arms:** Θ(K·N²) time and memory.
+- **K MPL arms sharing two sketches:**
+  - **Time:** Θ(S + K) per tick. The rank query is done once per margin and its two
+    pseudo-observations feed all K arms, each of which then takes an O(1) score step.
+  - **Memory:** O(k + log(n/k) + K).
+
+### 9.2 Checked against the measured times (§6)
+
+Log-log slopes of time per tick, over the upper half of each grid:
+
+| Estimator | Predicted exponent | Measured: update | Measured: update + estimate |
+| --- | --- | --- | --- |
+| Xiao, in B (B ≥ 30) | 2 | **1.99** | 2.35 |
+| Hermite, in D (N ≥ 20) | 2 | 1.72 | 1.71 |
+| MPL + KLL, in k (k ≥ 128) | 1 in S, below 1 in k at this n | 0.48 | 0.47 |
+
+- **Xiao's update has the predicted slope exactly.** The total is steeper than 2 at large B because
+  the table outgrows the cache: at B = 180 it is 259 KB, more than L2 holds. estimate()'s double
+  loop then becomes memory-bound, giving 24 µs at B = 130 and 40 µs at B = 180.
+- **Hermite is still approaching its asymptote.** At these sizes the O(D) basis recursion (an
+  exp and two square roots per term) and a heap allocation of the D × D outer product every tick
+  still matter. The local exponent is already 2.2 between N = 89 and N = 128.
+- **The MPL is linear in S, not in k.** At n = 5000 a sketch retains S ≈ 1.4k at small k, falling
+  to 1.4k/k ≈ 1.4 at k = 1024 (S = 1417), because n is too short to fill the sketch. There is also a
+  fixed cost of about 500 ns: probit, clipping, the score step, and timer overhead.
+  - The cost above the k = 8 baseline is 1305 ns for two scans of 1417 items, about 0.46 ns per
+    item. That is a linear, vectorised scan.
+- **Bounded growth in n**, measured directly at k = 256:
+
+  | n | 10³ | 10⁴ | 10⁵ | 10⁶ |
+  | --- | --- | --- | --- | --- |
+  | S | 382 | 662 | 743 | 763 |
+  | query | 301 ns | 484 ns | 575 ns | 598 ns |
+  | insert, amortised | 79 ns | 131 ns | 170 ns | 235 ns |
+
+  - S levels off at about 3k, as the bound says.
+  - The amortised insert grows like log(n/k). That growth is the compaction cascade, plus
+    `total_capacity()` being recomputed in O(H) with a `pow` call on every insert.
+
+### 9.3 A memory-accounting gap this turned up
+
+Hermite's `store_bytes()` counts (2D + D² + 6) doubles, but each instance actually allocates three
+D × D matrices:
+- A_;
+- W_, the integral matrix, which is constant for a given order and could be shared;
+- A_fast_, which is allocated even when `surprise_fast_rate` = 0, so it is pure waste in that case.
+
+So Hermite's true footprint is about 3× what the memory figures show. N = 43 is about 48 KB, not
+16 KB.
+
+This barely changes the budget result, because Hermite's accuracy is flat beyond N ≈ 20–30.
+- Under honest counting, its 16 KiB choice would drop from N = 43 to N ≈ 20–30.
+- That costs at most about 0.1 in RMSE, by the frontier in the memory figure.
+
+It should still be fixed before the figure goes in the thesis. Either count W_ and A_fast_ (or
+mark W_ as a shared constant), or stop allocating A_fast_ when it is unused. Fixing either changes
+the store_bytes() of every registered Hermite key, so it is a decision for the thesis audit, not
+for this note.
+
 ## 8. Reproduction
 
 ```bash
