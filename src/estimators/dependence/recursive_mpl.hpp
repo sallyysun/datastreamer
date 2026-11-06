@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 
+#include "ds_margin.hpp"
 #include "estimator.hpp"
 #include "kll_sketch.hpp"
 #include "marginal_rank_pit.hpp"
@@ -15,7 +17,7 @@
 // Spec and results: notes/studies/budget_mpl.md.
 class RecursiveMPL : public DependenceEstimator {
 public:
-    enum class Margin { Kll, ExactNormal, RankWindow };
+    enum class Margin { Kll, DsKll, ExactNormal, RankWindow };
     enum class Update { ConstantGain, CopulaFit };   // CopulaFit: the registered MPL's recursion
 
     struct Config {
@@ -33,7 +35,9 @@ public:
     RecursiveMPL(Config c, const char* name)
         : c_(c), name_(name), kx_(c.kll_k, 2 * c.seed + 1), ky_(c.kll_k, 2 * c.seed + 2),
           px_(c.window), py_(c.window),
-          fit_(copula::Family::Gaussian, 4.0, 1.0 - c.gain, 0.0, true) {}
+          fit_(copula::Family::Gaussian, 4.0, 1.0 - c.gain, 0.0, true) {
+        if (c_.margin == Margin::DsKll) make_ds();
+    }
 
     void update(double x, double y) override {
         double u = 0.5, v = 0.5;
@@ -42,6 +46,10 @@ public:
             case Margin::Kll:
                 u = kx_.cdf(x); v = ky_.cdf(y);
                 kx_.insert(x); ky_.insert(y);
+                break;
+            case Margin::DsKll:
+                u = dx_->cdf(x); v = dy_->cdf(y);
+                dx_->insert(x); dy_->insert(y);
                 break;
             case Margin::ExactNormal:
                 u = 0.5 * std::erfc(-x / std::sqrt(2.0));
@@ -72,6 +80,7 @@ public:
     void reset() override {
         n_ = 0; r_ = 0.0;
         kx_.reset(); ky_.reset(); px_.reset(); py_.reset(); fit_.reset();
+        if (c_.margin == Margin::DsKll) make_ds();
     }
 
     // Marginal state plus r (or CopulaFit's phi and information); the unused margin is not counted.
@@ -79,6 +88,7 @@ public:
         const std::size_t core = (c_.update == Update::CopulaFit ? 2 : 1) * sizeof(double) + sizeof(c_);
         switch (c_.margin) {
             case Margin::Kll:        return core + kx_.store_bytes() + ky_.store_bytes();
+            case Margin::DsKll:      return core + dx_->store_bytes() + dy_->store_bytes();
             case Margin::RankWindow: return core + px_.store_bytes() + py_.store_bytes();
             default:                 return core;
         }
@@ -87,11 +97,19 @@ public:
     const char* name() const override { return name_; }
 
 private:
+    // Fresh sketches, and DataSketches' coin generator reseeded so the run is reproducible.
+    void make_ds() {
+        ds_margin::seed(c_.seed);
+        dx_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
+        dy_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
+    }
+
     Config c_;
     const char* name_;
     std::size_t n_ = 0;
     double r_ = 0.0;
     KllSketch kx_, ky_;
+    std::unique_ptr<ds_margin::Kll> dx_, dy_;   // only for Margin::DsKll
     RankPit px_, py_;
     copula::CopulaFit fit_;
 };

@@ -301,6 +301,69 @@ mark W_ as a shared constant), or stop allocating A_fast_ when it is unused. Fix
 the store_bytes() of every registered Hermite key, so it is a decision for the thesis audit, not
 for this note.
 
+## 10. The marginal sketch from Apache DataSketches (2026-11-06)
+
+**What changed:**
+- `external/datasketches-cpp` is now a submodule, pinned at `c2f89d7`.
+- `src/estimators/dependence/ds_margin.hpp` wraps its `kll_sketch<float>` (and `req_sketch`) behind
+  the same interface as `KllSketch`.
+- `RecursiveMPL::Margin::DsKll` selects it, and `probe_budget` runs it as `mpl_dskll`.
+
+**Three integration details:**
+- **Reproducibility.** DataSketches flips its compaction coins with a `thread_local` generator
+  seeded from the clock plus the thread id.
+  - There's no data race, but runs are not reproducible.
+  - `override_seed()` reseeds a different generator.
+  - `ds_margin::seed()` reseeds `random_utils::random_bit` when each MPL is built. Two runs with
+    the same seed give identical rank sequences (checked).
+- **Rank query.** `get_rank()` rebuilds a full sorted view after every update. The wrapper instead
+  sums the weights of retained items below x in one pass over the sketch's iterator: O(S), no
+  allocation.
+- **Memory.** `store_bytes()` uses a counting allocator, so it reports the heap the sketch actually
+  holds, not its serialised size.
+
+**Marginal sketch alone** (n = 5000, N(0,1) stream, 20 seeds; rank error against the exact
+empirical CDF):
+
+| Sketch | k | mean \|err\| | tail \|err\| (rank < .05 or > .95) | Peak bytes | ns per query + insert |
+| --- | --- | --- | --- | --- | --- |
+| own KLL | 64 / 256 | 0.0059 / 0.0016 | 0.0056 / 0.0015 | 6 920 / 18 696 | 337 / 493 |
+| DataSketches KLL | 64 / 256 | 0.0060 / 0.0015 | 0.0053 / 0.0015 | **908 / 2 848** | 309 / 575 |
+| DataSketches REQ (HRA, k/2) | 64 / 256 | 0.0011 / 0.0002 | 0.0009 / 0.0002 | 11 688 / 29 960 | 1 152 / 2 102 |
+
+- **Same accuracy as my KLL, 6.5–7.6× less memory.** The difference is floats in one contiguous
+  buffer, against doubles in growable vectors.
+- **REQ is about 6× more accurate at the same k, but larger and 2–4× slower.** At matched memory,
+  KLL with a larger k is as accurate at n = 5000.
+  - REQ's high-rank-accuracy mode protects only the upper tail. Both tails would need a second
+    sketch fed −x.
+
+**Inside the MPL** (20 seeds, test RMSE; a quick check, not the budget run):
+
+| Case | exact PIT | own k=64 | DataSketches k=64 | own k=256 | DataSketches k=256 |
+| --- | --- | --- | --- | --- | --- |
+| Gaussian constant, g = .005 | .0282 | .0335 | .0345 | .0303 | .0303 |
+| Clayton jump, g = .01 | .0870 | .0900 | .0920 | .0878 | .0880 |
+| Peak state (both margins) | 72 B | 13.9 KB | **1.9 KB** | 37.5 KB | **5.8 KB** |
+
+**Time per tick** (`./probe_budget time`, kept in `results/budget_timing_ds.csv`):
+- MPL on DataSketches KLL: 0.81 µs at k = 64, 1.65 µs at k = 256.
+- MPL on my KLL in the same run: 0.73 µs and 1.11 µs.
+- The machine was noisier in this run (Xiao B = 30 read 1.35 µs against 0.86 in §6), so compare
+  within the run only.
+- DataSketches is a little slower at large k. The likely cause is the iterator's pair proxy, but
+  that is not profiled.
+
+**What this changes in §7.**
+- With DataSketches KLL at k = 256, the standalone MPL holds **5.8 KB**, less than Xiao at its
+  chosen B = 20–30 (8–12 KB). Its ρ_S accuracy is unchanged. So "the MPL takes more memory" was a
+  property of my sketch, not of the method.
+- In a bank, the shared marginal state would fall from about 16 KB (two rank windows of 500) to
+  about 6 KB.
+- The matched-budget tables in §2 are from my KLL. With DataSketches KLL, the MPL would reach its
+  plateau inside the 16 KiB budget, where my sketch held it to k = 64.
+  - That needs the budget rerun to confirm: `mpl_dskll` is already in `probe_budget`'s grid.
+
 ## 8. Reproduction
 
 ```bash

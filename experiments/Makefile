@@ -55,8 +55,11 @@ probe_adaptive:
 probe_vff_norm:
 	$(CXX) probe_vff_norm.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_vff_norm
 
+DS = ../external/datasketches-cpp
+DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
+
 probe_budget:
-	$(CXX) probe_budget.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 -o probe_budget
+	$(CXX) probe_budget.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 $(DS_INC) -o probe_budget
 
 probe_memory_tradeoff:
 	$(CXX) probe_memory_tradeoff.cpp -std=c++20 -O2 -o probe_memory_tradeoff

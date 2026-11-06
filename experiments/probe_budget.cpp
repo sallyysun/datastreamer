@@ -2,6 +2,7 @@
 // Gaussian MPL on two KLL sketches (capacity k), plus the MPL marginal ablation.
 // See notes/studies/budget_mpl.md.
 //
+// mpl_dskll is the same MPL on Apache DataSketches KLL (external/datasketches-cpp).
 // Usage: ./probe_budget sweep <n_test> [n_val] [family]  -> results/budget_sweep[_family].csv
 //        ./probe_budget time                     -> results/budget_timing.csv
 
@@ -49,6 +50,7 @@ std::vector<Cfg> build_cfgs() {
         for (int b : {10, 20, 30, 45, 65, 90, 130, 180}) v.push_back({"xiao", b, g});
         for (int n : {5, 10, 15, 20, 30, 43, 60, 89, 128}) v.push_back({"hermite", n, g});
         for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_kll", k, g});
+        for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_dskll", k, g});
         v.push_back({"mpl_exact", 0, g});
         v.push_back({"mpl_window", 500, g});
         v.push_back({"mpl_fit_kll", 256, g});
@@ -72,7 +74,8 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     RecursiveMPL::Config m{};
     m.gain = c.gain;
     m.seed = seed;
-    if (c.est == "mpl_kll" || c.est == "mpl_fit_kll") m.kll_k = static_cast<std::size_t>(c.approx);
+    if (c.est == "mpl_kll" || c.est == "mpl_fit_kll" || c.est == "mpl_dskll") m.kll_k = static_cast<std::size_t>(c.approx);
+    if (c.est == "mpl_dskll") m.margin = RecursiveMPL::Margin::DsKll;
     if (c.est == "mpl_exact") m.margin = RecursiveMPL::Margin::ExactNormal;
     if (c.est == "mpl_window") { m.margin = RecursiveMPL::Margin::RankWindow; m.window = 500; }
     if (c.est == "mpl_fit_kll") m.update = RecursiveMPL::Update::CopulaFit;

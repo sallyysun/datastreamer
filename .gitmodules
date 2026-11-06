@@ -7,3 +7,6 @@
 [submodule "external/hermiter"]
 	path = external/hermiter
 	url = https://github.com/MikeJaredS/hermiter.git
+[submodule "external/datasketches-cpp"]
+	path = external/datasketches-cpp
+	url = https://github.com/apache/datasketches-cpp.git
