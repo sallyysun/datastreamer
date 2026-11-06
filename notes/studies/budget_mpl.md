@@ -846,6 +846,78 @@ negative = better than the MPL bank):
   - BOCPD wins constant and jump, but fails badly on smooth change.
   - That is the bank's selling point: it is robust across kinds of change.
 
+## 18. Whole-copula accuracy (ISE) of the three estimators (2026-11-06)
+
+**Setup.**
+- Probe: `experiments/probe_ise.cpp`; tables: `experiments/ise_table.py` → `results/ise_table.txt`;
+  figure: `plot_ise_estimators.py` → `notes/thesis/figures/ch6_ise_estimators.png`.
+- 60 seeds (42–101), the same streams as Chapter 6.
+- **Cells:** constant / drift / jump × 4 families, plus the two shape switches at fixed ρ_S
+  (Clayton → Gumbel and Gaussian → t₄ at t = 2500).
+- **Densities:** each estimator's *own* predictive density.
+  - Xiao: its 5×5 pooled histogram, `log_predictive`.
+  - Hermite: its series density.
+  - MPL: the Gaussian copula at r̂.
+- **Methods, per estimator:**
+  - each of the five bank arms (N_eff 39–1999);
+  - its own-density bank (`*_bank_own`: the arms' densities mixed by its weights);
+  - its log bank read as a Gaussian copula at ρ̂.
+- **Metrics,** on a 32×32 midpoint grid every 100 ticks:
+  - **density ISE on the normal-score scale,** ∫∫(f̂ − f)² dx dy = ∫∫(ĉ − c)² φ(z_u)φ(z_v) du dv.
+    This is finite for tail-dependent copulas.
+  - **copula CDF ISE,** ∫∫(Ĉ − C)², with each CDF built by cumulating cell masses.
+
+**Density ISE ×10⁻³, own-density banks** (Xiao / Hermite / MPL), whole run:
+
+| | constant | drift | jump |
+| --- | --- | --- | --- |
+| Gaussian | 4.44 / 1.39 / **0.16** | 4.25 / 2.91 / **0.24** | 9.14 / 4.09 / **0.98** |
+| Clayton | 7.40 / **1.47** / 3.83 | 5.13 / 2.91 / **2.04** | 17.5 / **7.43** / 10.9 |
+| Gumbel | 6.02 / **1.43** / 1.49 (tie) | 4.34 / 2.61 / **0.89** | 12.3 / 4.84 / **3.52** |
+| t₄ | 6.46 / **1.41** / 1.48 (tie) | 5.44 / 3.19 / **1.45** | 12.4 / 4.47 / **3.11** |
+| Clayton → Gumbel | 7.03 / **2.21** / 2.54 | | |
+| Gaussian → t₄ | 5.51 / 1.60 / **0.90** | | |
+
+**Hermite − MPL, paired** (whole run, ± 2 SE): beyond 2 SE in every cell except t₄ constant.
+- Hermite better: Clayton constant −2.35 ± 0.04; Clayton jump −3.48 ± 0.12; Clayton → Gumbel
+  −0.33 ± 0.06; Gumbel constant −0.06 ± 0.06 (marginal).
+- MPL better: every other cell, by +0.7 to +3.1.
+
+**CDF ISE** is gentler on shape, which repeats `thesis_bank_ise_batch.md`. The MPL is best in every
+cell except Clayton constant, where Hermite is better by 0.35 ± 0.12 ×10⁻⁴.
+
+**What it shows.**
+1. **Each estimator's own copula estimate ranks MPL > Hermite > Xiao in most cells, but not all.**
+   - **Where the MPL wins:**
+     - by 10–25× on Gaussian data;
+     - on every drift cell, since short memory favours the low-variance parametric fit;
+     - on Gumbel and t₄ jump, and Gaussian → t₄.
+   - **Where Hermite wins** is wherever the Gaussian shape is clearly wrong *and* there is enough
+     data: Clayton constant (2.6× better), Clayton jump, and the Clayton → Gumbel switch. On Gumbel
+     and t₄ constant they tie.
+   - **The crossover predicted earlier (from §9's variance and bias argument) holds.** A
+     nonparametric density beats the misspecified parametric one only when its variance, at the
+     memory it can afford, falls below the parametric model's floor.
+     - On Clayton that floor is high (about 3.8 at constant), so Hermite wins.
+     - On Gumbel and t₄ the floor is lower, so it's a tie.
+     - Under drift and jump the affordable memory is short and Hermite's variance is high, so the
+       MPL wins.
+2. **Xiao's density is the worst everywhere,** by 2–10× against Hermite. Its 5×5 histogram is too
+   coarse for the shape, and too noisy at the memories that track ρ_S.
+   - Xiao is the robust choice for ρ_S (§0.5), but not for the copula.
+3. **Hermite's best fixed memory is almost always the longest** (N_eff = 1999). Density estimation
+   needs long memory.
+   - Its own-density bank beats its best fixed memory on every jump (e.g. Clayton 7.4 vs 9.2,
+     Gaussian 4.1 vs 4.9). There the bank earns its keep for density, as for ρ_S.
+4. **The density implied by ρ alone matches the MPL bank.** "Gaussian at ρ̂ from Xiao's log bank" is
+   within about 10% of the MPL own bank everywhere. So the MPL's ISE comes from assuming a Gaussian
+   *shape*, not from estimating ρ better.
+5. **The scope gap is closed.** This replaces the family-bank evidence in §6.5: the three estimators
+   now have their own whole-copula comparison.
+   - The thesis message holds within scope: *the most accurate estimator of ρ_S (MPL) is not the
+     most accurate estimator of the copula when its model is wrong (Clayton), and the best ρ_S
+     method under misspecification (Xiao) has the worst copula.*
+
 ## 8. Reproduction
 
 ```bash

@@ -120,7 +120,16 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
       the ρ_S RMSE ratio is at most 1.42. In the shape switches the MPL bank is better on ρ_S but 5×
       worse on ISE.
     - That evidence uses the family bank, which is outside the 3-estimator scope.
-    - **No ISE exists for the three standalone estimators.**
+    - **Now measured for the three estimators** (`budget_mpl.md` §18; figure
+      `ch6_ise_estimators.png`; 60 seeds; density ISE on the normal-score scale, and CDF ISE).
+      - **MPL** is best on Gaussian (10–25×), on every drift, and on Gumbel / t₄ jump.
+      - **Hermite** is best where the Gaussian shape is wrong *and* data are plentiful: Clayton
+        constant (1.47 vs 3.83 ×10⁻³), Clayton jump, Clayton → Gumbel. It ties with the MPL on
+        Gumbel and t₄ constant.
+      - **Xiao's 5×5 histogram** is worst everywhere.
+      - **Hermite's best memory is the longest**, and its own bank beats its best fixed memory on
+        jump.
+      - **The best ρ_S estimator is not the best copula estimator under misspecification.**
 13. **Tails** (family bank, Clayton/Gumbel mixture, π 0.75 → 0.25).
     - It loses over the whole run to the slow corner counter (73 vs 62), but wins after the switch
       (90 vs 150–170).
@@ -156,7 +165,8 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
 - **Bank paths:** `ch6_bank_path_mpl.png` and `ch6_bank_path_compare_{jump,drift}.png` (Sally's
   style).
 - **Bank comparison:** `ch6_bank_compare.png`.
-- **ISE:** `ch6_ise_paired.png`, `ch6_ise_two_metrics.png`, `ch6_ise_levels.png`.
+- **ISE:** `ch6_ise_estimators.png` (the three estimators; main text); `ch6_ise_paired.png`,
+  `ch6_ise_two_metrics.png` and `ch6_ise_levels.png` (family bank; appendix).
 
 ## 3b. Known problems that affect claims
 
@@ -179,8 +189,9 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
 
 ## 3c. To do (ask Sally first; rough priority)
 
-1. **Density ISE for Xiao / Hermite / MPL** in `probe_budget` (normal-score scale), with per-seed
-   output. That also gives the paired CIs and the bias/variance split. About 15 minutes.
+1. ~~Density ISE for the three estimators~~ **done** (`probe_ise`, §18). Still open: per-seed
+   output for the *budget* study (paired CIs, bias/variance split), and ISE *at matched memory
+   budgets*.
 2. **Hermite `store_bytes()` fix**, then re-plot the budget figures.
 3. **Update `chapter6_draft.tex`** from the regenerated `chapter6_results.md` and this session's
    results. Use the five-section order; move the family-bank ISE figures to an appendix.
