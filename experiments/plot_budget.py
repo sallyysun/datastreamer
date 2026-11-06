@@ -38,9 +38,10 @@ def style(ax, title):
         s.set_color(GRID)
 
 
-def fig_memory():
-    fams, scs = ["gaussian", "clayton", "gumbel", "t"], ["constant", "drift", "jump"]
-    fig, axes = plt.subplots(len(fams), len(scs), figsize=(11, 11), sharex=True)
+def fig_memory(fams, out):
+    scs = ["constant", "drift", "jump"]
+    fig, axes = plt.subplots(len(fams), len(scs), figsize=(11, 2.75 * len(fams) + 1.0), sharex=True,
+                             squeeze=False)
     fig.patch.set_facecolor(SURF)
     for i, fam in enumerate(fams):
         for j, sc in enumerate(scs):
@@ -66,8 +67,8 @@ def fig_memory():
     fig.suptitle("RMSE against memory: each point one approximation setting at its validation-best gain\n"
                  "(100 test seeds, ±2 SE; dotted lines are the 16 / 64 / 256 KiB budgets)",
                  fontsize=11, color=INK, x=0.01, ha="left")
-    fig.tight_layout(rect=(0, 0, 1, 0.95))
-    fig.savefig(OUT + "ch6_budget_memory.png", dpi=150)
+    fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / fig.get_figheight()))
+    fig.savefig(OUT + out, dpi=150)
 
 
 def fig_runtime():
@@ -96,8 +97,8 @@ def fig_runtime():
 
 def fig_recovery():
     p = pd.read_csv(R + "budget_paths.csv")
-    fams = ["gaussian", "clayton", "t"]
-    fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharey=True)
+    fams = ["gaussian", "clayton"]
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
     fig.patch.set_facecolor(SURF)
     for ax, fam in zip(axes, fams):
         style(ax, f"{fam} · jump")
@@ -120,7 +121,8 @@ def fig_recovery():
     fig.savefig(OUT + "ch6_budget_recovery.png", dpi=150)
 
 
-fig_memory()
+fig_memory(["gaussian", "clayton"], "ch6_budget_memory.png")                       # main text
+fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all.png")    # appendix
 fig_runtime()
 fig_recovery()
-print("wrote", OUT + "ch6_budget_{memory,runtime,recovery}.png")
+print("wrote", OUT + "ch6_budget_{memory,memory_all,runtime,recovery}.png")
