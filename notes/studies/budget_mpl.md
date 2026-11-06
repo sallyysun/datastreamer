@@ -103,8 +103,10 @@ as the stream grows, which a 5000-tick test cannot show.
   recovering".
 - **All three pick gain 0.05 and recover in 45–50 ticks.** Hermite on t₄ is the exception: it
   picks 0.02 and takes 115 ticks.
-- **The MPL's lower post-change error is variance, not speed.** At the same gain its path is less
-  noisy.
+- **The MPL's lower post-change error is not faster reaction**: its delay is the same as the
+  others'. Whether the difference is variance or bias is untested. The harness stores only mean
+  paths, so a bias/variance split, and paired seed-by-seed CIs, need a rerun that writes per-seed
+  output.
 
 ## 4. Same gain, different memory
 
