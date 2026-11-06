@@ -144,6 +144,17 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
       Chernov & Zhdanov (2010), Adams & MacKay (2007), and Hammer et al. (2020, the closest prior
       bank of trackers).
 
+15. **The scoring loss changes the weights and the copula** (`budget_mpl.md` §19; figures
+    `ch6_ise_weights_*.png`, one seed).
+    - **Own-density loss (−log ĉ_k)** pushes Xiao and Hermite to N_eff = 1999. Shape noise is
+      punished, so density needs long memory.
+    - **The Gaussian-at-ρ̂ log loss** uses shorter memory.
+    - **For the MPL the two losses are identical.** The smeared weights in its own bank come only
+      from that bank's larger δ.
+    - **Which gives the better copula:** the Gaussian-at-ρ̂ density for Xiao always, and for Hermite
+      on Gaussian data. Hermite's own density on Clayton (1.5 vs 3.8 ×10⁻³).
+    - ISE can't weight arms online; it can only evaluate each choice.
+
 ## 3a. Code map (this session)
 
 | What | Where |

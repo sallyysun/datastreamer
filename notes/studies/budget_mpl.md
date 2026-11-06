@@ -918,6 +918,64 @@ cell except Clayton constant, where Hermite is better by 0.35 ± 0.12 ×10⁻⁴
      most accurate estimator of the copula when its model is wrong (Clayton), and the best ρ_S
      method under misspecification (Xiao) has the worst copula.*
 
+## 19. Does the scoring loss change the weights and the copula accuracy? (2026-11-06)
+
+**Setup.**
+- Probe: `experiments/probe_ise_path.cpp`, one seed (42). Figures: `plot_ise_weights.py` →
+  `ch6_ise_weights_{gaussian_jump, clayton_constant, clayton2gumbel_shape}.png`.
+- **Three banks per estimator, on the same stream:**
+  1. **log loss**, −log c_Gauss(ρ̂_k): the thesis log bank, η = 1, δ = 3·10⁻⁴. It predicts the
+     Gaussian copula at the bank's ρ̂.
+  2. **own-density loss**, −log ĉ_k, at the same η and δ. This isolates the loss.
+  3. **own-density loss as tuned:** `*_bank_own`, η = 0.25, δ = 3·10⁻³.
+- Each bank's density ISE is on the normal-score scale.
+- ISE itself cannot weight the arms online, because it needs the true copula. It can only *evaluate*
+  each choice.
+
+**What the figures show.**
+- **The loss changes the weights a lot for Xiao and Hermite.**
+  - Under own-density loss, both put almost all their weight on N_eff = 1999 in stable stretches.
+    Short-memory densities are noisy, and log loss punishes noise in *shape*, not just in ρ.
+  - After the Gaussian jump, the own-density banks move to the middle arms (199–399), not to 39, and
+    return to 1999 sooner.
+  - The log-loss banks drop to 39–99 and hand up gradually.
+  - The log loss sees only ρ̂, so it chooses memories for tracking ρ. The own loss chooses memories
+    for estimating the whole density, which favours long memory.
+- **For the MPL the loss makes no difference.** Its own density *is* the Gaussian at ρ̂, so rows 1
+  and 2 are identical.
+  - The smeared weights in the tuned own bank (row 3) come only from its larger δ (10× the fixed
+    share) and smaller η.
+- **The tuning, η and δ, mainly smooths the weights** (row 2 against row 3). ISE barely moves.
+
+**Density ISE ×10⁻³, seed 42** (log loss / own η = 1 / own tuned):
+
+| | Xiao arms | Hermite arms | MPL arms |
+| --- | --- | --- | --- |
+| Gaussian jump | **0.61** / 8.85 / 9.10 | **0.67** / 4.33 / 3.99 | 0.52 / 0.51 / 0.59 |
+| Clayton constant | **3.74** / 7.94 / 8.30 | 3.81 / **1.48** / 1.54 | 3.68 / 3.68 / 3.77 |
+
+These agree in direction with the 60-seed means in §18.
+
+**Which loss gives the better copula depends on whether the arm's own shape beats the Gaussian.**
+- **Xiao:** its own 5×5 histogram is never better than the Gaussian at ρ̂ (8–9 vs 0.6–3.7). Scoring
+  Xiao's arms by its own density gives a *worse* copula. Xiao is best used through ρ̂.
+- **Hermite:**
+  - On Gaussian data, the Gaussian at ρ̂ wins (0.67 vs 4.0).
+  - On Clayton, Hermite's own density wins clearly (1.5 vs 3.8): the Gaussian has a shape floor of
+    about 3.7 that no ρ̂ can remove.
+  - So Hermite's own-density bank is the only one of the three that can recover a non-Gaussian
+    copula. That matches §18.
+- **MPL:** the same under every loss. Its ISE is pinned to the Gaussian-shape floor (about 3.7 on
+  Clayton).
+
+**For the thesis:**
+- The scoring rule decides what the bank optimises.
+  - **Log loss on the Gaussian density at ρ̂** chooses memories for ρ. Its copula is only as good as
+    the Gaussian shape.
+  - **Own-density log loss** chooses longer memories, and gives a better copula *only* for an
+    estimator whose density beats the Gaussian, which here means Hermite under misspecification.
+- This ties §6.4 (choice of loss) to §6.5 (beyond ρ_S).
+
 ## 8. Reproduction
 
 ```bash
