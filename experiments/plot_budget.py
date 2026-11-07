@@ -13,11 +13,14 @@ R = "experiments/results/"
 OUT = "notes/thesis/figures/"
 INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 import sys
-OWN = len(sys.argv) > 1 and sys.argv[1] == "own"   # `python3 plot_budget.py own`: MPL on the hand-written KLL
+MODE = sys.argv[1] if len(sys.argv) > 1 else "ds"   # ds (thesis) | own (hand-written KLL) | both
+OWN = MODE == "own"
 MPL = "mpl_kll" if OWN else "mpl_dskll"
 COL = {"xiao": "#2a78d6", "hermite": "#eb6834", MPL: "#1baf7a"}
-LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + own KLL (k)", "mpl_dskll": "MPL + KLL sketch (k; Apache DataSketches)"}
-MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^", "mpl_dskll": "^"}
+if MODE == "both":   # same MPL, two sketch implementations
+    COL = {"xiao": "#9ec5f4", "hermite": "#f4b39a", "mpl_kll": "#6250d6", "mpl_dskll": "#1baf7a"}
+LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + hand-written KLL (k)", "mpl_dskll": "MPL + KLL sketch (k; Apache DataSketches)"}
+MK = {"xiao": "o", "hermite": "s", "mpl_kll": "v", "mpl_dskll": "^"}
 BUDGETS = [16, 64, 256]
 
 df = pd.read_csv(R + "budget_sweep.csv")
@@ -66,11 +69,15 @@ def fig_memory(fams, out):
                 ax.set_ylabel(r"test RMSE ($\times10^{-2}$)", fontsize=9, color=MUTED)
             if i == len(fams) - 1:
                 ax.set_xlabel("measured peak state (KiB, log)", fontsize=9, color=MUTED)
-    axes[0, 0].legend(fontsize=8, frameon=False, loc="upper right")
+    if MODE == "both":
+        fig.legend(*axes[0, 0].get_legend_handles_labels(), loc="lower center", ncol=5, fontsize=8.5,
+                   frameon=False, bbox_to_anchor=(0.5, 0.0))
+    else:
+        axes[0, 0].legend(fontsize=8, frameon=False, loc="upper right")
     fig.suptitle("RMSE against memory: each point one approximation setting at its validation-best gain\n"
                  "(100 test seeds, ±2 SE; dotted lines are the 16 / 64 / 256 KiB budgets)",
                  fontsize=11, color=INK, x=0.01, ha="left")
-    fig.tight_layout(rect=(0, 0, 1, 1 - 0.55 / fig.get_figheight()))
+    fig.tight_layout(rect=(0, 0.045 if MODE == "both" else 0, 1, 1 - 0.55 / fig.get_figheight()))
     fig.savefig(OUT + out, dpi=150)
 
 
@@ -124,7 +131,11 @@ def fig_recovery():
     fig.savefig(OUT + "ch6_budget_recovery.png", dpi=150)
 
 
-if OWN:   # comparison figures only; the thesis figures use DataSketches
+if MODE == "both":
+    fig_memory(["gaussian", "clayton"], "ch6_budget_memory_ds_vs_own.png")
+    fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all_ds_vs_own.png")
+    print("wrote", OUT + "ch6_budget_memory{,_all}_ds_vs_own.png")
+elif OWN:   # comparison figures only; the thesis figures use DataSketches
     fig_memory(["gaussian", "clayton"], "ch6_budget_memory_ownkll.png")
     fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all_ownkll.png")
     print("wrote", OUT + "ch6_budget_memory{,_all}_ownkll.png")
