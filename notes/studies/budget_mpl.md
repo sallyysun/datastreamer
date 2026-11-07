@@ -1029,6 +1029,50 @@ All three banks share the same protocol. Only the objective differs.
     estimator whose density beats the Gaussian, which here means Hermite under misspecification.
 - This ties §6.4 (choice of loss) to §6.5 (beyond ρ_S).
 
+## 20. How the optimal effective sample size arises, and whether the bank reaches it (2026-11-07)
+
+**Figure:** `notes/thesis/figures/ch6_neff_optimum.png`, made by `experiments/plot_neff_optimum.py`
+from existing data, with no new runs.
+
+**(a, b) Xiao and Hermite on drift** (`results/memory_sweep.csv`, 40 seeds).
+- The panels show squared bias, variance and MSE against N_eff, with the model σ²/N + (dN/2)².
+  - σ² is the median of var × N along the path: 0.72 for Xiao, 0.81 for Hermite.
+  - d is the rms drift of ρ_S: 2.54×10⁻⁴ per tick.
+- The model tracks the measured MSE across two decades of N_eff.
+- The optimum sits where the two terms cross:
+
+  | | measured N* | predicted (2σ²/d²)^{1/3} |
+  | --- | --- | --- |
+  | Xiao | 277 | 282 |
+  | Hermite | 286 | 294 |
+
+- Hermite's variance bump at N_eff of about 5000 is its known long-memory start-up artefact. It is
+  far from the optimum.
+
+**(c) The MPL log bank: weighted memory Σ w_k N_eff,k over time** (60 seeds,
+`results/bank_weights_paths_drift.csv`).
+- It is compared with the **local** optimum N*(t) = (2σ²(r_t)/d_t²)^{1/3}, which has **no fitted
+  constant**:
+  - σ²(r) is the inverse Fisher information (1 − r²)²/(1 + r²), carried to ρ_S by the delta method
+    (dρ_S/dr = 3/(π√(1 − r²/4))). That is the per-observation variance of the MPL estimate.
+  - d_t is the path's dρ_S/dt.
+- N*(t) rises from about 240 to a peak of about 310 where ρ ≈ 0, where σ² is largest, and falls to
+  about 130 by ρ_S = 0.79.
+- **After start-up the bank tracks the local optimum.** From tick 1000 onwards, the bank's memory
+  ÷ N*(t) has median 1.14 (10th–90th percentile 0.99–1.42).
+  - It is almost exactly on N*(t) through ticks 1700–3500.
+  - It runs about 1.4× above N*(t) at the end, where N* falls fastest. There the bank lags, partly
+    because its arms are a coarse grid (199 and 399 bracket N*).
+- **The first 1000 ticks are start-up.** All arms begin alike, so the weights start near uniform
+  (mean N_eff ≈ 527). The bank also keeps weight on long arms until the evidence separates them.
+- **Caveat:** Σ w N_eff is a weighted average of arm memories, not the effective sample size of the
+  mixture. It is the natural summary of "which memory the bank is using".
+
+**For the thesis.** The optimum memory is not a tuning constant. It is set by σ²/d², and it moves
+when either moves, here through σ²(ρ) along the path. The bank finds and follows it online, with no
+knowledge of σ² or d. Panel (c) is perhaps the clearest single demonstration that adaptive
+weighting does what the theory says it should.
+
 ## 8. Reproduction
 
 ```bash

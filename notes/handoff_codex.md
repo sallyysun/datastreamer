@@ -183,6 +183,15 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
       η ≤ 1/32.
     - `tune_own_table.py` defaults to η = 1 in its held-out section: pass `0.25 0.003`.
 
+17. **The bank reaches the optimal memory** (`budget_mpl.md` §20; figure `ch6_neff_optimum.png`).
+    - **The U-curves** match the model σ²/N + (dN/2)²: the optimum is 277 measured against 282
+      predicted for Xiao, 286 against 294 for Hermite.
+    - **On drift, the MPL log bank's Σ w·N_eff follows the local optimum** N*(t) =
+      (2σ²(r_t)/d_t²)^{1/3}, computed with no fitting from the inverse Fisher information.
+      - After tick 1000 the ratio has median 1.14 (0.99–1.42), and is almost exact through ticks
+        1700–3500.
+      - The bank lags at the end, where N* falls fastest. Before tick 1000 it is still in start-up.
+
 ## 3a. Code map (this session)
 
 | What | Where |
