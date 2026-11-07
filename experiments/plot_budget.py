@@ -12,7 +12,10 @@ warnings.filterwarnings("ignore")
 R = "experiments/results/"
 OUT = "notes/thesis/figures/"
 INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
-COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mpl_dskll": "#1baf7a"}   # MPL on DataSketches KLL only
+import sys
+OWN = len(sys.argv) > 1 and sys.argv[1] == "own"   # `python3 plot_budget.py own`: MPL on the hand-written KLL
+MPL = "mpl_kll" if OWN else "mpl_dskll"
+COL = {"xiao": "#2a78d6", "hermite": "#eb6834", MPL: "#1baf7a"}
 LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL + own KLL (k)", "mpl_dskll": "MPL + KLL sketch (k; Apache DataSketches)"}
 MK = {"xiao": "o", "hermite": "s", "mpl_kll": "^", "mpl_dskll": "^"}
 BUDGETS = [16, 64, 256]
@@ -54,7 +57,7 @@ def fig_memory(fams, out):
                 ax.errorbar(f.peak_bytes / 1024, 100 * f.rmse, yerr=200 * f.se_rmse, color=COL[est],
                             marker=MK[est], ms=4.5, lw=2, capsize=0, label=LAB[est])
             ex = frontier(fam, sc, "mpl_exact")
-            ax.axhline(100 * ex.rmse.iloc[0], color=COL["mpl_dskll"], lw=1.2, ls="--",
+            ax.axhline(100 * ex.rmse.iloc[0], color=COL[MPL], lw=1.2, ls="--",
                        label="MPL, exact PIT (oracle)")
             ax.set_xscale("log")
             ref = frontier(fam, sc, "xiao").rmse.max()
@@ -121,8 +124,13 @@ def fig_recovery():
     fig.savefig(OUT + "ch6_budget_recovery.png", dpi=150)
 
 
-fig_memory(["gaussian", "clayton"], "ch6_budget_memory.png")                       # main text
-fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all.png")    # appendix
-fig_runtime()
-fig_recovery()
-print("wrote", OUT + "ch6_budget_{memory,memory_all,runtime,recovery}.png")
+if OWN:   # comparison figures only; the thesis figures use DataSketches
+    fig_memory(["gaussian", "clayton"], "ch6_budget_memory_ownkll.png")
+    fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all_ownkll.png")
+    print("wrote", OUT + "ch6_budget_memory{,_all}_ownkll.png")
+else:
+    fig_memory(["gaussian", "clayton"], "ch6_budget_memory.png")                       # main text
+    fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all.png")    # appendix
+    fig_runtime()
+    fig_recovery()
+    print("wrote", OUT + "ch6_budget_{memory,memory_all,runtime,recovery}.png")
