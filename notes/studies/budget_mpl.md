@@ -1131,6 +1131,67 @@ figure: `notes/thesis/figures/ch6_gregory_probe.png`.
 
 Treat it as a related-work comparison or a future-work item (a forgetting version), not as a contestant.
 
+## 23. Gregory with exponential forgetting as a forgetting bank (2026-11-08)
+
+**Why.** §22 excluded Gregory because it is cumulative. This section gives it a fair chance: the
+same five memories, the same bank and the same inputs as the other banks.
+
+**Estimator** (`src/estimators/dependence/gregory_copula.hpp`):
+- Forward decay: observation t has weight κ^{−t}, so relative weights are exact exponential
+  forgetting, N_eff = (1+κ)/(1−κ).
+- S₁ and every S₂ⁱ are *weighted* GK summaries. Combine and compress caps are 2εW, where W is the
+  decayed weight, and each sub-summary uses its own mass.
+- Each tuple stores its value's own weight w. Insert uses Δ = g + Δ − w of the right neighbour, and
+  the GK2004 merge uses rmax(succ) − w(succ), which is the weighted form of the paper's "−1".
+  Without w, fresh heavy neighbours give old tuples a Δ they never lose, and memory grew linearly
+  (28k tuples at n = 40k). With w, memory is flat in n.
+- ρ̂_S = 12/W Σ m (R₁/W − ½)(R₂/W − ½), from rank-interval midpoints. That is O(stored tuples) per
+  tick, with no Ĉ grid.
+- Bank `gregory_bank*`: κ ∈ {0.95, …, 0.999} (N_eff 39–1999), ε = 0.02.
+
+**Standalone check** (5000 ticks, Gaussian, jump 0.8 → 0; error measured against the exact
+exponentially weighted ρ_S):
+
+| N_eff | error vs exact | arm memory | time per tick |
+|---|---|---|---|
+| 39 | 0.03 | ~9 KB | ~20 µs |
+| 199 | 0.01 | ~18 KB | ~90 µs |
+| 1999 | 0.003 | ~43 KB | ~145 µs |
+
+Every error is below the sampling error at that N_eff. Bank memory:
+
+| Bank | memory |
+|---|---|
+| Gregory | 123 KB |
+| Xiao | 36 KB |
+| Hermite | 23 KB |
+| MPL | 17 KB |
+
+**Chapter 6 protocol, paired** (`COMPONENTS=gregory,xiao,hermite,mle TAG=gregory ./probe_thesis_bank 60`,
+4 families × 60 seeds, Linux/libstdc++; `python3 experiments/summarise_gregory.py` →
+`results/gregory_bank_summary.txt`). Figures are RMSE×1000, window "whole", G = Gregory.
+
+- **Against Xiao: a tie.** Squared-bank paired differences G − Xiao lie in −0.2 … +1.9 (SE about 0.3).
+  - Gregory is slightly worse in 12 of 16 cells, and the gap is never larger than 2.
+  - At the longest arm (1999) Gregory is slightly *better* (−0.2 … −1.4).
+  - Excess log loss: tied, except Clayton jump, where Gregory is better by 2.5.
+  - Reading: Xiao's 20×20 binning costs almost nothing against a near-exact empirical-copula ρ_S
+    under the same forgetting.
+- **Against Hermite: better**, by 0.1–7 in the squared bank, and most clearly on oscillate (4.7–7.3).
+- **Against MPL: worse** in 12 of 16 cells, by +1–7.
+  - Gregory is better on t oscillate (−13.7), and tied on Gumbel and t constant / t drift.
+  - This is the familiar parametric-efficiency gap, plus MPL's shape misspecification on t.
+- **Jump recovery** (squared bank): within 1–5 of Xiao in every window. Both are clearly behind MPL
+  in ticks 100–500.
+
+**Conclusion.**
+- With forgetting, Gregory becomes an admissible streaming estimator, with bounded memory and
+  O(tuples) work per tick.
+- Statistically it is a slightly more expensive Xiao: same accuracy, 3.5× the memory.
+- It adds no new point on the efficiency–adaptation frontier.
+- It does show that rank-based nonparametric banks are limited by forgetting, not by
+  discretisation.
+
 ## 8. Reproduction
 
 ```bash
