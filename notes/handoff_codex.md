@@ -40,6 +40,94 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
   - **The thesis text must describe the constant-gain arms,** or state how they differ from §4.3.2.
     In steady state they agree (gain = 1 − κ); they differ in coordinate and start-up.
 
+## 0b. The recursive MPL estimator: Sally's specification, and how the code implements it
+
+Sally pasted this design twice ("Final design: Recursive MPL and computational budget experiment",
+then "Final design: Online recursive MPL estimator"). It is the MPL used in every result on this
+branch. Keep it.
+
+**The algorithm (Gaussian working copula):**
+1. **Marginals.** Query the summaries *before* inserting the current pair:
+   Û_n = T_δ(F̂_{X,n−1}(X_n)), V̂_n = T_δ(F̂_{Y,n−1}(Y_n)), with T_δ(x) = min(1−δ, max(δ, x)) and
+   δ = 10⁻³.
+2. **Normal scores.** z₁ = Φ⁻¹(Û_n), z₂ = Φ⁻¹(V̂_n).
+3. **Score.** s_n(r) = r/(1−r²) + [(1+r²)z₁z₂ − r(z₁² + z₂²)]/(1−r²)².
+4. **Fisher information.** I(r) = (1+r²)/(1−r²)².
+5. **Update.** r̂_n = Π_{[−r_max, r_max]}[r̂_{n−1} + λ·I(r̂_{n−1})⁻¹·s_n(r̂_{n−1})], with
+   r_max = 0.999 and λ a constant gain. Start from r̂₀ = 0.
+6. **Output.** ρ̂_{S,n} = (6/π) arcsin(r̂_n/2). The fitted copula is C^Gauss_{r̂_n}.
+7. **Insert** (X_n, Y_n) into the marginal summaries for the next observation.
+
+**Wording Sally wants:** a *recursive score-based approximation to maximum pseudo-likelihood*. It
+does not exactly maximise the (discounted) pseudo-likelihood at each step.
+
+**Two marginal implementations, with the same copula update:**
+
+| | KLL version | Sliding-window version |
+| --- | --- | --- |
+| Used in | matched-budget study | bank studies |
+| Marginal state | two univariate KLL sketches (own, or Apache DataSketches) | the bank's shared rank windows, 500 each |
+| Old data | cumulative summary (assumes stable margins) | dropped after 500 observations |
+| Memory / rank query | O(S) / O(S) linear scan | O(W) / O(log W) query, O(W) update |
+| Copula update | as above, constant gain | as above, plus start-up gain max(λ, 1/m) |
+
+**Complexity:**
+- The copula step is O(1).
+- Total cost is set by the marginals: O(S) for KLL, O(W) for the window.
+- A bank of K MPL arms that share the marginal state costs O(S + K) or O(W + K).
+
+**Experiment design from the same paste** (§3.3 and §3.9 implement it):
+- **Budgets:** 16 / 64 / 256 KiB of *measured* peak state.
+- **Tuning:** the approximation knob (B, N or k) and the gain are validation-tuned per budget.
+- **Gain grid:** λ ∈ {0.005, 0.01, 0.02, 0.05, 0.10}.
+- **Scenarios:** stationary, drift, jump, and misspecification (Clayton, Gumbel, t₄).
+- **Metrics:** RMSE, recovery, and time per tick (mean and p95), with data generation excluded from
+  the timing.
+- **Ablation:** exact PIT as the oracle, a diagnostic and not a streaming contestant.
+- **Seeds:** a pilot of 20, then 100 test seeds with separate validation seeds.
+- **Bank memory:** counted in full, including shared summaries.
+
+**Where it is in the code:** `src/estimators/dependence/recursive_mpl.hpp`, `RecursiveMPL`,
+`Update::ConstantGain`.
+
+| Spec item | Code |
+| --- | --- |
+| KLL margins | `Margin::Kll` (`kll_sketch.hpp`) and `Margin::DsKll` (`ds_margin.hpp`) |
+| Window margins | `Margin::RankWindow` (standalone; (below+1)/(n+2)). In banks: `Margin::ExactNormal` passes through the bank's window rank, z = Φ⁻¹(u) → u = Φ(z) |
+| Exact-PIT oracle | `Margin::ExactNormal` on raw N(0,1) data |
+| δ, r_max, r̂₀ | `delta = 1e-3`, `r_max = 0.999`, `r_ = 0` |
+| Warm-up | `warmup = 30` marginal observations before the copula updates; the harnesses score from t = 500 |
+| Start-up (banks only) | `startup = true`: gain max(λ, 1/m). Agreed after `budget_mpl.md` §12 showed constant gain from the start handicaps the slow arms |
+| Bank keys | `mle_bank*` (registry; gains 0.05 … 0.001, i.e. N_eff 39 … 1999) |
+| Budget-study keys | `mpl_kll`, `mpl_dskll` (and `mpl_exact`, `mpl_window`) in `probe_budget.cpp` |
+
+**Not part of the spec, but present:**
+- `Update::FisherTheta` (the other session's θ-space §4.3.2) and `Update::Exact` (the discounted
+  arg max) are optional modes. No bank uses them.
+- `Update::CopulaFit` reproduces the pre-2026-11-06 recursion.
+- The line-by-line spec-vs-code check, and how the old `CopulaFit` differed, is in `budget_mpl.md`
+  §11.
+
+**Chapter 4 text Sally drafted** (adapt; keep the two marginal implementations explicit):
+
+> We construct an online approximation to maximum pseudo-likelihood estimation by combining online
+> marginal distribution estimation with recursive copula parameter updates. Unlike classical batch
+> MPL, the estimator does not repeatedly maximise the pseudo-likelihood over the complete observation
+> history. Instead, it updates the parameter using the likelihood score of each incoming
+> pseudo-observation. We estimate the two marginal distributions separately using online rank
+> summaries. The resulting pseudo-observations are evaluated under a parametric copula model, and a
+> Fisher-scaled score update adjusts the parameter sequentially. We use a Gaussian working copula for
+> the parametric estimator. Its correlation parameter determines both the fitted copula density and
+> the corresponding estimate of Spearman's rho. The numerical experiments consider two
+> implementations of the marginal estimation stage: univariate KLL sketches in the
+> computational-budget comparison and sliding-window ranks in the estimator-bank experiments.
+
+**Add to that text:**
+- the start-up gain used in the banks;
+- the warm-up;
+- δ = 10⁻³;
+- the window-rank form (below+1)/(n+2).
+
 ## 1. Thesis frame (agreed with Sally)
 
 **Three estimators:**
