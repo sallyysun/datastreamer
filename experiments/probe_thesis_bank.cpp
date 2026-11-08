@@ -50,13 +50,14 @@ struct PitFed {
     RankPit px{500}, py{500};
     void update(double x, double y) {
         const double u = px.transform(x), v = py.transform(y);
-        e->update(RankPit::probit(u), RankPit::probit(v));
+        if (e) e->update(RankPit::probit(u), RankPit::probit(v));
     }
 };
 
 // Every VFF starts at M = 199 ticks (the bank's middle arm) and is clamped to the bank's span
 // where its rule allows it (Xiao); Hermite's clamp is fixed at [0.2, 20] x lambda.
 std::unique_ptr<DependenceEstimator> make_vff(const std::string& c, double rate) {
+    if (c == "gregory") return nullptr;   // no VFF rule for it: its vff rows are NaN
     if (c == "xiao")
         return std::make_unique<XiaoSpearmanEstimator>(
             XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.99, .calibration = 100,
@@ -146,8 +147,8 @@ int main(int argc, char** argv) {
                     rho[K] = sq->estimate();
                     rho[K + 1] = lg->estimate();
                     rho[K + 2] = un->estimate();
-                    rho[K + 3] = vs.e->estimate();
-                    rho[K + 4] = vf.e->estimate();
+                    rho[K + 3] = vs.e ? vs.e->estimate() : NAN;
+                    rho[K + 4] = vf.e ? vf.e->estimate() : NAN;
                     rho[K + 5] = e_s32->estimate();
                     for (std::size_t i = 0; i < M; ++i) {
                         se[i][t] = float((rho[i] - smp.rho_s) * (rho[i] - smp.rho_s));

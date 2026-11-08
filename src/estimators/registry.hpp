@@ -14,6 +14,7 @@
 #include "dependence/family_bank.hpp"
 #include "dependence/tail_chi.hpp"
 #include "dependence/forgetting_bank.hpp"
+#include "dependence/gregory_copula.hpp"
 #include "dependence/gaussian_mle.hpp"
 #include "dependence/hermite_cusum.hpp"
 #include "dependence/hermiter.hpp"
@@ -389,7 +390,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                     base = vs == "xiaocum" ? "xiao" : vs == "hermitecum" ? "hermite" : "mle";
                     with_cum = true;
                 }
-        for (const char* v : {"mlea", "mleold", "mixed"})
+        for (const char* v : {"mlea", "mleold", "mixed", "gregory"})
             for (const char* sfx : {"_bank", "_bank_log", "_bank_own", "_bank_sq32", "_bank_uniform"})
                 if (key == std::string(v) + sfx) base = v;
         if (base) {
@@ -414,6 +415,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                     c.startup = true;
                     models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
                 }
+            } else if (b == "gregory") {
+                // Gregory (2019) empirical-copula summary with exponential forgetting at the Xiao bank's
+                // retentions, eps = 0.02 (budget_mpl.md §23). Not in all_estimator_keys().
+                for (double kappa : {0.95, 0.98, 0.99, 0.995, 0.999})
+                    models.push_back(std::make_unique<GregoryCopula>(GregoryCopula::Config{.kappa = kappa, .eps = 0.02}, "m"));
             } else if (b == "xiao") {
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<XiaoSpearmanEstimator>(
@@ -470,6 +476,7 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 "mlea_bank", "mlea_bank_log", "mlea_bank_own", "mlea_bank_sq32", "mlea_bank_uniform",
                 "mleold_bank", "mleold_bank_log", "mleold_bank_own", "mleold_bank_sq32", "mleold_bank_uniform",
                 "mixed_bank", "mixed_bank_log", "mixed_bank_own", "mixed_bank_sq32", "mixed_bank_uniform",
+                "gregory_bank", "gregory_bank_log", "gregory_bank_own", "gregory_bank_sq32", "gregory_bank_uniform",
                 "xiaocum_bank", "xiaocum_bank_log", "xiaocum_bank_own", "xiaocum_bank_sq32", "xiaocum_bank_uniform",
                 "hermitecum_bank", "hermitecum_bank_log", "hermitecum_bank_own", "hermitecum_bank_sq32",
                 "hermitecum_bank_uniform",
