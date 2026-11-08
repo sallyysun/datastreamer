@@ -1172,7 +1172,7 @@ Every error is below the sampling error at that N_eff. Bank memory:
 `results/gregory_bank_summary.txt`). Figures are RMSE×1000, window "whole", G = Gregory.
 
 - **Against Xiao: a tie.** Squared-bank paired differences G − Xiao lie in −0.2 … +1.9 (SE about 0.3).
-  - Gregory is slightly worse in 12 of 16 cells, and the gap is never larger than 2.
+  - Gregory is slightly worse in 13 of 16 cells, and the gap is never larger than 2.
   - At the longest arm (1999) Gregory is slightly *better* (−0.2 … −1.4).
   - Excess log loss: tied, except Clayton jump, where Gregory is better by 2.5.
   - Reading: Xiao's 20×20 binning costs almost nothing against a near-exact empirical-copula ρ_S
