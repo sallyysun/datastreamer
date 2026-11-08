@@ -301,6 +301,9 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
 - **Bank paths:** `ch6_bank_path_mpl.png` and `ch6_bank_path_compare_{jump,drift}.png` (Sally's
   style).
 - **Bank comparison:** `ch6_bank_compare.png`.
+- **Chapter 4 illustration:** `ch4_quantile_summaries.png` (`plot_quantile_summaries.py`). It shows how
+  Greenwald–Khanna and KLL store a stream and their rank error at about equal memory. The
+  implementations are simplified Python, for the figure only; GK is not implemented in C++.
 - **ISE:** `ch6_ise_estimators.png` (the three estimators; main text); `ch6_ise_paired.png`,
   `ch6_ise_two_metrics.png` and `ch6_ise_levels.png` (family bank; appendix).
 
