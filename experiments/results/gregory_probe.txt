@@ -1,0 +1,25 @@
+== Gaussian copula, rho = 0.6 (rho_S 0.58), n = 5000, 3 seeds ==
+eps   stored(tuples)  max|C_S - C_emp|  bound 5eps  |rho_S(summary) - rho_S(sample)|  sec per 1000 inserts
+0.05             298            0.1420       0.250                           0.6919     0.013
+0.02            1645            0.0581       0.100                           0.3091     0.026
+0.01            5077            0.0279       0.050                           0.1475     0.024
+
+== memory (stored tuples, S1 + all S2) against n, eps = 0.02, one seed ==
+n =   1000: 1042 tuples (24.4 KiB as 3 doubles each)
+n =   2000: 1361 tuples (31.9 KiB as 3 doubles each)
+n =   5000: 1659 tuples (38.9 KiB as 3 doubles each)
+n =  10000: 1642 tuples (38.5 KiB as 3 doubles each)
+n =  20000: 1581 tuples (37.1 KiB as 3 doubles each)
+
+== jump rho 0.2 -> 0.8 at n/2 (rho_S 0.19 -> 0.79), eps = 0.02: rho_S read from the summary ==
+t =  1000: rho_S(summary) = 0.476   truth = 0.19
+t =  2000: rho_S(summary) = 0.489   truth = 0.19
+t =  3000: rho_S(summary) = 0.594   truth = 0.79
+t =  4000: rho_S(summary) = 0.731   truth = 0.79
+t =  5000: rho_S(summary) = 0.808   truth = 0.79
+
+== midpoint queries (our modification): rank-interval midpoints in A.3 and A.4 ==
+eps=0.02 paper    : max|C_S-C_emp| 0.0581  rho_S error +0.309
+eps=0.02 midpoint : max|C_S-C_emp| 0.0182  rho_S error -0.016
+eps=0.01 paper    : max|C_S-C_emp| 0.0279  rho_S error +0.148
+eps=0.01 midpoint : max|C_S-C_emp| 0.0093  rho_S error -0.004

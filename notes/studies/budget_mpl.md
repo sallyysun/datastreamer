@@ -1073,6 +1073,64 @@ when either moves, here through σ²(ρ) along the path. The bank finds and foll
 knowledge of σ² or d. Panel (c) is perhaps the clearest single demonstration that adaptive
 weighting does what the theory says it should.
 
+## 22. Quick probe: Gregory (2019) streaming empirical-copula summary (2026-11-08)
+
+**What it is.** Gregory, "A streaming algorithm for bivariate empirical copulas" (arXiv:1805.05168).
+- **Structure:** a Greenwald–Khanna (GK) summary S₁ of the first coordinate. Each S₁ tuple carries its
+  own GK summary S₂ⁱ of the second coordinates of the points it covers.
+- **Combine:** every ⌊1/(2ε)⌋ inserts, neighbouring S₁ tuples merge while their rank range stays within
+  2εn. Their S₂ summaries merge too (GK 2004 merge).
+- **Query:** Ĉ_S(u₁, u₂) = (n̂₁/n)·F̃_{n̂₁,(2)}(F̃⁻¹_{n,(2)}(u₂)).
+- **Guarantee:** |Ĉ_S − Ĉ_emp| ≤ 5ε.
+- **Worst-case space:** O(ε⁻² log²(εn)).
+- **It summarises the *cumulative* empirical copula. There is no forgetting.**
+
+**Implementation.** `experiments/probe_gregory.py`, Python, written from the paper's Appendix A.
+`experiments/gregory_midpoint_check.py` compares query rules. Output: `results/gregory_probe.txt`;
+figure: `notes/thesis/figures/ch6_gregory_probe.png`.
+- Gaussian copula, ρ = 0.6 (ρ_S = 0.58), n = 5000, 3 seeds.
+- Errors are measured against the exact empirical copula on a 20×20 grid.
+- A first version broke the 5ε guarantee because of two implementation mistakes:
+  1. the quantile query ignored the εn offset in A.3;
+  2. sub-summaries were compressed with 2ε × the global n instead of their own count.
+
+  Both are fixed. The numbers below are from the fixed version.
+
+**Results:**
+
+| ε | stored tuples (S₁ + all S₂) | max \|Ĉ_S − Ĉ_emp\| (bound 5ε) | ρ_S error, paper's queries | ρ_S error, midpoint queries |
+| --- | --- | --- | --- | --- |
+| 0.05 | 298 | 0.142 (0.25) | +0.69 | — |
+| 0.02 | 1645 (≈ 39 KiB at 3 doubles per tuple) | 0.058 (0.10), midpoint 0.018 | +0.31 | **−0.016** |
+| 0.01 | 5077 (≈ 119 KiB) | 0.028 (0.05), midpoint 0.009 | +0.15 | **−0.004** |
+
+- **The guarantee holds, but the paper's queries are biased.**
+  - Ĉ_S is too high at *every* grid point, by about 1.2ε on average.
+  - The cause: A.3 returns the first value whose r_max exceeds r + εn, and A.4 reports r_max. Both err
+    the same way.
+  - Since ρ_S = 12∫C − 3, that becomes a ρ_S bias of about +14ε (+0.31 at ε = 0.02).
+  - **Midpoint queries remove it** (our modification). They use the midpoint of the rank interval
+    (r_min + r_max)/2 in A.3, and (r_min(i) + r_max(i+1) − 1)/2 in A.4. The C error falls about 3×
+    and the ρ_S error to −0.016 (ε = 0.02) and −0.004 (ε = 0.01).
+- **Memory stops growing with n.** At ε = 0.02, 1042 → 1361 → 1659 → 1642 → 1581 tuples for
+  n = 1k → 20k. That matches the paper's remark that practical space is about independent of n.
+  - But it is large compared with this study's estimators:
+    - ε = 0.02 is about 39 KiB, against 5.8 KB for the MPL on DataSketches and 8–12 KB for Xiao.
+    - ε = 0.01 (5077 tuples) stores *more* numbers than the raw 5000 pairs.
+- **No forgetting.** Through the jump (ρ_S 0.19 → 0.79 at n = 2500), its ρ_S moves only towards the
+  running average. In this run it is also biased by the paper's queries.
+  - It cannot track a change. It belongs with the no-forgetting estimators of §14.
+  - A forgetting version would need new algorithmic and error analysis, as the Chapter 5 note on
+    Gregory already says.
+
+**What it would add to the thesis.** It is the one method with a **guaranteed** error bound on the
+*whole* empirical copula, not just on ρ_S. The probe shows three things:
+- the bound is real;
+- the paper's query rule carries a bias that matters a lot for ρ_S, and midpoints fix it;
+- the summary costs several times the memory of our estimators, and it cannot forget.
+
+Treat it as a related-work comparison or a future-work item (a forgetting version), not as a contestant.
+
 ## 8. Reproduction
 
 ```bash

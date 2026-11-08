@@ -280,6 +280,16 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
         1700–3500.
       - The bank lags at the end, where N* falls fastest. Before tick 1000 it is still in start-up.
 
+18. **Gregory (2019) streaming empirical-copula summary: quick Python probe** (`budget_mpl.md` §22;
+    `probe_gregory.py`, `gregory_midpoint_check.py`, figure `ch6_gregory_probe.png`).
+    - **The guarantee |Ĉ_S − Ĉ_emp| ≤ 5ε holds** after two implementation fixes.
+    - **The paper's queries bias Ĉ upwards by about 1.2ε,** giving ρ_S +0.31 at ε = 0.02. Midpoint
+      queries (our modification) cut that to −0.016.
+    - **Memory is flat in n,** about 1600 tuples (about 39 KiB) at ε = 0.02. That is several times
+      the MPL/Xiao state.
+    - **It is cumulative, with no forgetting,** so it can't track a jump. Use it as related work or
+      future work, not as a contestant.
+
 ## 3a. Code map (this session)
 
 | What | Where |
