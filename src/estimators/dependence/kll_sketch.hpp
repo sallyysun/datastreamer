@@ -44,6 +44,8 @@ public:
         return b;
     }
 
+    std::size_t heap_bytes() const { return store_bytes() - sizeof(*this); }
+
     void reset() {
         levels_.assign(1, {});
         n_ = retained_ = 0;

@@ -34,8 +34,12 @@ fastest, and costs least time per tick?
   - r starts at 0, and the copula updates only after 30 marginal observations.
 - **Gain grid:** g ∈ {0.005, 0.01, 0.02, 0.05, 0.10}, used as the per-observation update weight for
   all three. That means retention 1 − g for Xiao and update weight g for Hermite.
-- **Memory** is each object's measured peak `store_bytes()` over the run. KLL state includes level
-  vector capacity. Xiao's state includes its 300-pair calibration buffer.
+- **Memory** is each object's measured peak `store_bytes()` over the run.
+  - **Accounting fixed and rerun on 2026-11-09 (§24).** `store_bytes()` now counts the object
+    plus every heap buffer by capacity, and matches an exact malloc count to within 0–7%. The peak
+    is taken over every tick, so Xiao's 300-pair calibration buffer is included.
+  - Before the fix, the peak was sampled only from tick 500 on, so that buffer was in fact never
+    counted.
 - **Budgets:** 16, 64 and 256 KiB.
   - Within a budget, (knob, gain) is chosen per family × scenario by validation RMSE, and test RMSE
     is reported.
@@ -1160,12 +1164,12 @@ exponentially weighted ρ_S):
 
 Every error is below the sampling error at that N_eff. Bank memory:
 
-| Bank | memory |
+| Bank | memory (after the §24 accounting fix) |
 |---|---|
 | Gregory | 123 KB |
-| Xiao | 36 KB |
-| Hermite | 23 KB |
-| MPL | 17 KB |
+| Xiao | 39 KB |
+| Hermite | 30 KB |
+| MPL | 20 KB |
 
 **Chapter 6 protocol, paired** (`COMPONENTS=gregory,xiao,hermite,mle TAG=gregory ./probe_thesis_bank 60`,
 4 families × 60 seeds, Linux/libstdc++; `python3 experiments/summarise_gregory.py` →
@@ -1187,10 +1191,77 @@ Every error is below the sampling error at that N_eff. Bank memory:
 **Conclusion.**
 - With forgetting, Gregory becomes an admissible streaming estimator, with bounded memory and
   O(tuples) work per tick.
-- Statistically it is a slightly more expensive Xiao: same accuracy, 3.5× the memory.
+- Statistically it is a slightly more expensive Xiao: same accuracy, about 3× the memory.
 - It adds no new point on the efficiency–adaptation frontier.
 - It does show that rank-based nonparametric banks are limited by forgetting, not by
   discretisation.
+
+## 24. Memory accounting fixed, budget sweep rerun (2026-11-09)
+
+**Why.** Measured against an exact malloc count, `store_bytes()` undercounted all three estimators:
+
+| Estimator | before / actual (B) | cause |
+|---|---|---|
+| Hermite N = 43 | 16,240 / 48,352 (×3.0) | `W_` and `A_fast_`, each (N+1)², not counted; `A_fast_` allocated even when unused |
+| Xiao B = 20 | 3,824 / 20,896 (×5.5) | two VFF `RankPit(500)` always constructed (16 KB) even with the VFF off |
+| MPL, own KLL k = 64 | 13,912 / 30,144 (×2.2) | two `RankPit(500)` always constructed (16 KB) for an unused margin |
+
+**Fix.** No estimate changes: a bit-for-bit check over 13 configurations, including Xiao's window
+mode, gave identical estimate paths.
+- **Unused buffers are no longer allocated:**
+  - Xiao's VFF windows have size 1 unless the VFF is on.
+  - Xiao's hard window is a ring buffer, allocated only in window mode; it replaces the `std::deque`,
+    which allocates about 0.6 KB even when empty.
+  - Hermite's `A_fast_` is 0×0 unless the fast surprise is on.
+  - The MPL's rank windows have size 1 unless the margin is `RankWindow`.
+- **`store_bytes()` now counts everything the object holds:**
+  - `sizeof(*this)`;
+  - every heap buffer by capacity, through `RankPit::heap_bytes` and `KllSketch::heap_bytes`;
+  - Hermite's W and z, which `estimate()` needs;
+  - DataSketches through its counting allocator, as before.
+- **Peak is taken over every tick** in `probe_budget` (`peak[c]` before the scoring `continue`).
+- **Check** (exact malloc/free wrapper, 5000 ticks):
+  - Hermite N = 5…128: within 0–6%.
+  - Xiao B = 10…180: within 0–7%.
+  - MPL own KLL k = 16…1024: within 0–3%.
+  - MPL DataSketches k = 16…1024: within 0–6%.
+  - The remainder is malloc's chunk rounding.
+- **What `store_bytes()` still excludes:**
+  - transient working memory inside `update()` / `estimate()`: Hermite's basis vectors and its
+    (N+1)² outer product, and Xiao's rank vectors;
+  - allocator headers.
+
+**New sizes** (`results/budget_timing.csv`, peak bytes):
+
+| Estimator | Sizes |
+|---|---|
+| Xiao B = 10 / 20 / 30 / 65 / 180 | 6.5 / 9.0 / 13.2 / 40.4 / 268 KB (includes the 4.8 KB calibration buffer) |
+| Hermite N = 10 / 20 / 43 / 89 / 128 | 2.7 / 8.1 / 32.6 / 132 / 270 KB (≈ 2(N+1)² doubles) |
+| MPL, own KLL k = 16 / 64 / 256 / 1024 | 5.7 / 14.3 / 37.8 / 82.7 KB |
+| MPL, DataSketches KLL k = 16 / 64 / 256 / 1024 | 1.7 / 2.5 / 6.3 / 18.3 KB |
+| MPL, exact PIT | 0.65 KB (the object itself) |
+| MPL, rank window 500 | 16.6 KB |
+
+**Rerun** (`./probe_budget sweep 100 40`, the same 100 test and 40 validation seeds;
+`results/budget_tables.txt`; figures regenerated; compared with
+`experiments/compare_budget_accounting.py`):
+- **Every configuration's RMSE is unchanged**, because the data and estimates are identical.
+  Only the configurations that fit under each cap move.
+- **Hermite at 16 KiB** now gets N = 15–20 instead of 30–43. Its RMSE rises by +0.07 ×10⁻² on
+  average (at most +0.13).
+- **Hermite at 256 KiB:** 5 of 12 cells move to a smaller N (at most +0.03).
+- **Nothing else moves:**
+  - Xiao: 0/36 cells change, because B = 30 (13.2 KB) still fits at 16 KiB.
+  - Both MPLs: 0/24 cells change.
+- **Headline unchanged:**
+  - DataSketches-MPL has the lowest RMSE of {Xiao, Hermite, MPL} in **9/12 cells at 16, 64 and
+    256 KiB**.
+  - Own-KLL MPL: 7/12 at 16 KiB, and 9/12 at 64 and 256 KiB.
+  - The exceptions are the same cells as before: Clayton jump, t constant and t jump at 16 KiB
+    for DataSketches.
+- **Tables earlier in this note** (§2, §3, §5, §6, §10.1): their RMSE values still hold. Their
+  memory and KB figures and Hermite's 16 KiB cells are superseded by this section and
+  `results/budget_tables.txt`.
 
 ## 8. Reproduction
 

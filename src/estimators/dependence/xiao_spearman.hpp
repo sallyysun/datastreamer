@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -75,6 +74,7 @@ public:
           col_counts_(config.bins, 0.0),
           pit_x_(config.rank_pit_window),
           pit_y_(config.rank_pit_window) {
+        if (config_.window > 0 && !(config_.lambda > 0.0)) ring_.resize(config_.window);
         if (config_.rank_pit_window > 0) {
             use_uniform_cutpoints();
         } else {
@@ -140,7 +140,7 @@ public:
         std::fill(counts_.begin(), counts_.end(), 0.0);
         std::fill(row_counts_.begin(), row_counts_.end(), 0.0);
         std::fill(col_counts_.begin(), col_counts_.end(), 0.0);
-        window_.clear();
+        ring_head_ = ring_n_ = 0;
         total_ = 0.0;
         calibrated_ = false;
         calibration_.clear();
@@ -161,13 +161,14 @@ public:
         }
     }
 
+    // Everything the object holds: itself plus every heap buffer, by capacity (allocation, not use).
     std::size_t store_bytes() const override {
-        return (counts_.size() + row_counts_.size() + col_counts_.size()) * sizeof(double)
-             + (cuts_x_.size() + cuts_y_.size()) * sizeof(double)
-             + window_.size() * sizeof(BinPair)
+        return sizeof(*this)
+             + (counts_.capacity() + row_counts_.capacity() + col_counts_.capacity()) * sizeof(double)
+             + (cuts_x_.capacity() + cuts_y_.capacity()) * sizeof(double)
+             + ring_.capacity() * sizeof(BinPair)
              + calibration_.capacity() * sizeof(std::pair<double, double>)
-             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0)
-             + (config_.vff_rate > 0.0 ? vff_pit_x_.store_bytes() + vff_pit_y_.store_bytes() : 0);
+             + pit_x_.heap_bytes() + pit_y_.heap_bytes() + vff_pit_x_.heap_bytes() + vff_pit_y_.heap_bytes();
     }
 
     const char* name() const override { return name_; }
@@ -338,15 +339,18 @@ private:
         total_ += 1.0;
 
         if (config_.window > 0) {
-            window_.push_back({static_cast<std::uint16_t>(i), static_cast<std::uint16_t>(j)});
-            if (window_.size() > config_.window) {
-                const BinPair old = window_.front();
-                window_.pop_front();
-                counts_[old.i * m + old.j] -= 1.0;
-                row_counts_[old.i] -= 1.0;
-                col_counts_[old.j] -= 1.0;
-                total_ -= 1.0;
+            const BinPair now{static_cast<std::uint16_t>(i), static_cast<std::uint16_t>(j)};
+            if (ring_n_ < config_.window) {
+                ring_[(ring_head_ + ring_n_++) % config_.window] = now;
+                return;
             }
+            const BinPair old = ring_[ring_head_];
+            ring_[ring_head_] = now;
+            ring_head_ = (ring_head_ + 1) % config_.window;
+            counts_[old.i * m + old.j] -= 1.0;
+            row_counts_[old.i] -= 1.0;
+            col_counts_[old.j] -= 1.0;
+            total_ -= 1.0;
         }
     }
 
@@ -360,15 +364,17 @@ private:
     std::vector<double> col_counts_;
     std::vector<double> cuts_x_;
     std::vector<double> cuts_y_;
-    std::deque<BinPair> window_;
+    std::vector<BinPair> ring_;   // hard-window ring buffer, allocated only in window mode
+    std::size_t ring_head_ = 0, ring_n_ = 0;
     std::vector<std::pair<double, double>> calibration_;
 
     // Declared AFTER config_: a RankPit placed before it reads an uninitialised
     // window size (the parametric_copula.hpp bug of 2026-09).
     RankPit pit_x_;
     RankPit pit_y_;
-    RankPit vff_pit_x_{config_.vff_pit_window};
-    RankPit vff_pit_y_{config_.vff_pit_window};
+    // Sized only when the VFF runs: an unused RankPit(500) still reserves 16 KB.
+    RankPit vff_pit_x_{config_.vff_rate > 0.0 ? config_.vff_pit_window : 1};
+    RankPit vff_pit_y_{config_.vff_rate > 0.0 ? config_.vff_pit_window : 1};
 
     static constexpr std::size_t kVffBurnInBlocks = 5;
     double lambda_ = config_.lambda;

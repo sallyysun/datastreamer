@@ -319,8 +319,8 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
 
 ## 3b. Known problems that affect claims
 
-- **Hermite `store_bytes()` undercounts about 3×.** Each instance allocates `W_` and `A_fast_`,
-  which aren't counted. So its budget memory is understated. Unfixed; a thesis-audit call.
+- ~~Hermite `store_bytes()` undercounts about 3×.~~ **Fixed 2026-11-09, for all three estimators,
+  and the budget sweep was rerun** (§3e below, `budget_mpl.md` §24). The headline is unchanged.
 - **The Student-t ρ_S table is a data race under threads.**
   - It corrupted one budget run (rerun with a warm-up in `main`).
   - Unfixed in `src`.
@@ -335,6 +335,66 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
   - the family-bank arms.
 - **Simulation only:** Gaussian margins, N = 5000. KLL's bounded memory on long streams is never
   exercised.
+
+## 3e. Memory accounting fixed and the budget sweep rerun (2026-11-09; `budget_mpl.md` §24)
+
+Sally asked for this. The code is committed locally on `bank-vff-study`.
+
+**What was wrong.** Compared with an exact malloc/free count:
+- Hermite: `W_` and `A_fast_` weren't counted, about 3× under.
+- Xiao: two unused VFF `RankPit(500)` buffers, 16 KB, were always allocated and never counted
+  (5.5× under at B = 20).
+- MPL: two unused `RankPit(500)` buffers, 16 KB, were always allocated and never counted
+  (2.2× under at own-KLL k = 64).
+- `probe_budget` sampled the peak only from tick 500, so Xiao's calibration buffer was never in
+  it, contrary to what the note said.
+
+**What changed:**
+- `xiao_spearman.hpp`: VFF windows have size 1 unless the VFF is on; the hard window is a ring
+  buffer allocated only in window mode; `store_bytes()` = `sizeof(*this)` + all capacities.
+- `hermiter.hpp`: `A_fast_` is 0×0 unless used; `store_bytes()` counts the object, a, A, W, z and
+  the rank windows' heap.
+- `recursive_mpl.hpp`: rank windows have size 1 unless `RankWindow`; `store_bytes()` = object +
+  all sketch and window heap.
+- `marginal_rank_pit.hpp` and `kll_sketch.hpp`: `heap_bytes()` added.
+- `probe_budget.cpp`: peak over every tick.
+- New script: `experiments/compare_budget_accounting.py`.
+
+**Checks:**
+- Estimates are identical bit for bit across 13 configurations.
+- `store_bytes()` is now within 0–7% of exact malloc for every estimator and size.
+- Excluded: transient working memory inside `update()` / `estimate()`, and allocator headers.
+
+**Rerun:** the same seeds, 100 test (42–141) and 40 validation (1000–1039).
+- Every configuration's RMSE is unchanged. Only which configuration fits under a cap moves.
+- **Hermite at 16 KiB** drops to N = 15–20 (+0.07 ×10⁻² mean, at most +0.13). Five 256 KiB
+  Hermite cells move by at most +0.03.
+- **Xiao and both MPLs: no cell changes.**
+- **The headline holds:** DataSketches-MPL has the lowest RMSE in 9/12 cells at each of 16, 64
+  and 256 KiB. Own-KLL MPL: 7/12 at 16 KiB, 9/12 at 64 and 256 KiB.
+- **Figures regenerated:** `ch6_budget_*.png`, the runtime figure from the new
+  `results/budget_timing.csv`, and `results/budget_tables.txt`.
+
+**New sizes:**
+
+| Estimator | Sizes |
+|---|---|
+| Xiao B = 20 / 30 | 9.0 / 13.2 KB |
+| Hermite N = 20 / 43 | 8.1 / 32.6 KB |
+| MPL, own KLL k = 64 / 256 | 14.3 / 37.8 KB |
+| MPL, DataSketches k = 256 / 1024 | 6.3 / 18.3 KB |
+
+**Banks:**
+
+| Bank | Bytes |
+|---|---|
+| Xiao | 39 KB |
+| Hermite | 30 KB |
+| MPL | 20 KB |
+| Gregory | 123 KB |
+
+**For the thesis:** describe the budgets as caps on measured retained state: the object plus heap
+by capacity, peak over the run. Transient working memory is excluded.
 
 ## 3c. To do (ask Sally first; rough priority)
 
@@ -576,8 +636,7 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
 
 ### 0.3 Known problems that affect claims
 
-- **The Hermite `store_bytes()` undercounts about 3×** (W_ and A_fast_ are not counted), so its
-  budget-study memory is understated. Not fixed: a thesis-audit decision.
+- ~~The Hermite `store_bytes()` undercounts about 3×.~~ Fixed 2026-11-09 (§3e, `budget_mpl.md` §24).
 - **The Student-t ρ_S table is a data race under threads.**
   - It corrupted one budget run, which was rerun with a warm-up.
   - The source is unfixed, and a task is queued.
@@ -1038,9 +1097,7 @@ are still to be regenerated from the (b) arms. That is waiting on Sally before a
   - `probe_budget` warms the table in `main`.
   - **The source is not fixed.** A task is queued.
   - `tail_validate.cpp` (std::async) may be affected.
-- **Hermite's `store_bytes()` undercounts about 3×.**
-  - Each instance allocates A_, W_ and A_fast_ (always), but only D² is counted.
-  - Fixing it changes every registered Hermite key's bytes, so it is a thesis-audit decision.
+- ~~Hermite's `store_bytes()` undercounts about 3×.~~ Fixed 2026-11-09 (§3e).
 - **Timing files.**
   - `results/budget_timing.csv` feeds §6 and the runtime figure.
   - `budget_timing_ds.csv` was from a noisier machine.

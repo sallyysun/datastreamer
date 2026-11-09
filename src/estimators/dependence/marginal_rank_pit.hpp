@@ -52,6 +52,9 @@ public:
         return sizeof(*this) + (sorted_.capacity() + fifo_.capacity()) * sizeof(double);
     }
 
+    // Heap held, for an owner that counts its own object with sizeof.
+    std::size_t heap_bytes() const { return (sorted_.capacity() + fifo_.capacity()) * sizeof(double); }
+
     std::size_t size() const { return sorted_.size(); }
 
     // Acklam's rational approximation to the standard normal quantile; absolute

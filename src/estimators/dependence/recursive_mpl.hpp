@@ -46,7 +46,8 @@ public:
 
     RecursiveMPL(Config c, const char* name)
         : c_(c), name_(name), kx_(c.kll_k, 2 * c.seed + 1), ky_(c.kll_k, 2 * c.seed + 2),
-          px_(c.window), py_(c.window),
+          px_(c.margin == Margin::RankWindow ? c.window : 1),   // an unused RankPit(500) reserves 16 KB
+          py_(c.margin == Margin::RankWindow ? c.window : 1),
           fit_(copula::Family::Gaussian, 4.0, 1.0 - c.gain, 0.0, true) {
         if (c_.margin == Margin::DsKll) make_ds();
     }
@@ -108,18 +109,14 @@ public:
         if (c_.margin == Margin::DsKll) make_ds();
     }
 
-    // Marginal state plus r (or CopulaFit's phi and information); the unused margin is not counted.
+    // Everything the object holds: itself (every update mode's scalars, both sketch objects, the rank
+    // windows), plus the heap of whichever margin is in use (the others hold almost none).
     std::size_t store_bytes() const override {
-        const std::size_t words = c_.update == Update::Exact ? 4 : (c_.update == Update::ConstantGain ? 1 : 2);
-        const std::size_t core = words * sizeof(double) + sizeof(c_);
-        switch (c_.margin) {
-            case Margin::Kll:        return core + kx_.store_bytes() + ky_.store_bytes();
+        std::size_t b = sizeof(*this) + kx_.heap_bytes() + ky_.heap_bytes() + px_.heap_bytes() + py_.heap_bytes();
 #ifdef RECURSIVE_MPL_HAS_DS
-            case Margin::DsKll:      return core + dx_->store_bytes() + dy_->store_bytes();
+        if (dx_) b += dx_->store_bytes() + dy_->store_bytes();
 #endif
-            case Margin::RankWindow: return core + px_.store_bytes() + py_.store_bytes();
-            default:                 return core;
-        }
+        return b;
     }
 
     const char* name() const override { return name_; }

@@ -135,12 +135,12 @@ void run_split(const std::string& family, const std::string& scenario, unsigned 
                     std::size_t ne = 0, np = 0;
                     for (std::size_t t = 0; t < kN; ++t) {
                         e->update(d.x[t], d.y[t]);
+                        peak[c] = std::max(peak[c], e->store_bytes());   // every tick, start-up included
                         if (t < kBurn || (t - kBurn) % kEvery != 0) continue;
                         const double r = e->estimate(), err = r - d.truth[t];
                         se += err * err; ++ne;
                         if (t >= kJump && t < kJump + kPost) { sp += err * err; ++np; }
                         path[c][(t - kBurn) / kEvery] += r;
-                        peak[c] = std::max(peak[c], e->store_bytes());
                     }
                     acc[c].rmse[s] = std::sqrt(se / ne);
                     acc[c].post[s] = std::sqrt(sp / np);

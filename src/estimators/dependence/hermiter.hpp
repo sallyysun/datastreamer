@@ -90,7 +90,8 @@ public:
         ax_(Eigen::VectorXd::Zero(config.order + 1)),
         ay_(Eigen::VectorXd::Zero(config.order + 1)),
         A_(Eigen::MatrixXd::Zero(config.order + 1, config.order + 1)),
-        A_fast_(Eigen::MatrixXd::Zero(config.order + 1, config.order + 1)),
+        A_fast_(config.surprise_fast_rate > 0.0 ? Eigen::MatrixXd::Zero(config.order + 1, config.order + 1)
+                                                : Eigen::MatrixXd()),
         W_(integral_matrix(config.order)),
         z_(basis_integrals(config.order)) {}
     
@@ -244,10 +245,13 @@ public:
         return std::clamp(tau, -1.0, 1.0);
     }
 
+    // Everything the object holds: itself, the coefficients a_x, a_y, A (and A_fast), and the fixed
+    // coupling matrix W and integrals z that estimate() needs, plus the rank windows' heap.
     std::size_t store_bytes() const override {
-        const std::size_t dim = static_cast<std::size_t>(config_.order + 1);
-        return (2 * dim + dim * dim * (config_.surprise_fast_rate > 0.0 ? 2 : 1) + 6) * sizeof(double)
-             + (config_.rank_pit_window > 0 ? pit_x_.store_bytes() + pit_y_.store_bytes() : 0);
+        const auto n = [](const auto& m) { return static_cast<std::size_t>(m.size()); };
+        return sizeof(*this)
+             + (n(ax_) + n(ay_) + n(z_) + n(A_) + n(A_fast_) + n(W_)) * sizeof(double)
+             + pit_x_.heap_bytes() + pit_y_.heap_bytes();
     }
 
     const char* name() const override {
