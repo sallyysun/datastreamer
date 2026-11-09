@@ -1,11 +1,13 @@
-# Handover for Codex: branch `bank-vff-study` (2026-11-06)
+# Handover for Codex: branch `bank-vff-study` (2026-11-06, updated 2026-11-09)
 
 Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sallyysun/datastreamer`).
 
-- **State:** commit `cbfe2bc`, **27 commits ahead of `origin/bank-vff-study`, not pushed.**
+- **State (2026-11-09):** 10 commits ahead of `origin/bank-vff-study`, not pushed. The latest
+  work is §3e (memory accounting) and §3f (Chapter 6 writing support, Gregory with forgetting,
+  and the pending marginal-window decision).
 - **Read `CLAUDE.md` first:** layout, estimator contract, λ conventions, platform rules.
 - **Detailed tables:** §3 below (the appendix). Every number has a note in `notes/studies/`;
-  `budget_mpl.md` §1–§17 holds this session's work.
+  `budget_mpl.md` §1–§24 holds this session's work.
 
 ## Ground rules from the author (Sally)
 
@@ -172,10 +174,13 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
    - The MPL is best for ρ_S in 9 of 12 cells at 16 KiB. Xiao wins Clayton jump; the t₄ gaps are
      noise.
    - Memory stops mattering for all three. Xiao and Hermite plateau by about 8–16 KiB; the MPL
-     reaches exact-PIT accuracy at 5.8–10 KB.
-3. **The MPL's memory is all marginal state.** The copula part is 72 bytes. With my own KLL it was
-   37.5 KB; with DataSketches it is 5.8 KB at equal accuracy. "Smaller than Xiao" holds only with a
-   tight sketch.
+     reaches exact-PIT accuracy at 6.3–10.6 KB.
+   - Unchanged by the 2026-11-09 accounting fix (§3e): still 9/12 at 16, 64 and 256 KiB.
+3. **The MPL's memory is all marginal state.**
+   - The copula state is one double. Under the §3e accounting the whole object, which carries every
+     mode's fields, is 0.65 KB.
+   - With my own KLL it is 37.8 KB at k = 256; with DataSketches, 6.3 KB at equal accuracy.
+   - "Smaller than Xiao" holds only with a tight sketch.
 4. **Time:** every chosen configuration is under 2.5 µs per tick. Xiao is Θ(B²), Hermite Θ(N²), and
    the MPL O(k + log(n/k)).
 5. **Banks** (regenerated Chapter 6 results; log bank η = 1, δ = 3·10⁻⁴; 60 seeds × 4 families × 3
@@ -287,8 +292,9 @@ does not exactly maximise the (discounted) pseudo-likelihood at each step.
       queries (our modification) cut that to −0.016.
     - **Memory is flat in n,** about 1600 tuples (about 39 KiB) at ε = 0.02. That is several times
       the MPL/Xiao state.
-    - **It is cumulative, with no forgetting,** so it can't track a jump. Use it as related work or
-      future work, not as a contestant.
+    - **It is cumulative, with no forgetting,** so it can't track a jump.
+    - **Superseded by §3f.1:** a C++ version with exponential forgetting now exists, run as a
+      five-arm bank. It ties Xiao at about 3× the memory.
 
 ## 3a. Code map (this session)
 
@@ -396,12 +402,237 @@ Sally asked for this. The code is committed locally on `bank-vff-study`.
 **For the thesis:** describe the budgets as caps on measured retained state: the object plus heap
 by capacity, peak over the run. Transient working memory is excluded.
 
+## 3f. Chapter 6 writing support, Gregory with forgetting, and pending decisions (2026-11-08/09)
+
+Everything here is either committed locally or is advice given to Sally in chat. Nothing is pushed.
+
+### 3f.1 Gregory (2019) with exponential forgetting, as a forgetting bank (`budget_mpl.md` §23)
+
+**Code:**
+- `src/estimators/dependence/gregory_copula.hpp`: weighted GK summaries with forward decay, where
+  observation t has weight κ^{−t}.
+- Each tuple stores its value's own weight, the weighted form of the paper's "−1". Without it,
+  memory grew linearly.
+- The estimate is computed from rank-interval midpoints.
+- Registered as `gregory_bank*`: five arms at κ = 0.95…0.999, ε = 0.02. Not in
+  `all_estimator_keys()`.
+
+**Run:**
+- `COMPONENTS=gregory,xiao,hermite,mle TAG=gregory ./probe_thesis_bank 60`, 4 families, paired.
+- `experiments/summarise_gregory.py` → `results/gregory_bank_summary.txt` (force-added).
+
+**Results:**
+- **Ties Xiao:** squared-bank paired difference −0.2 to +1.9 RMSE×1000. Gregory is slightly worse
+  in 13 of 16 cells and slightly better at the longest arm.
+- **Beats Hermite** by 0.1–7.
+- **Behind MPL** by 1–7 in 12 of 16 cells; ahead on t oscillate (−13.7).
+- **Memory:** about 3× Xiao's (bank 123 KB against 39 KB).
+- **Standalone error** against the exact exponentially weighted ρ_S: 0.003–0.035, below sampling
+  error.
+
+**Use in the thesis:** a remark or appendix. It shows that rank-based banks are limited by
+forgetting, not by binning. Sally's §4.2.1 says the forgetting extension "would require further
+investigation"; that sentence should be updated.
+
+### 3f.2 Advice on the Chapter 6 structure
+
+Sally proposed eight sections: design, estimator comparison, forgetting, banks, loss, tails,
+AAPL/GOOG, summary. Agreed, with these points:
+- **6.4 / 6.5 order:** 6.4 quotes log-bank results before 6.5 introduces log loss. Introduce both
+  losses in 6.4, and keep 6.5 for why they differ and for regret.
+- **Oscillate is missing** from her scenario list, but it is in every bank run.
+- **Bridge 6.3 → 6.4** with `ch6_neff_optimum.png` (c): the bank's Σw·N_eff against N*(t).
+- **Predicted M\*** uses estimator-specific σ², whereas her bound uses σ² = ¼.
+- **Qualify "MPL is competitive under misspecification":** it is weakest on t.
+- **State the protocol differences** between the budget and bank studies, and that the comparisons
+  are paired.
+- **Placement:** Gregory and the mixed bank in an appendix; the batch MPL comparison in 6.2.
+- **Define the three notions of memory** (KiB, N_eff, bank weights) once, at the end of 6.1.
+
+### 3f.3 Checks of her §6.1 draft text against the code
+
+**Generator** (`synthetic_source.cpp`):
+- Correct for the live server: P₀ = 100, m = 10⁻⁴, σ = 0.01, r = m + σZ, P ← P·e^r.
+- **The offline harness emits Z directly** (`copula_source.hpp`): no prices, no m, no σ. This is
+  harmless, because the transform is monotone, but the text must say so.
+- "GBM" holds marginally only.
+- Live runs are seeded by `random_device`; offline runs use seeds 42 onwards.
+
+**Scenario table** (from `probe_thesis_bank.cpp::make_dep`; ρ is the Gaussian-equivalent knob):
+
+| Scenario | ρ_n | ρ_S |
+|---|---|---|
+| constant | 0.6 | 0.582 |
+| drift | −0.5 → 0.8, linear over N = 5000 | −0.483 → 0.786 |
+| jump | 0.2 → 0.8 at n = 2500 | 0.191 → 0.786 |
+| oscillate | 0.6·sin(2πn/400) | — |
+
+- Her draft had the drift and jump values wrong.
+- The live server differs: drift runs over 1500 steps and the jump is at step 1000.
+- The budget study has no oscillate scenario.
+
+**Evaluation-measures text:**
+- RMSE: the budget study scores every 5th step; the reported value is the mean over seeds of
+  per-seed RMSE.
+- **The reported log metric is *excess* log loss ×1000**, at the *true* PIT, against the true
+  density, using the Gaussian method-of-moments density at ρ̂. It is not log ĉ(Û, V̂). (Û, V̂) are
+  used only inside the bank.
+- Memory is `store_bytes()`, not "physical memory".
+- Time is update + estimate on one thread, and is measured in the budget study only.
+- Tail thresholds q = 0.05 and 0.10 are correct.
+- Tuning seeds are disjoint from evaluation seeds; bank differences are paired; budget SEs are
+  unpaired.
+
+### 3f.4 Answers for §6.1.3 (implementations, device, marginals, memory, timing, seeds)
+
+**Origins:**
+- Xiao is a C++ port of `onlineNPCORR`.
+- Hermite is a C++ port of `hermiter` (bivariate Spearman path only). Neither submodule is checked
+  out in the cloud clone, so the parity claims rest on code comments.
+- RMPL and the custom KLL are written from scratch.
+- DataSketches KLL is the Apache library (submodule `c2f89d7`, 5.4 line), with float values and a
+  linear-scan cdf.
+
+**Departures from the papers:**
+- Xiao: frozen calibrated cut-points, exponential forgetting (Θ(B²) per update), VFF, rank-PIT
+  option, densities.
+- Hermite: see §3f.5.
+- RMPL: ranks taken before insert, δ clip, 30-observation warm-up, projection, optional start-up
+  gain.
+
+**Live device versus experiments:**
+- `src/consumer/device_state.hpp` runs four fixed estimators (`xiao`, `xiao_ew`, `hermite`,
+  `hermite_ew`) on raw log returns. No bank, RMPL, KLL or prediction runs live.
+- The experiments call the same estimator classes from offline harnesses (`probe_budget`,
+  `probe_thesis_bank`) on generated normal scores.
+
+**Marginals:**
+
+| Study | Xiao | Hermite | RMPL |
+|---|---|---|---|
+| Budget | Own cut-points, frozen after 300 observations | Own exponentially weighted standardisation | Custom KLL (`mpl_kll`) or DataSketches (`mpl_dskll`, the thesis figure) |
+| Bank | Shared 500-window ranks → probit, then cut-points recalibrated on the first 100 | Shared ranks → probit, then standardised again | Shared ranks, passed back through `ExactNormal` |
+
+- No bank run uses KLL.
+- The MPL VFF comparator is still `ParametricCopulaMLE`.
+
+**Memory and timing:**
+- Budgets are caps on peak `store_bytes()`, used to filter configurations by validation RMSE; they
+  are not run-time limits.
+- Accounting is described in §3e.
+- Timing is `probe_budget time`: Gaussian drift, gain 0.02, seeds 42–46, steady_clock around
+  update and estimate. It covers neither the banks nor prediction.
+
+**Seeds:**
+- Budget: test 42–141, validation 1000–1039.
+- Banks: evaluation 42–101, tuning 1–30.
+- Streams are identical across estimators within a seed.
+- `normal_distribution` differs between libstdc++ and libc++.
+- DataSketches coins are reseeded per MPL.
+- The t-table race in `copula_family.hpp` is still open.
+
+### 3f.5 Hermite verification (`hermiter.hpp`; read-only)
+
+**Warm-up:**
+- No calibration sample.
+- Observation 1 only seeds the moments (mean X₁, variance 1, :281–286). The coefficients start at
+  observation 2 (:101).
+- `burn_in` holds the *output* at 0 while n ≤ burn_in (:197): 100 in the budget study (Config
+  default), 50 in the bank (`registry.hpp:431`). This is configuration, not statistics, and is
+  separate from the 500-step evaluation burn-in.
+- In the bank, arms are scored from observation 31, so Hermite arms predict 0 for observations
+  31–50.
+
+**Start-up:**
+- w = max(λ, 1/m), where m counts coefficient updates (:118–120). On by default (:49) in both
+  studies.
+- Fixed weight from m > 1/λ: after 20, 100, 200 or 1000 updates for λ = 0.05, 0.01, 0.005, 0.001.
+- The moments get no start-up rule.
+
+**Each observation:**
+- EW mean and variance at rate λ, *before* standardising x. The current observation enters its own
+  standardisation.
+- Then h(s_x), h(s_y).
+- Then a_X, a_Y, A updated with weight w (:126–135).
+- A surprise statistic (diagnostic) and the VFF, if on.
+- ρ̂ = 12(u − z/2)ᵀA(v − z/2) with u = W a_X (:204–211).
+
+**Departures from Ch. 5.1.2:**
+- λ is the update weight (mirror image of the thesis's λ).
+- Running-mean start-up phase.
+- Initialisation is shifted by one observation.
+- **Online standardisation isn't in the thesis.** The mean is seeded at X₁ with no start-up rule:
+  at λ = 0.001 it still carries weight 0.999^500 ≈ 0.61 on X₁ at n = 500, a location error for the
+  long arms.
+- Output hold at 0.
+- The cumulative mode divides n − 1 terms by n.
+- Variance seeded at 1 is right for the experiments' N(0,1) inputs, but wrong for live returns
+  (sd ≈ 0.01).
+
+**Budget versus bank:**
+
+| | Budget | Bank |
+|---|---|---|
+| N | 5–128 | 10 |
+| λ (update weight) | 0.005–0.10 | 0.05–0.001 |
+| `burn_in` | 100 | 50 |
+| Inputs | Raw N(0,1) scores | Probit of window ranks |
+
+**Suggested 6.1.3 sentences** (given to Sally):
+> The Hermite estimator requires no calibration sample: the first observation initialises
+> exponentially weighted estimates of each marginal mean and variance, and each subsequent
+> observation is standardised by these before the Hermite functions are evaluated. It retains
+> $\hat a_X,\hat a_Y\in\mathbb R^{N+1}$, $\hat A\in\mathbb R^{(N+1)\times(N+1)}$, the fixed integral
+> matrix used to compute $\hat\rho_S$, and the four moment estimates. Each observation updates
+> them with weight $w_n=\max(1-\lambda,1/n)$, an equal-weight running average until
+> $n=1/(1-\lambda)$ and the exponentially weighted update of Section 5.1.2 thereafter; $\hat\rho_S$
+> is reported as zero until 50 (bank) or 100 (budget) observations have been absorbed.
+
+### 3f.6 PENDING: replace the bank's 500-window marginals (awaiting Sally's "go ahead")
+
+**Her request:** remove the `RankPit(500)` sliding window from the bank and adaptation experiments
+and use recursive exponentially weighted marginals, queried before the update. Make all arms and the
+VFF comparators share one protocol, then rerun. Her message was cut off at "4. Verify and reru".
+**Nothing is implemented.** A later message said not to modify code, so I paused.
+
+**Where the window is used:**
+- `ForgettingBank` (`forgetting_bank.hpp:34, 54–55`);
+- `PitFed` in `probe_thesis_bank.cpp:48–56`;
+- Xiao's internal VFF window (`xiao_spearman.hpp:280–281`);
+- `ParametricCopulaMLE`'s rank-PIT option;
+- about 12 probes: tune, regret, ISE, tails, family bank, noforget, memory_tradeoff, rank_score.
+
+**Analysis given to her:**
+- Xiao and Hermite already forget their *marginals* at the arm's λ: Xiao through its EW row and
+  column totals (§5.1.1), Hermite through its EW a_X (§5.1.2).
+- The bank's shared transform is extra, and it is RMPL's only marginal information.
+- **Matching marginal forgetting to each arm's λ is not recommended:**
+  - the EW ECDF has variance F(1−F)/N_eff, so the 39-observation arm's Û would have sd up to about
+    0.08;
+  - that acts as errors-in-variables, attenuating ρ̂ and adding variance;
+  - the bank would choose memory partly for marginal reasons;
+  - each arm's loss would have a different argument, which breaks §5.3.1's comparability;
+  - the simulated margins are stationary, so marginal forgetting only costs.
+
+**Proposal:**
+- One shared EW ECDF, F̂_n = λ_m F̂_{n−1} + (1−λ_m)·1{X_n ≤ ·}: §5.1's recursion on indicators.
+- Stored as a forward-decay weighted GK summary, reusing the §3f.1 machinery.
+- Queried before the insert: Û = (B_{n−1}(X_n) + w)/(W_{n−1} + 2w), which reduces to R/(n+2)
+  without forgetting.
+- **N_eff,m = 500** by default, which matches the variance of the window it replaces. Sensitivity
+  run at N_eff,m = 1999.
+- Arm recursions, scoring order, η and δ unchanged.
+- The VFF comparators and Xiao's internal VFF window switch too.
+- Rerun `probe_thesis_bank` first, then tuning and regret.
+- Regret bounds remain valid, conditional on the shared (Û, V̂).
+
 ## 3c. To do (ask Sally first; rough priority)
 
+0. **Waiting on Sally:** the go-ahead for §3f.6 (the bank's marginals), and "push".
 1. ~~Density ISE for the three estimators~~ **done** (`probe_ise`, §18). Still open: per-seed
    output for the *budget* study (paired CIs, bias/variance split), and ISE *at matched memory
    budgets*.
-2. **Hermite `store_bytes()` fix**, then re-plot the budget figures.
+2. ~~Hermite `store_bytes()` fix, then re-plot the budget figures.~~ **Done 2026-11-09** (§3e).
 3. **Update `chapter6_draft.tex`** from the regenerated `chapter6_results.md` and this session's
    results. Use the five-section order; move the family-bank ISE figures to an appendix.
 4. **Regenerate the own-density section's MPL numbers** (needs `probe_bank_tune` on seeds 1–30 and
@@ -652,7 +883,7 @@ The spec and the old MPL agree in steady state (λ = 1 − λ_ret). They differ 
 1. Update `chapter6_draft.tex` MPL-bank numbers from the regenerated `chapter6_results.md`.
 2. Regenerate the own-density section's MPL numbers (needs `probe_bank_tune` on seeds 1–30 and the
    shape files).
-3. The Hermite `store_bytes()` fix.
+3. ~~The Hermite `store_bytes()` fix.~~ Done (§3e).
 4. Density ISE in `probe_budget` (normal-score scale), with per-seed output: this also gives the
    paired CIs and the bias/variance split.
 5. Tail mixture at more mixing levels (0.6 → 0.4, 0.9 → 0.1); optionally a mixture arm.
@@ -812,6 +1043,11 @@ is not equal statistical memory, so the validation-tuned table above is the fair
 
 | Estimator | Settings | Peak state | Mean time | p95 |
 | --- | --- | --- | --- | --- |
+> **Peak-state column superseded (2026-11-09, §3e).** The new values are Xiao 9.0 / 13.2 / 40.4 /
+> 268 KB, Hermite 8.1 / 32.6 / 132 / 270 KB, own KLL 14.3 / 37.8 / 58.1 / 82.7 KB, exact PIT
+> 0.65 KB and window 16.6 KB. Times are from the old file; the new
+> `results/budget_timing.csv` has the same ordering.
+
 | Xiao | B = 20 / 30 / 65 / 180 | 8.3 / 12.5 / 39.6 / 267 KB | 0.45 / 0.86 / 4.2 / 49 µs | 0.47 / 1.0 / 4.7 / 65 µs |
 | Hermite | N = 20 / 43 / 89 / 128 | 3.9 / 16.2 / 66 / 135 KB (counted) | 1.0 / 2.7 / 10.6 / 21 µs | — |
 | MPL + own KLL | k = 64 / 256 / 512 / 1024 | 13.9 / 37.5 / 57.8 / 82 KB | 0.61 / 0.98 / 1.35 / 1.9 µs | 1.0 / 1.0 / 1.6 / 2.5 µs |
@@ -905,7 +1141,7 @@ These are the existing numbers. The **MPL rows used the OLD arms** and are stale
   | --- | --- | --- |
   | MPL | 18.7 KB | 1.6–2.0 µs |
   | Xiao | 35.7 KB | 6–7 µs |
-  | Hermite | 22.5 KB (undercounted) | 5.1–5.7 µs |
+  | Hermite | 22.5 KB (undercounted; 30 KB after §3e) | 5.1–5.7 µs |
 
 - **The MPL's variable-forgetting rule is broken**: 81–102 on drift.
 - **New arms, 5-seed smoke test** (Gaussian jump, new against old): log bank .0605 vs .0570;
@@ -1147,7 +1383,7 @@ are still to be regenerated from the (b) arms. That is waiting on Sally before a
 1. **Density ISE in `probe_budget`:** normal-score scale, checkpoints every 50 ticks, per-seed
    output. That would also give the paired CIs and the bias/variance split.
 2. **Thread-safety fix** for the t table in `src/estimators/copula_family.hpp`.
-3. **Hermite `store_bytes()` honesty fix.**
+3. ~~Hermite `store_bytes()` honesty fix.~~ Done (§3e).
 4. **An MPL bank on DataSketches KLL** inside the budget comparison: state O(S + K).
 5. **Chapter 6 rewrite** around the five-section order. Move the family-bank ISE figures to an
    appendix.
