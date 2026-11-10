@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "gauss_floor.hpp"
 #include "scenarios.hpp"
 
 namespace {
@@ -66,14 +68,14 @@ std::vector<Win> windows(const std::string& s) {
 
 // EW ratio estimator of chi(q): joint corner events over marginal corner events, both discounted.
 struct Ratio {
-    double lam, jl = 0, kl = 0, ju = 0, ku = 0;
+    double lam, q = kQ, jl = 0, kl = 0, ju = 0, ku = 0;
     double chi_L() const { return kl > 0 ? jl / kl : 0.0; }
     double chi_U() const { return ku > 0 ? ju / ku : 0.0; }
     void update(double u, double v) {
-        jl = lam * jl + (u <= kQ && v <= kQ);
-        kl = lam * kl + (u <= kQ);
-        ju = lam * ju + (u > 1 - kQ && v > 1 - kQ);
-        ku = lam * ku + (u > 1 - kQ);
+        jl = lam * jl + (u <= q && v <= q);
+        kl = lam * kl + (u <= q);
+        ju = lam * ju + (u > 1 - q && v > 1 - q);
+        ku = lam * ku + (u > 1 - q);
     }
 };
 
@@ -85,11 +87,25 @@ int main(int argc, char** argv) {
     const int seeds = std::atoi(argv[2]);
     const char* env = std::getenv("COPULA");
     const std::string cop_name = env ? env : "gaussian";
-    const bool shape = cop_name == "gauss2t" || cop_name == "clayton2gumbel" || cop_name == "gauss2clayton";
-    const copula::Shape S0 = cop_name == "gauss2t" || cop_name == "gauss2clayton" ? copula::Shape::Gaussian
-                           : cop_name == "clayton2gumbel" ? copula::Shape::Clayton : shape_of(cop_name);
-    const copula::Shape S1 = cop_name == "gauss2t" ? copula::Shape::StudentT
-                           : cop_name == "clayton2gumbel" ? copula::Shape::Gumbel
+    // gauss2t3 / gauss2t8: Gaussian -> t with nu = 3 or 8 in the DGP and the truth, while the family bank's t
+    // arms keep nu = 4 (misspecified tail heaviness).
+    const bool tnu = cop_name == "gauss2t3" || cop_name == "gauss2t8";
+    const double nu_true = cop_name == "gauss2t3" ? 3.0 : cop_name == "gauss2t8" ? 8.0 : kNu;
+    // claygum_mix: Clayton-Gumbel mixture, pi(Clayton) 0.75 -> 0.25 at tick 2500, both components at the rho_S of
+    // d = 0.6, so rho_S is constant and the truth lies outside the family bank.
+    const bool mix = cop_name == "claygum_mix";
+    const double kPi0 = 0.75, kPi1 = 0.25, kQ2 = 0.10;
+    const bool shape = cop_name == "gauss2t" || cop_name == "clayton2gumbel" || cop_name == "gauss2clayton" || tnu || mix;
+    // DENSITY_AUDIT=1 adds, on the same streams: a Gaussian-only family bank (same arm machinery), the MPL log
+    // bank's mixture density, and the Gaussian working model's chi(q). ew_marginals.md §32.
+    const bool audit = std::getenv("DENSITY_AUDIT") != nullptr;
+    // DENSITY_AUDIT=2 also writes every family-bank arm's excess log loss, the Gaussian misspecification floor
+    // (realised lc - log c_G(r*) and its expectation D(t)), and chi at q = 0.10. ew_marginals.md §33.
+    const bool audit2 = audit && std::atoi(std::getenv("DENSITY_AUDIT")) >= 2;
+    const copula::Shape S0 = cop_name == "gauss2t" || cop_name == "gauss2clayton" || tnu ? copula::Shape::Gaussian
+                           : cop_name == "clayton2gumbel" || mix ? copula::Shape::Clayton : shape_of(cop_name);
+    const copula::Shape S1 = cop_name == "gauss2t" || tnu ? copula::Shape::StudentT
+                           : cop_name == "clayton2gumbel" || mix ? copula::Shape::Gumbel
                            : cop_name == "gauss2clayton" ? copula::Shape::Clayton : S0;
     const std::vector<std::string> scenarios = shape ? std::vector<std::string>{"shape"}
         : std::vector<std::string>{"constant", "drift", "jump", "oscillate"};
@@ -103,6 +119,14 @@ int main(int argc, char** argv) {
     std::fprintf(out, "copula,scenario,seed,window,method,metric,value\n");
     std::fprintf(pout, "copula,scenario,t,series,value\n");
     std::fprintf(sout, "copula,scenario,seed,new_shape,t50,t90,pre_weight_new\n");
+    std::map<int, std::unique_ptr<gfloor::Table>> floors;   // keyed by the true base family (or -1: the mixture)
+    auto floor_at = [&](copula::Family f, double d, double pi) {
+        const int key = mix ? -1 : int(f);
+        auto& tb = floors[key];
+        if (!tb) tb = mix ? std::make_unique<gfloor::Table>(copula::Family::Clayton, copula::Family::Gumbel, nu_true)
+                          : std::make_unique<gfloor::Table>(f, f, nu_true);
+        return tb->at(d, mix ? pi : 1.0);
+    };
 
     for (const std::string& sc : scenarios) {
         // Seed means per tick: 6 shape weights, memory, truth / bank / ratio_399 chi_L and chi_U, rho.
@@ -114,7 +138,8 @@ int main(int argc, char** argv) {
         std::vector<std::vector<double>> path(series.size(), std::vector<double>(kN, 0.0));
         for (int s = 0; s < seeds; ++s) {
             auto dep = make_dep(sc);
-            auto cop = dgp::make_copula(cop_name);
+            auto cop = mix ? std::unique_ptr<dgp::Copula>(std::make_unique<MixSwitchCopula>(kPi0, kPi1, kChange))
+                     : tnu ? dgp::make_copula("gauss2t", nu_true) : dgp::make_copula(cop_name);
             CopulaSource src(*dep, *cop, first + s);
             auto e_fb = make_estimator("family_bank");
             auto* fb = dynamic_cast<FamilyBank*>(e_fb.get());
@@ -122,8 +147,19 @@ int main(int argc, char** argv) {
             std::vector<std::unique_ptr<DependenceEstimator>> banks;
             for (const auto& k : kBanks) banks.push_back(make_estimator(k));
             EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
+            // Density audit: Gaussian-only family bank, K = 3, delta* = K m / ((K-1)(T-1)) at m = 1, T = 4970.
+            FamilyBank gb(FamilyBank::Config{.shapes = {copula::Shape::Gaussian}, .memories = {99, 399, 1999},
+                                             .eta = 1.0, .delta = 3.0 / (2.0 * 4969.0)}, "gauss_bank");
+            auto* mle_log = dynamic_cast<ForgettingBank*>(banks[2].get());   // kBanks[2] = "mle_bank_log"
+            const std::vector<std::string> xm{"gauss_bank", "mle_bank_log_mix", "mle_bank_log"};
+            std::vector<std::vector<float>> xse(3, std::vector<float>(kN)), xex(3, std::vector<float>(kN)),
+                xcl(3, std::vector<float>(kN)), xcu(3, std::vector<float>(kN));
             std::vector<Ratio> ratios;
             for (int m : kRatioMem) ratios.push_back({1.0 - 2.0 / (m + 1.0)});
+            std::vector<Ratio> ratios2;
+            for (int m : kRatioMem) ratios2.push_back({1.0 - 2.0 / (m + 1.0), kQ2});
+            std::vector<std::vector<float>> aex(K, std::vector<float>(kN)), fex(2, std::vector<float>(kN)),
+                cl2(1 + kRatioMem.size(), std::vector<float>(kN)), cu2(1 + kRatioMem.size(), std::vector<float>(kN));
 
             // methods: family_bank, the banks, fixed family arms; metrics per tick
             std::vector<std::string> rho_m{"family_bank"};
@@ -143,10 +179,39 @@ int main(int argc, char** argv) {
                 const auto smp = src.next();
                 const copula::Shape St = t < kChange ? S0 : S1;
                 const copula::Family Ft = copula::base_family(St);
-                const double par = copula::param_from_spearman(Ft, dgp::detail::target_spearman(smp.rho), kNu);
-                const auto tt = copula::exact_tails(St, par, kNu, kQ);
+                const double par = copula::param_from_spearman(Ft, dgp::detail::target_spearman(smp.rho), nu_true);
+                auto tt = copula::exact_tails(St, par, nu_true, kQ);
                 const double u0 = special::normal_cdf(smp.x), v0 = special::normal_cdf(smp.y);
-                const double lc = copula::log_density(Ft, u0, v0, par, kNu);
+                const double pi_t = t < kChange ? kPi0 : kPi1;
+                double lc = copula::log_density(Ft, u0, v0, par, nu_true);
+                auto tt2 = audit2 ? copula::exact_tails(St, par, nu_true, kQ2) : copula::Tails{0, 0, 0, 0};
+                if (mix) {
+                    const double ts = dgp::detail::target_spearman(smp.rho);
+                    const double pc = copula::param_from_spearman(copula::Family::Clayton, ts);
+                    const double pg = copula::param_from_spearman(copula::Family::Gumbel, ts);
+                    lc = gfloor::Table::log_mix(copula::Family::Clayton, copula::Family::Gumbel, pi_t, pc, pg, nu_true, u0, v0);
+                    auto blend = [&](double q) {
+                        const auto a = copula::exact_tails(copula::Shape::Clayton, pc, nu_true, q);
+                        const auto b = copula::exact_tails(copula::Shape::Gumbel, pg, nu_true, q);
+                        return copula::Tails{pi_t * a.lam_L + (1 - pi_t) * b.lam_L, pi_t * a.lam_U + (1 - pi_t) * b.lam_U,
+                                             pi_t * a.chi_L + (1 - pi_t) * b.chi_L, pi_t * a.chi_U + (1 - pi_t) * b.chi_U};
+                    };
+                    tt = blend(kQ);
+                    tt2 = blend(kQ2);
+                }
+                if (audit2) {
+                    for (std::size_t k = 0; k < K; ++k) aex[k][t] = float(lc - fb->arm_log_density(k, u0, v0));
+                    const auto fl = floor_at(Ft, smp.rho, pi_t);
+                    fex[0][t] = float(lc - copula::Gaussian::log_density(u0, v0, fl.r));
+                    fex[1][t] = float(fl.kl);
+                    const auto f2 = fb->tails(kQ2);
+                    cl2[0][t] = float(std::pow(f2.chi_L - tt2.chi_L, 2));
+                    cu2[0][t] = float(std::pow(f2.chi_U - tt2.chi_U, 2));
+                    for (std::size_t r = 0; r < ratios2.size(); ++r) {
+                        cl2[1 + r][t] = float(std::pow(ratios2[r].chi_L() - tt2.chi_L, 2));
+                        cu2[1 + r][t] = float(std::pow(ratios2[r].chi_U() - tt2.chi_U, 2));
+                    }
+                }
 
                 // Predictions held before this tick.
                 se[0][t] = float(std::pow(fb->estimate() - smp.rho_s, 2));
@@ -158,6 +223,39 @@ int main(int argc, char** argv) {
                 }
                 for (std::size_t k = 0; k < K; ++k) se[nb + k][t] = float(std::pow(fb->arm_rho(k) - smp.rho_s, 2));
                 const auto ft = fb->tails(kQ);
+                if (audit) {
+                    auto gauss_chi = [&](double rho) {
+                        return copula::exact_tails(copula::Shape::Gaussian,
+                                                   copula::param_from_spearman(copula::Family::Gaussian, rho), kNu, kQ);
+                    };
+                    const auto gt = gb.tails(kQ);
+                    xse[0][t] = float(std::pow(gb.estimate() - smp.rho_s, 2));
+                    xex[0][t] = float(lc - gb.log_density(u0, v0));
+                    xcl[0][t] = float(std::pow(gt.chi_L - tt.chi_L, 2));
+                    xcu[0][t] = float(std::pow(gt.chi_U - tt.chi_U, 2));
+                    // MPL log bank: mixture of its arms' Gaussian densities, and chi of mixture (linear in C).
+                    double top = -1e300, cmixL = 0, cmixU = 0;
+                    std::vector<double> lw(mle_log->size());
+                    for (std::size_t k = 0; k < mle_log->size(); ++k) {
+                        const double rk = mle_log->model(k).estimate(), wk = mle_log->weight(k);
+                        lw[k] = std::log(wk) + copula::Gaussian::log_density(u0, v0,
+                                    copula::param_from_spearman(copula::Family::Gaussian, rk));
+                        top = std::max(top, lw[k]);
+                        const auto ck = gauss_chi(rk);
+                        cmixL += wk * ck.chi_L; cmixU += wk * ck.chi_U;
+                    }
+                    double ssum = 0; for (double x : lw) ssum += std::exp(x - top);
+                    xse[1][t] = float(std::pow(mle_log->estimate() - smp.rho_s, 2));
+                    xex[1][t] = float(lc - (top + std::log(ssum)));
+                    xcl[1][t] = float(std::pow(cmixL - tt.chi_L, 2));
+                    xcu[1][t] = float(std::pow(cmixU - tt.chi_U, 2));
+                    // MPL log bank point density at the combined rho: chi of that single Gaussian.
+                    const auto cp = gauss_chi(mle_log->estimate());
+                    xse[2][t] = xse[1][t];
+                    xex[2][t] = float(lc - mle_log->log_density(u0, v0));
+                    xcl[2][t] = float(std::pow(cp.chi_L - tt.chi_L, 2));
+                    xcu[2][t] = float(std::pow(cp.chi_U - tt.chi_U, 2));
+                }
                 cl[0][t] = float(std::pow(ft.chi_L - tt.chi_L, 2));
                 cu[0][t] = float(std::pow(ft.chi_U - tt.chi_U, 2));
                 for (std::size_t r = 0; r < ratios.size(); ++r) {
@@ -183,10 +281,12 @@ int main(int argc, char** argv) {
                 }
 
                 fb->update(smp.x, smp.y);
+                if (audit) gb.update(smp.x, smp.y);
                 for (auto& b : banks) b->update(smp.x, smp.y);
                 const bool scorable = px.size() >= kWarm;
                 const double u = px.transform(smp.x), v = py.transform(smp.y);
                 if (scorable) for (auto& r : ratios) r.update(u, v);
+                if (scorable && audit2) for (auto& r : ratios2) r.update(u, v);
             }
             for (int j = 0; j < copula::kShapes; ++j)
                 if ((shape && j == int(S1)) || (null_path && j != int(S0)))
@@ -207,6 +307,22 @@ int main(int argc, char** argv) {
                     emit(chi_m[i], "chiL_rmse", cl[i], 1.0, true);
                     emit(chi_m[i], "chiU_rmse", cu[i], 1.0, true);
                 }
+                if (audit2) {
+                    for (std::size_t k = 0; k < K; ++k) emit(rho_m[nb + k], "excess_x1000", aex[k], 1000.0, false);
+                    emit("gauss_floor", "excess_x1000", fex[0], 1000.0, false);
+                    emit("gauss_floor_expected", "excess_x1000", fex[1], 1000.0, false);
+                    for (std::size_t i = 0; i < chi_m.size(); ++i) {
+                        emit(chi_m[i], "chiL10_rmse", cl2[i], 1.0, true);
+                        emit(chi_m[i], "chiU10_rmse", cu2[i], 1.0, true);
+                    }
+                }
+                if (audit)
+                    for (std::size_t i = 0; i < xm.size(); ++i) {
+                        if (i != 2) emit(xm[i] == "mle_bank_log" ? "mle_bank_log_point" : xm[i], "rmse", xse[i], 1.0, true);
+                        emit(i == 2 ? std::string("mle_bank_log_point") : xm[i], "excess_x1000", xex[i], 1000.0, false);
+                        emit(i == 2 ? std::string("mle_bank_log_point") : xm[i], "chiL_rmse", xcl[i], 1.0, true);
+                        emit(i == 2 ? std::string("mle_bank_log_point") : xm[i], "chiU_rmse", xcu[i], 1.0, true);
+                    }
             }
         }
         for (std::size_t t = 0; t < kN; t += 10)

@@ -1,0 +1,83 @@
+# Fixed-rho_S shape switches: three objectives on the same streams (DENSITY_AUDIT=1, TAG=density, seeds 42-101)
+
+### gauss2t   (* = |difference| > 2 paired SE)
+     window rhoS: FB rhoS: FB-Gauss bank rhoS: FB-MPL log bank EL: FB EL: FB-Gauss bank EL: FB-MPL mix EL: MPL mix-point chiL: FB-Gauss bank chiU: FB-Gauss bank chiL: FB-ratio399
+        pre     29.0          +1.4± 0.9*            -1.0± 1.1     1.9        +0.5± 0.2*     +0.2± 0.2         +0.0± 0.0           +2.3± 1.7*          +5.5± 2.9*       -74.5± 5.5*
+  rec_0_100     27.0          +7.2± 5.8*            +4.5± 5.7    27.8       -11.6± 7.8*    -11.7± 7.7*        -1.3± 1.2*          -3.4± 4.1           -5.8± 3.5*       -36.1±18.4*
+rec_100_500     32.8          +8.8± 3.4*            +5.9± 3.5*    7.3       -26.7± 4.5*    -26.9± 4.5*        -0.6± 0.2*         -39.3± 7.1*         -43.8± 6.1*       -46.0±10.6*
+       post     30.9          +3.3± 2.9*            -0.3± 2.8     3.2       -30.7± 1.9*    -30.9± 1.9*        -0.8± 0.1*         -56.6± 3.8*         -57.8± 3.4*       -75.7± 6.6*
+
+### gauss2t3   (* = |difference| > 2 paired SE)
+     window rhoS: FB rhoS: FB-Gauss bank rhoS: FB-MPL log bank EL: FB EL: FB-Gauss bank EL: FB-MPL mix EL: MPL mix-point chiL: FB-Gauss bank chiU: FB-Gauss bank chiL: FB-ratio399
+        pre     29.0          +1.4± 0.9*            -1.0± 1.1     1.9        +0.5± 0.2*     +0.2± 0.2         +0.0± 0.0           +2.3± 1.7*          +5.5± 2.9*       -74.5± 5.5*
+  rec_0_100     30.9         +11.1± 6.3*            +7.5± 5.9*   45.3       -15.6± 6.9*    -15.8± 7.1*        -1.0± 0.6*          -6.7± 5.0*         -10.9± 4.1*       -26.1±20.8*
+rec_100_500     36.8         +10.1± 3.7*            +6.7± 3.6*    8.5       -50.7± 6.1*    -51.0± 6.1*        -1.2± 0.3*         -65.2± 7.6*         -71.3± 5.7*       -47.6±10.9*
+       post     38.3          +8.2± 2.2*            +4.2± 2.4*    5.7       -49.5± 2.3*    -49.7± 2.3*        -1.3± 0.2*         -78.1± 3.5*         -79.9± 2.5*       -67.6± 5.2*
+
+### gauss2t8   (* = |difference| > 2 paired SE)
+     window rhoS: FB rhoS: FB-Gauss bank rhoS: FB-MPL log bank EL: FB EL: FB-Gauss bank EL: FB-MPL mix EL: MPL mix-point chiL: FB-Gauss bank chiU: FB-Gauss bank chiL: FB-ratio399
+        pre     29.0          +1.4± 0.9*            -1.0± 1.1     1.9        +0.5± 0.2*     +0.2± 0.2         +0.0± 0.0           +2.3± 1.7*          +5.5± 2.9*       -74.5± 5.5*
+  rec_0_100     21.1          +3.0± 2.8*            +0.7± 3.1     9.9        -3.4± 2.8*     -3.5± 2.9*        -0.5± 0.5*          +0.4± 2.6           +0.0± 2.2        -49.5±14.5*
+rec_100_500     26.5          +4.7± 2.7*            +2.3± 3.0     5.9        -4.1± 1.9*     -4.3± 1.9*        -0.2± 0.1*          -3.8± 3.8*          -5.1± 3.2*       -56.3±10.4*
+       post     29.0          +5.2± 3.1*            +2.8± 3.0     5.8        -3.9± 0.9*     -4.0± 0.9*        -0.3± 0.1*          -4.3± 3.7*          -3.2± 3.8        -64.9± 5.5*
+
+### clayton2gumbel   (* = |difference| > 2 paired SE)
+     window rhoS: FB rhoS: FB-Gauss bank rhoS: FB-MPL log bank EL: FB EL: FB-Gauss bank EL: FB-MPL mix EL: MPL mix-point chiL: FB-Gauss bank chiU: FB-Gauss bank chiL: FB-ratio399
+        pre     27.8          +1.3± 2.1             -1.3± 2.2     1.9       -75.3± 2.4*    -75.7± 2.4*        -0.3± 0.0*        -271.9± 3.4*        -197.5± 2.4*       -79.0± 6.4*
+  rec_0_100     39.4         +18.2± 8.1*           +15.9± 8.4*   75.3       +46.4± 7.4*    +46.3± 7.4*        -0.2± 0.1*        +164.8±14.7*         +78.4±14.4*       -58.4±28.3*
+rec_100_500     42.2         +19.5± 4.3*           +17.4± 4.3*    5.1       -23.6± 3.5*    -23.8± 3.5*        -0.4± 0.2*         -46.2± 8.8*        -145.0± 6.5*       -90.8±16.3*
+       post     35.1          +9.9± 2.2*            +7.7± 2.3*    5.3       -23.8± 1.2*    -23.9± 1.2*        -0.3± 0.1*         -37.7± 4.0*        -132.4± 4.1*       -59.2± 7.1*
+
+### gauss2clayton   (* = |difference| > 2 paired SE)
+     window rhoS: FB rhoS: FB-Gauss bank rhoS: FB-MPL log bank EL: FB EL: FB-Gauss bank EL: FB-MPL mix EL: MPL mix-point chiL: FB-Gauss bank chiU: FB-Gauss bank chiL: FB-ratio399
+        pre     29.0          +1.4± 0.9*            -1.0± 1.1     1.9        +0.5± 0.2*     +0.2± 0.2         +0.0± 0.0           +2.3± 1.7*          +5.5± 2.9*       -74.5± 5.5*
+  rec_0_100     27.5          +8.4± 3.7*            +6.5± 3.9*   67.3       -17.2± 6.1*    -17.5± 6.1*        -0.4± 0.3*         -28.9± 8.2*         -21.4± 6.3*        -9.5±21.4 
+rec_100_500     43.4         +21.9± 4.1*           +19.7± 4.3*    9.7       -68.9± 5.3*    -69.1± 5.3*        -0.2± 0.1*        -224.4± 9.6*        -169.0± 7.3*       -72.4±14.5*
+       post     34.5         +12.9± 2.2*           +11.0± 2.3*    6.4       -72.2± 2.1*    -72.3± 2.2*        -0.3± 0.1*        -228.6± 3.7*        -165.1± 2.5*       -54.8± 5.3*
+
+## Existing outputs re-tabulated (family bank vs MPL log bank point density, EW ratio)
+
+### gauss2t (switch at t = 2500, rho_S constant)
+      window FB rho_S RMSE FB - MPL log bank, rho_S RMSE FB - best Gauss arm (M=399), rho_S RMSE FB excess log loss FB - MPL log bank (Gaussian point density), excess log loss FB - EW ratio M=399, chi_L RMSE FB - EW ratio M=399, chi_U RMSE
+         pre          29.0                   -1.0 ±  1.1                             -1.8 ±  1.2                1.9                                                 +0.2 ±  0.2                    -74.5 ±  5.5                    -76.4 ±  4.6
+   rec_0_100          27.0                   +4.5 ±  5.7                             -0.7 ±  5.6               27.8                                                -13.1 ±  8.4                    -36.1 ± 18.4                    -30.9 ± 16.9
+ rec_100_500          32.8                   +5.9 ±  3.5                             -2.0 ±  3.1                7.3                                                -27.5 ±  4.5                    -46.0 ± 10.6                    -57.9 ± 11.7
+rec_500_1500          31.6                   +1.6 ±  3.8                             -6.3 ±  3.7                1.4                                                -32.6 ±  3.3                    -82.2 ±  7.8                    -77.3 ±  6.8
+        post          30.9                   -0.3 ±  2.8                             -7.6 ±  2.6                3.2                                                -31.7 ±  2.0                    -75.7 ±  6.6                    -73.1 ±  4.7
+
+### clayton2gumbel (switch at t = 2500, rho_S constant)
+      window FB rho_S RMSE FB - MPL log bank, rho_S RMSE FB - best Gauss arm (M=399), rho_S RMSE FB excess log loss FB - MPL log bank (Gaussian point density), excess log loss FB - EW ratio M=399, chi_L RMSE FB - EW ratio M=399, chi_U RMSE
+         pre          27.8                   -1.3 ±  2.2                             -5.1 ±  2.0                1.9                                                -75.9 ±  2.4                    -79.0 ±  6.4                    -61.9 ±  4.2
+   rec_0_100          39.4                  +15.9 ±  8.4                             +9.1 ±  8.1               75.3                                                +46.1 ±  7.4                    -58.4 ± 28.3                    -50.5 ± 22.8
+ rec_100_500          42.2                  +17.4 ±  4.3                             +9.5 ±  4.4                5.1                                                -24.2 ±  3.5                    -90.8 ± 16.3                   -112.9 ± 13.4
+rec_500_1500          32.7                   +6.3 ±  2.3                             -1.4 ±  2.2                2.0                                                -28.9 ±  2.0                    -63.5 ±  6.3                    -80.4 ±  7.0
+        post          35.1                   +7.7 ±  2.3                             -0.1 ±  1.8                5.3                                                -24.2 ±  1.2                    -59.2 ±  7.1                    -74.0 ±  5.9
+
+### gauss2clayton (switch at t = 2500, rho_S constant)
+      window FB rho_S RMSE FB - MPL log bank, rho_S RMSE FB - best Gauss arm (M=399), rho_S RMSE FB excess log loss FB - MPL log bank (Gaussian point density), excess log loss FB - EW ratio M=399, chi_L RMSE FB - EW ratio M=399, chi_U RMSE
+         pre          29.0                   -1.0 ±  1.1                             -1.8 ±  1.2                1.9                                                 +0.2 ±  0.2                    -74.5 ±  5.5                    -76.4 ±  4.6
+   rec_0_100          27.5                   +6.5 ±  3.9                             +0.6 ±  3.8               67.3                                                -17.9 ±  6.2                     -9.5 ± 21.4                    +19.5 ± 19.1
+ rec_100_500          43.4                  +19.7 ±  4.3                            +12.8 ±  3.7                9.7                                                -69.3 ±  5.3                    -72.4 ± 14.5                    -47.1 ± 10.9
+rec_500_1500          32.4                  +11.2 ±  2.8                             +2.4 ±  2.3                3.1                                                -75.7 ±  3.3                    -67.3 ±  7.2                    -60.7 ±  5.2
+        post          34.5                  +11.0 ±  2.3                             +3.1 ±  1.8                6.4                                                -72.6 ±  2.2                    -54.8 ±  5.3                    -40.5 ±  4.3
+
+## KL projection of the Clayton-Gumbel mixture onto single families (experiments/kl_projection_mixture.cpp; 300^2 normal-score grid, golden-section search)
+rho_S = 0.5819; Clayton theta 1.419, Gumbel theta 1.712
+
+pi = 0.75 (Clayton weight): mixture chi_L(0.05) = 0.518, chi_U(0.05) = 0.215
+  Gaussian KL* = 0.0372 nats  theta* = 0.597 (rho_S 0.579)  chi_L 0.309  chi_U 0.309
+  t4       KL* = 0.0315 nats  theta* = 0.587 (rho_S 0.555)  chi_L 0.393  chi_U 0.393
+  Clayton  KL* = 0.0133 nats  theta* = 1.222 (rho_S 0.538)  chi_L 0.573  chi_U 0.105
+  Gumbel   KL* = 0.0839 nats  theta* = 1.572 (rho_S 0.516)  chi_L 0.190  chi_U 0.467
+
+pi = 0.50 (Clayton weight): mixture chi_L(0.05) = 0.420, chi_U(0.05) = 0.316
+  Gaussian KL* = 0.0170 nats  theta* = 0.600 (rho_S 0.582)  chi_L 0.310  chi_U 0.310
+  t4       KL* = 0.0118 nats  theta* = 0.587 (rho_S 0.555)  chi_L 0.393  chi_U 0.393
+  Clayton  KL* = 0.0402 nats  theta* = 1.052 (rho_S 0.493)  chi_L 0.528  chi_U 0.097
+  Gumbel   KL* = 0.0397 nats  theta* = 1.616 (rho_S 0.539)  chi_L 0.201  chi_U 0.485
+
+pi = 0.25 (Clayton weight): mixture chi_L(0.05) = 0.322, chi_U(0.05) = 0.418
+  Gaussian KL* = 0.0138 nats  theta* = 0.602 (rho_S 0.584)  chi_L 0.312  chi_U 0.312
+  t4       KL* = 0.0090 nats  theta* = 0.587 (rho_S 0.555)  chi_L 0.393  chi_U 0.393
+  Clayton  KL* = 0.0779 nats  theta* = 0.903 (rho_S 0.449)  chi_L 0.482  chi_U 0.091
+  Gumbel   KL* = 0.0113 nats  theta* = 1.662 (rho_S 0.560)  chi_L 0.212  chi_U 0.502

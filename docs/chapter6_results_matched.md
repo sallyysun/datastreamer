@@ -88,6 +88,74 @@ A = VFF, B = log bank.
 - **Tail bank:** unchanged. Its regimes are constant-$\rho_S$ shape switches; see
   `chapter6_results_final.md`.
 
+## Full-copula density prediction at constant ρ_S (shape switches; targeted run, seeds 42–101)
+
+Three metrics on the same streams:
+- **Spearman RMSE:** dependence strength.
+- **Full-copula excess log loss** at the true PIT, (1/T)·Σ[log c_n − log ĉ_{n−1}]: the whole density.
+- **χ(0.05) RMSE:** joint extremes.
+
+A = family bank (24 parametric arms). B = the **same machinery restricted to the Gaussian shape**
+(`gauss_bank`). Paired, ×10⁻³ (log loss in 10⁻³ nats per observation). All densities compared are
+valid and normalised.
+
+| Regime | Window | Spearman RMSE | Excess log loss | χ_L | χ_U |
+|---|---|---|---|---|---|
+| Gaussian truth (before any switch) | pre | +1.4 | +0.5 | +2.3 | +5.5 |
+| Gauss → t₄ | post | +3.3 | **−30.7** | −56.6 | −57.8 |
+| Gauss → t₃ (arms assume t₄) | post | +8.2 | **−49.5** | −78.1 | −79.9 |
+| Gauss → t₈ (arms assume t₄) | post | +5.2 | **−3.9** | −4.3 | tie |
+| Clayton → Gumbel | pre (Clayton) | tie | **−75.3** | −271.9 | −197.5 |
+| Clayton → Gumbel | 0–100 after | +18.2 | **+46.4** | +164.8 | +78.4 |
+| Clayton → Gumbel | post | +9.9 | **−23.8** | −37.7 | −132.4 |
+| Gauss → Clayton | post | +12.9 | **−72.2** | −228.6 | −165.1 |
+
+**Findings:**
+- **Modelling the full copula greatly improves density and tail prediction after a change of structure
+  at constant ρ_S,** while Spearman RMSE gets slightly worse.
+- **Flexibility costs a little when the truth is Gaussian.**
+- **There is a temporary lag right after Clayton → Gumbel,** while the weights move.
+- **The MPL log bank's Gaussian mixture density** is slightly better than its point density (−0.2 to
+  −1.3), so the conclusion holds for either.
+- **Full tables:** `experiments/results/density_objectives_2026-11-10.txt`. Method details:
+  `ew_marginals.md` §32.
+
+## Density follow-up: Gaussian comparators, best fixed arm, Gaussian floor, mixture truth (seeds 42–101)
+
+Run `TAG=density2`: matched paths, log-bank δ = 10⁻⁴, outputs only. Fingerprint `54185f0f6c977037`. It
+reproduces every earlier row exactly (switch log-bank rows shift slightly with the matched δ). Method,
+checks and full commentary: `ew_marginals.md` §33. Tables: `experiments/results/density_followup_2026-11-10.txt`.
+`hermite_bank_own` is excluded from all density tables (its score integrates to ≈1.07). The own-weight
+Gaussian mixture uses the old (η, δ) and is provisional.
+
+| Family-bank mixture minus | Excess log loss W/L/T (19 cells, whole) | ρ_S RMSE W/L/T |
+|---|---|---|
+| single Gaussian at the combined ρ̂ (MPL log bank) | 15/4/0 (losses: the four Gaussian-truth cells) | 8/8/3 |
+| Gaussian mixture, own-bank weights | 17/2/0 | 15/4/0 |
+
+- **Gaussian floor D(t) = KL(c_true ‖ c_G(r*))**, r* = E[Z₁Z₂], numerical (quadrature, checked by Monte
+  Carlo). For non-Gaussian truth, almost all of every Gaussian forecast's excess is this floor: Clayton
+  70–78, Gumbel 25–29, t₄ 32.6–33.9 (×10⁻³ nats per tick).
+  - Estimation adds +1 to +3.5 in stationary windows.
+  - The log-weight Gaussian mixture is 0–4.5 better than the single Gaussian. No Gaussian forecaster
+    can remove the floor.
+- **Best fixed family-and-memory arm** (hindsight, per cell):
+  - the family bank is within +0.3 to +0.9 of it on stationary paths, where that arm is the true family
+    at long memory;
+  - it beats it over the whole window of every family switch (−7.7, −41.0, −24.9) and every ρ_S jump
+    (−0.2 to −1.2).
+  - So the gain over Gaussian forecasts is mostly **structural** (the right family is in the bank).
+    Adaptive weighting adds the ability to change family.
+- **Clayton–Gumbel mixture truth** (π 0.75 → 0.25, ρ_S constant; not in the bank):
+  - **density:** the family-bank mixture beats all Gaussian forecasts before and after the change
+    (−23.6 pre, −4.6 post vs the single Gaussian), but loses for the first 100 ticks (+19.5);
+  - **against the best fixed arm** (t₄, M 1999): −7.3 over the whole window, +0.6 post;
+  - **tails:** before the change its χ_U is worse than the M = 399 and 1999 counters (+13, +53 ×10⁻³) and
+    χ_L worse than M = 1999 (+14). It has projected onto Clayton. After the change it beats every
+    counter in both tails (t₄ projection);
+  - **so** better density prediction coincided with worse upper-tail estimation before the change, but
+    not after.
+
 ## Budget study (paired per-seed comparisons; test RMSE ×10⁻²)
 
 **DataSketches-MPL against the better of Xiao and Hermite**, paired over 100 test seeds:

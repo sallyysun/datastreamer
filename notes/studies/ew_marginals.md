@@ -1186,3 +1186,250 @@ bank and shape switches are unaffected and not rerun.
 
 **Signed dependence:** the original drift for Gaussian and $t_4$ (in `final500`) serves as the
 separate signed-dependence experiment.
+
+## 32. Full-copula density prediction at constant ρ_S: audit and targeted run (2026-11-10)
+
+**Question:** does modelling the full copula improve density (and tail) prediction when Spearman
+estimation is already accurate?
+
+**What existed** (`probe_family_bank`, seeds 42–101, the same streams for every method):
+- Spearman RMSE for every bank and arm.
+- Excess log loss at the true PIT for:
+  - the family bank's **mixture** density;
+  - the Gaussian log banks' **point** density (Gaussian at the combined ρ̂);
+  - the own-density banks (provisional).
+- χ(0.05) RMSE for the family bank and the EW ratio estimators only.
+- Windows: pre, and 0–100, 100–500 and 500–1500 after the switch, and post.
+
+Re-tabulated by `experiments/density_audit.py`.
+
+**Missing, now added** (harness only, `DENSITY_AUDIT=1`, `TAG=density`, seeds 42–101, nothing tuned):
+- `gauss_bank`: the family-bank machinery restricted to the Gaussian shape (memories 99, 399, 1999;
+  η = 1; δ* = K/((K−1)(T−1)) = 3.02·10⁻⁴ for K = 3). It isolates "modelling the family" from the
+  estimator and the weighting.
+- `mle_bank_log_mix`: the MPL log bank's mixture of its arms' Gaussian densities; χ = Σ w_k χ_k, which
+  is exact because χ is linear in C.
+- `mle_bank_log_point`: its point density at the combined ρ̂, with χ of that Gaussian. It equals the
+  existing `mle_bank_log` excess log loss exactly (checked).
+- New regimes `gauss2t3` and `gauss2t8`: the true copula switches to t₃ or t₈ (truth density and tails
+  use that ν) while the family bank's t arms assume ν = 4.
+
+**Checks:**
+- the default run reproduces the existing output exactly;
+- the t₃ and t₈ generators reach the target ρ_S (sample Spearman within ≈2 MC SE).
+
+Tables: `experiments/density_objectives.py` → `results/density_objectives_2026-11-10.txt`.
+
+**Results [confirmed]** (family bank minus the Gaussian-only bank, paired, ×10⁻³; excess log loss in
+10⁻³ nats per observation):
+
+| Regime | Window | Spearman RMSE | Excess log loss | χ_L | χ_U |
+|---|---|---|---|---|---|
+| any Gaussian start | pre | +1.4 | +0.5 | +2.3 | +5.5 |
+| Gauss → t₄ | post | +3.3 | **−30.7** | −56.6 | −57.8 |
+| Gauss → t₃ (arms assume t₄) | post | +8.2 | **−49.5** | −78.1 | −79.9 |
+| Gauss → t₈ (arms assume t₄) | post | +5.2 | **−3.9** | −4.3 | −3.2 (tie) |
+| Clayton → Gumbel | pre (Clayton) | +1.3 (tie) | **−75.3** | −271.9 | −197.5 |
+| Clayton → Gumbel | 0–100 after | +18.2 | **+46.4** | +164.8 | +78.4 |
+| Clayton → Gumbel | post | +9.9 | **−23.8** | −37.7 | −132.4 |
+| Gauss → Clayton | post | +12.9 | **−72.2** | −228.6 | −165.1 |
+
+**Findings:**
+- **Full-copula modelling greatly improves density and tail prediction after a structural change at
+  constant ρ_S, while Spearman estimation gets slightly worse.** The objectives differ, and the gain
+  is not visible in rank correlation.
+- **When the truth is Gaussian there is a small cost of flexibility:** +0.5 in log loss, +2 to +6 in χ.
+- **Right after Clayton → Gumbel the family bank is temporarily much worse,** because the weights
+  still favour Clayton. That is the structural-adaptation lag.
+- **Gaussian log bank, mixture vs point density:** the mixture is consistently slightly better (−0.2 to
+  −1.3), so the family-vs-Gaussian conclusion holds for either.
+- **t misspecification:** with t₃ truth, the t₄ arms still capture most of the gain. With t₈ truth
+  (near Gaussian) the gain is small. The family bank does not need the exact ν to help, but the
+  benefit scales with how far the truth is from Gaussian.
+- **Three metrics, three roles:** Spearman RMSE (dependence strength), excess log loss (full density),
+  χ RMSE (joint extremes). They can rank the same methods differently (above), and log loss does not
+  replace a tail metric.
+
+**KL projection of the Clayton–Gumbel mixture onto single families** (`experiments/kl_projection_mixture.cpp`,
+numerical; components calibrated to ρ_S = 0.582):
+
+| π (Clayton weight) | Mixture χ_L / χ_U | Best single family (KL*, nats) | Its χ_L / χ_U | Gaussian KL* |
+|---|---|---|---|---|
+| 0.75 | 0.518 / 0.215 | Clayton (0.013) | 0.573 / 0.105 | 0.037 |
+| 0.50 | 0.420 / 0.316 | t₄ (0.012) | 0.393 / 0.393 | 0.017 |
+| 0.25 | 0.322 / 0.418 | t₄ (0.009); Gumbel 0.011 | 0.393 / 0.393 | 0.014 |
+
+- **No single family reproduces both tails.**
+  - The Clayton-dominated mixture projects to Clayton: χ_U is halved and χ_L overstated.
+  - Balanced or Gumbel-leaning mixtures project to the symmetric t₄, which equalises the tails.
+  - Projected parameters also shift ρ_S (for example Clayton θ* gives ρ_S 0.54), so a KL projection
+    does not preserve rank correlation.
+- **This explains the mixture result in the tail study** (the family bank loses to long corner
+  counters on χ). Its predictive density *is* a mixture Σ w_k c_k, but Hedge on log loss concentrates
+  weight on the single best arm rather than learning mixture proportions. The arms are fixed shapes,
+  so the bank's limit is roughly the best single-family projection.
+- **Remedy:** an explicit mixture arm with a learned π. Methodology, not run.
+
+## 33. Density follow-up: Gaussian comparators, best fixed arm, Gaussian floor, Clayton–Gumbel mixture (2026-11-10)
+
+**Scope** (approved by Sally, 2026-11-10): A1–A3, R1b–R1c and R2 of the Chapter 2 session's request. No
+estimator, registry config or bank setting changed; only outputs and one new regime in
+`probe_family_bank` (`DENSITY_AUDIT=2`), an analysis script and a quadrature header.
+
+**Configuration:**
+- `SCENARIOS=matched BANK_LOG_DELTA=1e-4 DENSITY_AUDIT=2 TAG=density2 ./probe_family_bank <s> 15`,
+  s ∈ {42, 57, 72, 87} (seeds 42–101), for COPULA ∈ {gaussian, clayton, gumbel, t} (constant, drift,
+  jump, oscillate) and {gauss2t, clayton2gumbel, gauss2clayton, claygum_mix} (constant ρ_S of d = 0.6,
+  switch at 2500); T = 5000, burn 500.
+- Code fingerprint `54185f0f6c977037` (sha256 of the git tree `HEAD:src` plus `probe_family_bank.cpp`,
+  `gauss_floor.hpp`, `scenarios.hpp`, `copula_source.hpp`, `Makefile`); `src/` unmodified.
+- Linux x86_64, libstdc++, clang++ 18 `-O2 -std=c++20`.
+- Tables: `experiments/density_followup.py check|a1|a2|r1|r2` →
+  `experiments/results/density_followup_2026-11-10.txt`. Units ×10⁻³; mean (SE) of paired per-seed
+  differences over 60 seeds; * marks |mean| > 2 SE.
+
+**Verification:**
+- Base families: all 95,040 rows of the matched run are reproduced exactly.
+- Switches: every row of the §32 run is reproduced exactly except the log-bank rows. §32 ran the log
+  bank at δ = 3·10⁻⁴; this run uses the matched δ = 10⁻⁴. The shifts are small: Gaussian mixture or
+  single Gaussian excess changes by −0.02 to −0.72, ρ_S RMSE by −0.9 to −4.0.
+- One R2 entry was recomputed independently from the raw CSV and matches.
+
+**Density forecasts compared** (all on the same seed, tick and true-PIT point):
+
+| Label | What it is |
+|---|---|
+| family-bank mixture | `FamilyBank::log_density`, Σ_k w_k c_k over 24 arms (8 shapes × M 99/399/1999) |
+| single Gaussian | MPL log bank: one Gaussian copula at the combined ρ̂ (`mle_bank_log`) |
+| Gaussian mixture (log w) | MPL log bank's own weights and arms, Σ_k w_k c_G(2 sin(πρ̂_k/6)) |
+| Gaussian mixture (own w) | `mle_bank_own`: own-density weights, η 0.25, δ 3·10⁻³ (old, not retuned; provisional) |
+| Gaussian-only family bank | family-bank machinery with the Gaussian shape only (`gauss_bank`) |
+| best fixed arm | the family-bank arm with the lowest mean whole-window excess, chosen per cell in hindsight |
+| Gaussian floor | KL(c_true ‖ c_G(r*)), r* = E[Z₁Z₂]; expected D(t) and realised log c_true − log c_G(r*) |
+
+**Floor method (R1c):**
+- The KL-closest Gaussian copula has r* = E_c[Z₁Z₂]: the derivative of E log c_G(r) vanishes at r = E[Z₁Z₂]
+  because E Z₁² = E Z₂² = 1.
+- Hence D = E_c log c + ½ log(1 − r*²). Computed by trapezoid quadrature in normal-score space (401²,
+  |z| ≤ 7), tabulated on a 0.01 grid in d and interpolated.
+- **Checks:**
+  - Gaussian: 0;
+  - t₄ at ρ_S 0.582: 0.0339 (`probe_kl_shape` 0.034);
+  - mixture r* 0.597 → 0.602 and D 0.0372 → 0.0138 (matching the relayed reference and §32's KL table);
+  - n = 201/401/801 agree to 5 digits;
+  - Monte Carlo with 2·10⁷ draws: Clayton 0.07813 (SE 0.00009) vs 0.07823, Gumbel 0.02894 vs 0.02902.
+- **The realised floor on the probe's streams agrees with D** (z across 49 cell-windows: mean −0.5,
+  SD 0.96).
+  - Exception: Clayton truth, where it is about 2·10⁻³ below D (z down to −2.9). Those cells share seeds,
+    and the log ratio is right-skewed, so this is attributed to sampling.
+  - The decomposition uses the realised floor (same observations), so it holds exactly either way.
+
+**A1: family bank minus the Gaussian comparators** (19 cells; W/L/T by the 2-SE rule; *r* = per-seed
+correlation of Δρ_S RMSE and Δexcess). Excess wins mean better (lower) density loss.
+
+| Comparator | Window | ρ_S RMSE W/L/T | Excess W/L/T | r median [range] |
+|---|---|---|---|---|
+| single Gaussian | whole (19) | 8/8/3 | 15/4/0 | 0.13 [−0.38, 0.67] |
+| single Gaussian | post (7) | 2/4/1 | 6/1/0 | −0.08 [−0.30, 0.27] |
+| single Gaussian | 0–100 after (7) | 1/5/1 | 5/2/0 | 0.28 [−0.60, 0.59] |
+| Gaussian mixture (own w) | whole (19) | 15/4/0 | 17/2/0 | 0.18 [−0.33, 0.45] |
+| Gaussian mixture (own w) | post (7) | 4/2/1 | 6/1/0 | −0.03 [−0.33, 0.28] |
+
+- **The four excess losses against the single Gaussian** are all Gaussian-truth cells: constant, drift,
+  jump and oscillate, by +0.2 to +9.7.
+- **Within a cell the two differences are nearly uncorrelated across seeds.** Better density prediction
+  on a seed says little about better ρ_S on that seed.
+
+**A2** (identical to the matched evaluation):
+- Gauss → t₄: t50 174 [130, 247].
+- Clayton → Gumbel: t50 68 [45, 143].
+- Gauss → Clayton: t50 94 [80, 124].
+- 60/60 seeds reach 50% and 90% in each switch.
+- Null paths, seeds with any false 50% crossing: Gaussian 14/60, Clayton 2/60, Gumbel 9/60, t 6/60.
+
+**A3:** `hermite_bank_own` is excluded from every density table here. Its own score integrates to
+about 1.07 over [0,1]², so it is not a density, and its log loss is not comparable.
+
+**R1b: structural advantage vs adaptive weighting** (family-bank mixture minus the best fixed arm):
+
+| Situation | FB − best fixed arm (excess) | Reading |
+|---|---|---|
+| Stationary, true family in the bank (constant, drift; 8 cells) | +0.3 to +0.9 | The cost of adaptivity is small: the bank is within 1·10⁻³ of the best fixed (true-family) arm. |
+| Jump in ρ_S, whole window (4 cells) | −0.2 (tie, Gaussian), −0.8 to −1.2 | Slightly better than any fixed arm. |
+| Jump, 0–100 after | +18 to +61, except Gumbel −72 | The best arm is usually the M = 99 arm, which adapts faster. |
+| Family switches, whole window | −7.7 (Gauss → t), −41.0 (Clayton → Gumbel), −24.9 (Gauss → Clayton) | No single fixed arm is good on both sides of a switch. |
+| Family switches, post | +2.6 / −18.9 / +3.5 | After switching, the bank pays a few 10⁻³ against the hindsight-best long-memory arm. Against Clayton → Gumbel's best compromise arm (t₄, M 1999) it wins. |
+
+- **Most of the family bank's advantage over the Gaussian forecasts is structural.** The arm with the
+  true family, used alone, is already within 1·10⁻³ of the bank. Hedge's weighting adds the ability to
+  change family, which no fixed arm has.
+
+**R1c: decomposition of the Gaussian forecasts' excess:**
+- **Under non-Gaussian truth, the floor is almost all of it** (×10⁻³, D per tick):
+  - Clayton 70–78, Gumbel 25–29, t₄ 32.6–33.9;
+  - jump post: Clayton 177, Gumbel 50, t 41.
+- **Estimation is +1 to +3.5 in stationary windows.** Over the oscillation's whole window it is +23 to +36
+  (tracking lag). After a jump in ρ_S it is +12 to +17 over the post window and +16 to +27 at 100–500.
+- **Mixture vs single Gaussian:** the log-weight Gaussian mixture is 0.0–4.5 better than the single
+  Gaussian in whole and post windows (up to 12.9 in t-jump 0–100). The own-weight mixture is worse in stationary cells (old η, δ).
+- **Interpretation:** no Gaussian forecaster, however well weighted, can close the gap to a
+  non-Gaussian truth. The family bank's −23 to −178 (non-Gaussian cells, whole or post) comes almost entirely from removing the floor.
+
+**R2: Clayton–Gumbel mixture** (π(Clayton) 0.75 → 0.25 at 2500, ρ_S constant 0.582; the truth is not in the
+family bank). Reported as found, without a prior favourite. Excess log loss by window:
+
+| Window | Floor D | Family mix | Single Gauss | Gauss mix (log w) | Gauss-only FB | Best fixed arm (t₄, 1999) | FB − single | FB − best arm |
+|---|---|---|---|---|---|---|---|---|
+| whole | 24.2 | 11.7 | 24.8 | 24.6 | 24.5 | 19.0 | −13.0 (0.6) | −7.3 (0.5) |
+| pre | 37.2 | 13.9 | 37.5 | 37.2 | 37.0 | 30.9 | −23.6 (1.1) | −17.0 (1.1) |
+| 0–100 after | 13.8 | 33.7 | 14.2 | 14.1 | 14.0 | 6.7 | +19.5 (3.7) | +27.0 (2.7) |
+| 100–500 after | 13.8 | 9.4 | 14.5 | 14.3 | 14.4 | 9.0 | −5.2 (1.4) | +0.4 (0.7) |
+| post | 13.8 | 10.1 | 14.6 | 14.5 | 14.5 | 9.5 | −4.6 (0.6) | +0.6 (0.2) |
+
+ρ_S RMSE, family bank minus comparator:
+- MPL log bank: whole +4.6 (1.4), pre +6.5, 0–100 +13.6, post +2.5 (tie);
+- best arm: +9 to +16 throughout.
+
+χ RMSE at q = 0.05, family bank minus EW counter:
+
+| Window | χ_L vs M 99 / 399 / 1999 | χ_U vs M 99 / 399 / 1999 |
+|---|---|---|
+| whole | −141 / −31 / −3 (tie) | −127 / −22 / +3 (tie) |
+| pre | −148 / −32 / +14 | −85 / +13 / +53 |
+| 0–100 after | −83 / tie / tie | −44 / tie / tie |
+| post | −135 / −29 / −12 | −164 / −53 / −36 |
+
+- **Tails at q = 0.10** follow the same pattern.
+- **Gaussian forecasts' χ_L RMSE** (post): 14, against the family bank's 78. The Gaussian χ_L(0.05) at
+  r ≈ 0.6 happens to sit near the post-switch truth 0.322. Their χ_U is 95, against 62.
+
+Shape weights (seed means):
+- Pre: Clayton 0.81, t 0.13.
+- Post: t 0.64, Gumbel 0.21, Gaussian 0.12.
+- These match the KL projections in §32 (Clayton best at π = 0.75, t₄ at π = 0.25).
+- Gumbel's summed weight crosses 50% at some point after the switch in 52/60 seeds (median 492 ticks),
+  but its mean post-switch weight is 0.21. The crossing is often transient.
+
+**R2 findings:**
+- **Density:** the family-bank mixture beats every Gaussian forecast before and after the change. It
+  loses for about 100 ticks after the change, the same structural lag as Clayton → Gumbel.
+  - It beats the best fixed arm over the whole window, mainly before the change.
+  - After the change it is level with or slightly behind t₄ at M 1999 (+0.6 post).
+- **Tails:** before the change, the family bank's χ_U is worse than the long counters' (+13 against
+  M 399, +53 against M 1999). It has projected onto Clayton, which understates the upper tail (§32: χ_U
+  0.105 vs the truth's 0.215).
+  - After the change it is better than every counter in both tails. The t₄ projection
+    (χ_L = χ_U = 0.393) sits between the truth's 0.322 and 0.418.
+- **Does better density prediction come with worse tail estimation?** Partly, and only before the change:
+  - pre: the family bank has the best density but worse χ_U than long counters (and worse χ_L than
+    M 1999);
+  - post: better on both.
+  - So a better density does not imply better tails when the truth is outside the bank. What
+    determines the tails is which single family the bank projects onto.
+- **ρ_S:** the family bank is worse than the Gaussian log bank before and right after the change, and
+  level after. Same direction as the switch regimes.
+
+**Caveats:**
+- The own-weight Gaussian mixture uses the old (η, δ) and is provisional.
+- Each best fixed arm is chosen in hindsight per cell, so it is an oracle comparator.
+- One ρ_S level and one π pair. ν mismatch, other π and real data are out of scope (§32 has t₃/t₈).
