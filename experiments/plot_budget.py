@@ -9,8 +9,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 warnings.filterwarnings("ignore")
+import os
+# BUDGET_TAG=matched reads results/budget_*_matched.csv and writes to figures/matched/ (the primary protocol).
+TAG = os.environ.get("BUDGET_TAG", "")
 R = "experiments/results/"
-OUT = "notes/thesis/figures/"
+OUT = "notes/thesis/figures/" + (TAG + "/" if TAG else "")
+SUF = ("_" + TAG) if TAG else ""
 INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 import sys
 MODE = sys.argv[1] if len(sys.argv) > 1 else "ds"   # ds (thesis) | own (hand-written KLL) | both
@@ -23,7 +27,7 @@ LAB = {"xiao": "Xiao (bins B)", "hermite": "Hermite (order N)", "mpl_kll": "MPL 
 MK = {"xiao": "o", "hermite": "s", "mpl_kll": "v", "mpl_dskll": "^"}
 BUDGETS = [16, 64, 256]
 
-df = pd.read_csv(R + "budget_sweep.csv")
+df = pd.read_csv(R + "budget_sweep" + SUF + ".csv")
 val, test = df[df.split == "val"], df[df.split == "test"]
 
 
@@ -50,7 +54,8 @@ FAMLAB = {"gaussian": "Gaussian copula\n(MPL correctly specified)",
           "gumbel": "Gumbel copula\n(upper-tail dependence;\nMPL misspecified)",
           "t": "Student-$t_4$ copula\n(symmetric tail dependence;\nMPL misspecified)"}
 SCLAB = {"constant": r"constant: $\rho_S = 0.58$",
-         "drift": r"drift: $\rho_S$ from $-0.48$ to $0.79$",
+         "drift": (r"drift: $\rho_S$ from $0.19$ to $0.79$ (Gaussian)" if TAG == "matched"
+                   else r"drift: $\rho_S$ from $-0.48$ to $0.79$ (Gaussian)"),
          "jump": r"jump: $\rho_S$ 0.19 $\to$ 0.79 at $t$ = 2500"}
 
 
@@ -92,7 +97,7 @@ def fig_memory(fams, out):
 
 
 def fig_runtime():
-    tm = pd.read_csv(R + "budget_timing.csv")
+    tm = pd.read_csv(R + "budget_timing" + SUF + ".csv")
     scs = ["constant", "drift", "jump"]
     fig, axes = plt.subplots(1, 3, figsize=(11, 3.8), sharey=False)
     fig.patch.set_facecolor(SURF)
@@ -116,7 +121,7 @@ def fig_runtime():
 
 
 def fig_recovery():
-    p = pd.read_csv(R + "budget_paths.csv")
+    p = pd.read_csv(R + "budget_paths" + SUF + ".csv")
     fams = ["gaussian", "clayton"]
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
     fig.patch.set_facecolor(SURF)
@@ -141,7 +146,55 @@ def fig_recovery():
     fig.savefig(OUT + "ch6_budget_recovery.png", dpi=150)
 
 
+def fig_k():
+    """Same MPL, two KLL implementations: test RMSE against the sketch parameter k (top rows) and the
+    memory each holds at that k (bottom). At equal k the accuracy is the same; only the storage differs."""
+    import matplotlib.gridspec as gridspec
+    scs, fams = ["constant", "drift", "jump"], ["gaussian", "clayton"]
+    fig = plt.figure(figsize=(11, 9.2))
+    fig.patch.set_facecolor(SURF)
+    gs = gridspec.GridSpec(3, 3, height_ratios=[1, 1, 0.9], hspace=0.45, wspace=0.25)
+    for i, fam in enumerate(fams):
+        for j, sc in enumerate(scs):
+            ax = fig.add_subplot(gs[i, j])
+            style(ax, SCLAB[sc] if i == 0 else "")
+            for est in ["mpl_kll", "mpl_dskll"]:
+                f = frontier(fam, sc, est)
+                ax.errorbar(f.approx, 100 * f.rmse, yerr=200 * f.se_rmse, color=COL[est], marker=MK[est], ms=4.5,
+                            lw=2, capsize=0, label=LAB[est])
+            ex = frontier(fam, sc, "mpl_exact")
+            ax.axhline(100 * ex.rmse.iloc[0], color=MUTED, lw=1.1, ls="--", label="MPL, exact PIT (reference)")
+            ax.set_xscale("log", base=2)
+            ax.set_xticks([8, 32, 128, 512]); ax.set_xticklabels(["8", "32", "128", "512"])
+            ax.set_ylim(top=100 * frontier(fam, sc, "mpl_dskll").rmse.iloc[2] * 1.15)   # k = 8, 16 run off the top
+            if j == 0:
+                ax.set_ylabel(FAMLAB[fam] + "\n\n" + r"test RMSE ($\times10^{-2}$)", fontsize=9, color=INK)
+            if i == 1:
+                ax.set_xlabel("sketch parameter k (log scale)", fontsize=9, color=MUTED)
+    ax = fig.add_subplot(gs[2, :])
+    style(ax, "Retained state at each k (both margins; measured peak)")
+    for est in ["mpl_kll", "mpl_dskll"]:
+        f = frontier("gaussian", "constant", est)
+        ax.plot(f.approx, f.peak_bytes / 1024, color=COL[est], marker=MK[est], ms=5, lw=2, label=LAB[est])
+        for a, b in zip(f.approx, f.peak_bytes / 1024):
+            if a in (64, 1024): ax.annotate(f"{b:.1f} KiB", (a, b), textcoords="offset points", xytext=(6, -10 if est == "mpl_dskll" else 6), fontsize=8, color=COL[est])
+    ax.set_xscale("log", base=2); ax.set_yscale("log")
+    ax.set_xticks([8, 16, 32, 64, 128, 256, 512, 1024]); ax.set_xticklabels(["8", "16", "32", "64", "128", "256", "512", "1024"])
+    from matplotlib.ticker import FixedLocator, NullLocator
+    ax.yaxis.set_major_locator(FixedLocator([2, 5, 10, 20, 50, 100])); ax.yaxis.set_minor_locator(NullLocator())
+    ax.set_yticklabels(["2", "5", "10", "20", "50", "100"])
+    ax.set_xlabel("sketch parameter k (log scale)", fontsize=9, color=MUTED)
+    ax.set_ylabel("KiB (log)", fontsize=9, color=MUTED)
+    ax.legend(fontsize=8.5, frameon=False, loc="upper left")
+    h, l = fig.axes[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="upper center", ncol=3, fontsize=8.5, frameon=False, bbox_to_anchor=(0.5, 0.955))
+    fig.suptitle("The same MPL on two KLL implementations: the same accuracy at the same k from k = 128, with 4-6x more memory for the hand-written sketch\n"
+                 "(100 test seeds, ±2 SE; each point the validation-best gain at that k)", fontsize=11, color=INK, x=0.01, ha="left")
+    fig.savefig(OUT + "ch6_budget_rmse_vs_k.png", dpi=150, bbox_inches="tight")
+
+
 if MODE == "both":
+    fig_k()
     fig_memory(["gaussian", "clayton"], "ch6_budget_memory_ds_vs_own.png")
     fig_memory(["gaussian", "clayton", "gumbel", "t"], "ch6_budget_memory_all_ds_vs_own.png")
     print("wrote", OUT + "ch6_budget_memory{,_all}_ds_vs_own.png")
