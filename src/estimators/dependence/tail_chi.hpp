@@ -6,6 +6,7 @@
 #include <limits>
 
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 #include "tail_estimator.hpp"
 
@@ -18,13 +19,13 @@ public:
     struct Config {
         double memory = 1999;
         std::array<double, 2> qs{0.05, 0.10};
-        std::size_t pit_window = 500;
+        double marginal_neff = default_marginal_neff();   // shared EW marginal (ew_marginal.hpp)
         std::size_t warm_up = 30;
     };
 
     TailChi(Config config, const char* name)
         : config_(config), name_(name), alpha_(2.0 / (config.memory + 1.0)),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {}
+          pit_x_(config.marginal_neff), pit_y_(config.marginal_neff) {}
 
     void update(double x, double y) override {
         const bool scorable = pit_x_.size() >= config_.warm_up;
@@ -70,7 +71,7 @@ public:
     }
 
     std::size_t store_bytes() const override {
-        return sizeof(*this) + pit_x_.store_bytes() + pit_y_.store_bytes() - 2 * sizeof(RankPit);
+        return sizeof(*this) + pit_x_.heap_bytes() + pit_y_.heap_bytes();
     }
     const char* name() const override { return name_; }
 
@@ -78,7 +79,7 @@ private:
     Config config_;
     const char* name_;
     double alpha_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal pit_x_, pit_y_;
     double uv_ = 0.25;   // independence start
     std::array<double, 2> aL_{}, bL_{}, aU_{}, bU_{};
     std::size_t n_ = 0;

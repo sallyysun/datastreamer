@@ -25,6 +25,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
@@ -119,9 +120,9 @@ std::vector<Cfg> build_cfgs() {
 
 std::unique_ptr<Dependence> make_dependence(const std::string& scenario) {
     if (scenario == "constant") return std::make_unique<ConstantDependence>(0.6);
-    if (scenario == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (scenario == "drift") return scenario_drift(kN);
     if (scenario == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, kJump);
-    if (scenario == "oscillate") return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    if (scenario == "oscillate") return scenario_oscillate();
     return nullptr;
 }
 
@@ -235,8 +236,9 @@ void sweep() {
     const std::vector<Cfg> cfgs = build_cfgs();
     const std::vector<std::string> scenarios{"constant", "jump", "drift", "oscillate"};
 
-    std::ofstream out("results/memory_sweep.csv");
-    std::ofstream gout("results/memory_sweep_gap.csv");
+    const std::string tg = (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string());
+    std::ofstream out("results/memory_sweep" + tg + ".csv");
+    std::ofstream gout("results/memory_sweep_gap" + tg + ".csv");
     if (!out.is_open() || !gout.is_open()) {
         std::fprintf(stderr, "cannot write results/ (run: mkdir -p results)\n");
         std::exit(1);

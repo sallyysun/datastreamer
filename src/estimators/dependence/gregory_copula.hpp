@@ -90,6 +90,7 @@ public:
     }
 
     const char* name() const override { return name_; }
+    bool ready() const override { return n_ >= 30; }
 
 private:
     struct Tuple { double v, g, d, w; };   // value, weight covered, rank-weight uncertainty, v's own weight

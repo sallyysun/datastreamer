@@ -8,6 +8,7 @@
 #include <numbers>
 
 #include "estimator.hpp"
+#include "memory_control.hpp"
 #include "marginal_rank_pit.hpp"
 #include "predictive_density.hpp"
 
@@ -25,12 +26,12 @@
 // ported (see notes/code_changes). The Spearman coupling matrix W is built in
 // closed form (see integral_matrix), matching the reference; there is no
 // remaining quadrature/approximation step.
-class HermiteEstimator : public DependenceEstimator, public PredictiveDensity {
+class HermiteEstimator : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
 public:
     struct Config {
         int order = 20;
         double lambda = 0.0;
-        std::size_t burn_in = 100; // Number of initial samples to discard
+        std::size_t burn_in = 0;   // >0: report 0 until this many observations (output hold only)
         // Variable forgetting on the update weight. lambda here is the UPDATE
         // WEIGHT, so shortening memory means raising it — the mirror image of the
         // MLE/Xiao retention convention. See the registry.hpp header.
@@ -40,13 +41,27 @@ public:
         // zero at t ~ ESS, which reads as a memory effect and is not one. Off by
         // default so no registered number moves. See notes/studies/adaptive_memory.md.
         bool debias = false;
-        // Start-up weight w_n = max(lambda, 1/n): A^(1) = h(X_1) h(Y_1)^T as in
-        // thesis section 4.2.3, then the stationary running mean until n = 1/lambda,
-        // then the exponential update. A literal "(1-lambda) from n = 2" leaves the
-        // first observation weight (1-lambda)^n (0.61 at n = 500 for lambda = 0.001);
-        // A_0 = 0 instead shrinks rho toward 0 until t ~ ESS. EW mode only; the
-        // cumulative path keeps parity with the hermiter reference.
-        bool init_first_obs = true;
+        // Coefficient weight on the m-th absorbed observation (EW mode):
+        //   Normalised  : w_m = lambda / W_m, W_m = (1 - lambda) W_{m-1} + lambda, W_0 = 0. The thesis
+        //                 5.1.2 weights (1 - lambda_thesis) lambda_thesis^{m-i} divided by their sum, so
+        //                 every observation, the first included, carries its EW share. w_1 = 1 gives
+        //                 a_1 = h(X_1) as in 5.1.2.
+        //   Literal     : w_1 = 1, then lambda: 5.1.2 verbatim. The first observation keeps weight
+        //                 (1 - lambda)^{m-1}, i.e. counts as 1/lambda observations.
+        //   RunningMean : max(lambda, 1/m), the pre-2026-11-09 rule.
+        // Cumulative mode (lambda = 0) is the running mean 1/m. notes/studies/ew_marginals.md §3.
+        enum class Start { Normalised, Literal, RunningMean };
+        Start start = Start::Normalised;
+        // Inputs are already normal scores z = probit(u) of shared pseudo-observations (the bank
+        // protocol): no standardisation, every observation is absorbed from the first.
+        bool normal_score_inputs = false;
+        // Raw inputs: standardise X_n with the moments of X_1..X_{n-1} (predictive) instead of
+        // X_1..X_n (the hermiter convention, the default). Not a scoring leak either way: the bank
+        // scores before update(). Moments use the same Start weights as the coefficients.
+        bool predictive_moments = false;
+        // Reproduce the pre-2026-11-09 update exactly (moments updated before standardising, first
+        // observation not absorbed, start-up max(lambda, 1/m), cumulative weight 1/n). Regression only.
+        bool legacy = false;
 
         // Marginals by rank-PIT + probit instead of Welford standardization.
         // Standardization is exact only for Gaussian margins; ranks are exact for
@@ -96,6 +111,7 @@ public:
         z_(basis_integrals(config.order)) {}
     
     void update(double x, double y) override {
+        if (!config_.legacy) { update_current(x, y); return; }
         ++n_;
         update_moments(x, y);
         if (n_ < 2) return; // Need at least 2 samples to compute covariance
@@ -112,12 +128,90 @@ public:
         const Eigen::VectorXd hx = hermite_functions(sx);
         const Eigen::VectorXd hy = hermite_functions(sy);
 
+        ++absorbed_;
+        // Cumulative mode: 1/absorbed (the mean of the absorbed terms). 1/n_ divided n-1 terms by n.
         double w = (config_.lambda > 0.0)
             ? lambda_
-            : 1.0 / static_cast<double>(n_);
-        ++absorbed_;
-        if (config_.init_first_obs && config_.lambda > 0.0)
+            : 1.0 / static_cast<double>(absorbed_);
+        if (config_.lambda > 0.0)
             w = std::max(w, 1.0 / static_cast<double>(absorbed_));
+        absorb(hx, hy, w);
+    }
+
+private:
+    // Raw inputs are standardised with EW moments (predictive_moments: before this observation); a
+    // scale needs two observations, so coefficients start once the moments hold two.
+    void update_current(double x, double y) {
+        ++n_;
+        double sx = x, sy = y;
+        if (config_.rank_pit_window > 0) {
+            sx = RankPit::probit(pit_x_.transform(x));
+            sy = RankPit::probit(pit_y_.transform(y));
+            if (pit_x_.size() < 30) return;
+        } else if (!config_.normal_score_inputs) {
+            const bool before = config_.predictive_moments;
+            if (!before) moments_step(x, y);
+            const bool ready = moments_n_ >= 2;
+            if (ready) {
+                sx = standardize(x, mean_x_, var_x_);
+                sy = standardize(y, mean_y_, var_y_);
+            }
+            if (before) moments_step(x, y);
+            if (!ready) return;
+        }
+        ++absorbed_;
+        double w;
+        if (config_.lambda <= 0.0) {
+            w = 1.0 / static_cast<double>(absorbed_);
+        } else {
+            switch (config_.start) {
+                case Config::Start::Normalised:
+                    wcoef_ = (1.0 - lambda_) * wcoef_ + lambda_;
+                    w = lambda_ / wcoef_;
+                    break;
+                case Config::Start::Literal:
+                    w = absorbed_ == 1 ? 1.0 : lambda_;
+                    break;
+                default:
+                    w = std::max(lambda_, 1.0 / static_cast<double>(absorbed_));
+            }
+        }
+        absorb(hermite_functions(sx), hermite_functions(sy), w);
+    }
+
+    // EW mean and variance with the coefficients' Start weights on the fixed lambda (Welford when lambda = 0).
+    void moments_step(double x, double y) {
+        ++moments_n_;
+        double c;
+        if (config_.lambda > 0.0) {
+            const double l = lambda_;
+            if (config_.start == Config::Start::Normalised) {
+                wmom_ = (1.0 - l) * wmom_ + l;
+                c = l / wmom_;
+            } else if (config_.start == Config::Start::Literal) {
+                c = moments_n_ == 1 ? 1.0 : l;
+            } else {
+                c = std::max(l, 1.0 / static_cast<double>(moments_n_));
+            }
+        } else {
+            c = 1.0 / static_cast<double>(moments_n_);
+        }
+        const double dx = x - mean_x_, dy = y - mean_y_;
+        mean_x_ += c * dx;
+        mean_y_ += c * dy;
+        if (moments_n_ == 1) { var_x_ = var_y_ = 0.0; return; }
+        if (config_.lambda > 0.0) {
+            var_x_ = (1.0 - c) * (var_x_ + c * dx * dx);
+            var_y_ = (1.0 - c) * (var_y_ + c * dy * dy);
+        } else {
+            m2_x_ += dx * (x - mean_x_);
+            m2_y_ += dy * (y - mean_y_);
+            var_x_ = m2_x_ / static_cast<double>(moments_n_ - 1);
+            var_y_ = m2_y_ / static_cast<double>(moments_n_ - 1);
+        }
+    }
+
+    void absorb(const Eigen::VectorXd& hx, const Eigen::VectorXd& hy, double w) {
         if (boost_left_ > 0) {
             w = std::min(1.0, w * config_.reset_boost);
             --boost_left_;
@@ -164,6 +258,7 @@ public:
             }
     }
 
+public:
     // Standardized coefficient-matrix surprise, for a detector to monitor. Zero
     // until enough history exists to have a scale for it.
     double standardized_surprise() const {
@@ -181,7 +276,7 @@ public:
         constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
         if (config_.rank_pit_window > 0) return kNaN;
         if (!(u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0)) return kNaN;
-        if (n_ < config_.burn_in + 1) return 0.0;
+        if (absorbed_ == 0 || n_ < config_.burn_in + 1) return 0.0;
         const double zx = RankPit::probit(u), zy = RankPit::probit(v);
         const double sdx = std::sqrt(std::max(var_x_, 1e-12)), sdy = std::sqrt(std::max(var_y_, 1e-12));
         const double c = (config_.debias && wsum_ > 0.0) ? 1.0 / wsum_ : 1.0;
@@ -194,7 +289,7 @@ public:
     }
 
     double estimate() const override {
-        if (n_ < config_.burn_in + 1) return 0.0; // Not enough data to estimate
+        if (absorbed_ == 0 || n_ < config_.burn_in + 1) return 0.0;
         // Spearman's rho = 12 * E[(F_X - 1/2)(F_Y - 1/2)], expanded in the
         // Hermite basis. u = int F_X h dx, v = int F_Y h dy, z = int h dx, so
         // (u - z/2) and (v - z/2) are the centred marginal CDF projections and
@@ -234,6 +329,8 @@ public:
         lambda_ = config_.lambda;
         wsum_ = 0.0;
         absorbed_ = 0;
+        moments_n_ = 0;
+        wmom_ = wcoef_ = 0.0;
         fast_ = slow_ = 0.0;
         pit_x_.reset();
         pit_y_.reset();
@@ -257,6 +354,9 @@ public:
     const char* name() const override {
         return name_;
     }
+    bool ready() const override { return absorbed_ > 0 && n_ >= config_.burn_in + 1; }
+    // Update weight 2/(N + 1) for the coefficients and the standardisation moments; needs EW mode.
+    void set_neff(double neff) override { lambda_ = 2.0 / (neff + 1.0); }
 
 private:
     Eigen::VectorXd hermite_functions(double x) const {
@@ -374,6 +474,8 @@ private:
     double lambda_ = config_.lambda;
     double wsum_ = 0.0;
     std::size_t absorbed_ = 0;
+    std::size_t moments_n_ = 0;      // observations in the standardisation moments
+    double wmom_ = 0.0, wcoef_ = 0.0;   // accumulated EW weight of the moments and of the coefficients
     std::size_t boost_left_ = 0;
     double fast_ = 0.0;
     double slow_ = 0.0;

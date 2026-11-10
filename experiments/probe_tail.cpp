@@ -26,7 +26,7 @@ int main() {
             ConstantDependence dep(d);
             auto cop = dgp::make_copula(f);
             CopulaSource src(dep, *cop, 9);
-            RankPit px(500), py(500);
+            EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
             double a = 0, b = 0, rho_s = 0;
             std::size_t n = 0;
             for (std::size_t t = 0; t < N; ++t) {

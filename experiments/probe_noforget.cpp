@@ -25,8 +25,8 @@ std::unique_ptr<Dependence> make_dep(const std::string& s) {
 }
 struct PitFed {   // the bank's inputs: probit of a 500-tick rank PIT
     std::unique_ptr<DependenceEstimator> e;
-    RankPit px{500}, py{500};
-    void update(double x, double y) { e->update(RankPit::probit(px.transform(x)), RankPit::probit(py.transform(y))); }
+    bank_experiment::Margins mg;
+    void update(double x, double y) { e->update(RankPit::probit(mg.u(x)), RankPit::probit(mg.v(y))); }
 };
 std::unique_ptr<DependenceEstimator> cum_mpl() {
     RecursiveMPL::Config c{};

@@ -19,7 +19,7 @@ int main() {
     for (const std::string& key : inners) {
         for (double rho : rhos) {
             auto est = make_estimator(key);
-            RankPit px(500), py(500);
+            EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
             std::mt19937 rng(3);
             std::normal_distribution<double> z(0.0, 1.0);
 

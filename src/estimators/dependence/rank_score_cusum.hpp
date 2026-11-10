@@ -8,6 +8,7 @@
 
 #include "change_detector.hpp"
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 
 // CUSUM on a per-tick unbiased estimate of Spearman's rho, for estimators that
@@ -38,7 +39,7 @@ public:
         std::size_t block = 20;
         double delta = 1.0;
         double h = 4.0;            // calibrate via calibrate_arl0.cpp
-        std::size_t pit_window = 500;
+        double marginal_neff = default_marginal_neff();   // shared EW marginal (ew_marginal.hpp)
         double var_rate = 0.001;   // must be far slower than the change (14.11)
         std::size_t burn_in_blocks = 5;
         Response response = Response::Hard;
@@ -55,7 +56,7 @@ public:
     RankScoreCusumDetector(std::unique_ptr<DependenceEstimator> inner, Config config,
                             const char* name)
         : config_(config), name_(name), inner_(std::move(inner)),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {}
+          pit_x_(config.marginal_neff), pit_y_(config.marginal_neff) {}
 
     void update(double x, double y) override {
         alarmed_ = false;
@@ -125,7 +126,7 @@ private:
     Config config_;
     const char* name_;
     std::unique_ptr<DependenceEstimator> inner_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal pit_x_, pit_y_;
 
     double var_ = 1.0;
     double sum_ = 0.0;

@@ -1,4 +1,5 @@
-// Matched-memory-budget comparison: Xiao (B bins) vs Hermite (order N) vs recursive
+// Matched-memory-budget comparison (marginal ablation mpl_ew: EW empirical CDF, N_eff 500, replaces the
+// old 500-window, ew_marginals.md): Xiao (B bins) vs Hermite (order N) vs recursive
 // Gaussian MPL on two KLL sketches (capacity k), plus the MPL marginal ablation.
 // See notes/studies/budget_mpl.md.
 //
@@ -25,6 +26,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
@@ -39,7 +41,7 @@ constexpr unsigned kValSeed = 1000;
 const std::vector<double> kGains{0.005, 0.01, 0.02, 0.05, 0.10};
 
 struct Cfg {
-    std::string est;    // xiao | hermite | mpl_kll | mpl_exact | mpl_window | mpl_fit_kll
+    std::string est;    // xiao | hermite | mpl_kll | mpl_exact | mpl_ew | mpl_fit_kll
     int approx;         // B, N, k or W
     double gain;        // per-observation update weight, all estimators
 };
@@ -52,7 +54,7 @@ std::vector<Cfg> build_cfgs() {
         for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_kll", k, g});
         for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_dskll", k, g});
         v.push_back({"mpl_exact", 0, g});
-        v.push_back({"mpl_window", 500, g});
+        v.push_back({"mpl_ew", 500, g});
         v.push_back({"mpl_fit_kll", 256, g});
     }
     return v;
@@ -77,14 +79,14 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     if (c.est == "mpl_kll" || c.est == "mpl_fit_kll" || c.est == "mpl_dskll") m.kll_k = static_cast<std::size_t>(c.approx);
     if (c.est == "mpl_dskll") m.margin = RecursiveMPL::Margin::DsKll;
     if (c.est == "mpl_exact") m.margin = RecursiveMPL::Margin::ExactNormal;
-    if (c.est == "mpl_window") { m.margin = RecursiveMPL::Margin::RankWindow; m.window = 500; }
+    if (c.est == "mpl_ew") { m.margin = RecursiveMPL::Margin::Ew; m.marginal_neff = 500.0; }
     if (c.est == "mpl_fit_kll") m.update = RecursiveMPL::Update::CopulaFit;
     return std::make_unique<RecursiveMPL>(m, "mpl");
 }
 
 std::unique_ptr<Dependence> make_dependence(const std::string& s) {
     if (s == "constant") return std::make_unique<ConstantDependence>(0.6);
-    if (s == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (s == "drift") return scenario_drift(kN);
     if (s == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, kJump);
     return nullptr;
 }
@@ -189,10 +191,13 @@ double recovery_delay(const std::vector<double>& path) {
 void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>& families) {
     const auto cfgs = build_cfgs();
     const std::string sfx = families.size() == 1 ? "_" + families[0] : "";
-    std::ofstream out("results/budget_sweep" + sfx + ".csv");
+    const std::string tg = (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string());
+    std::ofstream out("results/budget_sweep" + tg + sfx + ".csv");
+    std::ofstream sout("results/budget_seeds" + tg + sfx + ".csv");   // per-seed test RMSE, for paired comparisons
+    sout << "family,scenario,estimator,approx,gain,seed,rmse,post_rmse\n";
     out << "family,scenario,split,estimator,approx,gain,peak_bytes,rmse,se_rmse,post_rmse,se_post,"
            "recovery_delay\n";
-    std::ofstream pout("results/budget_paths" + sfx + ".csv");
+    std::ofstream pout("results/budget_paths" + tg + sfx + ".csv");
     pout << "family,scenario,estimator,approx,gain,t,est,truth\n";
     for (const std::string& fam : families) {
         for (const std::string sc : {"constant", "drift", "jump"}) {
@@ -212,6 +217,10 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
                         << cfgs[c].approx << ',' << cfgs[c].gain << ',' << a.peak << ',' << mean(a.rmse) << ','
                         << se(a.rmse) << ',' << mean(a.post) << ',' << se(a.post) << ','
                         << (sc == "jump" ? recovery_delay(a.path) : -1.0) << '\n';
+                    if (split)
+                        for (std::size_t s = 0; s < ns; ++s)
+                            sout << fam << ',' << sc << ',' << cfgs[c].est << ',' << cfgs[c].approx << ',' << cfgs[c].gain
+                                 << ',' << base + s << ',' << a.rmse[s] << ',' << a.post[s] << '\n';
                     if (split && sc == "jump")
                         for (std::size_t i = 0; i < kPts; i += 2)
                             pout << fam << ',' << sc << ',' << cfgs[c].est << ',' << cfgs[c].approx << ','
@@ -229,7 +238,7 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
 void timing() {
     std::vector<Cfg> cfgs;
     for (const Cfg& c : build_cfgs()) if (c.gain == 0.02) cfgs.push_back(c);
-    std::ofstream out("results/budget_timing.csv");
+    std::ofstream out("results/budget_timing" + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + ".csv");
     out << "estimator,approx,peak_bytes,mean_ns,p95_ns,update_mean_ns\n";
     for (const Cfg& c : cfgs) {
         std::vector<double> tick, upd;

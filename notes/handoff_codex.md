@@ -626,6 +626,133 @@ VFF comparators share one protocol, then rerun. Her message was cut off at "4. V
 - Rerun `probe_thesis_bank` first, then tuning and regret.
 - Regret bounds remain valid, conditional on the shared (Û, V̂).
 
+## 3g. Staged audit: bank marginals, Hermite, RMPL and bank inputs (2026-11-09; `ew_marginals.md`)
+
+**Code changes are uncommitted** (Sally: modify and test, but don't commit or push). Diagnosis used
+seeds 1–30; seeds 42–101 are untouched.
+
+**Read `notes/studies/ew_marginals.md` first.** It has the verified configuration table, the evidence,
+the decisions and the exact Chapter 4–5 statements to revise.
+
+**Definite bugs fixed:**
+- the Hermite cumulative denominator;
+- placeholder predictions entering bank scoring: now gated by `DependenceEstimator::ready()`. It had
+  no effect on the single-estimator banks;
+- the Student-t ρ_S table race: TSan confirmed it; now one immutable table per ν, under a mutex.
+- **Not fixed:** the MPL and Hermite VFF comparators don't work as intended. They need a common rule,
+  and §5.2 is empty.
+
+**Method decisions (evidence in the note):**
+- **Scoring margins:** shared EW marginal (`ew_marginal.hpp`, weighted GK with forward decay,
+  ε = 0.005, validated against the exact EW ECDF), with N_eff,m = 500 and 1999 as sensitivity.
+- **Hermite:** normalised EW weights 1/W_n (the Chapter 5 literal â₁ = h(X₁) is rejected: X₁ counts
+  as about N_eff/2 observations), sequential standardisation in the `hermiter` order, no output hold.
+- **RMPL:** gain 1/W_n, the one-step Fisher scoring of the discounted pseudo-likelihood.
+- **Arm inputs:** Xiao and Hermite train natively on raw inputs; RMPL and all scoring use the shared
+  margins.
+
+**Chapter 6 conclusions are unchanged on seeds 1–30:**
+- jump 12/0/0, drift 0/12/0;
+- log vs squared 19/0/5 (20/0/4 at 1999);
+- covered regret banks: 0 violations.
+
+**Next, needs Sally's go-ahead:**
+- retune η and δ on 1–30;
+- rerun the bank, VFF and regret experiments on 42–101 (hold out 200–259 for any later choice);
+- rerun the budget study (Hermite and RMPL defaults changed);
+- switch the family and tail banks off `RankPit(500)`;
+- design one VFF rule.
+
+**Switches:** `BANK_MARGINAL`, `BANK_MARGINAL_NEFF`, `BANK_ARM_INPUTS`, `HERMITE_START`,
+`HERMITE_MOMENTS`, `RMPL_START` (in `registry.hpp::bank_experiment`), plus `SEED_BASE` and `TAG` in the
+probes.
+
+## 3h. Part II: common VFF, retuning, final evaluation (2026-11-09; `ew_marginals.md` §12–§20)
+
+Still **uncommitted** (Sally: don't commit or push yet).
+
+**Configuration** frozen at fingerprint `6b773adcbc4d6527` before evaluation. Dev seeds 1–30;
+evaluation seeds 42–101; budget test 42–141 and validation 1000–1039.
+
+**Done:**
+- **Common VFF** (`vff.hpp`, `memory_control.hpp`): one Bodenham–Adams controller on the §5.4.4 ideal
+  estimator drives all three estimators, N_eff ∈ [39, 1999], rates 0.02 and 0.1 fixed on dev. It
+  settles at N ≈ 290 on drift; the analytic optimum is about 315.
+- **EW margins in every bank, detector and probe:** family, tail, `EstimatorBank`, cusums. The
+  budget ablation is now `mpl_ew`.
+- **(η, δ) retuned on dev:** unchanged at (1, 10⁻⁴) and (1, 3·10⁻⁴).
+- **Final runs:** main bank and VFF at N_eff,m = 500 and 1999, regret, family bank, tail bank,
+  budget.
+
+**Confirmed results:**
+- **Bank conclusions unchanged:** jump 12/0/0, drift 0/12/0, log vs squared 21/0/3, uniform 24/0/0.
+- **Regret:** covered banks 0 violations (11520 and 3840 runs). Uncovered (sq at η = 1, log_point)
+  about 5–7%; report them separately.
+- **The VFF conclusion changes:** the common VFF ties or slightly beats the log bank under smooth
+  change and loses only after jumps (+28.8).
+- **Family and tail conclusions unchanged.**
+- **Budget:** DataSketches-MPL best in 10/12 cells at 16 KiB and 9/12 at 64 and 256 KiB.
+
+**Not done:**
+- own-density banks;
+- AAPL/GOOG;
+- regenerating the bank, family and tail figures and `chapter6_results.md` from the final files.
+
+## 3i. Part III: review and reconciliation (2026-11-09; `ew_marginals.md` §21–§29)
+
+Read-only; the frozen estimator is unchanged (code fingerprint `96f6727b67e98cf8`).
+
+**Archive:** `audit_archive_2026-11-09/` and `.tar.gz` (manifest, SHA-256, restore verified).
+
+**Definitive implementation table:** §21.
+
+**Corrections:**
+- **Scoring gate:** bank-wide, after every arm is ready (observations 101 / 31 / 32).
+- **VFF:** a common forgetting schedule. The slow VFF beats the bank in 5/12 drift and 9/12
+  oscillation cells and loses in every jump cell. The drift-memory agreement is not independent
+  verification.
+- **Hermite own score is not a density** (integral 1.07), so own-density results are provisional.
+- **Regret:** 1440 runs × 8 switch budgets. The uncovered sq and log_point procedures exceed the
+  reference in 51% and 23% of runs.
+- **RMPL derivation and weights corrected:** normalised weights ≠ Chapter 5 â₁ = h(X₁).
+
+**Figures regenerated from the final files:**
+- `ch6_bank_weights`, `ch6_bank_compare`, `ch6_bank_forest`, `ch6_bank_recovery`, `ch6_tail_chi`,
+  `ch6_family_summary`, budget.
+- `results/thesis_bank[_fam].csv` now hold final500; the pre-audit copies are in
+  `results/pre_audit_2026-11-09/`.
+- `docs/chapter6_results_final.md` is new; `docs/chapter6_results.md` is marked superseded.
+
+**Needs approval:** §29 (normalised Hermite density with own-bank rerun, path/neff figures,
+AAPL/GOOG).
+
+**Reporting corrections:** §30, applied in `docs/chapter6_results_final.md`, now the Chapter 6
+results inventory:
+- conventions for the parenthesised values and W/L/T;
+- per-cell best comparators;
+- fast VFF worse in 47/48 cells;
+- budget wins resolved in 7/12 under a conservative check;
+- the regret bound at m = 0;
+- the family-bank interpretation and weight-crossing delay;
+- own-density rows excluded.
+
+## 3j. Matched dependence paths: the primary Chapter 6 protocol (2026-11-10; `ew_marginals.md` §31)
+
+Uncommitted.
+
+**Why:** Clayton and Gumbel can't follow negative d, so the original drift and oscillation paths
+differed across families. The rerun uses `SCENARIOS=matched` (drift d 0.2 → 0.8; oscillation
+0.5 + 0.3 sin), with the generator verified.
+
+**Re-selected on dev 1–30:** log δ = 10⁻⁴; everything else unchanged.
+
+**Evaluation on 42–101 and the budget seeds:**
+- inventory: `docs/chapter6_results_matched.md`;
+- tables: `results/matched_eval_2026-11-10.txt`;
+- figures: `figures/matched/`.
+
+**Original results are preserved.** The budget study now has paired per-seed output.
+
 ## 3c. To do (ask Sally first; rough priority)
 
 0. **Waiting on Sally:** the go-ahead for §3f.6 (the bank's marginals), and "push".

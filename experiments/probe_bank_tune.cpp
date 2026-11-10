@@ -22,10 +22,11 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500, kWarm = 30, kPit = 500;
+constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500, kWarm = 30;
 const std::vector<int> kMem{39, 99, 199, 399, 1999};
 const std::vector<std::string> kComponents{"xiao", "hermite", "mle"};
 const std::vector<double> kEtaSq{0.1, 0.25, 0.5, 1, 2, 4, 8, 16};
@@ -36,7 +37,7 @@ const std::vector<double> kDeltaOwn{0, 1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2};
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
     if (s == "shape") return std::make_unique<ConstantDependence>(0.6);
-    if (s == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (s == "drift") return scenario_drift(kN);
     return std::make_unique<JumpDependence>(0.2, 0.8, kChange);
 }
 
@@ -88,7 +89,7 @@ int main(int argc, char** argv) {
     for (double e : kEtaLog) for (double d : kDelta) cfgs.push_back({"log", 1, e, d});
     for (double e : kEtaOwn) for (double d : kDeltaOwn) cfgs.push_back({"own", 2, e, d});
 
-    const std::string path = "results/bank_tune_" + std::to_string(first) + sfx + ".csv";
+    const std::string path = "results/bank_tune_" + std::to_string(first) + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + sfx + ".csv";
     std::FILE* out = std::fopen(path.c_str(), "w");
     if (!out) { std::fprintf(stderr, "cannot write results/ (run from experiments/)\n"); return 1; }
     std::fprintf(out, "copula,scenario,seed,component,window,method,eta,delta,rmse,excess_x1000,excess_own_x1000,mem\n");
@@ -108,7 +109,7 @@ int main(int argc, char** argv) {
                 CopulaSource src(*dep, *cop, first + s);
                 auto e = make_estimator(comp + "_bank_uniform");
                 auto* bank = dynamic_cast<ForgettingBank*>(e.get());
-                RankPit px{kPit}, py{kPit};
+                bank_experiment::Margins mg;   // the banks' shared margins
                 for (std::size_t t = 0; t < kN; ++t) {
                     const auto smp = src.next();
                     const double u0 = special::normal_cdf(smp.x), v0 = special::normal_cdf(smp.y);
@@ -119,8 +120,9 @@ int main(int argc, char** argv) {
                     uu[t] = u0;
                     vv[t] = v0;
                     // The bank's own margins, replayed: scorable once the PIT holds kWarm values.
-                    scorable[t] = px.size() >= kWarm;
-                    const double u = px.transform(smp.x), v = py.transform(smp.y);
+                    scorable[t] = mg.size() >= kWarm;
+                    for (std::size_t k = 0; k < K; ++k) scorable[t] = scorable[t] && bank->model(k).ready();
+                    const double u = mg.u(smp.x), v = mg.v(smp.y);
                     const double p = 12.0 * (u - 0.5) * (v - 0.5);
                     for (std::size_t k = 0; k < K; ++k) {
                         const double r = bank->model(k).estimate();

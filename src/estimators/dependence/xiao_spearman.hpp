@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "estimator.hpp"
+#include "memory_control.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 #include "predictive_density.hpp"
 #include "../special_functions.hpp"
@@ -37,7 +39,7 @@
 // marginal goes through RankPit, so the cutpoints are exactly k/bins and no
 // calibration window is needed. Section 14.19 of
 // notes/studies/kalman_changepoint_results.md.
-class XiaoSpearmanEstimator : public DependenceEstimator, public PredictiveDensity {
+class XiaoSpearmanEstimator : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
 public:
     struct Config {
         std::size_t bins = 30;
@@ -45,6 +47,11 @@ public:
         double lambda = 0.0;          // in (0,1): retention factor; overrides window
         std::size_t calibration = 300;
         std::size_t rank_pit_window = 0;  // >0: bin on rank-PIT pseudo-observations
+        // Inputs are already normal scores z = probit(u) of shared pseudo-observations (the bank
+        // protocol): cut-points are fixed at probit(k/bins) from the start, so bins are equiprobable
+        // in u and there is no calibration sample or second marginal estimate. The VFF residual
+        // then uses u = Phi(z) directly.
+        bool normal_score_inputs = false;
         double density_prior = 0.5;       // pseudo-count per cell, for log_density_uv
         // log_predictive: counts pooled into density_bins^2 cells (density_bins must divide bins),
         // with predictive_prior pseudo-observations per pooled cell spread by cell area.
@@ -61,7 +68,7 @@ public:
         double vff_rate = 0.0;             // 0 disables
         std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
         double vff_null_var = 1.0;         // section 14.14 measured 0.92-1.00
-        std::size_t vff_pit_window = 500;
+        double vff_marginal_neff = 500.0;  // raw inputs: the VFF's own EW marginal (ew_marginal.hpp)
         double vff_mem_min = 25.0;         // clamps, in ticks of effective memory
         double vff_mem_max = 1000.0;
     };
@@ -77,6 +84,8 @@ public:
         if (config_.window > 0 && !(config_.lambda > 0.0)) ring_.resize(config_.window);
         if (config_.rank_pit_window > 0) {
             use_uniform_cutpoints();
+        } else if (config_.normal_score_inputs) {
+            use_normal_score_cutpoints();
         } else {
             calibration_.reserve(config_.calibration);
         }
@@ -145,8 +154,8 @@ public:
         calibrated_ = false;
         calibration_.clear();
         lambda_ = config_.lambda;
-        vff_pit_x_.reset();
-        vff_pit_y_.reset();
+        vff_m_x_.reset();
+        vff_m_y_.reset();
         vff_c_ = 1.0;
         vff_sum_ = 0.0;
         vff_raw_sum_ = vff_den_sum_ = 0.0;
@@ -156,6 +165,8 @@ public:
             pit_x_.reset();
             pit_y_.reset();
             use_uniform_cutpoints();
+        } else if (config_.normal_score_inputs) {
+            use_normal_score_cutpoints();
         } else {
             calibration_.reserve(config_.calibration);
         }
@@ -168,10 +179,13 @@ public:
              + (cuts_x_.capacity() + cuts_y_.capacity()) * sizeof(double)
              + ring_.capacity() * sizeof(BinPair)
              + calibration_.capacity() * sizeof(std::pair<double, double>)
-             + pit_x_.heap_bytes() + pit_y_.heap_bytes() + vff_pit_x_.heap_bytes() + vff_pit_y_.heap_bytes();
+             + pit_x_.heap_bytes() + pit_y_.heap_bytes() + vff_m_x_.heap_bytes() + vff_m_y_.heap_bytes();
     }
 
     const char* name() const override { return name_; }
+    bool ready() const override { return calibrated_ && total_ > 0.0; }
+    // Retention lambda = (N - 1)/(N + 1); needs EW mode (config.lambda > 0).
+    void set_neff(double neff) override { lambda_ = (neff - 1.0) / (neff + 1.0); }
 
     // Histogram log-density at pseudo-observations (u, v) on the equal-area bins x bins grid of
     // rank-PIT mode, smoothed by density_prior per cell. With unforgotten counts this is a
@@ -246,6 +260,14 @@ private:
         std::uint16_t j;
     };
 
+    void use_normal_score_cutpoints() {
+        cuts_x_.resize(config_.bins - 1);
+        for (std::size_t k = 1; k < config_.bins; ++k)
+            cuts_x_[k - 1] = RankPit::probit(static_cast<double>(k) / static_cast<double>(config_.bins));
+        cuts_y_ = cuts_x_;
+        calibrated_ = true;
+    }
+
     void use_uniform_cutpoints() {
         cuts_x_.resize(config_.bins - 1);
         for (std::size_t k = 1; k < config_.bins; ++k) {
@@ -278,9 +300,15 @@ private:
     void vff_step(double x, double y) {
         // Residual against the estimate held BEFORE this observation is absorbed.
         const double rho_hat = estimate();
-        const double u = vff_pit_x_.transform(x);
-        const double v = vff_pit_y_.transform(y);
-        if (vff_pit_x_.size() < 30) return;
+        double u, v;
+        if (config_.normal_score_inputs) {
+            u = special::normal_cdf(x);
+            v = special::normal_cdf(y);
+        } else {
+            u = vff_m_x_.transform(x);
+            v = vff_m_y_.transform(y);
+            if (vff_m_x_.size() < 30) return;
+        }
         const double p = 12.0 * (u - 0.5) * (v - 0.5);
         const double s = p - rho_hat;
 
@@ -372,9 +400,8 @@ private:
     // window size (the parametric_copula.hpp bug of 2026-09).
     RankPit pit_x_;
     RankPit pit_y_;
-    // Sized only when the VFF runs: an unused RankPit(500) still reserves 16 KB.
-    RankPit vff_pit_x_{config_.vff_rate > 0.0 ? config_.vff_pit_window : 1};
-    RankPit vff_pit_y_{config_.vff_rate > 0.0 ? config_.vff_pit_window : 1};
+    EwMarginal vff_m_x_{config_.vff_marginal_neff};   // used only by the VFF on raw inputs
+    EwMarginal vff_m_y_{config_.vff_marginal_neff};
 
     static constexpr std::size_t kVffBurnInBlocks = 5;
     double lambda_ = config_.lambda;

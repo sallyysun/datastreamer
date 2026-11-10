@@ -44,6 +44,16 @@ def style(ax, title):
         s.set_color(GRID)
 
 
+# What each family is, and what it means for the Gaussian-copula MPL.
+FAMLAB = {"gaussian": "Gaussian copula\n(MPL correctly specified)",
+          "clayton": "Clayton copula\n(lower-tail dependence;\nMPL misspecified)",
+          "gumbel": "Gumbel copula\n(upper-tail dependence;\nMPL misspecified)",
+          "t": "Student-$t_4$ copula\n(symmetric tail dependence;\nMPL misspecified)"}
+SCLAB = {"constant": r"constant: $\rho_S = 0.58$",
+         "drift": r"drift: $\rho_S$ from $-0.48$ to $0.79$",
+         "jump": r"jump: $\rho_S$ 0.19 $\to$ 0.79 at $t$ = 2500"}
+
+
 def fig_memory(fams, out):
     scs = ["constant", "drift", "jump"]
     fig, axes = plt.subplots(len(fams), len(scs), figsize=(11, 2.75 * len(fams) + 1.0), sharex=True,
@@ -52,7 +62,7 @@ def fig_memory(fams, out):
     for i, fam in enumerate(fams):
         for j, sc in enumerate(scs):
             ax = axes[i, j]
-            style(ax, f"{fam} · {sc}")
+            style(ax, SCLAB[sc] if i == 0 else "")
             for b in BUDGETS:
                 ax.axvline(b, color=MUTED, lw=0.8, ls=":", alpha=0.7)
             for est in COL:
@@ -61,12 +71,12 @@ def fig_memory(fams, out):
                             marker=MK[est], ms=4.5, lw=2, capsize=0, label=LAB[est])
             ex = frontier(fam, sc, "mpl_exact")
             ax.axhline(100 * ex.rmse.iloc[0], color=COL[MPL], lw=1.2, ls="--",
-                       label="MPL, exact PIT (oracle)")
+                       label="MPL, exact PIT (reference)")
             ax.set_xscale("log")
             ref = frontier(fam, sc, "xiao").rmse.max()
             ax.set_ylim(top=100 * ref * 1.3)   # k = 8, 16 run off the top; the crossing is what matters
             if j == 0:
-                ax.set_ylabel(r"test RMSE ($\times10^{-2}$)", fontsize=9, color=MUTED)
+                ax.set_ylabel(FAMLAB[fam] + "\n\n" + r"test RMSE ($\times10^{-2}$)", fontsize=9, color=INK)
             if i == len(fams) - 1:
                 ax.set_xlabel("measured peak state (KiB, log)", fontsize=9, color=MUTED)
     if MODE == "both":
@@ -111,7 +121,7 @@ def fig_recovery():
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.8), sharey=True)
     fig.patch.set_facecolor(SURF)
     for ax, fam in zip(axes, fams):
-        style(ax, f"{fam} · jump")
+        style(ax, FAMLAB[fam].replace("\n", " ") + " · jump")
         tr = None
         for est in COL:
             v = val[(val.family == fam) & (val.scenario == "jump") & (val.estimator == est)

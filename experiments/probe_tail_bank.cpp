@@ -1,11 +1,11 @@
 // Finite-q tail dependence as a streaming quantity: the family bank's mixture chi(q) = sum_k w_k chi_k(q)
 // against the model-free EW corner counter tail_chi (M = 399, 1999, 4999) and the bank's fixed-M
-// single-shape arms, all on a 500-tick rank PIT. Scored against the exact finite-q chi(q) of the true
+// single-shape arms, all on the shared EW marginal (N_eff,m = 500, ew_marginal.hpp). Scored against the exact finite-q chi(q) of the true
 // regime (not lambda), q = 0.05 and 0.10. One known-margin corner counter (true PIT, M = 1999) is the
 // check against tail-study step 1, which used known uniform margins.
 // Nonparametric competitors read chi(q) off their own predictive density (PredictiveDensity), as
 // P(U, V both in the corner) / P(U in the tail), by a midpoint rule on the unit square, every 20 ticks
-// (held between): the Hermite own-density bank, and single Hermite (N = 10) and Xiao (20 x 20, pooled
+// (held between), each trained on the shared normal scores: the Hermite own-density bank, and single Hermite (N = 10) and Xiao (20 x 20, pooled
 // density on the same 20 x 20 grid, prior mass 12.5 pseudo-observations as the default 5 x 5 pooling's)
 // estimators at M = 399 and 1999. The corner counter is the corner
 // cell of a Xiao-style histogram read directly.
@@ -78,7 +78,7 @@ struct Source {
 // A density estimator fed the bank's inputs: probit of a 500-tick rank PIT.
 struct PitFed {
     std::unique_ptr<DependenceEstimator> e;
-    RankPit px{500}, py{500};
+    EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
     void update(double x, double y) { e->update(RankPit::probit(px.transform(x)), RankPit::probit(py.transform(y))); }
 };
 
@@ -173,11 +173,11 @@ int main(int argc, char** argv) {
         std::vector<PitFed> dens;
         for (double lam : {0.005, 0.001})
             dens.push_back({std::make_unique<HermiteEstimator>(
-                HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "h")});
+                HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 0, .normal_score_inputs = true}, "h")});
         for (double lam : {0.995, 0.999})
             dens.push_back({std::make_unique<XiaoSpearmanEstimator>(
-                XiaoSpearmanEstimator::Config{.bins = 20, .lambda = lam, .calibration = 100, .density_bins = 20,
-                                              .predictive_prior = 0.5 / 16.0}, "x")});
+                XiaoSpearmanEstimator::Config{.bins = 20, .lambda = lam, .calibration = 100, .normal_score_inputs = true,
+                                              .density_bins = 20, .predictive_prior = 0.5 / 16.0}, "x")});
         std::vector<std::array<double, 4>> dchi(kNDens, {0, 0, 0, 0});   // [estimator] = L q05, U q05, L q10, U q10
         // est[q][tail][method][t]
         std::vector<std::vector<float>> est(NQ * 2 * M, std::vector<float>(T));

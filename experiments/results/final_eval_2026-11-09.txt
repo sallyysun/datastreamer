@@ -1,0 +1,1123 @@
+# Final evaluation tables, frozen configuration 6b773adcbc4d6527 (seeds 42-101; budget test 42-141)
+
+## Main banks: Chapter 6 conclusions (before = pre_audit window pipeline)
+
+######## results/pre_audit_2026-11-09/x
+  log bank vs hindsight-best fixed, drift: W/L/T 0/12/0; mean diff +3.8 (range +2.2 .. +7.4)
+  log bank vs hindsight-best fixed, jump: W/L/T 12/0/0; mean diff -17.9 (range -20.7 .. -14.9)
+  log vs squared bank (24 cells): W/L/T 21/0/3; mean -4.0
+  squared bank vs uniform (24 cells): W/L/T 24/0/0; mean -19.3
+  weighted memory sum_k w_k N_eff,k (hermite, bank; mean over families, jump): t2495:7322 t2550:1312 t2700:225 t3000:352 t3500:726
+  weighted memory sum_k w_k N_eff,k (hermite, bank_log; mean over families, jump): t2495:6450 t2550:626 t2700:423 t3000:817 t3500:1327
+  weighted memory sum_k w_k N_eff,k (mle, bank; mean over families, jump): t2495:7075 t2550:1187 t2700:209 t3000:264 t3500:516
+  weighted memory sum_k w_k N_eff,k (mle, bank_log; mean over families, jump): t2495:6361 t2550:563 t2700:270 t3000:564 t3500:957
+  weighted memory sum_k w_k N_eff,k (xiao, bank; mean over families, jump): t2495:7332 t2550:1209 t2700:198 t3000:270 t3500:563
+  weighted memory sum_k w_k N_eff,k (xiao, bank_log; mean over families, jump): t2495:6401 t2550:557 t2700:293 t3000:680 t3500:1046
+  regret:
+                  runs  violations  mean_regret/bound
+bank                                                 
+log_mix        11520.0         0.0          -0.084902
+log_mix_hedge  11520.0         0.0           0.114099
+log_point      11520.0       630.0           0.196971
+sq             11520.0       770.0           0.338905
+sq32           11520.0         0.0           0.029240
+sq32_dstar     11520.0         0.0           0.027790
+
+######## final500
+  log bank vs hindsight-best fixed, drift: W/L/T 0/12/0; mean diff +4.1 (range +2.5 .. +7.2)
+  log bank vs hindsight-best fixed, jump: W/L/T 12/0/0; mean diff -17.9 (range -20.2 .. -15.1)
+  log vs squared bank (24 cells): W/L/T 21/0/3; mean -3.7
+  squared bank vs uniform (24 cells): W/L/T 24/0/0; mean -18.5
+  weighted memory sum_k w_k N_eff,k (hermite, bank; mean over families, jump): t2495:7423 t2550:1378 t2700:227 t3000:356 t3500:741
+  weighted memory sum_k w_k N_eff,k (hermite, bank_log; mean over families, jump): t2495:6429 t2550:617 t2700:428 t3000:781 t3500:1272
+  weighted memory sum_k w_k N_eff,k (mle, bank; mean over families, jump): t2495:7070 t2550:1279 t2700:209 t3000:265 t3500:520
+  weighted memory sum_k w_k N_eff,k (mle, bank_log; mean over families, jump): t2495:6267 t2550:566 t2700:250 t3000:545 t3500:936
+  weighted memory sum_k w_k N_eff,k (xiao, bank; mean over families, jump): t2495:7364 t2550:1250 t2700:198 t3000:273 t3500:585
+  weighted memory sum_k w_k N_eff,k (xiao, bank_log; mean over families, jump): t2495:6307 t2550:535 t2700:255 t3000:604 t3500:940
+  regret:
+                  runs  violations  mean_regret/bound
+bank                                                 
+log_mix        11520.0         0.0          -0.072829
+log_mix_hedge  11520.0         0.0           0.114518
+log_point      11520.0       560.0           0.186832
+sq             11520.0       758.0           0.336978
+sq32           11520.0         0.0           0.028690
+sq32_dstar     11520.0         0.0           0.027168
+
+######## final1999
+  log bank vs hindsight-best fixed, drift: W/L/T 0/12/0; mean diff +3.8 (range +2.2 .. +7.2)
+  log bank vs hindsight-best fixed, jump: W/L/T 12/0/0; mean diff -17.8 (range -20.7 .. -15.2)
+  log vs squared bank (24 cells): W/L/T 22/0/2; mean -4.0
+  squared bank vs uniform (24 cells): W/L/T 24/0/0; mean -18.7
+  weighted memory sum_k w_k N_eff,k (hermite, bank; mean over families, jump): t2495:7378 t2550:1340 t2700:225 t3000:348 t3500:703
+  weighted memory sum_k w_k N_eff,k (hermite, bank_log; mean over families, jump): t2495:6556 t2550:640 t2700:452 t3000:858 t3500:1389
+  weighted memory sum_k w_k N_eff,k (mle, bank; mean over families, jump): t2495:7112 t2550:1195 t2700:211 t3000:263 t3500:488
+  weighted memory sum_k w_k N_eff,k (mle, bank_log; mean over families, jump): t2495:6415 t2550:561 t2700:277 t3000:574 t3500:956
+  weighted memory sum_k w_k N_eff,k (xiao, bank; mean over families, jump): t2495:7321 t2550:1211 t2700:197 t3000:268 t3500:556
+  weighted memory sum_k w_k N_eff,k (xiao, bank_log; mean over families, jump): t2495:6442 t2550:555 t2700:282 t3000:685 t3500:1061
+  regret:
+                  runs  violations  mean_regret/bound
+bank                                                 
+log_mix        11520.0         0.0          -0.103434
+log_mix_hedge  11520.0         0.0           0.114149
+log_point      11520.0       673.0           0.187368
+sq             11520.0       746.0           0.327677
+sq32           11520.0         0.0           0.029339
+sq32_dstar     11520.0         0.0           0.027824
+
+## Paired final500 - before
+
+=== final500 - results/pre_audit_2026-11-09/thesis_bank: paired mean difference (RMSE x1000; excess log loss x1000), seeds 1-30 x 4 families ===
+-- rmse
+   comp      scen   fixed_39  fixed_199 fixed_1999       bank   bank_log    uniform   vff_slow   vff_fast
+hermite  constant   -0.5±0.1   +0.1±0.1   +0.8±0.2   -0.6±0.2   +0.8±0.2   +0.1±0.1  -25.3±0.5  -10.6±0.6
+hermite     drift   -0.5±0.1   -0.2±0.1  -11.6±0.5   -0.9±0.1   -0.3±0.1   -1.7±0.1   -3.0±0.4   +6.5±0.6
+hermite      jump   -0.4±0.1   -0.2±0.1   -7.1±0.2   -0.5±0.1   -0.3±0.1   -1.0±0.1  +12.5±0.5   -6.3±0.5
+hermite oscillate   -0.4±0.1   -0.1±0.1   -0.3±0.0   -0.5±0.1   -1.7±0.2   +0.2±0.0  -92.7±3.9  -77.4±4.1
+    mle  constant   -2.0±0.1   +0.5±0.2   +3.9±0.3   +2.2±0.2   +2.3±0.2   +0.7±0.1  -41.2±0.9 -117.0±0.8
+    mle     drift   -2.0±0.1   -1.0±0.1   -7.2±0.3   -1.0±0.1   -0.7±0.1   -2.9±0.1  -25.6±0.7 -123.8±0.9
+    mle      jump   -2.1±0.1   -0.7±0.1   -6.9±0.1   -0.5±0.1   -0.5±0.1   -2.3±0.1   +6.9±0.7  -90.4±0.9
+    mle oscillate   +1.4±0.1   +4.2±0.1   -0.0±0.0   +1.8±0.1   +0.6±0.2   +2.6±0.1  -18.1±1.2   -3.2±1.1
+   xiao  constant   -0.1±0.1   -0.0±0.1   -0.4±0.1   -1.1±0.1   +0.5±0.1   -0.1±0.1  -15.9±0.5  +16.9±1.0
+   xiao     drift   +0.1±0.1   -0.1±0.1   -0.5±0.1   -0.5±0.1   -0.2±0.1   -0.3±0.1   -6.9±0.6  -38.7±1.4
+   xiao      jump   -0.0±0.1   -0.1±0.1   -0.6±0.1   -0.4±0.1   -0.3±0.1   -0.3±0.1  +13.0±0.5  -32.6±1.8
+   xiao oscillate   -0.0±0.1   -0.2±0.1   -0.0±0.0   -0.1±0.1   -1.3±0.1   -0.2±0.1  -61.9±2.5  -19.2±2.3
+-- excess_x1000
+   comp      scen    fixed_39  fixed_199 fixed_1999       bank   bank_log    uniform   vff_slow   vff_fast
+hermite  constant    -2.2±1.0   +0.1±0.0   +0.0±0.0   -0.2±0.1   +0.1±0.0   +0.1±0.0   -3.6±0.1   -1.7±0.1
+hermite     drift    -2.3±2.2   -0.0±0.0   -3.1±0.1   -0.2±0.0   -0.0±0.0   -0.3±0.0   -0.2±0.0   +1.9±0.2
+hermite      jump  -20.5±11.7   +0.4±0.1   -3.8±0.1   -5.8±2.5   +0.6±0.3   -0.4±0.1  +61.2±7.2  +14.6±3.5
+hermite oscillate    -0.1±0.2   -0.1±0.0   -0.1±0.0   -0.2±0.2   -0.4±0.1   +0.0±0.0  -26.8±1.3  -22.2±1.4
+    mle  constant    +0.7±0.0   +0.3±0.0   +0.3±0.0   +0.3±0.0   +0.3±0.0   +0.4±0.0   -6.3±0.2  -32.8±0.4
+    mle     drift    -0.0±0.0   -0.2±0.0   -2.0±0.1   -0.2±0.0   -0.2±0.0   -0.5±0.0   -3.5±0.1  -30.5±0.4
+    mle      jump    +0.6±0.0   +0.1±0.0   -3.7±0.0   +0.4±0.0   +0.3±0.0   -1.0±0.0   +3.6±0.2  -29.8±0.4
+    mle oscillate    +0.8±0.0   +1.6±0.1   -0.0±0.0   +0.8±0.0   +0.6±0.0   +0.8±0.0   -3.7±0.3   -4.0±0.3
+   xiao  constant    +0.1±0.0   +0.0±0.0   -0.0±0.0   -0.1±0.0   +0.1±0.0   +0.0±0.0   -1.9±0.1   +1.8±0.1
+   xiao     drift    +0.2±0.0   +0.0±0.0   -0.2±0.0   -0.1±0.0   -0.0±0.0   -0.1±0.0   -0.9±0.1   -8.1±0.3
+   xiao      jump    +0.1±0.1   +0.0±0.0   -0.4±0.1   -0.1±0.1   +0.2±0.0   -0.1±0.0   +6.1±0.2   -6.9±0.8
+   xiao oscillate    +0.0±0.0   -0.1±0.0   -0.0±0.0   +0.0±0.0   -0.2±0.0   -0.1±0.0  -16.6±0.8   -4.2±0.6
+-- jump recovery windows, RMSE x1000
+   comp    method        pre  rec_0_100 rec_100_500 rec_500_1500
+hermite      bank   -0.3±0.2   +0.8±0.5    -0.6±0.3     -1.2±0.3
+hermite  bank_log   +1.2±0.2   -1.6±0.4    +0.0±0.5     -1.5±0.4
+hermite fixed_199   +0.3±0.1   -1.1±0.5    -1.8±0.4     -0.2±0.3
+    mle      bank   +1.2±0.3   -0.2±0.4    -2.0±0.3     -2.0±0.2
+    mle  bank_log   +2.0±0.2   -3.4±0.4    -2.2±0.4     -1.7±0.3
+    mle fixed_199   -0.1±0.1   -2.2±0.3    -2.4±0.2     -1.0±0.2
+   xiao      bank   -0.3±0.2   +1.0±0.6    -0.3±0.3     -0.9±0.2
+   xiao  bank_log   +0.7±0.2   -1.3±0.5    -0.4±0.4     -0.8±0.3
+   xiao fixed_199   +0.2±0.1   -1.0±0.5    -0.2±0.2     -0.1±0.1
+
+## final1999 - final500
+
+=== final1999 - final500: paired mean difference (RMSE x1000; excess log loss x1000), seeds 1-30 x 4 families ===
+-- rmse
+   comp      scen   fixed_39  fixed_199 fixed_1999       bank   bank_log    uniform   vff_slow   vff_fast
+hermite  constant   +0.0±0.0   +0.0±0.0   +0.0±0.0   +1.4±0.1   -1.2±0.1   +0.0±0.0   +1.0±0.1   +1.3±0.2
+hermite     drift   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.3±0.0   -0.2±0.0   +0.0±0.0   +0.2±0.0   +0.2±0.1
+hermite      jump   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.4±0.1   +0.4±0.1   +0.0±0.0   -0.1±0.1   +0.2±0.1
+hermite oscillate   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.0±0.0   +1.1±0.1   +0.0±0.0   -0.0±0.0   -0.1±0.0
+    mle  constant   +0.9±0.1   -1.5±0.1   -3.0±0.2   -1.2±0.2   -3.0±0.2   -1.1±0.1   -1.9±0.2   -2.0±0.2
+    mle     drift   +1.5±0.1   +0.5±0.1   -4.2±0.2   +0.6±0.1   +0.2±0.1   +1.2±0.1   +0.4±0.1   -0.0±0.1
+    mle      jump   +1.5±0.1   +0.3±0.1   +0.8±0.1   +0.1±0.1   +0.0±0.1   +1.4±0.1   +0.4±0.1   -0.0±0.1
+    mle oscillate   -1.8±0.1   -4.1±0.1   -0.3±0.0   -2.2±0.1   -1.2±0.2   -2.4±0.1   -3.1±0.1   -4.7±0.1
+   xiao  constant   +0.0±0.0   +0.0±0.0   +0.0±0.0   +1.5±0.1   -1.4±0.1   +0.0±0.0   +0.9±0.1   +1.1±0.2
+   xiao     drift   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   -0.1±0.0   +0.0±0.0   +0.1±0.0   +0.2±0.1
+   xiao      jump   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   +0.1±0.1   +0.0±0.0   -0.1±0.1   +0.1±0.1
+   xiao oscillate   +0.0±0.0   +0.0±0.0   +0.0±0.0   -0.0±0.0   +1.1±0.1   +0.0±0.0   -0.0±0.0   -0.1±0.0
+-- excess_x1000
+   comp      scen   fixed_39  fixed_199 fixed_1999       bank   bank_log    uniform   vff_slow   vff_fast
+hermite  constant   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   -0.2±0.0   +0.0±0.0   +0.1±0.0   +0.3±0.0
+hermite     drift   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.1±0.0   -0.1±0.0   +0.0±0.0   +0.0±0.0   +0.1±0.0
+hermite      jump   +0.0±0.0   +0.0±0.0   +0.0±0.0   +2.1±0.5   -0.5±0.1   +0.0±0.0   -0.4±0.3   +1.6±0.7
+hermite oscillate   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.1±0.0   +0.0±0.0   +0.0±0.0   -0.0±0.0
+    mle  constant   -0.9±0.0   -0.5±0.0   -0.2±0.0   -0.2±0.0   -0.4±0.0   -0.4±0.0   -0.2±0.0   -0.3±0.0
+    mle     drift   -0.1±0.0   +0.1±0.0   -1.1±0.1   +0.2±0.0   +0.1±0.0   +0.3±0.0   +0.1±0.0   +0.0±0.0
+    mle      jump   -0.8±0.0   -0.3±0.0   +0.4±0.0   -0.5±0.0   -0.5±0.0   +0.5±0.0   -0.5±0.0   -0.4±0.0
+    mle oscillate   -0.9±0.0   -1.6±0.1   -0.1±0.0   -0.9±0.0   -0.7±0.0   -0.7±0.0   -1.1±0.0   -1.7±0.0
+   xiao  constant   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   -0.2±0.0   +0.0±0.0   +0.1±0.0   +0.2±0.0
+   xiao     drift   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.0±0.0   -0.0±0.0   +0.0±0.0   +0.0±0.0   +0.1±0.0
+   xiao      jump   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   -0.2±0.0   +0.0±0.0   +0.0±0.0   +0.1±0.0
+   xiao oscillate   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.0±0.0   +0.2±0.0   +0.0±0.0   -0.0±0.0   -0.0±0.0
+-- jump recovery windows, RMSE x1000
+   comp    method        pre  rec_0_100 rec_100_500 rec_500_1500
+hermite      bank   +0.5±0.1   -2.0±0.3    +0.5±0.1     +1.0±0.2
+hermite  bank_log   -0.5±0.1   +0.6±0.2    +0.8±0.3     +1.2±0.3
+hermite fixed_199   +0.0±0.0   +0.0±0.0    +0.0±0.0     +0.0±0.0
+    mle      bank   -0.6±0.2   -1.4±0.4    +1.3±0.3     +1.1±0.2
+    mle  bank_log   -1.5±0.2   +1.8±0.4    +1.8±0.4     +0.4±0.3
+    mle fixed_199   -0.1±0.1   +1.6±0.4    +1.3±0.2     +0.1±0.3
+   xiao      bank   +0.5±0.1   -1.8±0.3    +0.2±0.1     +0.7±0.1
+   xiao  bank_log   -0.5±0.1   +0.5±0.2    +0.2±0.3     +0.4±0.3
+   xiao fixed_199   +0.0±0.0   +0.0±0.0    +0.0±0.0     +0.0±0.0
+
+## Family bank
+
+## rho_S RMSE x1e-3, window whole: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − xiao_log | − hermite_log | − mle_log | − xiao_own | − hermite_own | − mle_own | − best_arm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| clayton | constant | 24.5 | -3.0 ± 2.2 | -4.1 ± 2.2 | -2.2 ± 1.8 | -0.0 ± 1.9 | +1.7 ± 1.9 | -16.2 ± 1.7 | +5.8 ± 1.3 (clayton_1999) |
+| clayton | drift | 53.9 | -8.5 ± 1.7 | -10.3 ± 2.0 | -1.9 ± 1.5 | -40.2 ± 2.6 | -64.2 ± 2.9 | -11.0 ± 1.7 | +5.8 ± 2.1 (clayton_399) |
+| clayton | jump | 58.9 | -6.0 ± 1.7 | -9.7 ± 2.0 | -5.0 ± 1.3 | -27.0 ± 2.1 | -29.4 ± 2.5 | -12.4 ± 1.4 | -7.7 ± 1.2 (clayton_99) |
+| clayton | oscillate | 184.7 | +13.3 ± 1.8 | +7.9 ± 1.9 | +13.3 ± 1.8 | -24.4 ± 1.7 | -34.5 ± 1.7 | +16.1 ± 1.7 | +14.1 ± 1.5 (t_99) |
+| clayton2gumbel | shape | 32.6 | +3.9 ± 1.6 | +3.3 ± 1.7 | +3.8 ± 1.7 | +6.3 ± 1.6 | +8.2 ± 1.6 | -9.9 ± 1.4 | +11.6 ± 2.0 (gaussian_1999) |
+| gauss2clayton | shape | 32.5 | +5.7 ± 1.6 | +4.6 ± 1.4 | +5.5 ± 1.4 | +8.2 ± 1.5 | +9.7 ± 1.4 | -7.3 ± 1.3 | +12.6 ± 1.5 (gaussian_1999) |
+| gauss2t | shape | 30.7 | +1.0 ± 1.4 | +0.1 ± 1.6 | -0.5 ± 1.8 | +5.6 ± 1.9 | +7.7 ± 1.8 | -13.3 ± 1.5 | +8.7 ± 2.1 (gaussian_1999) |
+| gaussian | constant | 25.1 | -1.4 ± 1.7 | -1.8 ± 1.5 | -1.2 ± 0.7 | +1.0 ± 1.9 | +2.6 ± 1.9 | -13.4 ± 0.9 | +4.8 ± 1.3 (gaussian_1999) |
+| gaussian | drift | 70.5 | -0.3 ± 1.3 | -1.4 ± 1.5 | +2.6 ± 0.8 | -54.8 ± 2.4 | -97.2 ± 2.4 | -5.8 ± 1.0 | +3.6 ± 1.1 (gaussian_399) |
+| gaussian | jump | 62.3 | +0.1 ± 1.1 | -1.8 ± 1.2 | +3.6 ± 1.0 | -28.3 ± 2.0 | -39.3 ± 2.8 | -3.0 ± 1.1 | -14.1 ± 1.5 (gumbel_399) |
+| gaussian | oscillate | 266.1 | +75.2 ± 1.6 | +67.4 ± 1.9 | +77.7 ± 1.6 | -87.9 ± 2.1 | -129.6 ± 2.0 | +63.2 ± 1.3 | +2.8 ± 0.9 (t_99) |
+| gumbel | constant | 26.9 | -1.6 ± 2.0 | -2.4 ± 2.0 | -5.1 ± 1.3 | +2.0 ± 2.1 | +3.9 ± 2.1 | -17.5 ± 1.3 | +5.0 ± 2.9 (t_1999) |
+| gumbel | drift | 58.6 | -5.9 ± 1.4 | -6.6 ± 1.6 | +1.1 ± 1.5 | -40.7 ± 2.9 | -68.3 ± 2.9 | -7.6 ± 2.0 | +5.8 ± 1.7 (gaussian_399) |
+| gumbel | jump | 61.5 | -3.2 ± 1.3 | -3.9 ± 1.4 | -1.3 ± 1.2 | -28.1 ± 2.2 | -37.1 ± 2.6 | -7.9 ± 1.2 | -8.8 ± 1.5 (gumbel_399) |
+| gumbel | oscillate | 186.5 | +12.9 ± 1.9 | +7.6 ± 1.9 | +14.4 ± 1.7 | -23.4 ± 2.1 | -33.2 ± 2.2 | +16.9 ± 1.7 | +15.3 ± 1.4 (t_99) |
+| t | constant | 28.0 | -6.3 ± 2.1 | -7.7 ± 2.1 | -9.3 ± 1.9 | +1.5 ± 2.0 | +3.5 ± 1.7 | -21.2 ± 1.5 | +8.3 ± 1.4 (gumbel_1999) |
+| t | drift | 71.3 | -3.9 ± 1.3 | -4.9 ± 1.5 | -6.2 ± 1.4 | -55.9 ± 2.2 | -97.9 ± 2.6 | -14.2 ± 1.4 | +4.0 ± 1.0 (t_399) |
+| t | jump | 68.5 | -1.9 ± 1.4 | -2.8 ± 1.5 | -1.6 ± 1.5 | -25.4 ± 2.2 | -38.8 ± 3.4 | -5.7 ± 1.3 | -4.0 ± 1.7 (gumbel_399) |
+| t | oscillate | 277.8 | +77.3 ± 2.0 | +65.5 ± 2.1 | +63.1 ± 2.1 | -76.0 ± 2.6 | -116.8 ± 2.7 | +58.5 ± 1.6 | -4.4 ± 0.4 (t_99) |
+
+W/L/T over cells: xiao_log 8/6/5; hermite_log 11/6/2; mle_log 9/8/2; xiao_own 12/3/4; hermite_own 12/6/1; mle_own 15/4/0; best_arm 5/14/0
+
+## rho_S RMSE x1e-3, window rec_0_100: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − xiao_log | − mle_log | − hermite_own |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 325.7 | +1.0 ± 9.0 | +9.7 ± 8.0 | -161.4 ± 11.9 |
+| clayton2gumbel | shape | 39.4 | +18.3 ± 6.3 | +15.9 ± 8.4 | +22.2 ± 7.2 |
+| gauss2clayton | shape | 27.5 | +6.9 ± 4.3 | +6.5 ± 3.9 | +10.6 ± 4.3 |
+| gauss2t | shape | 27.0 | +3.7 ± 5.5 | +4.5 ± 5.7 | +9.8 ± 6.7 |
+| gaussian | jump | 342.5 | +23.1 ± 7.1 | +34.6 ± 5.7 | -183.0 ± 12.6 |
+| gumbel | jump | 337.9 | +10.6 ± 6.1 | +20.7 ± 6.4 | -169.7 ± 10.5 |
+| t | jump | 376.1 | +43.9 ± 7.8 | +54.6 ± 7.7 | -138.2 ± 12.3 |
+
+W/L/T over cells: xiao_log 0/5/2; mle_log 0/6/1; hermite_own 4/3/0
+
+## rho_S RMSE x1e-3, window rec_100_500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − xiao_log | − mle_log | − hermite_own |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 32.9 | -35.6 ± 5.1 | -30.5 ± 4.6 | -79.4 ± 10.2 |
+| clayton2gumbel | shape | 42.2 | +19.9 ± 3.2 | +17.4 ± 4.3 | +17.5 ± 3.9 |
+| gauss2clayton | shape | 43.4 | +21.1 ± 3.4 | +19.7 ± 4.3 | +21.8 ± 3.6 |
+| gauss2t | shape | 32.8 | +8.9 ± 2.9 | +5.9 ± 3.5 | +15.0 ± 3.6 |
+| gaussian | jump | 40.2 | -20.7 ± 3.3 | -3.5 ± 2.5 | -120.6 ± 9.9 |
+| gumbel | jump | 37.2 | -33.4 ± 3.9 | -22.0 ± 2.8 | -114.3 ± 11.2 |
+| t | jump | 37.8 | -41.1 ± 5.5 | -34.9 ± 6.8 | -143.2 ± 13.8 |
+
+W/L/T over cells: xiao_log 4/3/0; mle_log 4/3/0; hermite_own 4/3/0
+
+## Excess log loss x1e-3 nats/tick at the true PIT, window whole: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − xiao_log | − hermite_log | − mle_log | − xiao_own | − hermite_own | − mle_own |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| clayton | constant | 1.4 | -76.3 ± 1.7 | -76.6 ± 1.7 | -76.5 ± 1.7 | -99.4 ± 1.7 | -24.2 ± 1.4 | -77.5 ± 1.7 |
+| clayton | drift | 4.1 | -32.2 ± 1.0 | -32.5 ± 1.0 | -31.4 ± 1.0 | -55.3 ± 1.1 | -43.8 ± 1.4 | -31.3 ± 1.0 |
+| clayton | jump | 7.1 | -103.6 ± 1.8 | -106.7 ± 1.9 | -102.2 ± 1.7 | -135.3 ± 1.4 | -48.8 ± 1.5 | -98.0 ± 1.6 |
+| clayton | oscillate | 33.3 | -7.8 ± 0.7 | -9.5 ± 0.7 | -8.0 ± 0.8 | -27.2 ± 0.8 | -40.6 ± 1.8 | -5.1 ± 0.7 |
+| clayton2gumbel | shape | 3.8 | -47.1 ± 1.2 | -47.3 ± 1.2 | -47.2 ± 1.2 | -89.7 ± 1.7 | -36.4 ± 1.8 | -48.2 ± 1.2 |
+| gauss2clayton | shape | 4.4 | -40.1 ± 1.2 | -40.2 ± 1.2 | -40.3 ± 1.2 | -80.1 ± 1.4 | -29.1 ± 1.5 | -41.4 ± 1.2 |
+| gauss2t | shape | 2.7 | -17.5 ± 1.1 | -17.6 ± 1.1 | -17.5 ± 1.1 | -69.7 ± 1.6 | -29.5 ± 1.5 | -18.5 ± 1.1 |
+| gaussian | constant | 1.5 | +0.2 ± 0.2 | +0.1 ± 0.2 | +0.1 ± 0.1 | -55.6 ± 1.3 | -29.2 ± 1.6 | -1.4 ± 0.2 |
+| gaussian | drift | 4.6 | +0.2 ± 0.2 | -0.0 ± 0.2 | +0.9 ± 0.1 | -41.2 ± 0.9 | -50.9 ± 1.8 | -0.0 ± 0.2 |
+| gaussian | jump | 8.5 | +0.8 ± 0.3 | -0.8 ± 0.3 | +2.0 ± 0.3 | -90.3 ± 1.4 | -49.6 ± 1.9 | +1.6 ± 0.3 |
+| gaussian | oscillate | 53.6 | +23.0 ± 0.8 | +19.4 ± 0.9 | +24.0 ± 0.7 | -47.7 ± 1.2 | -66.7 ± 1.7 | +23.1 ± 0.7 |
+| gumbel | constant | 1.3 | -29.2 ± 1.0 | -29.4 ± 1.0 | -29.5 ± 1.0 | -79.3 ± 1.7 | -30.9 ± 2.0 | -30.7 ± 1.1 |
+| gumbel | drift | 3.7 | -12.9 ± 0.5 | -13.0 ± 0.5 | -11.9 ± 0.5 | -46.3 ± 1.2 | -42.7 ± 1.4 | -12.0 ± 0.6 |
+| gumbel | jump | 6.2 | -32.8 ± 1.0 | -35.8 ± 2.0 | -32.0 ± 1.0 | -111.1 ± 1.6 | -47.0 ± 1.3 | -30.1 ± 1.0 |
+| gumbel | oscillate | 27.5 | -3.5 ± 0.8 | -5.3 ± 0.8 | -3.7 ± 0.7 | -24.8 ± 1.0 | -40.9 ± 1.8 | -0.7 ± 0.6 |
+| t | constant | 1.0 | -35.0 ± 1.4 | -35.2 ± 1.5 | -35.1 ± 1.4 | -84.4 ± 1.7 | -31.2 ± 1.6 | -35.4 ± 1.4 |
+| t | drift | 3.5 | -31.7 ± 1.1 | -31.9 ± 1.2 | -31.5 ± 1.2 | -64.5 ± 1.5 | -49.2 ± 1.5 | -29.4 ± 1.0 |
+| t | jump | 7.0 | -37.5 ± 1.5 | -40.6 ± 2.4 | -37.4 ± 1.6 | -118.0 ± 2.0 | -43.0 ± 1.8 | -30.9 ± 1.2 |
+| t | oscillate | 45.7 | -20.2 ± 1.5 | -26.0 ± 1.5 | -25.5 ± 1.6 | -74.3 ± 1.1 | -64.8 ± 1.7 | -13.8 ± 1.1 |
+
+W/L/T over cells: xiao_log 15/3/1; hermite_log 16/1/2; mle_log 15/3/1; xiao_own 19/0/0; hermite_own 19/0/0; mle_own 16/2/1
+
+## Excess log loss x1e-3, window rec_0_100: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − mle_log | − hermite_own | − mle_own |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 163.0 | -125.1 ± 15.7 | -182.6 ± 16.6 | -120.5 ± 13.6 |
+| clayton2gumbel | shape | 75.3 | +46.1 ± 7.4 | -77.2 ± 17.9 | +45.4 ± 7.6 |
+| gauss2clayton | shape | 67.3 | -17.9 ± 6.2 | -19.1 ± 10.5 | -19.2 ± 6.2 |
+| gauss2t | shape | 27.8 | -13.1 ± 8.4 | -20.7 ± 10.3 | -12.7 ± 6.5 |
+| gaussian | jump | 147.1 | +33.2 ± 5.2 | -160.5 ± 15.5 | +20.1 ± 4.7 |
+| gumbel | jump | 135.4 | -38.5 ± 8.9 | -168.9 ± 15.2 | -45.2 ± 8.5 |
+| t | jump | 149.6 | -27.3 ± 14.5 | -105.9 ± 13.0 | -22.3 ± 6.4 |
+
+W/L/T over cells: mle_log 5/2/0; hermite_own 7/0/0; mle_own 5/2/0
+
+## Excess log loss x1e-3, window rec_100_500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − mle_log | − hermite_own | − mle_own |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 5.5 | -186.6 ± 9.1 | -94.5 ± 5.8 | -169.0 ± 8.2 |
+| clayton2gumbel | shape | 5.1 | -24.2 ± 3.5 | -73.2 ± 6.4 | -25.5 ± 3.6 |
+| gauss2clayton | shape | 9.7 | -69.3 ± 5.3 | -42.8 ± 5.1 | -70.3 ± 5.3 |
+| gauss2t | shape | 7.3 | -27.5 ± 4.5 | -24.3 ± 4.7 | -28.4 ± 4.6 |
+| gaussian | jump | 19.5 | +4.5 ± 2.2 | -95.0 ± 7.8 | +8.9 ± 2.0 |
+| gumbel | jump | 6.3 | -65.7 ± 5.0 | -94.0 ± 6.7 | -51.2 ± 4.1 |
+| t | jump | 11.7 | -53.0 ± 8.5 | -85.2 ± 7.6 | -28.9 ± 4.5 |
+
+W/L/T over cells: mle_log 6/1/0; hermite_own 7/0/0; mle_own 6/1/0
+
+## chiL(0.05) RMSE x1e-3 vs ratio estimator, window whole: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | constant | 24.4 | -197.6 ± 3.9 | -80.4 ± 3.8 | -28.4 ± 4.4 |
+| clayton | drift | 48.6 | -121.9 ± 5.1 | -41.5 ± 4.2 | -106.2 ± 4.4 |
+| clayton | jump | 57.8 | -137.6 ± 4.6 | -71.2 ± 4.9 | -140.0 ± 5.8 |
+| clayton | oscillate | 179.2 | -54.2 ± 3.9 | -47.7 ± 2.4 | -42.9 ± 2.0 |
+| clayton2gumbel | shape | 49.4 | -159.3 ± 4.6 | -65.9 ± 5.1 | -84.7 ± 5.6 |
+| gauss2clayton | shape | 53.8 | -158.9 ± 5.0 | -59.6 ± 4.4 | -63.8 ± 4.4 |
+| gauss2t | shape | 30.5 | -185.0 ± 5.4 | -75.2 ± 4.8 | -34.0 ± 4.7 |
+| gaussian | constant | 20.7 | -185.3 ± 4.1 | -78.4 ± 3.8 | -31.1 ± 4.1 |
+| gaussian | drift | 27.0 | -122.3 ± 4.4 | -49.1 ± 3.7 | -62.5 ± 4.9 |
+| gaussian | jump | 51.7 | -141.7 ± 4.0 | -60.4 ± 3.9 | -86.6 ± 4.7 |
+| gaussian | oscillate | 92.8 | -62.8 ± 4.2 | -34.3 ± 2.5 | -24.5 ± 1.9 |
+| gumbel | constant | 18.2 | -169.5 ± 3.6 | -73.2 ± 3.5 | -29.1 ± 3.6 |
+| gumbel | drift | 23.9 | -120.7 ± 4.1 | -49.9 ± 3.4 | -41.3 ± 5.2 |
+| gumbel | jump | 38.1 | -144.8 ± 4.2 | -59.9 ± 3.9 | -66.8 ± 4.5 |
+| gumbel | oscillate | 62.3 | -78.5 ± 4.5 | -26.8 ± 3.1 | -8.0 ± 2.8 |
+| t | constant | 20.3 | -205.4 ± 4.0 | -90.6 ± 4.1 | -35.4 ± 4.5 |
+| t | drift | 29.5 | -152.2 ± 4.5 | -64.0 ± 4.2 | -69.4 ± 5.0 |
+| t | jump | 52.5 | -159.0 ± 4.4 | -68.3 ± 3.7 | -85.4 ± 4.6 |
+| t | oscillate | 102.6 | -88.9 ± 5.1 | -57.5 ± 2.8 | -45.6 ± 1.7 |
+
+W/L/T over cells: ratio_99 19/0/0; ratio_399 19/0/0; ratio_1999 19/0/0
+
+## chiL(0.05) RMSE x1e-3 vs ratio estimator, window rec_0_100: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 324.6 | -59.1 ± 38.1 | -159.0 ± 25.1 | -234.2 ± 16.6 |
+| clayton2gumbel | shape | 261.0 | -29.8 ± 40.6 | -58.4 ± 28.3 | -105.1 ± 19.2 |
+| gauss2clayton | shape | 269.4 | -9.5 ± 29.9 | -9.5 ± 21.4 | -35.0 ± 10.5 |
+| gauss2t | shape | 89.9 | -131.3 ± 22.9 | -36.1 ± 18.4 | -19.6 ± 9.6 |
+| gaussian | jump | 243.6 | -53.4 ± 22.0 | -89.3 ± 17.1 | -129.9 ± 10.2 |
+| gumbel | jump | 175.2 | -93.6 ± 20.7 | -72.0 ± 20.4 | -107.4 ± 11.3 |
+| t | jump | 268.1 | -66.7 ± 28.2 | -74.6 ± 22.3 | -108.7 ± 11.5 |
+
+W/L/T over cells: ratio_99 5/0/2; ratio_399 6/0/1; ratio_1999 7/0/0
+
+## chiL(0.05) RMSE x1e-3 vs ratio estimator, window rec_100_500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 27.3 | -163.2 ± 13.8 | -181.8 ± 17.2 | -409.7 ± 12.0 |
+| clayton2gumbel | shape | 49.5 | -141.9 ± 14.1 | -90.8 ± 16.3 | -234.5 ± 14.3 |
+| gauss2clayton | shape | 73.4 | -135.4 ± 14.0 | -72.4 ± 14.5 | -168.7 ± 10.0 |
+| gauss2t | shape | 50.8 | -153.4 ± 12.8 | -46.0 ± 10.6 | -35.3 ± 9.1 |
+| gaussian | jump | 68.6 | -157.2 ± 14.2 | -100.8 ± 16.9 | -229.6 ± 11.5 |
+| gumbel | jump | 41.1 | -169.5 ± 11.4 | -88.5 ± 13.9 | -177.0 ± 11.5 |
+| t | jump | 66.2 | -159.5 ± 16.4 | -102.3 ± 14.2 | -230.6 ± 11.1 |
+
+W/L/T over cells: ratio_99 7/0/0; ratio_399 7/0/0; ratio_1999 7/0/0
+
+## chiL(0.05) RMSE x1e-3 vs ratio estimator, window rec_500_1500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 23.8 | -162.3 ± 9.1 | -62.2 ± 6.1 | -205.4 ± 8.2 |
+| clayton2gumbel | shape | 22.4 | -161.5 ± 8.3 | -63.5 ± 6.3 | -124.3 ± 10.0 |
+| gauss2clayton | shape | 32.8 | -182.1 ± 8.0 | -67.3 ± 7.2 | -98.2 ± 8.7 |
+| gauss2t | shape | 23.8 | -202.1 ± 8.9 | -82.2 ± 7.8 | -35.5 ± 7.3 |
+| gaussian | jump | 36.1 | -186.1 ± 9.0 | -70.0 ± 8.2 | -127.7 ± 9.3 |
+| gumbel | jump | 37.3 | -178.3 ± 7.5 | -67.5 ± 7.6 | -81.6 ± 10.0 |
+| t | jump | 37.0 | -189.6 ± 6.9 | -72.6 ± 7.2 | -117.5 ± 9.0 |
+
+W/L/T over cells: ratio_99 7/0/0; ratio_399 7/0/0; ratio_1999 7/0/0
+
+## chiU(0.05) RMSE x1e-3 vs ratio estimator, window whole: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | constant | 7.9 | -134.0 ± 4.2 | -62.8 ± 3.1 | -29.4 ± 3.1 |
+| clayton | drift | 12.0 | -107.5 ± 3.9 | -47.6 ± 2.5 | -23.4 ± 3.2 |
+| clayton | jump | 15.6 | -130.1 ± 4.1 | -58.2 ± 3.1 | -35.4 ± 3.8 |
+| clayton | oscillate | 36.3 | -76.6 ± 4.6 | -24.0 ± 3.5 | -1.3 ± 3.6 |
+| clayton2gumbel | shape | 49.5 | -146.6 ± 4.5 | -65.2 ± 4.3 | -92.2 ± 5.3 |
+| gauss2clayton | shape | 36.3 | -141.0 ± 4.4 | -56.1 ± 3.4 | -41.4 ± 4.1 |
+| gauss2t | shape | 31.1 | -183.6 ± 4.3 | -74.3 ± 3.5 | -34.1 ± 4.4 |
+| gaussian | constant | 24.5 | -184.0 ± 4.3 | -77.5 ± 3.7 | -29.5 ± 4.2 |
+| gaussian | drift | 26.8 | -122.7 ± 4.4 | -49.4 ± 3.3 | -63.2 ± 5.4 |
+| gaussian | jump | 55.5 | -138.3 ± 4.5 | -53.9 ± 3.9 | -78.4 ± 5.2 |
+| gaussian | oscillate | 96.0 | -57.3 ± 4.5 | -30.3 ± 2.5 | -20.5 ± 1.9 |
+| gumbel | constant | 23.0 | -203.3 ± 3.7 | -87.0 ± 3.4 | -31.3 ± 3.6 |
+| gumbel | drift | 49.8 | -125.9 ± 4.9 | -43.0 ± 4.2 | -82.4 ± 4.7 |
+| gumbel | jump | 52.2 | -151.8 ± 3.9 | -69.5 ± 3.9 | -114.5 ± 4.7 |
+| gumbel | oscillate | 151.3 | -60.6 ± 4.2 | -43.5 ± 2.8 | -36.0 ± 2.4 |
+| t | constant | 21.0 | -201.2 ± 4.1 | -84.9 ± 3.6 | -31.3 ± 3.5 |
+| t | drift | 29.3 | -147.3 ± 3.9 | -59.1 ± 3.6 | -66.6 ± 4.9 |
+| t | jump | 49.8 | -156.8 ± 3.7 | -62.1 ± 4.0 | -85.9 ± 5.0 |
+| t | oscillate | 103.5 | -84.7 ± 3.5 | -53.9 ± 2.1 | -44.1 ± 1.5 |
+
+W/L/T over cells: ratio_99 19/0/0; ratio_399 19/0/0; ratio_1999 18/0/1
+
+## chiU(0.05) RMSE x1e-3 vs ratio estimator, window rec_0_100: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 64.9 | -100.8 ± 18.0 | -42.5 ± 11.6 | -42.5 ± 8.2 |
+| clayton2gumbel | shape | 278.2 | -3.1 ± 28.8 | -50.5 ± 22.8 | -109.1 ± 16.4 |
+| gauss2clayton | shape | 184.1 | -3.4 ± 24.7 | +19.5 ± 19.1 | +5.9 ± 14.0 |
+| gauss2t | shape | 87.5 | -128.8 ± 22.2 | -30.9 ± 16.9 | -21.2 ± 11.6 |
+| gaussian | jump | 241.8 | -51.6 ± 24.4 | -85.8 ± 18.1 | -134.6 ± 11.7 |
+| gumbel | jump | 279.2 | -58.7 ± 27.7 | -126.9 ± 19.0 | -183.1 ± 12.5 |
+| t | jump | 260.1 | -27.9 ± 29.7 | -41.8 ± 22.1 | -101.9 ± 13.1 |
+
+W/L/T over cells: ratio_99 4/0/3; ratio_399 6/1/0; ratio_1999 6/0/1
+
+## chiU(0.05) RMSE x1e-3 vs ratio estimator, window rec_100_500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 14.8 | -147.2 ± 10.1 | -73.1 ± 8.3 | -72.9 ± 7.6 |
+| clayton2gumbel | shape | 55.8 | -162.3 ± 12.8 | -112.9 ± 13.4 | -250.8 ± 10.5 |
+| gauss2clayton | shape | 37.2 | -100.4 ± 13.8 | -47.1 ± 10.9 | -102.5 ± 11.1 |
+| gauss2t | shape | 46.4 | -168.1 ± 11.5 | -57.9 ± 11.7 | -41.5 ± 9.8 |
+| gaussian | jump | 80.7 | -142.4 ± 13.8 | -74.1 ± 18.2 | -213.2 ± 14.8 |
+| gumbel | jump | 35.1 | -171.4 ± 12.4 | -140.4 ± 16.9 | -325.9 ± 11.3 |
+| t | jump | 51.4 | -168.9 ± 14.9 | -104.9 ± 17.9 | -236.2 ± 12.1 |
+
+W/L/T over cells: ratio_99 7/0/0; ratio_399 7/0/0; ratio_1999 7/0/0
+
+## chiU(0.05) RMSE x1e-3 vs ratio estimator, window rec_500_1500: family_bank, and family_bank minus ...
+
+| copula | scenario | family | − ratio_99 | − ratio_399 | − ratio_1999 |
+| --- | --- | --- | --- | --- | --- |
+| clayton | jump | 13.9 | -152.4 ± 7.5 | -66.5 ± 4.9 | -39.8 ± 5.8 |
+| clayton2gumbel | shape | 28.6 | -200.3 ± 8.2 | -80.4 ± 7.0 | -132.4 ± 9.8 |
+| gauss2clayton | shape | 9.8 | -129.2 ± 7.2 | -60.7 ± 5.2 | -63.3 ± 7.5 |
+| gauss2t | shape | 23.9 | -195.2 ± 7.9 | -77.3 ± 6.8 | -33.6 ± 7.7 |
+| gaussian | jump | 37.5 | -185.6 ± 9.1 | -61.3 ± 7.1 | -112.9 ± 9.0 |
+| gumbel | jump | 32.0 | -169.3 ± 7.5 | -60.8 ± 5.6 | -163.0 ± 8.0 |
+| t | jump | 37.5 | -186.6 ± 7.0 | -68.5 ± 6.8 | -122.1 ± 9.8 |
+
+W/L/T over cells: ratio_99 7/0/0; ratio_399 7/0/0; ratio_1999 7/0/0
+
+## Shape switches: ticks after tick 2500 for a shape's summed weight to reach 50% / 90%
+
+Switch rows: the new shape after a real switch. Null rows: constant path, no switch, every shape but the DGP's.
+
+| copula | scenario | shape | weight at t=2499 | t50 median [IQR] | t90 median [IQR] | reached 50% | reached 90% |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| gauss2t | shape | t | 0.007 | 174 [130, 247] | 262 [178, 342] | 60/60 | 60/60 |
+| clayton2gumbel | shape | gumbel | 0.001 | 68 [45, 143] | 156 [109, 213] | 60/60 | 60/60 |
+| gauss2clayton | shape | clayton | 0.002 | 94 [80, 124] | 128 [99, 162] | 60/60 | 60/60 |
+| gaussian | constant | t | 0.007 | 465 [309, 906] | 1566 [1566, 1566] | 3/60 | 1/60 |
+| gaussian | constant | clayton | 0.002 | 954 [338, 1686] | 255 [255, 255] | 4/60 | 1/60 |
+| gaussian | constant | clayton90 | 0.000 | — | — | 0/60 | 0/60 |
+| gaussian | constant | gumbel | 0.017 | 708 [518, 1302] | 1685 [768, 1955] | 7/60 | 5/60 |
+| gaussian | constant | gumbel90 | 0.000 | — | — | 0/60 | 0/60 |
+| gaussian | constant | clayton270 | 0.000 | — | — | 0/60 | 0/60 |
+| gaussian | constant | gumbel270 | 0.000 | — | — | 0/60 | 0/60 |
+| clayton | constant | gaussian | 0.001 | 2189 [2189, 2189] | — | 1/60 | 0/60 |
+| clayton | constant | t | 0.001 | 1176 [1176, 1176] | — | 1/60 | 0/60 |
+| clayton | constant | clayton90 | 0.001 | — | — | 0/60 | 0/60 |
+| clayton | constant | gumbel | 0.001 | — | — | 0/60 | 0/60 |
+| clayton | constant | gumbel90 | 0.001 | — | — | 0/60 | 0/60 |
+| clayton | constant | clayton270 | 0.001 | — | — | 0/60 | 0/60 |
+| clayton | constant | gumbel270 | 0.001 | — | — | 0/60 | 0/60 |
+| gumbel | constant | gaussian | 0.002 | — | — | 0/60 | 0/60 |
+| gumbel | constant | t | 0.008 | 1592 [976, 2134] | 1190 [722, 1659] | 7/60 | 2/60 |
+| gumbel | constant | clayton | 0.001 | 1422 [1226, 1618] | — | 2/60 | 0/60 |
+| gumbel | constant | clayton90 | 0.000 | — | — | 0/60 | 0/60 |
+| gumbel | constant | gumbel90 | 0.000 | — | — | 0/60 | 0/60 |
+| gumbel | constant | clayton270 | 0.000 | — | — | 0/60 | 0/60 |
+| gumbel | constant | gumbel270 | 0.000 | — | — | 0/60 | 0/60 |
+| t | constant | gaussian | 0.004 | 861 [680, 1042] | 1271 [1271, 1271] | 2/60 | 1/60 |
+| t | constant | clayton | 0.003 | 995 [960, 1030] | — | 2/60 | 0/60 |
+| t | constant | clayton90 | 0.000 | — | — | 0/60 | 0/60 |
+| t | constant | gumbel | 0.009 | 1136 [834, 1164] | — | 3/60 | 0/60 |
+| t | constant | gumbel90 | 0.000 | — | — | 0/60 | 0/60 |
+| t | constant | clayton270 | 0.000 | — | — | 0/60 | 0/60 |
+| t | constant | gumbel270 | 0.000 | — | — | 0/60 | 0/60 |
+
+## Seed-mean shape weights and memory, averaged over ticks (pre = [500, 2500), post = [2500, 5000))
+
+| copula | scenario | span | gaussian | t | clayton | clayton90 | clayton270 | gumbel | gumbel90 | gumbel270 | mem |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gaussian | constant | pre | 0.96 | 0.01 | 0.00 | 0.00 | 0.00 | 0.02 | 0.00 | 0.00 | 1360 |
+| gaussian | constant | post | 0.96 | 0.01 | 0.00 | 0.00 | 0.00 | 0.02 | 0.00 | 0.00 | 1742 |
+| gaussian | drift | pre | 0.68 | 0.02 | 0.04 | 0.03 | 0.03 | 0.05 | 0.10 | 0.05 | 594 |
+| gaussian | drift | post | 0.93 | 0.01 | 0.02 | 0.00 | 0.00 | 0.03 | 0.00 | 0.00 | 397 |
+| gaussian | jump | pre | 0.67 | 0.01 | 0.13 | 0.01 | 0.01 | 0.17 | 0.01 | 0.01 | 1355 |
+| gaussian | jump | post | 0.83 | 0.10 | 0.01 | 0.00 | 0.00 | 0.06 | 0.00 | 0.00 | 214 |
+| gaussian | oscillate | pre | 0.10 | 0.66 | 0.04 | 0.03 | 0.03 | 0.06 | 0.04 | 0.04 | 215 |
+| gaussian | oscillate | post | 0.04 | 0.78 | 0.03 | 0.02 | 0.02 | 0.04 | 0.03 | 0.03 | 181 |
+| clayton | constant | pre | 0.00 | 0.00 | 0.99 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 1271 |
+| clayton | constant | post | 0.00 | 0.00 | 0.99 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 1637 |
+| clayton | drift | pre | 0.24 | 0.01 | 0.18 | 0.15 | 0.13 | 0.10 | 0.09 | 0.09 | 943 |
+| clayton | drift | post | 0.06 | 0.01 | 0.91 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 490 |
+| clayton | jump | pre | 0.02 | 0.02 | 0.94 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 1335 |
+| clayton | jump | post | 0.00 | 0.00 | 0.99 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 251 |
+| clayton | oscillate | pre | 0.04 | 0.06 | 0.47 | 0.10 | 0.10 | 0.02 | 0.11 | 0.11 | 506 |
+| clayton | oscillate | post | 0.05 | 0.06 | 0.47 | 0.10 | 0.10 | 0.03 | 0.10 | 0.10 | 517 |
+| gumbel | constant | pre | 0.01 | 0.01 | 0.00 | 0.00 | 0.00 | 0.98 | 0.00 | 0.00 | 1411 |
+| gumbel | constant | post | 0.00 | 0.01 | 0.00 | 0.00 | 0.00 | 0.98 | 0.00 | 0.00 | 1742 |
+| gumbel | drift | pre | 0.24 | 0.02 | 0.17 | 0.15 | 0.13 | 0.11 | 0.09 | 0.10 | 946 |
+| gumbel | drift | post | 0.08 | 0.03 | 0.01 | 0.00 | 0.00 | 0.86 | 0.00 | 0.01 | 565 |
+| gumbel | jump | pre | 0.04 | 0.02 | 0.01 | 0.00 | 0.00 | 0.91 | 0.00 | 0.00 | 1372 |
+| gumbel | jump | post | 0.00 | 0.01 | 0.00 | 0.00 | 0.00 | 0.98 | 0.00 | 0.00 | 279 |
+| gumbel | oscillate | pre | 0.06 | 0.10 | 0.02 | 0.08 | 0.08 | 0.49 | 0.08 | 0.08 | 437 |
+| gumbel | oscillate | post | 0.05 | 0.10 | 0.02 | 0.08 | 0.08 | 0.51 | 0.08 | 0.08 | 430 |
+| t | constant | pre | 0.00 | 0.98 | 0.00 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 1363 |
+| t | constant | post | 0.01 | 0.98 | 0.00 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 1755 |
+| t | drift | pre | 0.00 | 0.96 | 0.01 | 0.00 | 0.01 | 0.01 | 0.01 | 0.01 | 604 |
+| t | drift | post | 0.00 | 0.99 | 0.00 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 398 |
+| t | jump | pre | 0.00 | 0.97 | 0.00 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 1388 |
+| t | jump | post | 0.00 | 0.95 | 0.00 | 0.00 | 0.00 | 0.04 | 0.00 | 0.00 | 212 |
+| t | oscillate | pre | 0.00 | 0.90 | 0.02 | 0.01 | 0.01 | 0.03 | 0.02 | 0.02 | 157 |
+| t | oscillate | post | 0.00 | 0.92 | 0.01 | 0.01 | 0.01 | 0.02 | 0.02 | 0.02 | 143 |
+| gauss2t | shape | pre | 0.96 | 0.01 | 0.00 | 0.00 | 0.00 | 0.02 | 0.00 | 0.00 | 1360 |
+| gauss2t | shape | post | 0.08 | 0.89 | 0.00 | 0.00 | 0.00 | 0.01 | 0.00 | 0.00 | 1278 |
+| clayton2gumbel | shape | pre | 0.00 | 0.00 | 0.99 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 1271 |
+| clayton2gumbel | shape | post | 0.02 | 0.04 | 0.02 | 0.00 | 0.00 | 0.92 | 0.00 | 0.00 | 887 |
+| gauss2clayton | shape | pre | 0.96 | 0.01 | 0.00 | 0.00 | 0.00 | 0.02 | 0.00 | 0.00 | 1360 |
+| gauss2clayton | shape | post | 0.05 | 0.00 | 0.94 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 464 |
+
+## Regret of the family bank's mixture log loss against B_{T,m}(delta) (bound at eta = 1)
+
+| bank | scenario | m | mean | 95% | max | bound | max/bound | viol |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| log_mix | drift | 0 | 2.87 | 4.13 | 4.15 | 4.2 | 0.99 | 0/240 |
+| log_mix | drift | 1 | 7.95 | 10.08 | 11.59 | 15.8 | 0.73 | 0/240 |
+| log_mix | drift | 2 | 12.31 | 15.12 | 17.31 | 27.5 | 0.63 | 0/240 |
+| log_mix | drift | 5 | 22.51 | 27.32 | 31.36 | 62.4 | 0.50 | 0/240 |
+| log_mix | drift | 20 | 59.72 | 69.84 | 76.41 | 237.1 | 0.32 | 0/240 |
+| log_mix | drift | 50 | 112.83 | 128.15 | 140.39 | 586.5 | 0.24 | 0/240 |
+| log_mix | jump | 0 | -2.91 | 1.77 | 3.78 | 4.2 | 0.90 | 0/240 |
+| log_mix | jump | 1 | 7.67 | 10.07 | 11.05 | 15.8 | 0.70 | 0/240 |
+| log_mix | jump | 2 | 16.79 | 18.74 | 21.21 | 27.5 | 0.77 | 0/240 |
+| log_mix | jump | 5 | 29.67 | 33.66 | 36.86 | 62.4 | 0.59 | 0/240 |
+| log_mix | jump | 20 | 70.40 | 79.07 | 84.09 | 237.1 | 0.35 | 0/240 |
+| log_mix | jump | 50 | 129.53 | 147.01 | 159.19 | 586.5 | 0.27 | 0/240 |
+| log_mix_hedge | drift | 0 | 3.16 | 3.18 | 3.18 | 3.2 | 1.00 | 0/240 |
+| log_mix_hedge | drift | 1 | 8.23 | 13.65 | 20.13 | inf | 0.00 | 0/240 |
+| log_mix_hedge | drift | 2 | 12.59 | 17.90 | 25.91 | inf | 0.00 | 0/240 |
+| log_mix_hedge | drift | 5 | 22.80 | 29.48 | 36.74 | inf | 0.00 | 0/240 |
+| log_mix_hedge | drift | 20 | 60.00 | 69.93 | 80.69 | inf | 0.00 | 0/240 |
+| log_mix_hedge | drift | 50 | 113.11 | 127.79 | 140.12 | inf | 0.00 | 0/240 |
+| log_mix_hedge | jump | 0 | 3.13 | 3.18 | 3.18 | 3.2 | 1.00 | 0/240 |
+| log_mix_hedge | jump | 1 | 13.70 | 17.37 | 19.80 | inf | 0.00 | 0/240 |
+| log_mix_hedge | jump | 2 | 22.83 | 28.34 | 33.43 | inf | 0.00 | 0/240 |
+| log_mix_hedge | jump | 5 | 35.70 | 43.01 | 49.83 | inf | 0.00 | 0/240 |
+| log_mix_hedge | jump | 20 | 76.44 | 86.19 | 92.20 | inf | 0.00 | 0/240 |
+| log_mix_hedge | jump | 50 | 135.57 | 153.35 | 164.86 | inf | 0.00 | 0/240 |
+
+## Tail bank
+
+## chi(q) rmse x1e-3 (mean ± 2 SE over seeds), by window
+
+| regime | q | tail | method | whole | pre | post_0_500 | post_500_2000 | post_2000_5000 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gauss2clayton | 0.05 | lower | family_bank | 42 ± 2 | 19 ± 2 | 139 ± 7 | 31 ± 2 | 28 ± 2 |
+| gauss2clayton | 0.05 | lower | tail_chi_399 | 106 ± 3 | 98 ± 4 | 171 ± 15 | 99 ± 6 | 101 ± 4 |
+| gauss2clayton | 0.05 | lower | tail_chi_1999 | 87 ± 3 | 47 ± 4 | 252 ± 11 | 115 ± 7 | 41 ± 4 |
+| gauss2clayton | 0.05 | lower | tail_chi_4999 | 116 ± 4 | 39 ± 4 | 283 ± 8 | 190 ± 6 | 81 ± 5 |
+| gauss2clayton | 0.05 | lower | tail_chi_1999_known | 88 ± 4 | 51 ± 4 | 249 ± 12 | 112 ± 11 | 46 ± 4 |
+| gauss2clayton | 0.05 | lower | hermite_bank_own | 93 ± 3 | 44 ± 3 | 244 ± 8 | 128 ± 5 | 69 ± 4 |
+| gauss2clayton | 0.05 | lower | hermite_399 | 105 ± 2 | 78 ± 3 | 197 ± 11 | 109 ± 5 | 108 ± 4 |
+| gauss2clayton | 0.05 | lower | hermite_1999 | 93 ± 3 | 40 ± 3 | 260 ± 8 | 130 ± 5 | 60 ± 4 |
+| gauss2clayton | 0.05 | lower | xiao_399 | 111 ± 3 | 95 ± 4 | 198 ± 15 | 108 ± 7 | 106 ± 5 |
+| gauss2clayton | 0.05 | lower | xiao_1999 | 93 ± 3 | 48 ± 4 | 262 ± 11 | 129 ± 7 | 50 ± 5 |
+| gauss2clayton | 0.05 | lower | best arm (clayton_1999) | 131 ± 2 | 192 ± 3 | 86 ± 3 | 32 ± 2 | 14 ± 1 |
+| gauss2clayton | 0.05 | upper | family_bank | 28 ± 2 | 23 ± 3 | 92 ± 6 | 8 ± 1 | 10 ± 2 |
+| gauss2clayton | 0.05 | upper | tail_chi_399 | 88 ± 2 | 101 ± 3 | 102 ± 13 | 70 ± 5 | 69 ± 3 |
+| gauss2clayton | 0.05 | upper | tail_chi_1999 | 60 ± 3 | 50 ± 3 | 148 ± 10 | 64 ± 7 | 31 ± 3 |
+| gauss2clayton | 0.05 | upper | tail_chi_4999 | 73 ± 3 | 43 ± 4 | 168 ± 7 | 109 ± 6 | 47 ± 5 |
+| gauss2clayton | 0.05 | upper | tail_chi_1999_known | 64 ± 3 | 52 ± 4 | 157 ± 10 | 73 ± 7 | 33 ± 4 |
+| gauss2clayton | 0.05 | upper | hermite_bank_own | 53 ± 2 | 46 ± 3 | 133 ± 8 | 59 ± 5 | 27 ± 2 |
+| gauss2clayton | 0.05 | upper | hermite_399 | 68 ± 2 | 79 ± 2 | 90 ± 10 | 51 ± 4 | 49 ± 3 |
+| gauss2clayton | 0.05 | upper | hermite_1999 | 56 ± 2 | 42 ± 3 | 152 ± 8 | 66 ± 5 | 25 ± 2 |
+| gauss2clayton | 0.05 | upper | xiao_399 | 85 ± 2 | 98 ± 3 | 95 ± 12 | 67 ± 5 | 65 ± 3 |
+| gauss2clayton | 0.05 | upper | xiao_1999 | 59 ± 3 | 51 ± 4 | 145 ± 10 | 63 ± 7 | 31 ± 3 |
+| gauss2clayton | 0.05 | upper | best arm (clayton_1999) | 145 ± 0 | 217 ± 0 | 15 ± 1 | 6 ± 0 | 3 ± 0 |
+| gauss2clayton | 0.10 | lower | family_bank | 35 ± 1 | 18 ± 2 | 108 ± 6 | 29 ± 2 | 26 ± 2 |
+| gauss2clayton | 0.10 | lower | tail_chi_399 | 78 ± 2 | 72 ± 3 | 132 ± 10 | 74 ± 4 | 71 ± 3 |
+| gauss2clayton | 0.10 | lower | tail_chi_1999 | 65 ± 2 | 35 ± 3 | 190 ± 7 | 85 ± 6 | 32 ± 3 |
+| gauss2clayton | 0.10 | lower | tail_chi_4999 | 88 ± 3 | 31 ± 3 | 213 ± 5 | 142 ± 5 | 63 ± 4 |
+| gauss2clayton | 0.10 | lower | tail_chi_1999_known | 66 ± 2 | 38 ± 4 | 186 ± 7 | 82 ± 6 | 34 ± 3 |
+| gauss2clayton | 0.10 | lower | hermite_bank_own | 61 ± 2 | 31 ± 2 | 175 ± 6 | 81 ± 4 | 36 ± 3 |
+| gauss2clayton | 0.10 | lower | hermite_399 | 68 ± 2 | 60 ± 2 | 137 ± 9 | 63 ± 4 | 62 ± 3 |
+| gauss2clayton | 0.10 | lower | hermite_1999 | 63 ± 2 | 28 ± 2 | 189 ± 5 | 86 ± 4 | 30 ± 3 |
+| gauss2clayton | 0.10 | lower | xiao_399 | 81 ± 2 | 71 ± 3 | 151 ± 11 | 77 ± 5 | 75 ± 4 |
+| gauss2clayton | 0.10 | lower | xiao_1999 | 68 ± 3 | 36 ± 3 | 195 ± 7 | 90 ± 6 | 34 ± 4 |
+| gauss2clayton | 0.10 | lower | best arm (clayton_1999) | 88 ± 2 | 127 ± 3 | 80 ± 3 | 30 ± 2 | 13 ± 1 |
+| gauss2clayton | 0.10 | upper | family_bank | 26 ± 1 | 20 ± 2 | 84 ± 5 | 11 ± 1 | 12 ± 2 |
+| gauss2clayton | 0.10 | upper | tail_chi_399 | 71 ± 2 | 75 ± 3 | 95 ± 9 | 64 ± 4 | 62 ± 3 |
+| gauss2clayton | 0.10 | upper | tail_chi_1999 | 50 ± 2 | 36 ± 3 | 139 ± 8 | 57 ± 5 | 26 ± 2 |
+| gauss2clayton | 0.10 | upper | tail_chi_4999 | 63 ± 2 | 30 ± 3 | 155 ± 6 | 99 ± 5 | 39 ± 3 |
+| gauss2clayton | 0.10 | upper | tail_chi_1999_known | 52 ± 3 | 35 ± 3 | 144 ± 9 | 62 ± 6 | 29 ± 3 |
+| gauss2clayton | 0.10 | upper | hermite_bank_own | 45 ± 2 | 33 ± 2 | 125 ± 6 | 51 ± 4 | 25 ± 2 |
+| gauss2clayton | 0.10 | upper | hermite_399 | 58 ± 1 | 61 ± 2 | 86 ± 7 | 50 ± 2 | 49 ± 2 |
+| gauss2clayton | 0.10 | upper | hermite_1999 | 48 ± 2 | 30 ± 2 | 141 ± 6 | 58 ± 4 | 22 ± 2 |
+| gauss2clayton | 0.10 | upper | xiao_399 | 69 ± 2 | 74 ± 3 | 88 ± 8 | 61 ± 3 | 59 ± 3 |
+| gauss2clayton | 0.10 | upper | xiao_1999 | 50 ± 2 | 36 ± 3 | 137 ± 8 | 56 ± 5 | 25 ± 2 |
+| gauss2clayton | 0.10 | upper | best arm (gaussian_1999) | 138 ± 1 | 13 ± 1 | 187 ± 2 | 184 ± 2 | 184 ± 2 |
+| clayton2gumbel | 0.05 | lower | family_bank | 36 ± 2 | 23 ± 2 | 125 ± 8 | 18 ± 1 | 16 ± 1 |
+| clayton2gumbel | 0.05 | lower | tail_chi_399 | 106 ± 3 | 104 ± 4 | 193 ± 16 | 88 ± 5 | 90 ± 4 |
+| clayton2gumbel | 0.05 | lower | tail_chi_1999 | 98 ± 3 | 49 ± 4 | 307 ± 11 | 125 ± 7 | 40 ± 3 |
+| clayton2gumbel | 0.05 | lower | tail_chi_4999 | 136 ± 4 | 41 ± 5 | 344 ± 8 | 221 ± 7 | 89 ± 5 |
+| clayton2gumbel | 0.05 | lower | tail_chi_1999_known | 102 ± 4 | 51 ± 4 | 315 ± 12 | 133 ± 9 | 42 ± 4 |
+| clayton2gumbel | 0.05 | lower | hermite_bank_own | 82 ± 2 | 71 ± 4 | 218 ± 9 | 83 ± 6 | 37 ± 3 |
+| clayton2gumbel | 0.05 | lower | hermite_399 | 96 ± 2 | 112 ± 4 | 155 ± 11 | 63 ± 3 | 67 ± 3 |
+| clayton2gumbel | 0.05 | lower | hermite_1999 | 95 ± 2 | 61 ± 4 | 285 ± 7 | 119 ± 5 | 34 ± 3 |
+| clayton2gumbel | 0.05 | lower | xiao_399 | 106 ± 3 | 112 ± 5 | 177 ± 15 | 84 ± 5 | 86 ± 3 |
+| clayton2gumbel | 0.05 | lower | xiao_1999 | 97 ± 3 | 55 ± 6 | 294 ± 11 | 119 ± 7 | 39 ± 3 |
+| clayton2gumbel | 0.05 | lower | best arm (clayton_99) | 185 ± 2 | 48 ± 1 | 264 ± 7 | 238 ± 4 | 243 ± 4 |
+| clayton2gumbel | 0.05 | upper | family_bank | 36 ± 2 | 8 ± 1 | 132 ± 7 | 26 ± 2 | 22 ± 2 |
+| clayton2gumbel | 0.05 | upper | tail_chi_399 | 102 ± 2 | 70 ± 3 | 198 ± 13 | 108 ± 6 | 107 ± 4 |
+| clayton2gumbel | 0.05 | upper | tail_chi_1999 | 105 ± 3 | 34 ± 3 | 322 ± 8 | 148 ± 8 | 52 ± 5 |
+| clayton2gumbel | 0.05 | upper | tail_chi_4999 | 148 ± 4 | 28 ± 3 | 365 ± 6 | 245 ± 6 | 109 ± 7 |
+| clayton2gumbel | 0.05 | upper | tail_chi_1999_known | 104 ± 4 | 35 ± 3 | 317 ± 10 | 141 ± 9 | 56 ± 5 |
+| clayton2gumbel | 0.05 | upper | hermite_bank_own | 91 ± 3 | 28 ± 2 | 269 ± 10 | 126 ± 8 | 55 ± 4 |
+| clayton2gumbel | 0.05 | upper | hermite_399 | 91 ± 2 | 50 ± 2 | 209 ± 11 | 99 ± 6 | 92 ± 4 |
+| clayton2gumbel | 0.05 | upper | hermite_1999 | 104 ± 3 | 26 ± 2 | 324 ± 7 | 149 ± 6 | 49 ± 4 |
+| clayton2gumbel | 0.05 | upper | xiao_399 | 105 ± 3 | 67 ± 3 | 218 ± 13 | 113 ± 7 | 109 ± 5 |
+| clayton2gumbel | 0.05 | upper | xiao_1999 | 110 ± 3 | 34 ± 3 | 328 ± 8 | 157 ± 8 | 58 ± 6 |
+| clayton2gumbel | 0.05 | upper | best arm (gaussian_1999) | 202 ± 1 | 206 ± 2 | 198 ± 2 | 199 ± 2 | 198 ± 2 |
+| clayton2gumbel | 0.10 | lower | family_bank | 30 ± 1 | 22 ± 2 | 98 ± 6 | 19 ± 1 | 16 ± 1 |
+| clayton2gumbel | 0.10 | lower | tail_chi_399 | 79 ± 2 | 74 ± 3 | 144 ± 11 | 67 ± 4 | 72 ± 3 |
+| clayton2gumbel | 0.10 | lower | tail_chi_1999 | 76 ± 3 | 35 ± 3 | 239 ± 8 | 99 ± 5 | 32 ± 2 |
+| clayton2gumbel | 0.10 | lower | tail_chi_4999 | 106 ± 3 | 29 ± 4 | 268 ± 6 | 174 ± 5 | 72 ± 4 |
+| clayton2gumbel | 0.10 | lower | tail_chi_1999_known | 80 ± 3 | 39 ± 3 | 244 ± 9 | 105 ± 6 | 36 ± 3 |
+| clayton2gumbel | 0.10 | lower | hermite_bank_own | 60 ± 2 | 35 ± 3 | 181 ± 8 | 70 ± 5 | 30 ± 2 |
+| clayton2gumbel | 0.10 | lower | hermite_399 | 67 ± 2 | 65 ± 3 | 130 ± 9 | 54 ± 3 | 57 ± 2 |
+| clayton2gumbel | 0.10 | lower | hermite_1999 | 73 ± 2 | 29 ± 3 | 233 ± 5 | 98 ± 4 | 28 ± 2 |
+| clayton2gumbel | 0.10 | lower | xiao_399 | 79 ± 2 | 79 ± 4 | 132 ± 10 | 66 ± 4 | 69 ± 3 |
+| clayton2gumbel | 0.10 | lower | xiao_1999 | 76 ± 2 | 37 ± 4 | 235 ± 8 | 97 ± 5 | 31 ± 2 |
+| clayton2gumbel | 0.10 | lower | best arm (clayton_399) | 132 ± 2 | 26 ± 1 | 232 ± 5 | 166 ± 3 | 168 ± 3 |
+| clayton2gumbel | 0.10 | upper | family_bank | 30 ± 1 | 9 ± 1 | 106 ± 6 | 24 ± 2 | 20 ± 2 |
+| clayton2gumbel | 0.10 | upper | tail_chi_399 | 78 ± 2 | 63 ± 3 | 163 ± 10 | 74 ± 4 | 73 ± 3 |
+| clayton2gumbel | 0.10 | upper | tail_chi_1999 | 83 ± 2 | 29 ± 3 | 262 ± 7 | 115 ± 6 | 35 ± 3 |
+| clayton2gumbel | 0.10 | upper | tail_chi_4999 | 118 ± 3 | 24 ± 2 | 294 ± 5 | 195 ± 5 | 86 ± 4 |
+| clayton2gumbel | 0.10 | upper | tail_chi_1999_known | 83 ± 3 | 31 ± 3 | 258 ± 7 | 111 ± 7 | 37 ± 4 |
+| clayton2gumbel | 0.10 | upper | hermite_bank_own | 68 ± 3 | 26 ± 2 | 212 ± 9 | 90 ± 6 | 33 ± 3 |
+| clayton2gumbel | 0.10 | upper | hermite_399 | 67 ± 2 | 49 ± 2 | 164 ± 9 | 63 ± 4 | 59 ± 3 |
+| clayton2gumbel | 0.10 | upper | hermite_1999 | 81 ± 2 | 23 ± 2 | 260 ± 6 | 113 ± 5 | 30 ± 3 |
+| clayton2gumbel | 0.10 | upper | xiao_399 | 80 ± 2 | 59 ± 2 | 180 ± 10 | 77 ± 4 | 74 ± 4 |
+| clayton2gumbel | 0.10 | upper | xiao_1999 | 85 ± 3 | 29 ± 2 | 266 ± 7 | 120 ± 6 | 37 ± 3 |
+| clayton2gumbel | 0.10 | upper | best arm (gaussian_1999) | 161 ± 1 | 186 ± 2 | 138 ± 2 | 139 ± 2 | 137 ± 2 |
+| gauss2t | 0.05 | lower | family_bank | 25 ± 1 | 19 ± 2 | 63 ± 5 | 24 ± 3 | 17 ± 2 |
+| gauss2t | 0.05 | lower | tail_chi_399 | 105 ± 3 | 98 ± 4 | 112 ± 11 | 105 ± 6 | 108 ± 4 |
+| gauss2t | 0.05 | lower | tail_chi_1999 | 54 ± 3 | 47 ± 4 | 90 ± 11 | 54 ± 7 | 48 ± 4 |
+| gauss2t | 0.05 | lower | tail_chi_4999 | 53 ± 4 | 39 ± 4 | 99 ± 8 | 69 ± 7 | 42 ± 5 |
+| gauss2t | 0.05 | lower | tail_chi_1999_known | 56 ± 3 | 51 ± 4 | 88 ± 10 | 53 ± 6 | 48 ± 5 |
+| gauss2t | 0.05 | lower | hermite_bank_own | 50 ± 2 | 44 ± 3 | 91 ± 8 | 54 ± 5 | 42 ± 3 |
+| gauss2t | 0.05 | lower | hermite_399 | 83 ± 2 | 78 ± 3 | 101 ± 9 | 84 ± 5 | 83 ± 4 |
+| gauss2t | 0.05 | lower | hermite_1999 | 47 ± 2 | 40 ± 3 | 91 ± 8 | 49 ± 5 | 37 ± 3 |
+| gauss2t | 0.05 | lower | xiao_399 | 103 ± 3 | 95 ± 4 | 117 ± 12 | 104 ± 6 | 106 ± 5 |
+| gauss2t | 0.05 | lower | xiao_1999 | 57 ± 3 | 48 ± 4 | 97 ± 11 | 60 ± 7 | 50 ± 4 |
+| gauss2t | 0.05 | lower | best arm (t_1999) | 49 ± 1 | 72 ± 2 | 20 ± 2 | 11 ± 1 | 13 ± 1 |
+| gauss2t | 0.05 | upper | family_bank | 26 ± 2 | 23 ± 3 | 61 ± 5 | 22 ± 2 | 18 ± 2 |
+| gauss2t | 0.05 | upper | tail_chi_399 | 106 ± 3 | 101 ± 3 | 114 ± 10 | 102 ± 5 | 109 ± 5 |
+| gauss2t | 0.05 | upper | tail_chi_1999 | 54 ± 3 | 50 ± 3 | 92 ± 10 | 52 ± 5 | 45 ± 4 |
+| gauss2t | 0.05 | upper | tail_chi_4999 | 53 ± 3 | 43 ± 4 | 98 ± 8 | 67 ± 6 | 38 ± 4 |
+| gauss2t | 0.05 | upper | tail_chi_1999_known | 54 ± 3 | 52 ± 4 | 85 ± 10 | 52 ± 6 | 45 ± 4 |
+| gauss2t | 0.05 | upper | hermite_bank_own | 51 ± 2 | 46 ± 3 | 91 ± 9 | 55 ± 5 | 42 ± 3 |
+| gauss2t | 0.05 | upper | hermite_399 | 84 ± 2 | 79 ± 2 | 102 ± 10 | 84 ± 4 | 85 ± 4 |
+| gauss2t | 0.05 | upper | hermite_1999 | 47 ± 3 | 42 ± 3 | 90 ± 9 | 50 ± 5 | 36 ± 3 |
+| gauss2t | 0.05 | upper | xiao_399 | 104 ± 3 | 98 ± 3 | 120 ± 11 | 102 ± 6 | 106 ± 5 |
+| gauss2t | 0.05 | upper | xiao_1999 | 57 ± 3 | 51 ± 4 | 99 ± 10 | 59 ± 6 | 47 ± 4 |
+| gauss2t | 0.05 | upper | best arm (t_1999) | 49 ± 1 | 72 ± 2 | 20 ± 2 | 11 ± 1 | 13 ± 1 |
+| gauss2t | 0.10 | lower | family_bank | 21 ± 1 | 18 ± 2 | 44 ± 4 | 22 ± 2 | 16 ± 2 |
+| gauss2t | 0.10 | lower | tail_chi_399 | 74 ± 2 | 72 ± 3 | 81 ± 9 | 74 ± 4 | 71 ± 3 |
+| gauss2t | 0.10 | lower | tail_chi_1999 | 37 ± 2 | 35 ± 3 | 59 ± 7 | 37 ± 4 | 30 ± 3 |
+| gauss2t | 0.10 | lower | tail_chi_4999 | 36 ± 2 | 31 ± 3 | 64 ± 5 | 44 ± 5 | 26 ± 3 |
+| gauss2t | 0.10 | lower | tail_chi_1999_known | 40 ± 3 | 38 ± 4 | 55 ± 6 | 40 ± 4 | 35 ± 3 |
+| gauss2t | 0.10 | lower | hermite_bank_own | 34 ± 1 | 31 ± 2 | 55 ± 5 | 35 ± 3 | 28 ± 2 |
+| gauss2t | 0.10 | lower | hermite_399 | 61 ± 1 | 60 ± 2 | 69 ± 7 | 62 ± 4 | 59 ± 2 |
+| gauss2t | 0.10 | lower | hermite_1999 | 31 ± 1 | 28 ± 2 | 54 ± 5 | 31 ± 3 | 24 ± 2 |
+| gauss2t | 0.10 | lower | xiao_399 | 74 ± 2 | 71 ± 3 | 87 ± 10 | 74 ± 5 | 71 ± 3 |
+| gauss2t | 0.10 | lower | xiao_1999 | 39 ± 2 | 36 ± 3 | 63 ± 7 | 40 ± 4 | 31 ± 3 |
+| gauss2t | 0.10 | lower | best arm (t_1999) | 27 ± 1 | 38 ± 2 | 20 ± 2 | 11 ± 1 | 12 ± 1 |
+| gauss2t | 0.10 | upper | family_bank | 22 ± 1 | 20 ± 2 | 43 ± 4 | 21 ± 2 | 17 ± 2 |
+| gauss2t | 0.10 | upper | tail_chi_399 | 75 ± 2 | 75 ± 3 | 77 ± 7 | 76 ± 5 | 72 ± 2 |
+| gauss2t | 0.10 | upper | tail_chi_1999 | 37 ± 2 | 36 ± 3 | 57 ± 8 | 38 ± 4 | 29 ± 2 |
+| gauss2t | 0.10 | upper | tail_chi_4999 | 35 ± 2 | 30 ± 3 | 62 ± 6 | 44 ± 5 | 24 ± 3 |
+| gauss2t | 0.10 | upper | tail_chi_1999_known | 38 ± 2 | 35 ± 3 | 56 ± 8 | 40 ± 5 | 31 ± 3 |
+| gauss2t | 0.10 | upper | hermite_bank_own | 34 ± 2 | 33 ± 2 | 55 ± 6 | 35 ± 3 | 27 ± 2 |
+| gauss2t | 0.10 | upper | hermite_399 | 62 ± 2 | 61 ± 2 | 72 ± 8 | 62 ± 4 | 59 ± 2 |
+| gauss2t | 0.10 | upper | hermite_1999 | 31 ± 2 | 30 ± 2 | 54 ± 7 | 31 ± 4 | 23 ± 2 |
+| gauss2t | 0.10 | upper | xiao_399 | 74 ± 2 | 74 ± 3 | 80 ± 9 | 75 ± 5 | 71 ± 3 |
+| gauss2t | 0.10 | upper | xiao_1999 | 38 ± 2 | 36 ± 3 | 60 ± 8 | 40 ± 5 | 29 ± 2 |
+| gauss2t | 0.10 | upper | best arm (t_1999) | 27 ± 1 | 38 ± 2 | 20 ± 2 | 11 ± 1 | 12 ± 1 |
+| mix | 0.05 | lower | family_bank | 75 ± 2 | 75 ± 3 | 97 ± 8 | 67 ± 4 | 73 ± 2 |
+| mix | 0.05 | lower | tail_chi_399 | 106 ± 2 | 107 ± 3 | 124 ± 12 | 99 ± 6 | 102 ± 5 |
+| mix | 0.05 | lower | tail_chi_1999 | 63 ± 3 | 48 ± 3 | 152 ± 10 | 68 ± 6 | 43 ± 4 |
+| mix | 0.05 | lower | tail_chi_4999 | 72 ± 3 | 40 ± 4 | 169 ± 7 | 109 ± 6 | 45 ± 4 |
+| mix | 0.05 | lower | tail_chi_1999_known | 66 ± 4 | 53 ± 5 | 153 ± 11 | 72 ± 8 | 45 ± 4 |
+| mix | 0.05 | lower | hermite_bank_own | 57 ± 2 | 54 ± 4 | 119 ± 7 | 53 ± 4 | 39 ± 3 |
+| mix | 0.05 | lower | hermite_399 | 88 ± 2 | 96 ± 4 | 88 ± 7 | 77 ± 4 | 80 ± 4 |
+| mix | 0.05 | lower | hermite_1999 | 56 ± 2 | 45 ± 4 | 136 ± 7 | 59 ± 5 | 35 ± 3 |
+| mix | 0.05 | lower | xiao_399 | 105 ± 3 | 109 ± 4 | 111 ± 10 | 97 ± 5 | 99 ± 5 |
+| mix | 0.05 | lower | xiao_1999 | 62 ± 3 | 53 ± 4 | 142 ± 10 | 63 ± 6 | 44 ± 4 |
+| mix | 0.05 | lower | best arm (t_1999) | 98 ± 1 | 118 ± 2 | 78 ± 2 | 78 ± 2 | 80 ± 2 |
+| mix | 0.05 | upper | family_bank | 82 ± 2 | 104 ± 2 | 98 ± 11 | 51 ± 6 | 48 ± 5 |
+| mix | 0.05 | upper | tail_chi_399 | 103 ± 2 | 89 ± 3 | 126 ± 12 | 114 ± 7 | 105 ± 4 |
+| mix | 0.05 | upper | tail_chi_1999 | 66 ± 3 | 41 ± 3 | 162 ± 9 | 86 ± 9 | 45 ± 4 |
+| mix | 0.05 | upper | tail_chi_4999 | 80 ± 4 | 33 ± 3 | 184 ± 7 | 127 ± 8 | 59 ± 6 |
+| mix | 0.05 | upper | tail_chi_1999_known | 64 ± 4 | 41 ± 3 | 156 ± 10 | 82 ± 9 | 45 ± 4 |
+| mix | 0.05 | upper | hermite_bank_own | 64 ± 3 | 37 ± 2 | 158 ± 8 | 85 ± 7 | 47 ± 4 |
+| mix | 0.05 | upper | hermite_399 | 84 ± 2 | 68 ± 2 | 132 ± 10 | 94 ± 6 | 86 ± 4 |
+| mix | 0.05 | upper | hermite_1999 | 63 ± 3 | 34 ± 2 | 166 ± 7 | 86 ± 7 | 41 ± 4 |
+| mix | 0.05 | upper | xiao_399 | 101 ± 3 | 85 ± 3 | 135 ± 12 | 114 ± 7 | 103 ± 4 |
+| mix | 0.05 | upper | xiao_1999 | 68 ± 4 | 42 ± 3 | 167 ± 9 | 91 ± 9 | 47 ± 4 |
+| mix | 0.05 | upper | best arm (gaussian_1999) | 101 ± 1 | 104 ± 2 | 100 ± 2 | 99 ± 2 | 97 ± 2 |
+| mix | 0.10 | lower | family_bank | 57 ± 2 | 57 ± 3 | 74 ± 6 | 49 ± 3 | 54 ± 2 |
+| mix | 0.10 | lower | tail_chi_399 | 75 ± 2 | 74 ± 3 | 95 ± 9 | 72 ± 4 | 72 ± 3 |
+| mix | 0.10 | lower | tail_chi_1999 | 45 ± 2 | 32 ± 2 | 119 ± 7 | 50 ± 5 | 29 ± 3 |
+| mix | 0.10 | lower | tail_chi_4999 | 55 ± 2 | 25 ± 3 | 134 ± 5 | 85 ± 5 | 34 ± 3 |
+| mix | 0.10 | lower | tail_chi_1999_known | 50 ± 2 | 37 ± 3 | 125 ± 8 | 55 ± 5 | 34 ± 3 |
+| mix | 0.10 | lower | hermite_bank_own | 41 ± 2 | 31 ± 2 | 103 ± 5 | 44 ± 4 | 28 ± 2 |
+| mix | 0.10 | lower | hermite_399 | 62 ± 1 | 61 ± 2 | 77 ± 6 | 58 ± 3 | 61 ± 3 |
+| mix | 0.10 | lower | hermite_1999 | 41 ± 2 | 27 ± 2 | 116 ± 5 | 49 ± 4 | 24 ± 2 |
+| mix | 0.10 | lower | xiao_399 | 75 ± 2 | 75 ± 3 | 83 ± 8 | 71 ± 4 | 72 ± 4 |
+| mix | 0.10 | lower | xiao_1999 | 44 ± 2 | 33 ± 3 | 115 ± 7 | 47 ± 5 | 29 ± 3 |
+| mix | 0.10 | lower | best arm (t_1999) | 78 ± 1 | 100 ± 2 | 52 ± 2 | 52 ± 2 | 54 ± 2 |
+| mix | 0.10 | upper | family_bank | 68 ± 1 | 88 ± 1 | 79 ± 9 | 39 ± 5 | 38 ± 4 |
+| mix | 0.10 | upper | tail_chi_399 | 74 ± 2 | 68 ± 2 | 100 ± 9 | 73 ± 4 | 73 ± 3 |
+| mix | 0.10 | upper | tail_chi_1999 | 51 ± 2 | 31 ± 3 | 134 ± 6 | 65 ± 5 | 33 ± 4 |
+| mix | 0.10 | upper | tail_chi_4999 | 65 ± 3 | 25 ± 3 | 150 ± 5 | 102 ± 4 | 49 ± 5 |
+| mix | 0.10 | upper | tail_chi_1999_known | 51 ± 3 | 33 ± 3 | 131 ± 8 | 63 ± 6 | 35 ± 4 |
+| mix | 0.10 | upper | hermite_bank_own | 47 ± 2 | 28 ± 2 | 126 ± 5 | 60 ± 4 | 30 ± 3 |
+| mix | 0.10 | upper | hermite_399 | 61 ± 2 | 54 ± 2 | 99 ± 8 | 62 ± 3 | 59 ± 3 |
+| mix | 0.10 | upper | hermite_1999 | 47 ± 2 | 25 ± 2 | 134 ± 5 | 62 ± 4 | 26 ± 3 |
+| mix | 0.10 | upper | xiao_399 | 74 ± 2 | 66 ± 3 | 112 ± 9 | 74 ± 5 | 73 ± 3 |
+| mix | 0.10 | upper | xiao_1999 | 53 ± 2 | 31 ± 3 | 138 ± 6 | 68 ± 5 | 34 ± 4 |
+| mix | 0.10 | upper | best arm (gaussian_1999) | 82 ± 1 | 105 ± 2 | 60 ± 2 | 58 ± 2 | 57 ± 2 |
+| gaussian | 0.05 | lower | family_bank | 18 ± 1 | 19 ± 2 | 16 ± 2 | 16 ± 2 | 16 ± 2 |
+| gaussian | 0.05 | lower | tail_chi_399 | 99 ± 2 | 98 ± 4 | 93 ± 7 | 100 ± 6 | 98 ± 4 |
+| gaussian | 0.05 | lower | tail_chi_1999 | 45 ± 3 | 47 ± 4 | 39 ± 5 | 41 ± 4 | 42 ± 4 |
+| gaussian | 0.05 | lower | tail_chi_4999 | 34 ± 3 | 39 ± 4 | 26 ± 4 | 26 ± 3 | 26 ± 3 |
+| gaussian | 0.05 | lower | tail_chi_1999_known | 50 ± 3 | 51 ± 4 | 44 ± 6 | 42 ± 4 | 46 ± 5 |
+| gaussian | 0.05 | lower | hermite_bank_own | 41 ± 2 | 44 ± 3 | 34 ± 3 | 35 ± 2 | 39 ± 3 |
+| gaussian | 0.05 | lower | hermite_399 | 78 ± 1 | 78 ± 3 | 71 ± 6 | 76 ± 4 | 78 ± 3 |
+| gaussian | 0.05 | lower | hermite_1999 | 37 ± 2 | 40 ± 3 | 30 ± 4 | 30 ± 3 | 35 ± 3 |
+| gaussian | 0.05 | lower | xiao_399 | 96 ± 2 | 95 ± 4 | 89 ± 7 | 97 ± 5 | 96 ± 4 |
+| gaussian | 0.05 | lower | xiao_1999 | 46 ± 3 | 48 ± 4 | 39 ± 5 | 41 ± 4 | 43 ± 4 |
+| gaussian | 0.05 | lower | best arm (gaussian_1999) | 14 ± 1 | 14 ± 1 | 14 ± 2 | 13 ± 2 | 13 ± 1 |
+| gaussian | 0.05 | upper | family_bank | 21 ± 2 | 23 ± 3 | 16 ± 2 | 17 ± 2 | 18 ± 2 |
+| gaussian | 0.05 | upper | tail_chi_399 | 101 ± 2 | 101 ± 3 | 97 ± 8 | 97 ± 5 | 102 ± 4 |
+| gaussian | 0.05 | upper | tail_chi_1999 | 47 ± 2 | 50 ± 3 | 39 ± 6 | 40 ± 5 | 44 ± 4 |
+| gaussian | 0.05 | upper | tail_chi_4999 | 37 ± 3 | 43 ± 4 | 26 ± 5 | 28 ± 4 | 29 ± 4 |
+| gaussian | 0.05 | upper | tail_chi_1999_known | 49 ± 3 | 52 ± 4 | 39 ± 6 | 42 ± 5 | 43 ± 5 |
+| gaussian | 0.05 | upper | hermite_bank_own | 43 ± 2 | 46 ± 3 | 35 ± 4 | 36 ± 3 | 40 ± 3 |
+| gaussian | 0.05 | upper | hermite_399 | 79 ± 2 | 79 ± 2 | 74 ± 6 | 75 ± 4 | 80 ± 3 |
+| gaussian | 0.05 | upper | hermite_1999 | 39 ± 2 | 42 ± 3 | 31 ± 5 | 31 ± 3 | 36 ± 4 |
+| gaussian | 0.05 | upper | xiao_399 | 99 ± 3 | 98 ± 3 | 93 ± 8 | 96 ± 5 | 99 ± 4 |
+| gaussian | 0.05 | upper | xiao_1999 | 49 ± 3 | 51 ± 4 | 39 ± 6 | 42 ± 5 | 44 ± 5 |
+| gaussian | 0.05 | upper | best arm (gaussian_1999) | 14 ± 1 | 14 ± 1 | 14 ± 2 | 13 ± 2 | 13 ± 1 |
+| gaussian | 0.10 | lower | family_bank | 17 ± 1 | 18 ± 2 | 15 ± 2 | 15 ± 2 | 15 ± 2 |
+| gaussian | 0.10 | lower | tail_chi_399 | 74 ± 2 | 72 ± 3 | 69 ± 7 | 75 ± 5 | 73 ± 3 |
+| gaussian | 0.10 | lower | tail_chi_1999 | 33 ± 2 | 35 ± 3 | 25 ± 4 | 29 ± 4 | 30 ± 3 |
+| gaussian | 0.10 | lower | tail_chi_4999 | 25 ± 2 | 31 ± 3 | 17 ± 3 | 17 ± 3 | 19 ± 2 |
+| gaussian | 0.10 | lower | tail_chi_1999_known | 37 ± 2 | 38 ± 4 | 29 ± 5 | 34 ± 4 | 34 ± 3 |
+| gaussian | 0.10 | lower | hermite_bank_own | 30 ± 1 | 31 ± 2 | 24 ± 3 | 27 ± 3 | 29 ± 2 |
+| gaussian | 0.10 | lower | hermite_399 | 61 ± 1 | 60 ± 2 | 56 ± 5 | 59 ± 3 | 62 ± 2 |
+| gaussian | 0.10 | lower | hermite_1999 | 27 ± 2 | 28 ± 2 | 20 ± 3 | 23 ± 3 | 25 ± 2 |
+| gaussian | 0.10 | lower | xiao_399 | 72 ± 2 | 71 ± 3 | 66 ± 6 | 72 ± 4 | 72 ± 3 |
+| gaussian | 0.10 | lower | xiao_1999 | 33 ± 2 | 36 ± 3 | 25 ± 4 | 29 ± 4 | 31 ± 3 |
+| gaussian | 0.10 | lower | best arm (gaussian_1999) | 14 ± 1 | 13 ± 1 | 13 ± 2 | 13 ± 2 | 12 ± 1 |
+| gaussian | 0.10 | upper | family_bank | 19 ± 1 | 20 ± 2 | 15 ± 2 | 16 ± 2 | 16 ± 2 |
+| gaussian | 0.10 | upper | tail_chi_399 | 74 ± 2 | 75 ± 3 | 69 ± 7 | 70 ± 4 | 73 ± 4 |
+| gaussian | 0.10 | upper | tail_chi_1999 | 34 ± 2 | 36 ± 3 | 32 ± 4 | 30 ± 4 | 29 ± 3 |
+| gaussian | 0.10 | upper | tail_chi_4999 | 26 ± 2 | 30 ± 3 | 22 ± 3 | 21 ± 3 | 19 ± 2 |
+| gaussian | 0.10 | upper | tail_chi_1999_known | 34 ± 2 | 35 ± 3 | 32 ± 5 | 29 ± 4 | 30 ± 3 |
+| gaussian | 0.10 | upper | hermite_bank_own | 30 ± 2 | 33 ± 2 | 28 ± 3 | 26 ± 3 | 27 ± 2 |
+| gaussian | 0.10 | upper | hermite_399 | 60 ± 2 | 61 ± 2 | 58 ± 5 | 54 ± 3 | 59 ± 3 |
+| gaussian | 0.10 | upper | hermite_1999 | 27 ± 2 | 30 ± 2 | 25 ± 3 | 22 ± 3 | 23 ± 2 |
+| gaussian | 0.10 | upper | xiao_399 | 73 ± 2 | 74 ± 3 | 67 ± 7 | 69 ± 4 | 71 ± 4 |
+| gaussian | 0.10 | upper | xiao_1999 | 34 ± 2 | 36 ± 3 | 32 ± 4 | 30 ± 4 | 29 ± 3 |
+| gaussian | 0.10 | upper | best arm (gaussian_1999) | 14 ± 1 | 13 ± 1 | 13 ± 2 | 13 ± 2 | 12 ± 1 |
+
+## chi(q) bias x1e-3 (mean ± 2 SE over seeds), by window
+
+| regime | q | tail | method | whole | pre | post_0_500 | post_500_2000 | post_2000_5000 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gauss2clayton | 0.05 | lower | family_bank | 1 ± 1 | 7 ± 2 | -79 ± 10 | 2 ± 4 | 6 ± 2 |
+| gauss2clayton | 0.05 | lower | tail_chi_399 | -12 ± 5 | -9 ± 7 | -125 ± 18 | -6 ± 12 | 0 ± 7 |
+| gauss2clayton | 0.05 | lower | tail_chi_1999 | -40 ± 4 | -11 ± 7 | -249 ± 11 | -102 ± 8 | -14 ± 6 |
+| gauss2clayton | 0.05 | lower | tail_chi_4999 | -77 ± 5 | -12 ± 8 | -283 ± 8 | -186 ± 7 | -75 ± 5 |
+| gauss2clayton | 0.05 | lower | tail_chi_1999_known | -37 ± 6 | -8 ± 8 | -246 ± 13 | -98 ± 12 | -12 ± 8 |
+| gauss2clayton | 0.05 | lower | hermite_bank_own | -62 ± 3 | -16 ± 5 | -238 ± 9 | -121 ± 5 | -64 ± 4 |
+| gauss2clayton | 0.05 | lower | hermite_399 | -65 ± 3 | -24 ± 5 | -176 ± 12 | -92 ± 6 | -89 ± 5 |
+| gauss2clayton | 0.05 | lower | hermite_1999 | -59 ± 3 | -13 ± 5 | -257 ± 8 | -123 ± 5 | -56 ± 4 |
+| gauss2clayton | 0.05 | lower | xiao_399 | -46 ± 4 | -27 ± 7 | -165 ± 17 | -54 ± 11 | -47 ± 7 |
+| gauss2clayton | 0.05 | lower | xiao_1999 | -53 ± 4 | -17 ± 7 | -259 ± 11 | -118 ± 8 | -34 ± 6 |
+| gauss2clayton | 0.05 | lower | best arm (clayton_1999) | 78 ± 1 | 191 ± 3 | -85 ± 3 | -25 ± 3 | 6 ± 2 |
+| gauss2clayton | 0.05 | upper | family_bank | 9 ± 1 | 11 ± 2 | 49 ± 6 | 2 ± 1 | 4 ± 1 |
+| gauss2clayton | 0.05 | upper | tail_chi_399 | -2 ± 5 | -8 ± 8 | 59 ± 16 | -0 ± 10 | -6 ± 6 |
+| gauss2clayton | 0.05 | upper | tail_chi_1999 | 14 ± 5 | -9 ± 8 | 146 ± 10 | 55 ± 8 | 3 ± 6 |
+| gauss2clayton | 0.05 | upper | tail_chi_4999 | 36 ± 6 | -10 ± 9 | 168 ± 7 | 107 ± 6 | 41 ± 5 |
+| gauss2clayton | 0.05 | upper | tail_chi_1999_known | 21 ± 6 | -2 ± 9 | 155 ± 10 | 64 ± 8 | 10 ± 6 |
+| gauss2clayton | 0.05 | upper | hermite_bank_own | 13 ± 4 | -12 ± 6 | 127 ± 8 | 51 ± 6 | 8 ± 4 |
+| gauss2clayton | 0.05 | upper | hermite_399 | -0 ± 3 | -20 ± 6 | 65 ± 11 | 14 ± 6 | 8 ± 4 |
+| gauss2clayton | 0.05 | upper | hermite_1999 | 16 ± 4 | -9 ± 6 | 149 ± 8 | 58 ± 6 | 7 ± 4 |
+| gauss2clayton | 0.05 | upper | xiao_399 | -12 ± 5 | -26 ± 8 | 54 ± 15 | -4 ± 10 | -10 ± 6 |
+| gauss2clayton | 0.05 | upper | xiao_1999 | 11 ± 5 | -14 ± 8 | 142 ± 10 | 53 ± 8 | 2 ± 6 |
+| gauss2clayton | 0.05 | upper | best arm (clayton_1999) | -98 ± 0 | -217 ± 0 | -15 ± 1 | -5 ± 1 | 1 ± 0 |
+| gauss2clayton | 0.10 | lower | family_bank | 2 ± 1 | 7 ± 2 | -61 ± 8 | 2 ± 4 | 6 ± 2 |
+| gauss2clayton | 0.10 | lower | tail_chi_399 | -10 ± 4 | -6 ± 5 | -96 ± 15 | -5 ± 9 | -4 ± 6 |
+| gauss2clayton | 0.10 | lower | tail_chi_1999 | -31 ± 4 | -8 ± 5 | -187 ± 7 | -76 ± 7 | -14 ± 5 |
+| gauss2clayton | 0.10 | lower | tail_chi_4999 | -59 ± 4 | -10 ± 6 | -213 ± 5 | -139 ± 5 | -59 ± 4 |
+| gauss2clayton | 0.10 | lower | tail_chi_1999_known | -29 ± 3 | -5 ± 6 | -184 ± 7 | -72 ± 7 | -14 ± 6 |
+| gauss2clayton | 0.10 | lower | hermite_bank_own | -35 ± 2 | -8 ± 4 | -170 ± 6 | -75 ± 4 | -28 ± 3 |
+| gauss2clayton | 0.10 | lower | hermite_399 | -32 ± 2 | -14 ± 4 | -116 ± 10 | -39 ± 5 | -39 ± 4 |
+| gauss2clayton | 0.10 | lower | hermite_1999 | -35 ± 2 | -6 ± 4 | -187 ± 5 | -80 ± 4 | -24 ± 3 |
+| gauss2clayton | 0.10 | lower | xiao_399 | -35 ± 3 | -23 ± 5 | -126 ± 14 | -37 ± 9 | -36 ± 6 |
+| gauss2clayton | 0.10 | lower | xiao_1999 | -37 ± 3 | -12 ± 5 | -193 ± 7 | -82 ± 7 | -20 ± 5 |
+| gauss2clayton | 0.10 | lower | best arm (clayton_1999) | 50 ± 1 | 126 ± 3 | -78 ± 3 | -24 ± 3 | 5 ± 2 |
+| gauss2clayton | 0.10 | upper | family_bank | 9 ± 1 | 9 ± 2 | 43 ± 6 | 3 ± 1 | 5 ± 1 |
+| gauss2clayton | 0.10 | upper | tail_chi_399 | -4 ± 3 | -4 ± 6 | 60 ± 12 | -7 ± 7 | -12 ± 5 |
+| gauss2clayton | 0.10 | upper | tail_chi_1999 | 12 ± 3 | -6 ± 6 | 136 ± 8 | 48 ± 6 | -3 ± 4 |
+| gauss2clayton | 0.10 | upper | tail_chi_4999 | 32 ± 4 | -7 ± 6 | 155 ± 6 | 97 ± 5 | 33 ± 3 |
+| gauss2clayton | 0.10 | upper | tail_chi_1999_known | 18 ± 4 | -1 ± 5 | 142 ± 9 | 53 ± 6 | 4 ± 5 |
+| gauss2clayton | 0.10 | upper | hermite_bank_own | 12 ± 3 | -5 ± 5 | 118 ± 7 | 42 ± 5 | 2 ± 4 |
+| gauss2clayton | 0.10 | upper | hermite_399 | -3 ± 3 | -11 ± 5 | 57 ± 10 | -1 ± 6 | -2 ± 4 |
+| gauss2clayton | 0.10 | upper | hermite_1999 | 16 ± 3 | -3 ± 5 | 139 ± 6 | 50 ± 5 | 3 ± 4 |
+| gauss2clayton | 0.10 | upper | xiao_399 | -15 ± 3 | -22 ± 5 | 53 ± 11 | -14 ± 7 | -18 ± 5 |
+| gauss2clayton | 0.10 | upper | xiao_1999 | 9 ± 3 | -10 ± 5 | 135 ± 8 | 46 ± 6 | -4 ± 4 |
+| gauss2clayton | 0.10 | upper | best arm (gaussian_1999) | 106 ± 1 | 8 ± 2 | 187 ± 2 | 183 ± 2 | 184 ± 2 |
+| clayton2gumbel | 0.05 | lower | family_bank | 9 ± 2 | 6 ± 3 | 62 ± 10 | 4 ± 2 | 8 ± 2 |
+| clayton2gumbel | 0.05 | lower | tail_chi_399 | -1 ± 6 | -9 ± 9 | 137 ± 20 | -10 ± 9 | -9 ± 9 |
+| clayton2gumbel | 0.05 | lower | tail_chi_1999 | 33 ± 6 | -11 ± 9 | 303 ± 11 | 110 ± 8 | 7 ± 7 |
+| clayton2gumbel | 0.05 | lower | tail_chi_4999 | 77 ± 6 | -11 ± 9 | 343 ± 8 | 217 ± 7 | 82 ± 6 |
+| clayton2gumbel | 0.05 | lower | tail_chi_1999_known | 38 ± 6 | -6 ± 9 | 311 ± 13 | 117 ± 9 | 10 ± 8 |
+| clayton2gumbel | 0.05 | lower | hermite_bank_own | -5 ± 3 | -65 ± 4 | 193 ± 12 | 66 ± 8 | 6 ± 6 |
+| clayton2gumbel | 0.05 | lower | hermite_399 | -40 ± 3 | -93 ± 4 | 112 ± 14 | -14 ± 6 | -9 ± 6 |
+| clayton2gumbel | 0.05 | lower | hermite_1999 | 11 ± 3 | -56 ± 4 | 282 ± 7 | 105 ± 6 | 8 ± 6 |
+| clayton2gumbel | 0.05 | lower | xiao_399 | -28 ± 5 | -55 ± 8 | 120 ± 19 | -20 ± 8 | -21 ± 8 |
+| clayton2gumbel | 0.05 | lower | xiao_1999 | 21 ± 6 | -31 ± 9 | 290 ± 11 | 104 ± 8 | 3 ± 7 |
+| clayton2gumbel | 0.05 | lower | best arm (clayton_99) | 131 ± 2 | 4 ± 3 | 253 ± 8 | 228 ± 4 | 232 ± 4 |
+| clayton2gumbel | 0.05 | upper | family_bank | -1 ± 1 | 4 ± 1 | -72 ± 9 | -1 ± 4 | 4 ± 3 |
+| clayton2gumbel | 0.05 | upper | tail_chi_399 | -14 ± 5 | -2 ± 6 | -150 ± 16 | -17 ± 14 | -7 ± 10 |
+| clayton2gumbel | 0.05 | upper | tail_chi_1999 | -50 ± 5 | -4 ± 6 | -319 ± 8 | -134 ± 10 | -25 ± 8 |
+| clayton2gumbel | 0.05 | upper | tail_chi_4999 | -97 ± 5 | -5 ± 6 | -364 ± 6 | -241 ± 7 | -102 ± 7 |
+| clayton2gumbel | 0.05 | upper | tail_chi_1999_known | -45 ± 5 | 3 ± 6 | -312 ± 10 | -128 ± 10 | -22 ± 10 |
+| clayton2gumbel | 0.05 | upper | hermite_bank_own | -46 ± 3 | 5 ± 4 | -252 ± 11 | -116 ± 8 | -43 ± 5 |
+| clayton2gumbel | 0.05 | upper | hermite_399 | -34 ± 3 | 13 ± 3 | -181 ± 12 | -66 ± 8 | -58 ± 5 |
+| clayton2gumbel | 0.05 | upper | hermite_1999 | -52 ± 3 | 3 ± 4 | -320 ± 7 | -138 ± 7 | -38 ± 5 |
+| clayton2gumbel | 0.05 | upper | xiao_399 | -36 ± 5 | -6 ± 6 | -181 ± 15 | -53 ± 14 | -44 ± 9 |
+| clayton2gumbel | 0.05 | upper | xiao_1999 | -57 ± 5 | -5 ± 6 | -325 ± 8 | -144 ± 9 | -39 ± 8 |
+| clayton2gumbel | 0.05 | upper | best arm (gaussian_1999) | -19 ± 1 | 206 ± 2 | -198 ± 2 | -199 ± 2 | -197 ± 2 |
+| clayton2gumbel | 0.10 | lower | family_bank | 8 ± 2 | 6 ± 3 | 46 ± 8 | 3 ± 3 | 8 ± 2 |
+| clayton2gumbel | 0.10 | lower | tail_chi_399 | -0 ± 4 | -8 ± 6 | 105 ± 14 | -6 ± 8 | -5 ± 7 |
+| clayton2gumbel | 0.10 | lower | tail_chi_1999 | 26 ± 4 | -10 ± 6 | 236 ± 8 | 87 ± 6 | 8 ± 5 |
+| clayton2gumbel | 0.10 | lower | tail_chi_4999 | 60 ± 4 | -11 ± 6 | 267 ± 6 | 170 ± 5 | 66 ± 4 |
+| clayton2gumbel | 0.10 | lower | tail_chi_1999_known | 33 ± 4 | -0 ± 7 | 241 ± 9 | 93 ± 7 | 14 ± 6 |
+| clayton2gumbel | 0.10 | lower | hermite_bank_own | 10 ± 3 | -26 ± 4 | 161 ± 10 | 57 ± 6 | 8 ± 4 |
+| clayton2gumbel | 0.10 | lower | hermite_399 | -17 ± 3 | -41 ± 4 | 95 ± 11 | -8 ± 6 | -7 ± 5 |
+| clayton2gumbel | 0.10 | lower | hermite_1999 | 21 ± 3 | -21 ± 4 | 231 ± 6 | 88 ± 4 | 10 ± 4 |
+| clayton2gumbel | 0.10 | lower | xiao_399 | -21 ± 4 | -39 ± 6 | 90 ± 13 | -19 ± 8 | -18 ± 7 |
+| clayton2gumbel | 0.10 | lower | xiao_1999 | 21 ± 4 | -17 ± 6 | 232 ± 8 | 84 ± 6 | 5 ± 5 |
+| clayton2gumbel | 0.10 | lower | best arm (clayton_399) | 99 ± 2 | 8 ± 2 | 228 ± 5 | 164 ± 3 | 165 ± 4 |
+| clayton2gumbel | 0.10 | upper | family_bank | 0 ± 1 | 4 ± 1 | -57 ± 7 | -0 ± 3 | 5 ± 2 |
+| clayton2gumbel | 0.10 | upper | tail_chi_399 | -9 ± 3 | 1 ± 5 | -124 ± 13 | -9 ± 8 | -2 ± 6 |
+| clayton2gumbel | 0.10 | upper | tail_chi_1999 | -38 ± 3 | -0 ± 4 | -259 ± 7 | -105 ± 6 | -17 ± 5 |
+| clayton2gumbel | 0.10 | upper | tail_chi_4999 | -76 ± 3 | -2 ± 5 | -293 ± 5 | -192 ± 5 | -80 ± 4 |
+| clayton2gumbel | 0.10 | upper | tail_chi_1999_known | -34 ± 4 | 4 ± 5 | -255 ± 7 | -101 ± 7 | -15 ± 6 |
+| clayton2gumbel | 0.10 | upper | hermite_bank_own | -30 ± 3 | 1 ± 3 | -195 ± 11 | -80 ± 7 | -19 ± 4 |
+| clayton2gumbel | 0.10 | upper | hermite_399 | -17 ± 3 | 5 ± 3 | -134 ± 11 | -28 ± 6 | -22 ± 4 |
+| clayton2gumbel | 0.10 | upper | hermite_1999 | -37 ± 3 | 1 ± 3 | -257 ± 6 | -104 ± 5 | -17 ± 4 |
+| clayton2gumbel | 0.10 | upper | xiao_399 | -26 ± 3 | -6 ± 4 | -149 ± 12 | -35 ± 8 | -29 ± 6 |
+| clayton2gumbel | 0.10 | upper | xiao_1999 | -41 ± 3 | -2 ± 4 | -263 ± 7 | -111 ± 6 | -23 ± 5 |
+| clayton2gumbel | 0.10 | upper | best arm (gaussian_1999) | 6 ± 1 | 186 ± 2 | -138 ± 2 | -139 ± 2 | -137 ± 2 |
+| gauss2t | 0.05 | lower | family_bank | 3 ± 2 | 7 ± 2 | -43 ± 8 | -1 ± 4 | 6 ± 2 |
+| gauss2t | 0.05 | lower | tail_chi_399 | -10 ± 6 | -9 ± 7 | -44 ± 17 | -10 ± 13 | -7 ± 10 |
+| gauss2t | 0.05 | lower | tail_chi_1999 | -20 ± 6 | -11 ± 7 | -86 ± 11 | -37 ± 9 | -13 ± 9 |
+| gauss2t | 0.05 | lower | tail_chi_4999 | -32 ± 6 | -12 ± 8 | -98 ± 8 | -66 ± 7 | -32 ± 7 |
+| gauss2t | 0.05 | lower | tail_chi_1999_known | -14 ± 6 | -8 ± 8 | -82 ± 11 | -29 ± 10 | -3 ± 10 |
+| gauss2t | 0.05 | lower | hermite_bank_own | -24 ± 4 | -16 ± 5 | -85 ± 9 | -41 ± 7 | -16 ± 7 |
+| gauss2t | 0.05 | lower | hermite_399 | -31 ± 4 | -24 ± 5 | -65 ± 13 | -37 ± 8 | -32 ± 7 |
+| gauss2t | 0.05 | lower | hermite_1999 | -21 ± 4 | -13 ± 5 | -88 ± 8 | -39 ± 7 | -11 ± 7 |
+| gauss2t | 0.05 | lower | xiao_399 | -33 ± 5 | -27 ± 7 | -69 ± 16 | -37 ± 12 | -34 ± 9 |
+| gauss2t | 0.05 | lower | xiao_1999 | -28 ± 6 | -17 ± 7 | -93 ± 11 | -46 ± 9 | -23 ± 9 |
+| gauss2t | 0.05 | lower | best arm (t_1999) | 33 ± 1 | 72 ± 2 | -19 ± 3 | -3 ± 2 | 7 ± 2 |
+| gauss2t | 0.05 | upper | family_bank | 5 ± 1 | 11 ± 2 | -37 ± 7 | 1 ± 3 | 7 ± 2 |
+| gauss2t | 0.05 | upper | tail_chi_399 | -8 ± 5 | -8 ± 8 | -45 ± 19 | -5 ± 11 | -4 ± 10 |
+| gauss2t | 0.05 | upper | tail_chi_1999 | -18 ± 5 | -9 ± 8 | -86 ± 11 | -37 ± 7 | -8 ± 8 |
+| gauss2t | 0.05 | upper | tail_chi_4999 | -30 ± 6 | -10 ± 9 | -97 ± 8 | -65 ± 6 | -28 ± 6 |
+| gauss2t | 0.05 | upper | tail_chi_1999_known | -10 ± 5 | -2 ± 9 | -77 ± 12 | -29 ± 10 | -1 ± 8 |
+| gauss2t | 0.05 | upper | hermite_bank_own | -21 ± 4 | -12 ± 6 | -85 ± 10 | -37 ± 7 | -15 ± 6 |
+| gauss2t | 0.05 | upper | hermite_399 | -28 ± 4 | -20 ± 6 | -67 ± 15 | -30 ± 9 | -32 ± 7 |
+| gauss2t | 0.05 | upper | hermite_1999 | -18 ± 4 | -9 ± 6 | -86 ± 10 | -36 ± 7 | -10 ± 7 |
+| gauss2t | 0.05 | upper | xiao_399 | -31 ± 5 | -26 ± 8 | -73 ± 18 | -33 ± 10 | -31 ± 9 |
+| gauss2t | 0.05 | upper | xiao_1999 | -26 ± 5 | -14 ± 8 | -95 ± 11 | -47 ± 8 | -18 ± 8 |
+| gauss2t | 0.05 | upper | best arm (t_1999) | 33 ± 1 | 72 ± 2 | -19 ± 3 | -3 ± 2 | 7 ± 2 |
+| gauss2t | 0.10 | lower | family_bank | 4 ± 1 | 7 ± 2 | -27 ± 6 | 0 ± 3 | 6 ± 2 |
+| gauss2t | 0.10 | lower | tail_chi_399 | -7 ± 4 | -6 ± 5 | -35 ± 14 | -5 ± 8 | -4 ± 7 |
+| gauss2t | 0.10 | lower | tail_chi_1999 | -13 ± 4 | -8 ± 5 | -56 ± 8 | -24 ± 6 | -7 ± 6 |
+| gauss2t | 0.10 | lower | tail_chi_4999 | -22 ± 4 | -10 ± 6 | -63 ± 5 | -42 ± 5 | -20 ± 4 |
+| gauss2t | 0.10 | lower | tail_chi_1999_known | -11 ± 4 | -5 ± 6 | -51 ± 7 | -23 ± 7 | -7 ± 7 |
+| gauss2t | 0.10 | lower | hermite_bank_own | -11 ± 3 | -8 ± 4 | -50 ± 6 | -21 ± 5 | -4 ± 4 |
+| gauss2t | 0.10 | lower | hermite_399 | -15 ± 2 | -14 ± 4 | -40 ± 9 | -16 ± 6 | -11 ± 5 |
+| gauss2t | 0.10 | lower | hermite_1999 | -10 ± 3 | -6 ± 4 | -52 ± 5 | -21 ± 5 | -2 ± 4 |
+| gauss2t | 0.10 | lower | xiao_399 | -26 ± 3 | -23 ± 5 | -56 ± 14 | -27 ± 8 | -26 ± 6 |
+| gauss2t | 0.10 | lower | xiao_1999 | -18 ± 4 | -12 ± 5 | -60 ± 7 | -28 ± 6 | -12 ± 6 |
+| gauss2t | 0.10 | lower | best arm (t_1999) | 17 ± 1 | 37 ± 2 | -19 ± 3 | -3 ± 2 | 7 ± 2 |
+| gauss2t | 0.10 | upper | family_bank | 5 ± 1 | 9 ± 2 | -23 ± 6 | 1 ± 3 | 7 ± 2 |
+| gauss2t | 0.10 | upper | tail_chi_399 | -5 ± 3 | -4 ± 6 | -23 ± 14 | -3 ± 8 | -3 ± 6 |
+| gauss2t | 0.10 | upper | tail_chi_1999 | -11 ± 4 | -6 ± 6 | -53 ± 9 | -23 ± 7 | -5 ± 5 |
+| gauss2t | 0.10 | upper | tail_chi_4999 | -20 ± 4 | -7 ± 6 | -62 ± 6 | -42 ± 5 | -18 ± 4 |
+| gauss2t | 0.10 | upper | tail_chi_1999_known | -7 ± 4 | -1 ± 5 | -47 ± 10 | -19 ± 9 | -3 ± 5 |
+| gauss2t | 0.10 | upper | hermite_bank_own | -9 ± 3 | -5 ± 5 | -49 ± 8 | -20 ± 5 | -3 ± 4 |
+| gauss2t | 0.10 | upper | hermite_399 | -13 ± 3 | -11 ± 5 | -35 ± 13 | -13 ± 6 | -11 ± 5 |
+| gauss2t | 0.10 | upper | hermite_1999 | -8 ± 3 | -3 ± 5 | -51 ± 7 | -20 ± 5 | -0 ± 4 |
+| gauss2t | 0.10 | upper | xiao_399 | -24 ± 3 | -22 ± 5 | -44 ± 13 | -25 ± 8 | -24 ± 6 |
+| gauss2t | 0.10 | upper | xiao_1999 | -16 ± 4 | -10 ± 5 | -57 ± 9 | -28 ± 7 | -10 ± 5 |
+| gauss2t | 0.10 | upper | best arm (t_1999) | 17 ± 1 | 37 ± 2 | -19 ± 3 | -3 ± 2 | 7 ± 2 |
+| mix | 0.05 | lower | family_bank | 27 ± 5 | 35 ± 5 | 41 ± 13 | 11 ± 12 | 20 ± 11 |
+| mix | 0.05 | lower | tail_chi_399 | -4 ± 4 | -7 ± 7 | 64 ± 19 | -9 ± 11 | -9 ± 10 |
+| mix | 0.05 | lower | tail_chi_1999 | 12 ± 4 | -9 ± 7 | 149 ± 10 | 52 ± 8 | -2 ± 8 |
+| mix | 0.05 | lower | tail_chi_4999 | 35 ± 5 | -10 ± 8 | 169 ± 8 | 106 ± 6 | 36 ± 6 |
+| mix | 0.05 | lower | tail_chi_1999_known | 20 ± 6 | 1 ± 9 | 150 ± 11 | 58 ± 9 | 5 ± 9 |
+| mix | 0.05 | lower | hermite_bank_own | -8 ± 3 | -40 ± 4 | 112 ± 8 | 36 ± 6 | -8 ± 6 |
+| mix | 0.05 | lower | hermite_399 | -38 ± 3 | -63 ± 4 | 34 ± 12 | -24 ± 7 | -24 ± 7 |
+| mix | 0.05 | lower | hermite_1999 | -1 ± 3 | -33 ± 5 | 134 ± 7 | 47 ± 6 | -4 ± 6 |
+| mix | 0.05 | lower | xiao_399 | -31 ± 4 | -43 ± 7 | 44 ± 18 | -28 ± 11 | -29 ± 10 |
+| mix | 0.05 | lower | xiao_1999 | 2 ± 5 | -23 ± 7 | 139 ± 10 | 44 ± 8 | -10 ± 8 |
+| mix | 0.05 | lower | best arm (t_1999) | -8 ± 1 | -117 ± 2 | 78 ± 2 | 78 ± 2 | 79 ± 2 |
+| mix | 0.05 | upper | family_bank | -27 ± 4 | -64 ± 6 | -44 ± 13 | 3 ± 10 | 11 ± 7 |
+| mix | 0.05 | upper | tail_chi_399 | -10 ± 5 | -5 ± 7 | -75 ± 17 | -18 ± 16 | -3 ± 8 |
+| mix | 0.05 | upper | tail_chi_1999 | -28 ± 5 | -6 ± 6 | -159 ± 9 | -72 ± 12 | -13 ± 7 |
+| mix | 0.05 | upper | tail_chi_4999 | -51 ± 5 | -6 ± 7 | -183 ± 7 | -124 ± 8 | -53 ± 6 |
+| mix | 0.05 | upper | tail_chi_1999_known | -21 ± 5 | 1 ± 6 | -153 ± 10 | -66 ± 12 | -6 ± 7 |
+| mix | 0.05 | upper | hermite_bank_own | -32 ± 4 | -6 ± 5 | -154 ± 8 | -74 ± 9 | -26 ± 7 |
+| mix | 0.05 | upper | hermite_399 | -29 ± 4 | -7 ± 5 | -106 ± 13 | -47 ± 10 | -38 ± 6 |
+| mix | 0.05 | upper | hermite_1999 | -32 ± 4 | -5 ± 5 | -164 ± 8 | -76 ± 8 | -22 ± 7 |
+| mix | 0.05 | upper | xiao_399 | -29 ± 5 | -15 ± 6 | -99 ± 16 | -44 ± 15 | -29 ± 8 |
+| mix | 0.05 | upper | xiao_1999 | -33 ± 5 | -9 ± 7 | -164 ± 9 | -79 ± 11 | -22 ± 7 |
+| mix | 0.05 | upper | best arm (gaussian_1999) | -8 ± 1 | 104 ± 2 | -100 ± 2 | -98 ± 2 | -97 ± 2 |
+| mix | 0.10 | lower | family_bank | 16 ± 4 | 23 ± 4 | 27 ± 11 | 4 ± 9 | 10 ± 8 |
+| mix | 0.10 | lower | tail_chi_399 | -2 ± 4 | -2 ± 5 | 50 ± 12 | -7 ± 8 | -7 ± 6 |
+| mix | 0.10 | lower | tail_chi_1999 | 11 ± 3 | -2 ± 5 | 116 ± 7 | 40 ± 6 | -2 ± 6 |
+| mix | 0.10 | lower | tail_chi_4999 | 30 ± 4 | -2 ± 5 | 134 ± 5 | 83 ± 5 | 28 ± 4 |
+| mix | 0.10 | lower | tail_chi_1999_known | 16 ± 4 | 1 ± 6 | 123 ± 8 | 45 ± 6 | 3 ± 7 |
+| mix | 0.10 | lower | hermite_bank_own | 4 ± 2 | -14 ± 3 | 98 ± 6 | 34 ± 5 | -2 ± 4 |
+| mix | 0.10 | lower | hermite_399 | -16 ± 2 | -26 ± 3 | 37 ± 10 | -12 ± 6 | -14 ± 5 |
+| mix | 0.10 | lower | hermite_1999 | 9 ± 2 | -10 ± 3 | 114 ± 5 | 41 ± 4 | 1 ± 4 |
+| mix | 0.10 | lower | xiao_399 | -23 ± 3 | -29 ± 5 | 32 ± 12 | -25 ± 7 | -25 ± 6 |
+| mix | 0.10 | lower | xiao_1999 | 7 ± 3 | -9 ± 5 | 112 ± 7 | 36 ± 6 | -6 ± 6 |
+| mix | 0.10 | lower | best arm (t_1999) | -15 ± 1 | -100 ± 2 | 51 ± 2 | 51 ± 2 | 53 ± 2 |
+| mix | 0.10 | upper | family_bank | -21 ± 3 | -54 ± 5 | -32 ± 10 | 6 ± 8 | 11 ± 6 |
+| mix | 0.10 | upper | tail_chi_399 | -10 ± 4 | -4 ± 6 | -70 ± 12 | -9 ± 9 | -7 ± 6 |
+| mix | 0.10 | upper | tail_chi_1999 | -24 ± 4 | -6 ± 5 | -132 ± 6 | -57 ± 6 | -14 ± 6 |
+| mix | 0.10 | upper | tail_chi_4999 | -43 ± 4 | -7 ± 5 | -150 ± 5 | -100 ± 5 | -45 ± 5 |
+| mix | 0.10 | upper | tail_chi_1999_known | -20 ± 4 | -1 ± 6 | -129 ± 8 | -53 ± 7 | -9 ± 6 |
+| mix | 0.10 | upper | hermite_bank_own | -22 ± 3 | -5 ± 4 | -122 ± 6 | -52 ± 5 | -12 ± 4 |
+| mix | 0.10 | upper | hermite_399 | -16 ± 3 | -6 ± 4 | -77 ± 10 | -21 ± 7 | -16 ± 4 |
+| mix | 0.10 | upper | hermite_1999 | -22 ± 3 | -5 ± 4 | -132 ± 5 | -55 ± 5 | -10 ± 4 |
+| mix | 0.10 | upper | xiao_399 | -27 ± 4 | -16 ± 5 | -90 ± 11 | -30 ± 8 | -29 ± 6 |
+| mix | 0.10 | upper | xiao_1999 | -28 ± 4 | -9 ± 5 | -136 ± 6 | -61 ± 6 | -19 ± 6 |
+| mix | 0.10 | upper | best arm (gaussian_1999) | 15 ± 1 | 104 ± 2 | -60 ± 2 | -58 ± 2 | -56 ± 2 |
+| gaussian | 0.05 | lower | family_bank | 9 ± 1 | 7 ± 2 | 12 ± 3 | 11 ± 2 | 9 ± 2 |
+| gaussian | 0.05 | lower | tail_chi_399 | -9 ± 5 | -9 ± 7 | 0 ± 17 | -1 ± 11 | -13 ± 9 |
+| gaussian | 0.05 | lower | tail_chi_1999 | -8 ± 5 | -11 ± 7 | -3 ± 11 | 2 ± 9 | -10 ± 8 |
+| gaussian | 0.05 | lower | tail_chi_4999 | -8 ± 5 | -12 ± 8 | -6 ± 8 | -2 ± 7 | -7 ± 6 |
+| gaussian | 0.05 | lower | tail_chi_1999_known | -3 ± 6 | -8 ± 8 | 1 ± 12 | 7 ± 9 | -4 ± 10 |
+| gaussian | 0.05 | lower | hermite_bank_own | -12 ± 3 | -16 ± 5 | -6 ± 8 | -4 ± 6 | -12 ± 6 |
+| gaussian | 0.05 | lower | hermite_399 | -22 ± 3 | -24 ± 5 | -10 ± 12 | -18 ± 7 | -24 ± 7 |
+| gaussian | 0.05 | lower | hermite_1999 | -9 ± 3 | -13 ± 5 | -4 ± 8 | -1 ± 6 | -9 ± 6 |
+| gaussian | 0.05 | lower | xiao_399 | -26 ± 5 | -27 ± 7 | -17 ± 16 | -19 ± 11 | -31 ± 9 |
+| gaussian | 0.05 | lower | xiao_1999 | -14 ± 5 | -17 ± 7 | -8 ± 10 | -3 ± 9 | -15 ± 8 |
+| gaussian | 0.05 | lower | best arm (gaussian_1999) | 9 ± 1 | 8 ± 2 | 12 ± 2 | 11 ± 2 | 10 ± 2 |
+| gaussian | 0.05 | upper | family_bank | 11 ± 1 | 11 ± 2 | 13 ± 3 | 11 ± 2 | 11 ± 2 |
+| gaussian | 0.05 | upper | tail_chi_399 | -9 ± 6 | -8 ± 8 | -3 ± 17 | -14 ± 11 | -9 ± 9 |
+| gaussian | 0.05 | upper | tail_chi_1999 | -9 ± 6 | -9 ± 8 | -6 ± 10 | -11 ± 9 | -10 ± 8 |
+| gaussian | 0.05 | upper | tail_chi_4999 | -10 ± 6 | -10 ± 9 | -7 ± 8 | -10 ± 7 | -10 ± 7 |
+| gaussian | 0.05 | upper | tail_chi_1999_known | -2 ± 6 | -2 ± 9 | 3 ± 11 | -3 ± 10 | -2 ± 9 |
+| gaussian | 0.05 | upper | hermite_bank_own | -12 ± 4 | -12 ± 6 | -8 ± 8 | -12 ± 6 | -13 ± 6 |
+| gaussian | 0.05 | upper | hermite_399 | -22 ± 4 | -20 ± 6 | -19 ± 12 | -25 ± 7 | -23 ± 7 |
+| gaussian | 0.05 | upper | hermite_1999 | -9 ± 4 | -9 ± 6 | -6 ± 8 | -9 ± 6 | -11 ± 7 |
+| gaussian | 0.05 | upper | xiao_399 | -27 ± 5 | -26 ± 8 | -23 ± 16 | -32 ± 11 | -28 ± 9 |
+| gaussian | 0.05 | upper | xiao_1999 | -15 ± 6 | -14 ± 8 | -13 ± 10 | -17 ± 9 | -16 ± 8 |
+| gaussian | 0.05 | upper | best arm (gaussian_1999) | 9 ± 1 | 8 ± 2 | 12 ± 2 | 11 ± 2 | 10 ± 2 |
+| gaussian | 0.10 | lower | family_bank | 8 ± 1 | 7 ± 2 | 11 ± 3 | 10 ± 2 | 8 ± 2 |
+| gaussian | 0.10 | lower | tail_chi_399 | -4 ± 4 | -6 ± 5 | 4 ± 13 | 4 ± 9 | -5 ± 6 |
+| gaussian | 0.10 | lower | tail_chi_1999 | -4 ± 4 | -8 ± 5 | 1 ± 7 | 4 ± 7 | -3 ± 5 |
+| gaussian | 0.10 | lower | tail_chi_4999 | -5 ± 4 | -10 ± 6 | -2 ± 5 | 1 ± 5 | -2 ± 4 |
+| gaussian | 0.10 | lower | tail_chi_1999_known | -2 ± 4 | -5 ± 6 | 5 ± 8 | 6 ± 7 | -2 ± 6 |
+| gaussian | 0.10 | lower | hermite_bank_own | -4 ± 3 | -8 ± 4 | 2 ± 5 | 2 ± 5 | -3 ± 5 |
+| gaussian | 0.10 | lower | hermite_399 | -12 ± 3 | -14 ± 4 | -4 ± 10 | -8 ± 7 | -13 ± 5 |
+| gaussian | 0.10 | lower | hermite_1999 | -2 ± 3 | -6 ± 4 | 3 ± 5 | 4 ± 5 | -0 ± 5 |
+| gaussian | 0.10 | lower | xiao_399 | -21 ± 3 | -23 ± 5 | -14 ± 12 | -14 ± 9 | -22 ± 6 |
+| gaussian | 0.10 | lower | xiao_1999 | -8 ± 4 | -12 ± 5 | -3 ± 7 | 1 ± 6 | -7 ± 5 |
+| gaussian | 0.10 | lower | best arm (gaussian_1999) | 9 ± 1 | 8 ± 2 | 11 ± 2 | 11 ± 2 | 10 ± 2 |
+| gaussian | 0.10 | upper | family_bank | 10 ± 1 | 9 ± 2 | 12 ± 3 | 10 ± 2 | 10 ± 2 |
+| gaussian | 0.10 | upper | tail_chi_399 | -5 ± 4 | -4 ± 6 | -5 ± 14 | -8 ± 8 | -4 ± 6 |
+| gaussian | 0.10 | upper | tail_chi_1999 | -6 ± 4 | -6 ± 6 | -4 ± 9 | -6 ± 7 | -5 ± 5 |
+| gaussian | 0.10 | upper | tail_chi_4999 | -6 ± 4 | -7 ± 6 | -5 ± 6 | -6 ± 6 | -5 ± 4 |
+| gaussian | 0.10 | upper | tail_chi_1999_known | -2 ± 4 | -1 ± 5 | 2 ± 9 | -5 ± 7 | -2 ± 5 |
+| gaussian | 0.10 | upper | hermite_bank_own | -4 ± 3 | -5 ± 5 | -2 ± 7 | -4 ± 5 | -4 ± 4 |
+| gaussian | 0.10 | upper | hermite_399 | -12 ± 3 | -11 ± 5 | -11 ± 11 | -14 ± 5 | -13 ± 4 |
+| gaussian | 0.10 | upper | hermite_1999 | -2 ± 3 | -3 ± 5 | 0 ± 7 | -2 ± 5 | -2 ± 4 |
+| gaussian | 0.10 | upper | xiao_399 | -22 ± 4 | -22 ± 5 | -22 ± 13 | -25 ± 8 | -22 ± 6 |
+| gaussian | 0.10 | upper | xiao_1999 | -9 ± 4 | -10 ± 5 | -7 ± 9 | -10 ± 7 | -8 ± 5 |
+| gaussian | 0.10 | upper | best arm (gaussian_1999) | 9 ± 1 | 8 ± 2 | 11 ± 2 | 11 ± 2 | 10 ± 2 |
+
+## Paired whole-run RMSE difference, family_bank minus each counter (x1e-3; W = bank lower by > 2 SE)
+
+| regime | q | tail | − tail_chi_399 | − tail_chi_1999 | − tail_chi_4999 | − hermite_bank_own | − hermite_399 | − hermite_1999 | − xiao_399 | − xiao_1999 | − best arm |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| gauss2clayton | 0.05 | lower | -65 ± 3 | -45 ± 3 | -75 ± 4 | -51 ± 3 | -63 ± 2 | -51 ± 3 | -69 ± 3 | -52 ± 4 | -89 ± 2 (clayton_1999) |
+| gauss2clayton | 0.05 | upper | -60 ± 3 | -31 ± 3 | -45 ± 3 | -25 ± 3 | -39 ± 3 | -27 ± 3 | -56 ± 3 | -31 ± 3 | -116 ± 2 (clayton_1999) |
+| gauss2clayton | 0.10 | lower | -43 ± 2 | -30 ± 3 | -53 ± 3 | -27 ± 2 | -34 ± 2 | -28 ± 2 | -47 ± 2 | -33 ± 3 | -53 ± 2 (clayton_1999) |
+| gauss2clayton | 0.10 | upper | -45 ± 2 | -24 ± 3 | -37 ± 2 | -19 ± 2 | -32 ± 2 | -22 ± 2 | -43 ± 2 | -24 ± 3 | -112 ± 2 (gaussian_1999) |
+| clayton2gumbel | 0.05 | lower | -70 ± 3 | -62 ± 3 | -100 ± 4 | -46 ± 2 | -60 ± 3 | -59 ± 2 | -70 ± 3 | -61 ± 3 | -149 ± 2 (clayton_99) |
+| clayton2gumbel | 0.05 | upper | -66 ± 2 | -69 ± 3 | -112 ± 4 | -55 ± 3 | -55 ± 3 | -68 ± 3 | -69 ± 3 | -74 ± 4 | -166 ± 2 (gaussian_1999) |
+| clayton2gumbel | 0.10 | lower | -49 ± 2 | -46 ± 3 | -76 ± 3 | -30 ± 2 | -36 ± 2 | -43 ± 2 | -49 ± 2 | -45 ± 2 | -101 ± 2 (clayton_399) |
+| clayton2gumbel | 0.10 | upper | -48 ± 2 | -53 ± 3 | -88 ± 3 | -38 ± 2 | -37 ± 2 | -50 ± 2 | -49 ± 2 | -55 ± 3 | -131 ± 2 (gaussian_1999) |
+| gauss2t | 0.05 | lower | -80 ± 3 | -29 ± 3 | -28 ± 4 | -26 ± 2 | -59 ± 2 | -22 ± 2 | -78 ± 3 | -32 ± 3 | -25 ± 2 (t_1999) |
+| gauss2t | 0.05 | upper | -80 ± 3 | -28 ± 3 | -26 ± 4 | -25 ± 3 | -58 ± 2 | -21 ± 3 | -78 ± 3 | -31 ± 3 | -23 ± 2 (t_1999) |
+| gauss2t | 0.10 | lower | -53 ± 2 | -16 ± 2 | -15 ± 3 | -12 ± 2 | -40 ± 2 | -9 ± 2 | -53 ± 2 | -17 ± 2 | -6 ± 1 (t_1999) |
+| gauss2t | 0.10 | upper | -53 ± 2 | -15 ± 2 | -13 ± 3 | -12 ± 2 | -40 ± 2 | -9 ± 2 | -52 ± 2 | -16 ± 2 | -5 ± 1 (t_1999) |
+| mix | 0.05 | lower | -31 ± 3 | +12 ± 3 | +3 ± 3 | +18 ± 2 | -13 ± 3 | +19 ± 2 | -30 ± 3 | +13 ± 3 | -23 ± 2 (t_1999) |
+| mix | 0.05 | upper | -20 ± 3 | +16 ± 4 | +2 ± 4 | +18 ± 3 | -2 ± 3 | +19 ± 3 | -19 ± 4 | +14 ± 4 | -19 ± 2 (gaussian_1999) |
+| mix | 0.10 | lower | -18 ± 2 | +11 ± 3 | +2 ± 3 | +16 ± 2 | -6 ± 2 | +15 ± 2 | -18 ± 2 | +12 ± 2 | -21 ± 2 (t_1999) |
+| mix | 0.10 | upper | -5 ± 2 | +17 ± 3 | +4 ± 3 | +21 ± 2 | +7 ± 2 | +21 ± 2 | -6 ± 2 | +16 ± 3 | -14 ± 2 (gaussian_1999) |
+| gaussian | 0.05 | lower | -81 ± 3 | -27 ± 3 | -16 ± 3 | -23 ± 2 | -60 ± 2 | -19 ± 2 | -78 ± 2 | -28 ± 3 | +4 ± 1 (gaussian_1999) |
+| gaussian | 0.05 | upper | -80 ± 3 | -26 ± 3 | -16 ± 4 | -22 ± 3 | -58 ± 3 | -18 ± 3 | -78 ± 3 | -28 ± 4 | +7 ± 2 (gaussian_1999) |
+| gaussian | 0.10 | lower | -57 ± 2 | -16 ± 2 | -9 ± 2 | -13 ± 2 | -44 ± 2 | -10 ± 2 | -55 ± 2 | -17 ± 2 | +3 ± 1 (gaussian_1999) |
+| gaussian | 0.10 | upper | -55 ± 3 | -15 ± 2 | -7 ± 2 | -12 ± 2 | -41 ± 2 | -9 ± 2 | -54 ± 3 | -15 ± 3 | +5 ± 1 (gaussian_1999) |
+
+W/L/T: tail_chi_399 20/0/0; tail_chi_1999 16/4/0; tail_chi_4999 16/2/2; hermite_bank_own 16/4/0; hermite_399 18/1/1; hermite_1999 16/4/0; xiao_399 20/0/0; xiao_1999 16/4/0; best arm 16/4/0
+
+## Ticks after the switch for the seed-mean chi to cross halfway from the old target to the new
+
+method                                   family_bank  tail_chi_399  tail_chi_1999  tail_chi_4999  tail_chi_1999_known  hermite_bank_own  hermite_399  hermite_1999  xiao_399  xiao_1999
+regime         q    tail  old    new                                                                                                                                                   
+gauss2clayton  0.05 lower 0.3105 0.6166        107.0         155.0          764.0         1666.0                692.0             780.0        240.0         860.0     200.0      860.0
+                    upper 0.3105 0.1129        109.0         130.0          595.0         1365.0                692.0             380.0        120.0         620.0     100.0      560.0
+               0.10 lower 0.3902 0.6219        107.0         155.0          729.0         1668.0                709.0             580.0        200.0         740.0     240.0      780.0
+                    upper 0.3902 0.2119        108.0         148.0          588.0         1357.0                663.0             400.0        140.0         620.0     140.0      580.0
+clayton2gumbel 0.05 lower 0.6166 0.2241         53.0         135.0          615.0         1399.0                701.0             240.0        120.0         600.0     120.0      580.0
+                    upper 0.1129 0.5197         56.0         122.0          724.0         1631.0                666.0             340.0        160.0         720.0     160.0      760.0
+               0.10 lower 0.6219 0.3168         51.0         133.0          661.0         1406.0                701.0             260.0        120.0         660.0     120.0      640.0
+                    upper 0.2119 0.5389         56.0         145.0          699.0         1594.0                671.0             300.0        160.0         680.0     160.0      720.0
+gauss2t        0.05 lower 0.3105 0.4112        180.0         181.0          780.0         1973.0                626.0             760.0        240.0         800.0     280.0      960.0
+                    upper 0.3105 0.4112        152.0         133.0          773.0         1753.0                616.0             680.0        320.0         820.0     320.0     1100.0
+               0.10 lower 0.3902 0.4554        179.0         187.0          806.0         1982.0                781.0             600.0        260.0         680.0     600.0      920.0
+                    upper 0.3902 0.4554        148.0         102.0          692.0         1712.0                591.0             600.0        160.0         660.0     320.0      940.0
+mix            0.05 lower 0.5185 0.3223         60.0         144.0          618.0         1353.0                642.0             280.0         60.0         520.0     120.0      520.0
+                    upper 0.2146 0.4180         63.0         134.0          687.0         1733.0                660.0             700.0        200.0         780.0     200.0      780.0
+               0.10 lower 0.5456 0.3931         59.0         138.0          580.0         1388.0                651.0             360.0        120.0         580.0     100.0      560.0
+                    upper 0.2936 0.4571         62.0         150.0          744.0         1743.0                711.0             640.0        180.0         720.0     200.0      780.0
+
+## Seed-mean shape weights of the family bank (pre = [1000, 5000), post_late = [7000, 10000))
+
+- gauss2clayton: pre gaussian 0.96; post clayton 0.99
+- clayton2gumbel: pre clayton 0.99; post gumbel 0.98
+- gauss2t: pre gaussian 0.96; post t 0.99
+- mix: pre clayton 0.84, gaussian 0.04, t 0.11; post gaussian 0.07, gumbel 0.30, t 0.62
+- gaussian: pre gaussian 0.96; post gaussian 0.97
+
+## Sanity: Gaussian arms' mean chi on the pure Gaussian path (lambda = 0)
+
+q     tail   method           
+0.05  lower  arm_gaussian_1999    0.3199
+             arm_gaussian_399     0.3197
+             arm_gaussian_99      0.3174
+      upper  arm_gaussian_1999    0.3199
+             arm_gaussian_399     0.3197
+             arm_gaussian_99      0.3174
+0.10  lower  arm_gaussian_1999    0.3993
+             arm_gaussian_399     0.3990
+             arm_gaussian_99      0.3965
+      upper  arm_gaussian_1999    0.3993
+             arm_gaussian_399     0.3990
+             arm_gaussian_99      0.3965
+
+## Budget
+== Validation-tuned, test RMSE (x1e-2) ==
+estimator                              hermite               mpl_dskll                 mpl_kll                   xiao
+family   scenario budget                                                                                             
+clayton  constant 16KiB   3.81±0.05 [20,0.005]   3.32±0.05 [512,0.005]    3.76±0.08 [64,0.005]   3.64±0.05 [20,0.005]
+                  256KiB  3.73±0.05 [43,0.005]  3.32±0.05 [1024,0.005]  3.34±0.05 [1024,0.005]   3.63±0.05 [45,0.005]
+                  64KiB   3.73±0.05 [43,0.005]  3.32±0.05 [1024,0.005]   3.35±0.05 [512,0.005]   3.63±0.05 [45,0.005]
+         drift    16KiB   5.94±0.10 [20,0.005]   5.66±0.09 [512,0.005]    5.94±0.10 [64,0.005]   5.93±0.10 [30,0.005]
+                  256KiB  5.93±0.10 [43,0.005]   5.66±0.09 [512,0.005]  5.68±0.09 [1024,0.005]  5.90±0.10 [130,0.005]
+                  64KiB   5.93±0.10 [43,0.005]   5.66±0.09 [512,0.005]   5.69±0.09 [512,0.005]   5.91±0.10 [65,0.005]
+         jump     16KiB    8.41±0.09 [20,0.01]    8.49±0.09 [512,0.01]     8.74±0.09 [64,0.01]    8.29±0.09 [30,0.01]
+                  256KiB   8.36±0.09 [60,0.01]    8.49±0.09 [512,0.01]   8.50±0.08 [1024,0.01]    8.29±0.09 [30,0.01]
+                  64KiB    8.36±0.09 [60,0.01]    8.49±0.09 [512,0.01]    8.51±0.08 [512,0.01]    8.29±0.09 [30,0.01]
+gaussian constant 16KiB   3.62±0.05 [20,0.005]   2.89±0.05 [512,0.005]    3.20±0.07 [64,0.005]   3.49±0.05 [30,0.005]
+                  256KiB  3.52±0.05 [89,0.005]  2.89±0.05 [1024,0.005]  2.89±0.05 [1024,0.005]   3.49±0.05 [30,0.005]
+                  64KiB   3.57±0.05 [30,0.005]  2.89±0.05 [1024,0.005]   2.89±0.05 [512,0.005]   3.49±0.05 [30,0.005]
+         drift    16KiB   6.82±0.11 [15,0.005]    6.25±0.07 [512,0.01]     6.43±0.08 [64,0.01]   6.75±0.11 [30,0.005]
+                  256KiB  6.75±0.11 [89,0.005]    6.25±0.07 [512,0.01]    6.26±0.08 [512,0.01]  6.72±0.11 [130,0.005]
+                  64KiB   6.74±0.11 [60,0.005]    6.25±0.07 [512,0.01]    6.26±0.08 [512,0.01]   6.73±0.11 [45,0.005]
+         jump     16KiB    8.37±0.07 [20,0.01]    7.91±0.07 [512,0.01]     8.05±0.07 [64,0.01]    8.22±0.07 [30,0.01]
+                  256KiB   8.24±0.07 [89,0.01]   7.91±0.07 [1024,0.01]   7.91±0.07 [1024,0.01]    8.19±0.07 [65,0.01]
+                  64KiB    8.25±0.06 [43,0.01]   7.91±0.07 [1024,0.01]    7.91±0.07 [512,0.01]    8.19±0.07 [65,0.01]
+gumbel   constant 16KiB   3.82±0.06 [20,0.005]   3.24±0.05 [256,0.005]    3.43±0.07 [64,0.005]   3.64±0.06 [30,0.005]
+                  256KiB  3.68±0.06 [89,0.005]   3.24±0.05 [256,0.005]   3.23±0.05 [512,0.005]   3.64±0.06 [30,0.005]
+                  64KiB   3.67±0.06 [60,0.005]   3.24±0.05 [256,0.005]   3.23±0.05 [512,0.005]   3.64±0.06 [30,0.005]
+         drift    16KiB   6.13±0.10 [20,0.005]   5.51±0.09 [512,0.005]    5.85±0.10 [64,0.005]   6.07±0.10 [30,0.005]
+                  256KiB  6.02±0.10 [43,0.005]  5.49±0.09 [1024,0.005]  5.48±0.09 [1024,0.005]  6.02±0.10 [130,0.005]
+                  64KiB   6.02±0.10 [43,0.005]  5.49±0.09 [1024,0.005]   5.49±0.09 [512,0.005]   6.03±0.10 [65,0.005]
+         jump     16KiB    8.46±0.08 [20,0.01]    8.12±0.08 [512,0.01]     8.27±0.09 [64,0.01]    8.32±0.08 [30,0.01]
+                  256KiB   8.36±0.08 [89,0.01]   8.12±0.08 [1024,0.01]    8.12±0.08 [512,0.01]    8.31±0.08 [65,0.01]
+                  64KiB    8.36±0.08 [43,0.01]   8.12±0.08 [1024,0.01]    8.12±0.08 [512,0.01]    8.31±0.08 [65,0.01]
+t        constant 16KiB   4.05±0.05 [20,0.005]   3.90±0.05 [512,0.005]    3.98±0.06 [64,0.005]   3.91±0.05 [30,0.005]
+                  256KiB  3.92±0.05 [89,0.005]  3.90±0.05 [1024,0.005]   3.90±0.05 [512,0.005]   3.90±0.05 [65,0.005]
+                  64KiB   3.94±0.05 [60,0.005]  3.90±0.05 [1024,0.005]   3.90±0.05 [512,0.005]   3.90±0.05 [65,0.005]
+         drift    16KiB   6.94±0.11 [20,0.005]   6.80±0.11 [256,0.005]    6.95±0.12 [64,0.005]   6.84±0.11 [30,0.005]
+                  256KiB  6.88±0.11 [30,0.005]  6.78±0.11 [1024,0.005]  6.78±0.11 [1024,0.005]  6.82±0.11 [130,0.005]
+                  64KiB   6.88±0.11 [30,0.005]  6.78±0.11 [1024,0.005]   6.79±0.11 [512,0.005]   6.83±0.11 [45,0.005]
+         jump     16KiB    8.64±0.08 [20,0.01]    8.63±0.08 [512,0.01]     8.75±0.08 [64,0.01]    8.52±0.08 [30,0.01]
+                  256KiB   8.55±0.08 [89,0.01]   8.63±0.08 [1024,0.01]   8.63±0.08 [1024,0.01]    8.51±0.08 [90,0.01]
+                  64KiB    8.54±0.08 [60,0.01]   8.63±0.08 [1024,0.01]    8.63±0.08 [512,0.01]    8.52±0.08 [30,0.01]
+
+== jump: post-change RMSE (x1e-2) and recovery delay (ticks), tuned on post-change RMSE ==
+estimator                           hermite                   mpl_dskll                     mpl_kll                       xiao
+family   budget                                                                                                               
+clayton  16KiB    11.09±0.15 d=50 [20,0.05]   9.81±0.18 d=45 [512,0.05]   10.29±0.18 d=45 [64,0.05]  10.23±0.18 d=50 [30,0.05]
+         256KiB   10.52±0.18 d=50 [89,0.05]  9.81±0.18 d=45 [1024,0.05]  9.86±0.18 d=45 [1024,0.05]  10.23±0.18 d=50 [30,0.05]
+         64KiB    10.60±0.18 d=45 [60,0.05]  9.81±0.18 d=45 [1024,0.05]   9.86±0.18 d=45 [512,0.05]  10.23±0.18 d=50 [30,0.05]
+gaussian 16KiB    10.48±0.15 d=50 [20,0.05]   7.84±0.13 d=45 [512,0.05]    8.09±0.14 d=45 [64,0.05]   9.83±0.14 d=50 [20,0.05]
+         256KiB   10.07±0.14 d=45 [89,0.05]  7.84±0.14 d=45 [1024,0.05]  7.84±0.14 d=45 [1024,0.05]   9.83±0.14 d=50 [20,0.05]
+         64KiB    10.20±0.14 d=50 [43,0.05]  7.84±0.14 d=45 [1024,0.05]   7.84±0.14 d=45 [512,0.05]   9.83±0.14 d=50 [20,0.05]
+gumbel   16KiB    11.17±0.17 d=45 [20,0.05]   8.97±0.17 d=45 [512,0.05]    9.26±0.17 d=45 [64,0.05]  10.51±0.16 d=45 [30,0.05]
+         256KiB   10.73±0.15 d=45 [89,0.05]   8.97±0.17 d=45 [512,0.05]   9.06±0.17 d=45 [128,0.05]  10.49±0.16 d=45 [65,0.05]
+         64KiB    10.77±0.15 d=45 [60,0.05]   8.97±0.17 d=45 [512,0.05]   9.06±0.17 d=45 [128,0.05]  10.49±0.16 d=45 [65,0.05]
+t        16KiB   11.38±0.18 d=115 [20,0.02]   9.39±0.17 d=45 [512,0.05]    9.57±0.18 d=45 [64,0.05]  10.71±0.15 d=45 [20,0.05]
+         256KiB   10.90±0.14 d=50 [89,0.05]  9.38±0.17 d=45 [1024,0.05]   9.38±0.17 d=45 [512,0.05]  10.68±0.14 d=45 [45,0.05]
+         64KiB   11.23±0.17 d=115 [60,0.02]  9.38±0.17 d=45 [1024,0.05]   9.38±0.17 d=45 [512,0.05]  10.68±0.14 d=45 [45,0.05]
+
+== Common gain, Gaussian: best approx within 64KiB at each gain, test RMSE (x1e-2) ==
+estimator          hermite     mpl_dskll      mpl_kll        xiao
+scenario gain                                                    
+constant 0.005   3.57 [30]   2.89 [1024]   2.89 [512]   3.49 [30]
+         0.010   5.05 [60]   3.97 [1024]   3.98 [512]   4.96 [65]
+         0.020   7.25 [60]   5.58 [1024]   5.58 [512]   7.11 [65]
+         0.050  11.81 [60]   8.91 [1024]   8.91 [512]  11.61 [45]
+         0.100  17.52 [60]  13.00 [1024]  13.00 [512]  17.15 [30]
+drift    0.005   6.74 [60]   6.40 [1024]   6.40 [512]   6.73 [45]
+         0.010   6.87 [60]    6.25 [512]   6.26 [512]   6.83 [30]
+         0.020   9.11 [43]    8.25 [512]   8.25 [512]   9.05 [30]
+         0.050  14.45 [60]  13.30 [1024]  13.31 [512]  14.35 [45]
+         0.100  20.94 [60]  19.81 [1024]  19.82 [512]  20.79 [45]
+jump     0.005   9.67 [60]   9.62 [1024]   9.63 [512]   9.65 [65]
+         0.010   8.25 [43]   7.91 [1024]   7.91 [512]   8.19 [65]
+         0.020   8.78 [43]   8.01 [1024]   8.02 [512]   8.67 [30]
+         0.050  12.39 [60]  11.12 [1024]  11.12 [512]  12.24 [30]
+         0.100  17.79 [60]  16.12 [1024]  16.13 [512]  17.51 [20]
+
+== Marginal ablation (MPL, test RMSE x1e-2 at the val-best gain for each variant) ==
+  family scenario     exact     ew500     kll64    kll256   dskll64  dskll256 fit_kll256
+ clayton constant 3.23±0.05 3.27±0.05 3.76±0.08 3.37±0.06 3.93±0.08 3.37±0.06  3.45±0.06
+ clayton    drift 5.64±0.09 5.21±0.09 5.94±0.10 5.71±0.09 6.10±0.11 5.70±0.10  5.75±0.09
+ clayton     jump 8.46±0.09 8.21±0.09 8.74±0.09 8.52±0.08 8.89±0.09 8.53±0.09  8.47±0.08
+gaussian constant 2.72±0.04 3.16±0.05 3.20±0.07 2.90±0.05 3.23±0.06 2.90±0.05  2.94±0.05
+gaussian    drift 6.23±0.08 6.32±0.08 6.43±0.08 6.27±0.08 6.44±0.07 6.27±0.07  6.29±0.07
+gaussian     jump 7.87±0.07 7.89±0.07 8.05±0.07 7.91±0.07 8.06±0.07 7.92±0.07  7.77±0.07
+  gumbel constant 3.11±0.05 3.57±0.06 3.43±0.07 3.23±0.05 3.34±0.06 3.24±0.05  3.24±0.05
+  gumbel    drift 5.45±0.09 5.18±0.10 5.85±0.10 5.51±0.09 5.77±0.10 5.51±0.09  5.55±0.09
+  gumbel     jump 8.10±0.08 8.11±0.08 8.27±0.09 8.12±0.08 8.25±0.08 8.13±0.08  7.99±0.08
+       t constant 3.85±0.05 4.12±0.06 3.98±0.06 3.89±0.05 3.96±0.06 3.89±0.06  3.94±0.06
+       t    drift 6.78±0.12 6.90±0.12 6.95±0.12 6.80±0.11 6.91±0.11 6.80±0.11  6.82±0.11
+       t     jump 8.61±0.08 8.53±0.08 8.75±0.08 8.64±0.08 8.76±0.08 8.63±0.08  8.57±0.08

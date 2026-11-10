@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 
 // KalmanBank's device, without the Kalman filter.
@@ -38,7 +39,7 @@ public:
         std::size_t block = 20;
         double switch_prob = 0.002;   // Markov step on the model index, as 14.16
         double var_rate = 0.001;      // slow, for the reason section 14.11 gives
-        std::size_t pit_window = 500;
+        double marginal_neff = default_marginal_neff();   // shared EW marginal (ew_marginal.hpp)
         std::size_t burn_in_ticks = 200;
     };
 
@@ -47,7 +48,7 @@ public:
         : config_(config), name_(name), models_(std::move(models)),
           w_(models_.size(), 1.0 / static_cast<double>(models_.size())),
           ll_(models_.size(), 0.0),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {}
+          pit_x_(config.marginal_neff), pit_y_(config.marginal_neff) {}
 
     void update(double x, double y) override {
         const std::size_t K = models_.size();
@@ -129,7 +130,7 @@ private:
     const char* name_;
     std::vector<std::unique_ptr<DependenceEstimator>> models_;
     std::vector<double> w_, ll_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal pit_x_, pit_y_;
     double var_ = 1.0;
     std::size_t in_block_ = 0, n_ = 0;
 };

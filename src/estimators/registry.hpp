@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include <memory>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,76 @@
 // For all, lambda = 0 means "cumulative" (no forgetting).
 //
 // Clayton/Gumbel model POSITIVE dependence only; the t copula's nu is fixed.
+// N_eff,m of the banks' shared EW marginal (ew_marginal.hpp): 500 unless BANK_MARGINAL_NEFF overrides it
+// (the sensitivity runs). Kept separate from the arms' dependence memories.
+// Experiment switches for the staged 2026-11 audit (notes/studies/ew_marginals.md). Each reads one
+// environment variable once, so a paired run changes exactly one factor:
+//   BANK_MARGINAL     ew (default) | window   shared scoring margins: EW ECDF, or the old 500-window ranks
+//   BANK_MARGINAL_NEFF 500 (default)          N_eff,m of the EW margins
+//   BANK_ARM_INPUTS   raw (default) | shared | composite
+//        raw       : Xiao and Hermite train on the raw observations with their own marginal procedures
+//                    (Xiao's calibrated cut-points, Hermite's sequential standardisation); the MPL always
+//                    trains on the shared pseudo-observations. Scoring always uses the shared ones.
+//        shared    : every arm trains on the shared normal scores; Xiao bins them at probit(k/B),
+//                    Hermite does not standardise again (one marginal transformation)
+//        composite : the pre-2026-11-09 pipeline; Xiao recalibrates cut-points and Hermite standardises
+//                    the shared scores again
+//   HERMITE_START     normalised (default) | literal | runningmean | legacy
+//   HERMITE_MOMENTS   current (default) | predictive   raw-input standardisation order
+//   RMPL_START        normalised (default) | max | constant
+namespace bank_experiment {
+inline std::string env(const char* k, const char* d) { const char* e = std::getenv(k); return e ? e : d; }
+inline const std::string& marginal()   { static const std::string v = env("BANK_MARGINAL", "ew"); return v; }
+inline double marginal_neff()          { return default_marginal_neff(); }
+inline const std::string& arm_inputs() { static const std::string v = env("BANK_ARM_INPUTS", "raw"); return v; }
+inline const std::string& h_start()    { static const std::string v = env("HERMITE_START", "normalised"); return v; }
+inline const std::string& h_moments()  { static const std::string v = env("HERMITE_MOMENTS", "current"); return v; }
+inline const std::string& rmpl_start() { static const std::string v = env("RMPL_START", "normalised"); return v; }
+// Log-loss bank fixed share: 3e-4 (tuned on the original scenarios); BANK_LOG_DELTA overrides it for runs
+// whose tuning chose otherwise (the matched-scenario retune chose 1e-4, ew_marginals.md §31).
+inline double log_delta() { static const double v = std::atof(env("BANK_LOG_DELTA", "3e-4").c_str()); return v; }
+inline bool shared_scores() { return arm_inputs() == "shared"; }
+inline bool raw() { return arm_inputs() == "raw"; }
+
+// force_shared: own-density banks score each arm's own density at the shared (U, V), which is only
+// defined when the arm trains on those same pseudo-observations.
+inline XiaoSpearmanEstimator::Config xiao(double lambda, bool force_shared = false) {
+    XiaoSpearmanEstimator::Config c{.bins = 20, .window = 0, .lambda = lambda, .calibration = 100};
+    c.normal_score_inputs = shared_scores() || force_shared;
+    return c;
+}
+inline HermiteEstimator::Config hermite(double lambda, bool force_shared = false) {
+    HermiteEstimator::Config c{.order = 10, .lambda = lambda, .burn_in = 0};
+    c.normal_score_inputs = shared_scores() || force_shared;
+    const std::string& st = h_start();
+    if (st == "legacy") { c.legacy = true; c.burn_in = 50; }
+    else if (st == "literal") c.start = HermiteEstimator::Config::Start::Literal;
+    else if (st == "runningmean") c.start = HermiteEstimator::Config::Start::RunningMean;
+    c.predictive_moments = h_moments() == "predictive";
+    return c;
+}
+inline void rmpl(RecursiveMPL::Config& c) {
+    const std::string& st = rmpl_start();
+    c.startup = st != "constant";
+    c.startup_normalised = st == "normalised";
+}
+inline void bank(ForgettingBank::Config& c, const std::string& base, bool own = false) {
+    c.marginal_neff = marginal_neff();
+    c.marginal_window = marginal() == "window" ? 500 : 0;
+    c.arms_raw = raw() && !own && (base == "xiao" || base == "hermite" || base == "gregory");
+}
+// The banks' shared scoring margins, for probes that replay them (regret, tuning).
+struct Margins {
+    bool win = marginal() == "window";
+    EwMarginal mx{marginal_neff()}, my{marginal_neff()};
+    RankPit wx{win ? std::size_t(500) : std::size_t(1)}, wy{win ? std::size_t(500) : std::size_t(1)};
+    std::size_t size() const { return win ? wx.size() : mx.size(); }
+    double u(double x) { return win ? wx.transform(x) : mx.transform(x); }
+    double v(double y) { return win ? wy.transform(y) : my.transform(y); }
+};
+}  // namespace bank_experiment
+inline double bank_marginal_neff() { return bank_experiment::marginal_neff(); }
+
 inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& key) {
     if (key == "xiao") {
         return std::make_unique<XiaoSpearmanEstimator>(
@@ -404,10 +475,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<XiaoSpearmanEstimator>(
                         XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = lam,
-                                                      .calibration = 100}, "m"));
+                                                      .calibration = 100, .normal_score_inputs = true}, "m"));
                 for (double lam : {0.05, 0.02, 0.01, 0.005, 0.001})
                     models.push_back(std::make_unique<HermiteEstimator>(
-                        HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "m"));
+                        HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 0, .normal_score_inputs = true}, "m"));
                 for (double gain : {0.05, 0.02, 0.01, 0.005, 0.001}) {
                     RecursiveMPL::Config c{};
                     c.margin = RecursiveMPL::Margin::ExactNormal;
@@ -423,12 +494,11 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             } else if (b == "xiao") {
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<XiaoSpearmanEstimator>(
-                        XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = lam,
-                                                      .calibration = 100}, "m"));
+                        bank_experiment::xiao(lam, ends_with("_own")), "m"));
             } else if (b == "hermite") {
                 for (double lam : {0.05, 0.02, 0.01, 0.005, 0.001})
                     models.push_back(std::make_unique<HermiteEstimator>(
-                        HermiteEstimator::Config{.order = 10, .lambda = lam, .burn_in = 50}, "m"));
+                        bank_experiment::hermite(lam, ends_with("_own")), "m"));
             } else if (b == "mleold") {
                 for (double lam : {0.95, 0.98, 0.99, 0.995, 0.999})
                     models.push_back(std::make_unique<ParametricCopulaMLE>(
@@ -448,18 +518,17 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
                     RecursiveMPL::Config c{};
                     c.margin = RecursiveMPL::Margin::ExactNormal;
                     c.gain = gain;
-                    c.startup = (b == "mle");
+                    if (b == "mle") bank_experiment::rmpl(c); else c.startup = false;
                     models.push_back(std::make_unique<RecursiveMPL>(c, "m"));
                 }
             }
             if (with_cum) {
                 if (b == "xiao")
                     models.push_back(std::make_unique<XiaoSpearmanEstimator>(
-                        XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.0,
-                                                      .calibration = 100}, "m"));
+                        bank_experiment::xiao(0.0), "m"));
                 else if (b == "hermite")
                     models.push_back(std::make_unique<HermiteEstimator>(
-                        HermiteEstimator::Config{.order = 10, .lambda = 0.0, .burn_in = 50}, "m"));
+                        bank_experiment::hermite(0.0), "m"));
                 else {
                     RecursiveMPL::Config c{};
                     c.margin = RecursiveMPL::Margin::ExactNormal;
@@ -485,9 +554,10 @@ inline std::unique_ptr<DependenceEstimator> make_estimator(const std::string& ke
             if (block)
                 return std::make_unique<EstimatorBank>(std::move(models), EstimatorBank::Config{}, name);
             ForgettingBank::Config cfg{.eta = 1.0, .delta = 1.0e-4};
+            bank_experiment::bank(cfg, b, ends_with("_own"));
             if (ends_with("_log")) {
                 cfg.loss = ForgettingBank::Loss::Log;
-                cfg.delta = 3.0e-4;
+                cfg.delta = bank_experiment::log_delta();
             } else if (ends_with("_own")) {
                 cfg.loss = ForgettingBank::Loss::Own;
                 cfg.eta = 0.25;

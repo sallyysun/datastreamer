@@ -17,8 +17,11 @@ INK, MUTED, GRID, SURF = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 BIAS, VAR, MSE, THEORY = "#eb6834", "#2a78d6", INK, "#52514e"
 N_T, BURN = 5000, 500
 t = np.arange(BURN, N_T)
-r_t = -0.5 + 1.3 * t / N_T
-drs = (3 / np.pi) / np.sqrt(1 - r_t ** 2 / 4) * 1.3 / N_T          # d rho_S / dt
+import os
+MATCHED = os.environ.get("SCENARIOS") == "matched"   # drift d 0.2 -> 0.8 (scenarios.hpp), else -0.5 -> 0.8
+D0, DSPAN, DDEN = (0.2, 0.6, N_T - 1) if MATCHED else (-0.5, 1.3, N_T)
+r_t = D0 + DSPAN * t / DDEN
+drs = (3 / np.pi) / np.sqrt(1 - r_t ** 2 / 4) * DSPAN / DDEN      # d rho_S / dt
 d_rms = np.sqrt(np.mean(drs ** 2))
 
 fig, ax = plt.subplots(1, 3, figsize=(15, 4.9), gridspec_kw={"width_ratios": [1, 1, 1.15]})
@@ -71,9 +74,9 @@ wt = b.pivot(index="t", columns="k", values="value")
 ne = b.pivot(index="t", columns="k", values="neff")
 mem = (wt * ne).sum(axis=1)
 tt = mem.index.values
-rr = -0.5 + 1.3 * tt / N_T
+rr = D0 + DSPAN * tt / DDEN
 sig2 = (3 / np.pi) ** 2 / (1 - rr ** 2 / 4) * (1 - rr ** 2) ** 2 / (1 + rr ** 2)
-dd = (3 / np.pi) / np.sqrt(1 - rr ** 2 / 4) * 1.3 / N_T
+dd = (3 / np.pi) / np.sqrt(1 - rr ** 2 / 4) * DSPAN / DDEN
 nstar = (2 * sig2 / dd ** 2) ** (1 / 3)
 a = ax[2]
 a.plot(tt, mem, color="#1baf7a", lw=2.0, label=r"MPL log bank: $\sum_k w_k N_{\mathrm{eff},k}$ (mean of 60 seeds)")
@@ -85,7 +88,7 @@ a.set_yscale("log")
 a.set_ylim(30, 2500)
 a.set_xlim(0, N_T)
 a.axvspan(0, BURN, color=GRID, alpha=0.4, lw=0)
-a.set_xlabel(r"tick  ($\rho_S$ drifts from −0.48 to 0.79)", fontsize=9, color=MUTED)
+a.set_xlabel(r"tick  ($\rho_S$ drifts from " + ("0.19" if MATCHED else "−0.48") + " to 0.79)", fontsize=9, color=MUTED)
 a.set_ylabel(r"effective sample size (log)", fontsize=9, color=MUTED)
 a.set_title("(c) Does the bank reach the optimal memory?", fontsize=10.5, color=INK, loc="left")
 a.legend(fontsize=7.8, frameon=False, loc="upper right")

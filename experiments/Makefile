@@ -152,3 +152,6 @@ probe_family_path:
 
 probe_bank_regret:
 	$(CXX) probe_bank_regret.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_bank_regret
+
+probe_vff_common:
+	$(CXX) probe_vff_common.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_vff_common

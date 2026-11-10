@@ -8,6 +8,7 @@
 
 #include "change_detector.hpp"
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 #include "../special_functions.hpp"
 
@@ -62,14 +63,14 @@ public:
         // So the decision rule is a Shewhart chart on the smoothed statistic:
         // alarm when it sits L Phase-I standard deviations from its baseline.
         double L = 3.0;              // calibrate via calibrate_tail.cpp
-        std::size_t pit_window = 500;
+        double marginal_neff = default_marginal_neff();   // shared EW marginal (ew_marginal.hpp)
         std::size_t calib_blocks = 60;   // Phase-I, then the baseline FREEZES (14.11)
     };
 
     TailCusumDetector(std::unique_ptr<DependenceEstimator> inner, Config config,
                        const char* name)
         : config_(config), name_(name), inner_(std::move(inner)),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {}
+          pit_x_(config.marginal_neff), pit_y_(config.marginal_neff) {}
 
     void update(double x, double y) override {
         alarmed_ = false;
@@ -77,7 +78,7 @@ public:
 
         const double u = pit_x_.transform(x);
         const double v = pit_y_.transform(y);
-        if (pit_x_.size() < config_.pit_window / 2) return;   // tail needs a real window
+        if (pit_x_.size() < 250) return;   // the tail needs a populated marginal before it is monitored
 
         const double c = config_.count_rate;
         tail_ += c * ((u <= config_.q && v <= config_.q ? 1.0 : 0.0) - tail_);
@@ -173,7 +174,7 @@ private:
     Config config_;
     const char* name_;
     std::unique_ptr<DependenceEstimator> inner_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal pit_x_, pit_y_;
 
     double tail_ = 0.0, mid_ = 0.0;
     double sum_ = 0.0;

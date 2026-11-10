@@ -1,3 +1,8 @@
+> **SUPERSEDED (2026-11-09).** These numbers predate the staged audit (500-window marginals, the old
+> Hermite and RMPL start-up, broken VFF comparators). The frozen final results are in
+> `docs/chapter6_results_final.md` and `experiments/results/final_eval_2026-11-09.txt`. This file is
+> kept for provenance only.
+
 # Chapter 6 results: the Algorithm 1 bank against fixed memory and VFF (2026-11-01)
 
 Every number behind §6.3 (adaptive memory) and §6.4 (which loss) of

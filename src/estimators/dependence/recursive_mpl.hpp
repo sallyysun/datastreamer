@@ -6,11 +6,13 @@
 #include <memory>
 
 #include "estimator.hpp"
+#include "memory_control.hpp"
 #include "predictive_density.hpp"
 #if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/Makefile DS_INC)
 #include "ds_margin.hpp"
 #define RECURSIVE_MPL_HAS_DS 1
 #endif
+#include "ew_marginal.hpp"
 #include "kll_sketch.hpp"
 #include "marginal_rank_pit.hpp"
 #include "parametric_copula.hpp"
@@ -24,9 +26,9 @@
 //                  -W r^3 + P r^2 + (W - S) r + P, W = sum kappa^k, S = sum kappa^k (a^2+b^2), P = sum kappa^k ab
 //   CopulaFit      the pre-2026-11-06 registered recursion (step clamp, unprojected phi)
 // Spec and results: notes/studies/budget_mpl.md.
-class RecursiveMPL : public DependenceEstimator, public PredictiveDensity {
+class RecursiveMPL : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
 public:
-    enum class Margin { Kll, DsKll, ExactNormal, RankWindow };
+    enum class Margin { Kll, DsKll, ExactNormal, RankWindow, Ew };
     enum class Update { ConstantGain, FisherTheta, Exact, CopulaFit };
 
     struct Config {
@@ -35,12 +37,16 @@ public:
         double gain = 0.01;
         std::size_t kll_k = 200;
         std::size_t window = 500;
+        double marginal_neff = 500.0;   // Margin::Ew: EW empirical CDF (ew_marginal.hpp)
         double delta = 1e-3;
         double r_max = 0.999;
         std::size_t warmup = 30;   // marginal observations before the copula updates
-        // Gain max(gain, 1/m) on the m-th copula update: a running mean until m = 1/gain, then the
-        // constant gain. Same rule as HermiteEstimator::init_first_obs. Off = constant from the start.
-        bool startup = false;
+        // Start-up gain on the m-th copula update. startup_normalised: g_m = gain / (1 - (1 - gain)^m),
+        // the EW weights of thesis 5.1.3 normalised to sum to one, which is Fisher scoring on the EW
+        // pseudo-log-likelihood with L_0 = 0 (g_1 = 1, g_m -> gain). Otherwise max(gain, 1/m), the
+        // pre-2026-11-09 rule. startup = false: the constant gain from r_0 = 0.
+        bool startup = true;
+        bool startup_normalised = true;
         unsigned seed = 1;
     };
 
@@ -82,6 +88,10 @@ public:
                 seen = px_.size();
                 u = px_.transform(x); v = py_.transform(y);
                 break;
+            case Margin::Ew:
+                seen = ex_.size();
+                u = ex_.transform(x); v = ey_.transform(y);
+                break;
         }
         ++n_;
         if (seen < c_.warmup) return;
@@ -94,7 +104,15 @@ public:
         const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);
         const double info = (1.0 + r * r) / (q * q);
         ++m_;
-        const double g = c_.startup ? std::max(c_.gain, 1.0 / static_cast<double>(m_)) : c_.gain;
+        double g = gain_;
+        if (c_.startup) {
+            if (c_.startup_normalised) {
+                wsum_ = (1.0 - gain_) * wsum_ + gain_;
+                g = gain_ / wsum_;
+            } else {
+                g = std::max(gain_, 1.0 / static_cast<double>(m_));
+            }
+        }
         r_ = std::clamp(r + g * s / info, -c_.r_max, c_.r_max);
     }
 
@@ -104,15 +122,16 @@ public:
     }
 
     void reset() override {
-        n_ = 0; m_ = 0; r_ = 0.0; theta_ = 0.0; H_ = 1.0; W_ = S_ = P_ = 0.0;
-        kx_.reset(); ky_.reset(); px_.reset(); py_.reset(); fit_.reset();
+        n_ = 0; m_ = 0; r_ = 0.0; wsum_ = 0.0; gain_ = c_.gain; theta_ = 0.0; H_ = 1.0; W_ = S_ = P_ = 0.0;
+        kx_.reset(); ky_.reset(); px_.reset(); py_.reset(); ex_.reset(); ey_.reset(); fit_.reset();
         if (c_.margin == Margin::DsKll) make_ds();
     }
 
     // Everything the object holds: itself (every update mode's scalars, both sketch objects, the rank
     // windows), plus the heap of whichever margin is in use (the others hold almost none).
     std::size_t store_bytes() const override {
-        std::size_t b = sizeof(*this) + kx_.heap_bytes() + ky_.heap_bytes() + px_.heap_bytes() + py_.heap_bytes();
+        std::size_t b = sizeof(*this) + kx_.heap_bytes() + ky_.heap_bytes() + px_.heap_bytes() + py_.heap_bytes()
+                      + ex_.heap_bytes() + ey_.heap_bytes();
 #ifdef RECURSIVE_MPL_HAS_DS
         if (dx_) b += dx_->store_bytes() + dy_->store_bytes();
 #endif
@@ -120,6 +139,9 @@ public:
     }
 
     const char* name() const override { return name_; }
+    // Constant-gain mode: gain 2/(N + 1).
+    void set_neff(double neff) override { gain_ = 2.0 / (neff + 1.0); }
+    bool ready() const override { return c_.update == Update::CopulaFit ? n_ > c_.warmup : m_ > 0 || n_ > c_.warmup; }
 
 private:
     void step_discounted(double a, double b) {
@@ -167,6 +189,8 @@ private:
     std::size_t n_ = 0;
     std::size_t m_ = 0;   // copula updates so far
     double r_ = 0.0;
+    double wsum_ = 0.0;   // accumulated EW weight, for the normalised start-up gain
+    double gain_ = c_.gain;   // current gain (moved only by set_neff)
     double theta_ = 0.0, H_ = 1.0;          // FisherTheta
     double W_ = 0.0, S_ = 0.0, P_ = 0.0;    // Exact
     KllSketch kx_, ky_;
@@ -174,5 +198,6 @@ private:
     std::unique_ptr<ds_margin::Kll> dx_, dy_;   // only for Margin::DsKll
 #endif
     RankPit px_, py_;
+    EwMarginal ex_{c_.margin == Margin::Ew ? c_.marginal_neff : 0.0}, ey_{c_.margin == Margin::Ew ? c_.marginal_neff : 0.0};
     copula::CopulaFit fit_;
 };

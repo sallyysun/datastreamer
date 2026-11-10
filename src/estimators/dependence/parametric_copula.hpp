@@ -174,6 +174,9 @@ public:
         // continuous margin. Section 9.
         std::size_t rank_pit_window = 0;   // 0 keeps pseudo()
         std::size_t burn_in = 50;
+        // Inputs are already normal scores z = probit(u) of shared pseudo-observations (the bank
+        // protocol): u = Phi(z), no standardisation.
+        bool normal_score_inputs = false;
     };
 
     ParametricCopulaMLE(Config config, const char* name)
@@ -183,9 +186,12 @@ public:
     void update(double x, double y) override {
         ++n_;
         update_marginals(x, y);
-        if (n_ < 2) return;
+        if (n_ < 2 && !config_.normal_score_inputs) return;
         double u, v;
-        if (config_.rank_pit_window > 0) {
+        if (config_.normal_score_inputs) {
+            u = special::normal_cdf(x);
+            v = special::normal_cdf(y);
+        } else if (config_.rank_pit_window > 0) {
             u = pit_x_.transform(x);
             v = pit_y_.transform(y);
             if (pit_x_.size() < 30) return;   // no usable rank scale yet
@@ -200,6 +206,7 @@ public:
         if (n_ < config_.burn_in + 1) return 0.0;
         return fit_.spearman();
     }
+    bool ready() const override { return n_ >= config_.burn_in + 1 && n_ >= 2; }
 
     void reset() override {
         n_ = 0;

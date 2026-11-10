@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "../src/estimators/copula_family.hpp"
+#include "../src/estimators/dependence/ew_marginal.hpp"
 #include "../src/estimators/dependence/estimator_bank.hpp"
 #include "../src/estimators/dependence/marginal_rank_pit.hpp"
 #include "../src/estimators/dependence/xiao_spearman.hpp"
@@ -257,7 +258,7 @@ Trace run(const Scenario& sc, unsigned seed, const std::vector<Method>& M) {
     auto dep = make_dep(sc);
     auto cop = make_cop(sc);
     CopulaSource src(*dep, *cop, seed);
-    RankPit px(500), py(500);
+    EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
     std::vector<Hist> arms;
     for (double m : arm_mem()) arms.push_back(Hist{lam_of(m)});
     std::vector<XiaoSpearmanEstimator> xarms;
@@ -351,7 +352,7 @@ void sanity(std::FILE* out) {
             mine.push_back(std::make_shared<XiaoSpearmanEstimator>(cfg, "m"));
         }
         EstimatorBank ref(std::move(ref_m), EstimatorBank::Config{}, "ref");
-        RhoFixedShare rf; RankPit px(500), py(500);
+        RhoFixedShare rf; EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
         double maxdiff = 0; std::size_t n = 0;
         for (std::size_t t = 0; t < kN; ++t) {
             const auto s = src.next();
@@ -394,7 +395,7 @@ void calibration(std::FILE* out) {
                 double er = 0, et = 0; int n = 0;
                 for (unsigned seed = 900; seed < 920; ++seed) {
                     ConstantDependence dep(d); auto cop = dgp::make_copula(f); CopulaSource src(dep, *cop, seed);
-                    RankPit px(500), py(500); Hist hr{lam_of(m)}, ht{lam_of(m)};
+                    EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()}; Hist hr{lam_of(m)}, ht{lam_of(m)};
                     for (std::size_t t = 0; t < kN; ++t) {
                         const auto s = src.next();
                         const double u = px.transform(s.x), v = py.transform(s.y), ut = Phi(s.x), vt = Phi(s.y);

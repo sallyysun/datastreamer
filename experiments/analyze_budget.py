@@ -59,7 +59,7 @@ print("\n== Marginal ablation (MPL, test RMSE x1e-2 at the val-best gain for eac
 rows = []
 for (fam, sc), _ in df.groupby(["family", "scenario"]):
     r = {"family": fam, "scenario": sc}
-    for est, a in [("mpl_exact", 0), ("mpl_window", 500), ("mpl_kll", 64), ("mpl_kll", 256),
+    for est, a in [("mpl_exact", 0), ("mpl_ew", 500), ("mpl_kll", 64), ("mpl_kll", 256),
                    ("mpl_dskll", 64), ("mpl_dskll", 256), ("mpl_fit_kll", 256)]:
         v = val.loc[(fam, sc, est, a)].reset_index()
         g = v.loc[v.rmse.idxmin()].gain

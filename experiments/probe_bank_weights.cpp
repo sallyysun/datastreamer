@@ -14,6 +14,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 constexpr std::size_t kN = 5000;
@@ -42,7 +43,7 @@ int main(int argc, char** argv) {
     const std::string sc = std::getenv("SCENARIO") ? std::getenv("SCENARIO") : "jump";
     const std::vector<std::pair<std::string, std::pair<double, bool>>> variants{
         {"softmax", {0.0, false}}, {"fixed_share", {3e-4, false}}, {"fixed_share_cum", {3e-4, true}}};
-    std::FILE* out = std::fopen(("results/bank_weights_paths" + std::string(sc == "jump" ? "" : "_" + sc) +
+    std::FILE* out = std::fopen(("results/bank_weights_paths" + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + std::string(sc == "jump" ? "" : "_" + sc) +
                                  std::string(cop == "gaussian" ? "" : "_" + cop) + ".csv").c_str(), "w");
     std::fprintf(out, "variant,t,k,neff,value\n");
     for (const auto& [name, cfg] : variants) {
@@ -51,7 +52,7 @@ int main(int argc, char** argv) {
         std::vector<double> se(kN, 0.0);
         for (int s = 0; s < seeds; ++s) {
             std::unique_ptr<Dependence> dep;
-            if (sc == "drift") dep = std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+            if (sc == "drift") dep = scenario_drift(kN);
             else dep = std::make_unique<JumpDependence>(0.2, 0.8, kN / 2);
             auto c = dgp::make_copula(cop);
             CopulaSource src(*dep, *c, 42 + s);

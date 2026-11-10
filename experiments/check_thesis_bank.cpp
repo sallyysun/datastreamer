@@ -36,10 +36,10 @@ void check_algorithm1(ForgettingBank::Loss loss) {
     const std::vector<double> rhos{-0.2, 0.1, 0.5, 0.8};
     std::vector<std::unique_ptr<DependenceEstimator>> m;
     for (double r : rhos) m.push_back(std::make_unique<Const>(r));
-    const ForgettingBank::Config cfg{.loss = loss, .eta = 0.7, .delta = 0.01, .pit_window = 200, .warm_up = 30};
+    const ForgettingBank::Config cfg{.loss = loss, .eta = 0.7, .delta = 0.01, .marginal_neff = 200.0, .warm_up = 30};
     ForgettingBank bank(std::move(m), cfg, "b");
 
-    RankPit px(200), py(200);
+    EwMarginal px{200.0}, py{200.0};
     std::vector<double> w(rhos.size(), 0.25);
     std::mt19937 rng(3);
     std::normal_distribution<double> N;

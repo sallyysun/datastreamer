@@ -38,6 +38,7 @@
 #include <vector>
 
 #include "../src/estimators/dependence/family_bank.hpp"
+#include "../src/estimators/dependence/ew_marginal.hpp"
 #include "../src/estimators/dependence/marginal_rank_pit.hpp"
 #include "tail_common.hpp"
 
@@ -176,7 +177,7 @@ int main(int argc, char** argv) {
         Source pre(before, seed), post(after, seed + 100000u);
         std::mt19937 brng(seed * 7919u + 13u);
         std::normal_distribution<double> nrm(0.0, 1.0);
-        RankPit px{500}, py{500};
+        EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
         std::vector<std::array<double, 4>> cnt(NQ * NM, {0, 0, 0, 0});   // aL, bL, aU, bU
         std::vector<std::array<double, 2>> smn(NQ * NM, {0, 0});        // EW numerators of the smoothed target
         std::vector<double> W1(NM, 0.0), S2(NM, 0.0);

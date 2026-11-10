@@ -26,10 +26,11 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500, kPit = 500, kWarm = 30;
+constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500, kWarm = 30;
 constexpr double kQ = 0.05, kNu = 4.0;
 const std::vector<std::string> kBanks{"xiao_bank_log", "hermite_bank_log", "mle_bank_log",
                                       "xiao_bank_own", "hermite_bank_own", "mle_bank_own"};
@@ -38,9 +39,9 @@ const char* kShapeName[] = {"gaussian", "t", "clayton", "clayton90", "gumbel", "
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
     if (s == "constant" || s == "shape") return std::make_unique<ConstantDependence>(0.6);
-    if (s == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (s == "drift") return scenario_drift(kN);
     if (s == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, kChange);
-    return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    return scenario_oscillate();
 }
 
 copula::Shape shape_of(const std::string& f) {
@@ -93,7 +94,7 @@ int main(int argc, char** argv) {
     const std::vector<std::string> scenarios = shape ? std::vector<std::string>{"shape"}
         : std::vector<std::string>{"constant", "drift", "jump", "oscillate"};
     const std::string sfx = (cop_name == "gaussian" ? "" : "_" + cop_name);
-    const std::string tag = std::to_string(first) + sfx + ".csv";
+    const std::string tag = std::to_string(first) + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + sfx + ".csv";
 
     std::FILE* out = std::fopen(("results/family_bank_" + tag).c_str(), "w");
     std::FILE* pout = std::fopen(("results/family_bank_path_" + tag).c_str(), "w");
@@ -120,7 +121,7 @@ int main(int argc, char** argv) {
             const std::size_t K = fb->size();
             std::vector<std::unique_ptr<DependenceEstimator>> banks;
             for (const auto& k : kBanks) banks.push_back(make_estimator(k));
-            RankPit px{kPit}, py{kPit};
+            EwMarginal px{default_marginal_neff()}, py{default_marginal_neff()};
             std::vector<Ratio> ratios;
             for (int m : kRatioMem) ratios.push_back({1.0 - 2.0 / (m + 1.0)});
 

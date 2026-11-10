@@ -10,6 +10,7 @@
 
 #include "../copula_family.hpp"
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 #include "predictive_density.hpp"
 
@@ -31,8 +32,18 @@ public:
         Loss loss = Loss::Squared;
         double eta = 0.5;              // Hedge learning rate
         double delta = 1.0e-4;         // fixed-share fraction per tick
-        std::size_t pit_window = 500;  // shared marginal estimate (sliding-window ranks)
+        // Shared marginal estimate: exponentially weighted ECDF (weighted GK), its own forgetting factor
+        // (N_eff,m = (1 + lambda_m)/(1 - lambda_m)), separate from the arms' dependence forgetting.
+        double marginal_neff = default_marginal_neff();
+        double marginal_eps = 0.005;
+        // > 0: the pre-2026-11-09 sliding-window ranks over this many observations instead (paired
+        // baseline only; not used by the final experiments).
+        std::size_t marginal_window = 0;
         std::size_t warm_up = 30;      // margin observations before the first score
+        // Arms train on the raw observations with their own marginal procedures (Xiao's cut-points,
+        // Hermite's standardisation) instead of the shared normal scores. Scoring always uses the
+        // shared pseudo-observations, so losses stay comparable either way.
+        bool arms_raw = false;
         copula::Family family = copula::Family::Gaussian;
         double nu = 4.0;
     };
@@ -42,17 +53,22 @@ public:
         : config_(config), name_(name), models_(std::move(models)),
           w_(models_.size(), 1.0 / static_cast<double>(models_.size())),
           loss_(models_.size(), 0.0), lw_(models_.size(), 0.0),
-          pit_x_(config.pit_window), pit_y_(config.pit_window) {
+          mx_(config.marginal_neff, config.marginal_eps), my_(config.marginal_neff, config.marginal_eps),
+          wx_(config.marginal_window ? config.marginal_window : 1), wy_(config.marginal_window ? config.marginal_window : 1) {
         for (const auto& m : models_) dens_.push_back(dynamic_cast<const PredictiveDensity*>(m.get()));
     }
 
     void update(double x, double y) override {
         const std::size_t K = models_.size();
-        const bool scorable = pit_x_.size() >= config_.warm_up;
+        // Score only real predictions: the margins must hold warm_up observations and every arm must be
+        // past its placeholder phase (estimate() held at 0 would otherwise be scored and weighted).
+        const bool win = config_.marginal_window > 0;
+        bool scorable = (win ? wx_.size() : mx_.size()) >= config_.warm_up;
+        for (const auto& m : models_) scorable = scorable && m->ready();
 
         // Lines 5 and 13: transform with the margins held through t-1, then absorb.
-        const double u = pit_x_.transform(x);
-        const double v = pit_y_.transform(y);
+        const double u = win ? wx_.transform(x) : mx_.transform(x);
+        const double v = win ? wy_.transform(y) : my_.transform(y);
 
         if (scorable) {
             for (std::size_t k = 0; k < K; ++k) loss_[k] = loss(k, u, v);
@@ -79,8 +95,8 @@ public:
 
         // Line 12: each component sees the shared pseudo-observations, as normal
         // scores so that real-line estimators (Hermite, the MLE) can take them.
-        const double zx = RankPit::probit(u);
-        const double zy = RankPit::probit(v);
+        const double zx = config_.arms_raw ? x : RankPit::probit(u);
+        const double zy = config_.arms_raw ? y : RankPit::probit(v);
         for (auto& m : models_) m->update(zx, zy);
         ++n_;
     }
@@ -116,13 +132,15 @@ public:
         for (auto& m : models_) m->reset();
         std::fill(w_.begin(), w_.end(), 1.0 / static_cast<double>(models_.size()));
         std::fill(loss_.begin(), loss_.end(), 0.0);
-        pit_x_.reset();
-        pit_y_.reset();
+        mx_.reset();
+        my_.reset();
+        wx_.reset();
+        wy_.reset();
         n_ = 0;
     }
 
     std::size_t store_bytes() const override {
-        std::size_t total = sizeof(*this) + pit_x_.store_bytes() + pit_y_.store_bytes()
+        std::size_t total = sizeof(*this) + mx_.heap_bytes() + my_.heap_bytes() + wx_.heap_bytes() + wy_.heap_bytes()
                           + (w_.capacity() + loss_.capacity() + lw_.capacity()) * sizeof(double);
         for (const auto& m : models_) total += m->store_bytes();
         return total;
@@ -155,6 +173,7 @@ private:
     std::vector<std::unique_ptr<DependenceEstimator>> models_;
     std::vector<double> w_, loss_, lw_;
     std::vector<const PredictiveDensity*> dens_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal mx_, my_;
+    RankPit wx_, wy_;   // only with marginal_window > 0
     std::size_t n_ = 0;
 };

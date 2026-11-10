@@ -32,16 +32,18 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
-constexpr std::size_t kN = 5000, kChange = 2500, kWarm = 30, kPit = 500;
-constexpr double kEtaSq = 1.0, kDeltaSq = 1e-4, kEtaLog = 1.0, kDeltaLog = 3e-4;
+constexpr std::size_t kN = 5000, kChange = 2500, kWarm = 30;
+constexpr double kEtaSq = 1.0, kDeltaSq = 1e-4, kEtaLog = 1.0;
+const double kDeltaLog = bank_experiment::log_delta();   // as the registry's log bank
 const std::vector<std::string> kComponents{"xiao", "hermite", "mle"};
 const std::vector<int> kSwitches{0, 1, 2, 3, 5, 10, 20, 50};
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
-    if (s == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (s == "drift") return scenario_drift(kN);
     return std::make_unique<JumpDependence>(0.2, 0.8, kChange);
 }
 
@@ -94,7 +96,9 @@ int main(int argc, char** argv) {
     const bool family = argc > 3 && std::string(argv[3]) == "family";
     const std::vector<std::string> components = family ? std::vector<std::string>{"family"} : kComponents;
 
-    const std::string path = std::string("results/bank_regret_") + (family ? "family_" : "") + std::to_string(first) + sfx + ".csv";
+    const char* tag = std::getenv("TAG");   // output suffix for variant runs
+    const std::string path = std::string("results/bank_regret_") + (family ? "family_" : "") + std::to_string(first)
+                           + (tag ? std::string("_") + tag : std::string()) + sfx + ".csv";
     std::FILE* out = std::fopen(path.c_str(), "w");
     if (!out) { std::fprintf(stderr, "cannot write results/ (run from experiments/)\n"); return 1; }
     std::fprintf(out, "copula,scenario,seed,component,bank,T,m,L_bank,L_best,regret,bound,best_arm_mem\n");
@@ -111,14 +115,16 @@ int main(int argc, char** argv) {
                 const std::size_t K = bank ? bank->size() : fbank->size();
                 std::vector<int> mems;  // arm memory, in the bank's arm order
                 for (std::size_t k = 0; k < K; ++k) mems.push_back(bank ? std::vector<int>{39, 99, 199, 399, 1999}[k] : fbank->arm(k).mem);
-                RankPit px{kPit}, py{kPit};
+                bank_experiment::Margins mg;   // the banks' shared margins
                 // Per scored tick: arm rho, PIT pair, losses.
                 std::vector<std::vector<double>> rho(K), lsq(K), llog(K);
                 std::vector<double> pp, uu, vv;
                 for (std::size_t t = 0; t < kN; ++t) {
                     const auto smp = src.next();
-                    const bool scorable = px.size() >= kWarm;
-                    const double u = px.transform(smp.x), v = py.transform(smp.y);
+                    // Same gating as ForgettingBank: margins warmed up and every arm past its placeholder phase.
+                    bool scorable = mg.size() >= kWarm;
+                    if (bank) for (std::size_t k = 0; k < K; ++k) scorable = scorable && bank->model(k).ready();
+                    const double u = mg.u(smp.x), v = mg.v(smp.y);
                     if (scorable) {
                         const double p = 12.0 * (u - 0.5) * (v - 0.5);
                         pp.push_back(p); uu.push_back(u); vv.push_back(v);

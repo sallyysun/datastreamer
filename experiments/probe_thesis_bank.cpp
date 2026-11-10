@@ -7,6 +7,7 @@
 // Plan and caveats: notes/thesis/chapter6_plan.md.
 //
 // Usage (from experiments/):  ./probe_thesis_bank [seeds=20]   (COPULA=gaussian|clayton|gumbel|t)
+//   VFF columns: the common VFF rule (vff.hpp) at rates 0.02 (slow) and 0.1 (fast).
 //   COMPONENTS=mle,mlea,mleold TAG=startup  runs only those components into results/thesis_bank_startup[_fam].csv
 //   -> results/thesis_bank[_<family>].csv          seed x scenario x window x method
 //      results/thesis_bank_weights[_<family>].csv  mean bank weights per tick, jump scenario
@@ -18,23 +19,25 @@
 #include <string>
 #include <vector>
 
+#include "../src/estimators/dependence/vff.hpp"
 #include "../src/estimators/registry.hpp"
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "scenarios.hpp"
 
 namespace {
 
 constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
-constexpr unsigned kBaseSeed = 42;
+const unsigned kBaseSeed = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : 42u;
 const std::vector<int> kMem{39, 99, 199, 399, 1999};
 std::vector<std::string> kFamilies{"xiao", "hermite", "mle"};   // COMPONENTS=a,b,... overrides
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) {
     if (s == "constant") return std::make_unique<ConstantDependence>(0.6);
-    if (s == "drift") return std::make_unique<DriftDependence>(-0.5, 0.8, kN);
+    if (s == "drift") return scenario_drift(kN);
     if (s == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, kChange);
-    return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    return scenario_oscillate();
 }
 
 copula::Family family_of(const std::string& f) {
@@ -44,30 +47,25 @@ copula::Family family_of(const std::string& f) {
     return copula::Family::Gaussian;
 }
 
-// A VFF estimator fed the bank's inputs: probit of a 500-tick rank PIT, as ForgettingBank does.
-struct PitFed {
-    std::unique_ptr<DependenceEstimator> e;
-    RankPit px{500}, py{500};
-    void update(double x, double y) {
-        const double u = px.transform(x), v = py.transform(y);
-        if (e) e->update(RankPit::probit(u), RankPit::probit(v));
-    }
-};
-
-// Every VFF starts at M = 199 ticks (the bank's middle arm) and is clamped to the bank's span
-// where its rule allows it (Xiao); Hermite's clamp is fixed at [0.2, 20] x lambda.
+// VFF comparators: the common rule (vff.hpp) wrapping each estimator, at the two controller rates
+// fixed on development seeds 1-30 (ew_marginals.md §12). Same shared margins and training inputs as
+// the bank arms; gregory has no MemoryControlled hook, so its rows are NaN.
+constexpr double kVffSlow = 0.02, kVffFast = 0.1;
 std::unique_ptr<DependenceEstimator> make_vff(const std::string& c, double rate) {
-    if (c == "gregory") return nullptr;   // no VFF rule for it: its vff rows are NaN
+    VffController::Config v{.rate = rate};
+    const bool raw = bank_experiment::raw();
     if (c == "xiao")
-        return std::make_unique<XiaoSpearmanEstimator>(
-            XiaoSpearmanEstimator::Config{.bins = 20, .window = 0, .lambda = 0.99, .calibration = 100,
-                                          .vff_rate = rate, .vff_mem_min = 39, .vff_mem_max = 1999}, "vff");
+        return std::make_unique<CommonVff>(std::make_unique<XiaoSpearmanEstimator>(bank_experiment::xiao(0.99), "x"), v, raw, "vff");
     if (c == "hermite")
-        return std::make_unique<HermiteEstimator>(
-            HermiteEstimator::Config{.order = 10, .lambda = 0.01, .burn_in = 50, .vff_rate = rate}, "vff");
-    return std::make_unique<ParametricCopulaMLE>(
-        ParametricCopulaMLE::Config{.family = copula::Family::Gaussian, .lambda = 0.99, .vff_rate = rate,
-                                    .expected_info = true, .burn_in = 50}, "vff");
+        return std::make_unique<CommonVff>(std::make_unique<HermiteEstimator>(bank_experiment::hermite(0.01), "h"), v, raw, "vff");
+    if (c == "mle") {
+        RecursiveMPL::Config m{};
+        m.margin = RecursiveMPL::Margin::ExactNormal;
+        m.gain = 0.01;
+        bank_experiment::rmpl(m);
+        return std::make_unique<CommonVff>(std::make_unique<RecursiveMPL>(m, "m"), v, false, "vff");
+    }
+    return nullptr;
 }
 
 double mom_logc(double rho, double u, double v) {
@@ -133,7 +131,7 @@ int main(int argc, char** argv) {
                 auto* lg = dynamic_cast<ForgettingBank*>(e_log.get());
                 auto* un = dynamic_cast<ForgettingBank*>(e_uni.get());
                 auto e_s32 = make_estimator(kFamilies[c] + "_bank_sq32");
-                PitFed vs{make_vff(kFamilies[c], 0.05)}, vf{make_vff(kFamilies[c], 0.5)};
+                auto vs = make_vff(kFamilies[c], kVffSlow), vf = make_vff(kFamilies[c], kVffFast);
 
                 std::vector<std::vector<float>> se(M, std::vector<float>(kN)), ex(M, std::vector<float>(kN));
                 std::vector<double> rho(M);
@@ -147,8 +145,8 @@ int main(int argc, char** argv) {
                     rho[K] = sq->estimate();
                     rho[K + 1] = lg->estimate();
                     rho[K + 2] = un->estimate();
-                    rho[K + 3] = vs.e ? vs.e->estimate() : NAN;
-                    rho[K + 4] = vf.e ? vf.e->estimate() : NAN;
+                    rho[K + 3] = vs ? vs->estimate() : NAN;
+                    rho[K + 4] = vf ? vf->estimate() : NAN;
                     rho[K + 5] = e_s32->estimate();
                     for (std::size_t i = 0; i < M; ++i) {
                         se[i][t] = float((rho[i] - smp.rho_s) * (rho[i] - smp.rho_s));
@@ -157,8 +155,8 @@ int main(int argc, char** argv) {
                     sq->update(smp.x, smp.y);
                     lg->update(smp.x, smp.y);
                     un->update(smp.x, smp.y);
-                    vs.update(smp.x, smp.y);
-                    vf.update(smp.x, smp.y);
+                    if (vs) vs->update(smp.x, smp.y);
+                    if (vf) vf->update(smp.x, smp.y);
                     e_s32->update(smp.x, smp.y);
                     if (sc == "jump")
                         for (std::size_t k = 0; k < K; ++k) {

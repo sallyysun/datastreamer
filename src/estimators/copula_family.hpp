@@ -1,6 +1,9 @@
 #pragma once
 
 #include <algorithm>
+#include <mutex>
+#include <memory>
+#include <map>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -234,20 +237,31 @@ inline double spearman_from_param(Family family, double param, double nu = 4.0) 
             return std::clamp(table.lookup(std::clamp(param, Gumbel::kMinParam, Gumbel::kMaxParam)), -1.0, 1.0);
         }
         case Family::StudentT: {
-            static double cached_nu = -1.0;
-            static detail::SpearmanTable table;
-            if (nu != cached_nu) {
-                table = detail::SpearmanTable{};
-                for (int k = 0; k <= kGrid; ++k) {
-                    const double r = StudentT::kMinParam
-                        + (StudentT::kMaxParam - StudentT::kMinParam) * static_cast<double>(k) / kGrid;
-                    table.param.push_back(r);
-                    table.rho_s.push_back(detail::spearman_integral(
-                        [r, nu](double u, double v) { return std::exp(StudentT::log_density(u, v, r, nu)); }));
+            // One immutable table per nu, built once under a lock and never modified afterwards; a
+            // thread-local pointer skips the lock on repeat calls. The earlier version rebuilt a shared
+            // static in place, a data race under threads.
+            thread_local double last_nu = -1.0;
+            thread_local const detail::SpearmanTable* last = nullptr;
+            if (nu != last_nu || last == nullptr) {
+                static std::mutex mu;
+                static std::map<double, std::unique_ptr<const detail::SpearmanTable>> tables;
+                std::lock_guard<std::mutex> lock(mu);
+                auto& slot = tables[nu];
+                if (!slot) {
+                    auto t = std::make_unique<detail::SpearmanTable>();
+                    for (int k = 0; k <= kGrid; ++k) {
+                        const double r = StudentT::kMinParam
+                            + (StudentT::kMaxParam - StudentT::kMinParam) * static_cast<double>(k) / kGrid;
+                        t->param.push_back(r);
+                        t->rho_s.push_back(detail::spearman_integral(
+                            [r, nu](double u, double v) { return std::exp(StudentT::log_density(u, v, r, nu)); }));
+                    }
+                    slot = std::move(t);
                 }
-                cached_nu = nu;
+                last = slot.get();
+                last_nu = nu;
             }
-            return std::clamp(table.lookup(std::clamp(param, StudentT::kMinParam, StudentT::kMaxParam)), -1.0, 1.0);
+            return std::clamp(last->lookup(std::clamp(param, StudentT::kMinParam, StudentT::kMaxParam)), -1.0, 1.0);
         }
         case Family::Gaussian:
         default:

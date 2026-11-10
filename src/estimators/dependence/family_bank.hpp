@@ -11,6 +11,7 @@
 #include "../copula_family.hpp"
 #include "../special_functions.hpp"
 #include "estimator.hpp"
+#include "ew_marginal.hpp"
 #include "marginal_rank_pit.hpp"
 #include "parametric_copula.hpp"
 #include "tail_estimator.hpp"
@@ -135,7 +136,7 @@ public:
         double eta = 1.0;
         double delta = 2.1e-4;         // delta* = K m / ((K-1)(T-1)) at K = 24, m = 1, T = 4970
         double nu = 4.0;
-        std::size_t pit_window = 500;
+        double marginal_neff = default_marginal_neff();   // shared EW marginal (ew_marginal.hpp)
         std::size_t warm_up = 30;
     };
 
@@ -146,7 +147,7 @@ public:
     };
 
     FamilyBank(Config config, const char* name) : config_(std::move(config)), name_(name),
-        pit_x_(config_.pit_window), pit_y_(config_.pit_window) {
+        pit_x_(config_.marginal_neff), pit_y_(config_.marginal_neff) {
         for (auto s : config_.shapes)
             for (int m : config_.memories)
                 arms_.push_back({s, m, copula::CopulaFit(copula::base_family(s), config_.nu, 1.0 - 2.0 / (m + 1.0),
@@ -256,7 +257,7 @@ public:
     }
 
     std::size_t store_bytes() const override {
-        return sizeof(*this) + pit_x_.store_bytes() + pit_y_.store_bytes() - 2 * sizeof(RankPit)
+        return sizeof(*this) + pit_x_.heap_bytes() + pit_y_.heap_bytes()
              + arms_.capacity() * sizeof(Arm) + (w_.capacity() + loss_.capacity() + lw_.capacity()) * sizeof(double);
     }
 
@@ -270,7 +271,7 @@ public:
 private:
     Config config_;
     const char* name_;
-    RankPit pit_x_, pit_y_;
+    EwMarginal pit_x_, pit_y_;
     std::vector<Arm> arms_;
     std::vector<double> w_, loss_, lw_;
     std::size_t n_ = 0;
