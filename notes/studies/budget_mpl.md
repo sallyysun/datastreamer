@@ -1263,6 +1263,54 @@ mode, gave identical estimate paths.
   memory and KB figures and Hermite's 16 KiB cells are superseded by this section and
   `results/budget_tables.txt`.
 
+## 25. Extended gain grid: the E1 rerun (2026-11-11) [confirmed]
+
+**Why:** in the final matched sweep every constant and drift pick sat on the smallest gain, g = 0.005 (72 of 108
+picks), with RMSE still falling. A scratch audit outside this record had found large stationary changes at
+g = 0.0005.
+
+**What was run:**
+- **Scope:** constant and drift cells, 4 families, all three budgets.
+- **Candidates added:** g ∈ {cumulative, 0.0005, 0.001, 0.002}. Cumulative means Xiao λ = 0, Hermite 1/m, MPL gain 1/m.
+- **Unchanged:** validation seeds 1000–1039, test seeds 42–141, approximation grids, memory accounting and the
+  selection rule.
+- **Not rerun:** jump cells, whose picks were interior (g = 0.01).
+- **Harness only:** `BUDGET_GAINS`, `BUDGET_SCENARIOS`, TAG `gainext`. Fingerprint `3fce150b22779f22`.
+- **Reproduction:** the g = 0.005 candidates reproduce the matched sweep exactly (28,800 per-seed rows; RMSE and
+  peak bytes).
+- **Tables:** `results/budget_gainext_2026-11-11.txt` (`analyze_budget_gainext.py`).
+
+**Results** (DataSketches-MPL vs the better of Xiao and Hermite, paired over 100 test seeds, W/L/T at 2 SE):
+
+| Budget | Original grid | Extended grid |
+|---|---|---|
+| 16 / 64 / 256 KiB | 9/2/1 at each | **6/6/0 at each** |
+
+- **Constant (4 cells):**
+  - **Every estimator selects the cumulative mode.** RMSE roughly halves (Xiao 3.49 → 1.53 ×10⁻², Gaussian).
+  - **Xiao is lowest in all four** (Hermite in Gumbel at 64 KiB).
+  - **DS-MPL loses every constant cell:** +0.15 to +0.30 ×10⁻² (2–3.5 SE). The t₄ tie becomes a loss.
+- **Drift (4 cells):** validation still picks g = 0.005, now an interior optimum (0.002 and smaller were available).
+  DS-MPL wins all four (−0.17 to −0.67), unchanged.
+- **Jump:** unchanged. Wins in Gaussian and Gumbel, losses in Clayton and t₄.
+- **Memory:** accuracy hardly depends on the budget once tuned (constant: identical at 16 / 64 / 256 KiB for Xiao and
+  DS-MPL).
+  - With cumulative estimation the error is variance-limited by n, so a 16 KiB summary already reaches each method's
+    floor.
+- **Why MPL loses under stationarity — its margins (diagnostic, not budget-feasible):**
+  - MPL with exact PIT reaches 1.23 (Gaussian constant) and 1.50 (Clayton). It beats Xiao's 1.53 and 1.51 there.
+  - The KLL-sketch margins raise it to 1.71 and 1.81.
+  - So the stationary loss comes from the marginal sketch's rank error, which dominates once forgetting no longer
+    sets the variance. The copula estimator is not the cause.
+
+**Interpretation:**
+- **Stationary dependence:** a cumulative counting-matrix estimator is the most accurate at every budget tested.
+  The sketched-margin MPL pays for its marginal approximation.
+- **Drift and Gaussian/Gumbel jumps:** where forgetting is needed (finite memory, g ≈ 0.005–0.01), DS-MPL is the most
+  accurate.
+- **Misspecified jumps (Clayton, t₄):** Xiao is better.
+- **Supersedes:** the matched "9/2/1" E1 headline.
+
 ## 8. Reproduction
 
 ```bash

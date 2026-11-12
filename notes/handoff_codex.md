@@ -1,10 +1,10 @@
-# Handover for Codex: branch `bank-vff-study` (2026-11-06, updated 2026-11-09)
+# Handover for Codex: branch `bank-vff-study` (2026-11-06, updated 2026-11-11)
 
 Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sallyysun/datastreamer`).
 
-- **State (2026-11-09):** 10 commits ahead of `origin/bank-vff-study`, not pushed. The latest
-  work is §3e (memory accounting) and §3f (Chapter 6 writing support, Gregory with forgetting,
-  and the pending marginal-window decision).
+- **State (2026-11-11):** in sync with `origin/bank-vff-study` at `59372ce` (pushed), plus
+  uncommitted Step 1–2 metric work. **Start with §3k** (density evaluation, the settled Chapter 6
+  metric framework, Hellinger results), then §3j (matched paths, the primary protocol).
 - **Read `CLAUDE.md` first:** layout, estimator contract, λ conventions, platform rules.
 - **Detailed tables:** §3 below (the appendix). Every number has a note in `notes/studies/`;
   `budget_mpl.md` §1–§24 holds this session's work.
@@ -26,6 +26,16 @@ Honours thesis: *Copulas for time-varying dependence in data streams* (repo `sal
   - **Labels:** label memories by **N_eff = (2 − g)/g**.
   - **Families:** main figures show Gaussian + Clayton; appendix figures show all four families.
 - **Hedge is not inherently Bayesian.** It equals Bayesian model averaging only for log loss at η = 1.
+- **Experiments (2026-11-11): the research questions drive the experiments.**
+  - Before proposing a run, state: (1) the research question it answers; (2) why existing results are
+    insufficient; (3) which outcomes would change the conclusions; (4) the smallest experiment that
+    resolves it.
+  - Run only what is necessary, never without discussing it with Sally first. Merely interesting or
+    supplementary experiments are deprioritised.
+- **Chapter 6 writing phase:** work through the sections one at a time (6.1 first), in concise, active
+  academic prose.
+  - The main text holds what answers E1–E5. Secondary tables and diagnostics go in the appendix.
+  - Keep the negative results.
 
 ## 0. Decision (2026-11-06, late): which MPL the bank uses
 
@@ -752,6 +762,123 @@ differed across families. The rerun uses `SCENARIOS=matched` (drift d 0.2 → 0.
 - figures: `figures/matched/`.
 
 **Original results are preserved.** The budget study now has paired per-seed output.
+
+## 3k. Density evaluation and the Chapter 6 metric framework (2026-11-10/11; `chapter6_metrics.md`, `ew_marginals.md` §32–33)
+
+**Repository state (2026-11-11):**
+- **Pushed to `origin/bank-vff-study` (`59372ce`):**
+  - `ba23b2e`: the audit archive tarball;
+  - `b7ee0b0`: the density follow-up (§32–33);
+  - `59372ce`: the RMSE-vs-k budget figure.
+- **Uncommitted (Sally has not yet said commit):**
+  - `experiments/probe_family_bank.cpp` (`DENSITY_AUDIT=3` and `FB_SCENARIOS`);
+  - `experiments/density_followup.py` (`check3`, `h2`);
+  - new `experiments/density_metrics.hpp`;
+  - new `experiments/check_density_metrics.cpp`;
+  - new `notes/studies/chapter6_metrics.md`;
+  - the `docs/chapter6_results_matched.md` Hellinger section;
+  - new `experiments/plot_mixture_regime.py` and `notes/thesis/figures/matched/ch6_mixture_regime.png`.
+- **Results tables** are gitignored: `results/density_followup_2026-11-10.txt` (committed with `-f`),
+  `results/density_hellinger_2026-11-11.txt` (not yet).
+- `audit_archive_2026-11-09/` stays untracked: raw CSVs, already inside the committed tarball.
+
+**Settled evaluation framework (Sally, 2026-11-10):**
+
+| Metric | Role |
+|---|---|
+| Spearman ρ_S RMSE | Primary (dependence strength); all experiments |
+| Excess copula log loss at the true PIT | **Primary** full-copula density metric |
+| Squared Hellinger H²(c_t, ĉ_{t\|t−1}) | **Secondary** check (bounded, symmetric) |
+| χ_L, χ_U RMSE | Primary in tail experiments |
+| Recovery, regret, memory, runtime | Experiment-specific |
+
+- **Density ISE is dropped from the results.** Full-domain copula ISE diverged for every tested pair with a
+  tail-dependent truth or a family-bank estimate. This is a statement about the tested pairs, not every
+  pair: matching tail singularities can cancel. The analysis is kept in `chapter6_metrics.md` §3 and §8D.
+- **Normal-score ISE is not used.**
+- **Xiao and Hermite are evaluated by ρ_S RMSE only.**
+  - Xiao's histogram is a valid bivariate density but has non-uniform margins, so it is not a copula.
+  - Hermite's output is not normalised (mass 1.02–1.25), and renormalising does not make it a copula.
+  - Neither is repaired.
+- **Normalisation:** −log ĉ can be computed for any ĉ > 0. Strict propriety, and "expected excess = KL",
+  need valid densities (`chapter6_metrics.md` §10).
+- **Training vs evaluation:** Chapter 5 online losses update weights at the estimator's pseudo-observations;
+  Chapter 6 evaluates the issued forecast against the true copula at the true PIT (§10).
+- **Oscillation** is excluded from the final Chapter 6 results and counts.
+
+**Density follow-up (`density2`; committed in `b7ee0b0`):**
+- Matched paths, seeds 42–101, log-bank δ = 10⁻⁴.
+- **Excess log loss** for: the family-bank mixture, the single Gaussian at the combined ρ̂ (MPL log bank),
+  the Gaussian mixture under the log-bank weights, the Gaussian-only bank, all 24 arms (so a hindsight-best
+  fixed arm exists), and the Gaussian KL floor D(t).
+- New regime `claygum_mix`: π(Clayton) 0.75 → 0.25 at constant ρ_S.
+- **Findings** (×10⁻³ nats per observation, family bank minus single Gaussian):
+  - **non-Gaussian truth:** −23 to −178;
+  - **Gaussian truth:** a small cost, +0.2 to +2;
+  - **adaptation lag** in the first 100 ticks after Clayton → Gumbel (+46) and in the mixture (+20);
+  - **Gaussian forecasts:** almost all of their excess is the floor (Clayton 70–78, Gumbel 25–29, t₄ ≈ 33);
+  - **mixture regime:** the bank projects onto Clayton before the change and t₄ after it. Its density is
+    better throughout, but before the change its upper-tail χ is worse than the long corner counters'.
+
+**Step 1 (`check_density_metrics.cpp`, self-checks):**
+- Quadrature matches the Gaussian closed forms (H², KL to 8 digits).
+- H² converges, including at the tail corners.
+- Interior-ISE growth classifies each pair.
+- Xiao and Hermite constraints are checked on a seed-42 fixture. Sally accepted the fixture as a validation
+  test.
+
+**Step 2 (`DENSITY_AUDIT=3`; H² beside the existing metrics):**
+- **Runs:** seeds 42–101; constant/drift from `density3`; jump, switches and mixture from `density3b`.
+  `density3b` reran after correcting the H² window weighting; the `density3` jump and shape H² rows are
+  superseded. 16 of the 32 `density3b` jobs were relaunched after a container restart.
+- **Verification:** all 329,040 existing ρ_S-RMSE and excess rows are reproduced exactly.
+- **Agreement:** excess and H² give the same 2-SE verdict in 138 of 144 cell × window × comparator triples.
+  The 6 others are "significant vs tie", never opposite signs: the Gaussian-truth cost before a switch,
+  and two steady-state best-arm gaps after a jump.
+- **Magnitudes:** H² differences are typically 3–6× smaller.
+- **Oracle:** the best fixed arm is the same under both metrics in all 16 cells.
+- **Reproduce:** from `experiments/`, `python3 density_followup.py check3` then `python3 density_followup.py h2`.
+
+**Step 3 (`probe_thesis_bank DENSITY_EVAL=1`; MPL forgetting banks; `chapter6_metrics.md` §14):**
+- **Runs:** seeds 42–101; constant, drift and jump; four families; fingerprint `25c752ab1449e854`; tables in
+  `results/density_forgetting_banks_2026-11-11.txt`.
+- **Verification:** reproduces all matched500 MPL rows exactly.
+- **New baseline:** no-forgetting MPL, the cumulative arm of `mlecum_bank`.
+- **Findings:**
+  - log beats squared weighting for density too (excess 11/0/1, H² 11/0/1);
+  - against the hindsight-best fixed memory the bank loses all 8 constant and drift cells (small cost:
+    excess +0.4 to +1.0) and wins all 4 jump cells (mostly in the first 100 ticks);
+  - mixing the arms' Gaussians beats the single Gaussian (excess 10/0/2, H² 12/0/0), most after jumps;
+  - fast VFF recovers faster at 100–500 ticks after a jump;
+  - Hellinger agrees in direction. A few small opposite-sign cases under non-Gaussian truth come from the
+    different KL- and H²-best Gaussians (Clayton r* 0.595 vs r_H 0.626).
+
+**Settled (Sally, 2026-11-11):** the metric hierarchy in `chapter6_metrics.md` §15. No E1 density evaluation.
+Xiao and Hermite are evaluated by ρ_S RMSE. ISE is dropped.
+
+**Step 4 (Hedge δ = 0 vs fixed share δ = 10⁻⁴, MPL log bank; §16):**
+- **Run:** the same command as Step 3 with `BANK_LOG_DELTA=0` (TAG `hedge0_s*`). Every non-log-bank row is
+  identical between the runs.
+- **Results:**
+  - fixed share wins after jumps in all families and metrics (0–100 after: excess −90 to −140 ×10⁻³);
+  - the stationary/drift cost is tiny;
+  - Hedge never uses the 39-tick arm and stays at short memory after the jump; fixed share goes to 39 and
+    then back to 199–399;
+  - at 100–500 after, Hedge is slightly better in excess.
+- **Figure:** `figures/matched/ch6_hedge_vs_fixedshare.png`.
+
+**Next (Sally):** consolidate the Chapter 6 results; no new experiments.
+
+**Open (ask Sally):**
+- whether the remaining E1–E4 density evaluation is needed (E1 budgets; E2's N_eff sweep is partly covered
+  by Step 3's fixed arms);
+- the Hedge vs fixed-share run at equal η on the evaluation seeds (Step 4);
+- committing the Step 1–2 work.
+
+**Pitfalls:**
+- **Run time:** t-copula density evaluations dominate (`density3` took ~2.5 h on 4 cores).
+- **Makefile:** `make` says "up to date" after source edits because targets have no prerequisites. Always
+  use `make -B <target> EIGEN=/usr`.
 
 ## 3c. To do (ask Sally first; rough priority)
 

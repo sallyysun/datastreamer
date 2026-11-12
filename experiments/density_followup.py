@@ -7,7 +7,13 @@ seeds 42-101, mean (SE), all x1e-3 (rho_S RMSE in rho units, excess log loss in 
   A2: shape-switch summary from results/family_bank_switch_* and family_bank_path_*.
   R1/R2: results/family_bank_<first>_density2[_regime].csv (DENSITY_AUDIT=2, seeds in chunks of 15).
 hermite_bank_own is excluded from every density table (its own score integrates to about 1.07, not a density).
-Usage (from experiments/): python3 density_followup.py a1|a2|r1|r2|check"""
+  H2 (Step 2, chapter6_metrics.md §13): results/family_bank_<first>_density3[_regime].csv (DENSITY_AUDIT=3; oscillation
+      not run): squared Hellinger distance beside rho_S RMSE and excess log loss, same forecasts and windows.
+  FB (Step 3, chapter6_metrics.md §14): results/thesis_bank_density_density4_s<first>[_fam].csv (probe_thesis_bank DENSITY_EVAL=1,
+      mle component): the MPL forgetting banks, fixed arms, no-forgetting MPL and VFF on rho_S RMSE, excess log loss and H2.
+  HEDGE (Step 4, chapter6_metrics.md §16): the same run with BANK_LOG_DELTA=0 (TAG hedge0_s<first>): plain Hedge vs the
+      fixed-share log bank (delta = 1e-4, Step 3's density4), everything else identical.
+Usage (from experiments/): python3 density_followup.py a1|a2|r1|r2|check|check3|h2|check4|fb|hedge"""
 import sys, math, glob
 import numpy as np
 import pandas as pd
@@ -35,9 +41,9 @@ def load_existing(cell):
     return pd.read_csv(f)
 
 
-def load_d2(regime):
-    fs = sorted(glob.glob(f"results/family_bank_[0-9]*_density2{sfx(regime)}.csv"))
-    fs = [f for f in fs if f.endswith(f"_density2{sfx(regime)}.csv")]
+def load_d2(regime, tag="density2"):
+    fs = sorted(glob.glob(f"results/family_bank_[0-9]*_{tag}{sfx(regime)}.csv"))
+    fs = [f for f in fs if f.endswith(f"_{tag}{sfx(regime)}.csv")]
     d = pd.concat([pd.read_csv(f) for f in fs])
     d = d[~d.method.isin(EXCLUDE)]
     assert d.seed.nunique() == 60 and d.seed.min() == 42 and d.seed.max() == 101, (regime, d.seed.nunique())
@@ -238,11 +244,264 @@ def check():
             print(t.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
 
 
+FC = [("family_bank", "family-bank mixture"), ("mle_bank_log_point", "single Gaussian"),
+      ("mle_bank_log_mix", "Gaussian mixture (log w)")]
+MET = [("rmse", "rho_S RMSE"), ("excess_x1000", "excess log loss"), ("hellinger2_x1000", "squared Hellinger")]
+WIN3 = ["whole", "pre", "rec_0_100", "rec_100_500", "post"]
+
+
+def best_arm_by(p, sc, metric):
+    g = p.loc[(sc, "whole")]
+    arms = [m for m in g.columns.get_level_values(0).unique() if m.startswith("arm_") and (m, metric) in g.columns]
+    return min(arms, key=lambda m: g[(m, metric)].mean())
+
+
+def load_h(c):
+    """Step 2 outputs. density3 (constant, drift) plus density3b (jump, and every switch / mixture regime): density3b
+    reran the regimes with a change after correcting the window weighting of H2 (the 10-tick checkpoints now count
+    only in rec_0_100). The density3 jump and shape H2 rows are superseded and not used."""
+    if c in BASE:
+        a = load_d2(c, "density3")
+        return pd.concat([a[a.scenario.isin(["constant", "drift"])], load_d2(c, "density3b")])
+    return load_d2(c, "density3b")
+
+
+def check3():
+    """density3 must reproduce every density2 row of the scenarios it ran (oscillation is not run)."""
+    k = ["copula", "scenario", "seed", "window", "method", "metric"]
+    for c in BASE + SWITCH + ["claygum_mix"]:
+        old = load_d2(c)
+        new = load_h(c)
+        old = old[old.scenario.isin(new.scenario.unique())]
+        m = old.merge(new, on=k, how="left", suffixes=("_old", "_new"))
+        h = new[new.metric == "hellinger2_x1000"]
+        print(f"{c:15s} density2 rows {len(old):6d}  missing {m.value_new.isna().sum():3d}  max |diff| {np.nanmax(np.abs(m.value_old - m.value_new)):.1e}"
+              f"  | H2 rows {len(h)}, NaN {h.value.isna().sum()}, range [{h.value.min():.4f}, {h.value.max():.2f}] x1e-3")
+
+
+def cells3():
+    for c in BASE:
+        for sc in ["constant", "drift", "jump"]:
+            yield c, sc
+    for c in SWITCH + ["claygum_mix"]:
+        yield c, "shape"
+
+
+def h2():
+    print("## Step 2. Squared Hellinger beside rho_S RMSE and excess log loss (x1e-3; mean (SE) over 60 seeds; * = |mean| > 2 SE)\n")
+    print("Forecasts: family-bank mixture (FB), single Gaussian at the combined rho (MPL log bank), Gaussian mixture under the")
+    print("log bank's weights, and the best fixed arm. 'best arm (excess)' is selected in hindsight by whole-window excess log loss")
+    print("and used for every metric; 'best arm (H2)' is selected separately by whole-window H2 (a metric-specific oracle).\n")
+    agree = {"excess": [], "h2": []}
+    rows_dis = []
+    for c, sc in cells3():
+        p = piv(load_h(c))
+        bx, bh = best_arm_by(p, sc, "excess_x1000"), best_arm_by(p, sc, "hellinger2_x1000")
+        print(f"### {c} / {sc}   best arm (excess) = {bx[4:]};  best arm (H2) = {bh[4:]}\n")
+        print("| window | metric | FB | single Gauss | Gauss mix | best arm (excess) | FB - single | FB - Gauss mix | FB - best (excess) | FB - best (H2) | r(d excess, d H2) vs single |")
+        print("| --- " * 11 + "|")
+        for w in WIN3:
+            if (sc, w) not in p.index.droplevel(2): continue
+            g = p.loc[(sc, w)]
+            for met, lab in MET:
+                # rho_S RMSE of the single Gaussian is the MPL log bank's (the same rho_hat): stored as mle_bank_log.
+                col = lambda m: (m, met) if (m, met) in g.columns else ("mle_bank_log", met)
+                v = lambda m: g[col(m)] if met == "rmse" else g[col(m)] / 1000
+                fb = v("family_bank")
+                cells = [fmt(v(m), False) for m in ["family_bank", "mle_bank_log_point", "mle_bank_log_mix", bx]]
+                diffs = [fmt(fb - v(m)) for m in ["mle_bank_log_point", "mle_bank_log_mix", bx, bh]]
+                r = ""
+                if met == "hellinger2_x1000":
+                    de = g[("family_bank", "excess_x1000")] - g[("mle_bank_log_point", "excess_x1000")]
+                    dh = g[("family_bank", met)] - g[("mle_bank_log_point", met)]
+                    r = f"{np.corrcoef(de, dh)[0, 1]:+.2f}"
+                print(f"| {w} | {lab} | " + " | ".join(cells + diffs) + f" | {r} |")
+            # ranking agreement between excess and H2 for FB vs each comparator
+            for comp in ["mle_bank_log_point", "mle_bank_log_mix", bx]:
+                res = {}
+                for met, key in [("excess_x1000", "excess"), ("hellinger2_x1000", "h2")]:
+                    x = (g[("family_bank", met)] - g[(comp, met)]).values
+                    m_, s_ = x.mean(), x.std(ddof=1) / math.sqrt(len(x))
+                    res[key] = "W" if m_ < -2 * s_ else "L" if m_ > 2 * s_ else "T"
+                    agree[key].append(res[key])
+                if res["excess"] != res["h2"]:
+                    rows_dis.append((c, sc, w, comp if comp != bx else "best arm (" + bx[4:] + ")", res["excess"], res["h2"]))
+        print()
+    n = len(agree["excess"])
+    same = sum(a == b for a, b in zip(agree["excess"], agree["h2"]))
+    print(f"## Agreement of excess log loss and H2 on FB vs comparator (W/L/T at 2 SE), over {n} cell-window-comparator triples: "
+          f"{same}/{n} agree.\n")
+    print("| copula | scenario | window | comparator | excess | H2 |")
+    print("| --- | --- | --- | --- | --- | --- |")
+    for r in rows_dis: print("| " + " | ".join(r) + " |")
+
+
+FIX = ["fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999"]
+FBM = [("rmse", "rho_S RMSE"), ("excess_x1000", "excess log loss"), ("hellinger2_x1000", "squared Hellinger")]
+
+
+def load4(fam):
+    fs = [f"results/thesis_bank_density_density4_s{b}{sfx(fam)}.csv" for b in (42, 57, 72, 87)]
+    d = pd.concat([pd.read_csv(f) for f in fs])
+    assert d.seed.nunique() == 60 and d.seed.min() == 42 and d.seed.max() == 101, fam
+    return d
+
+
+def check4():
+    """The Step 3 run must reproduce the matched500 mle rows of the main CSV, and its density file must agree with them."""
+    k = ["copula", "scenario", "seed", "component", "window", "method"]
+    for fam in BASE:
+        old = pd.read_csv(f"results/thesis_bank_matched500{sfx(fam)}.csv")
+        old = old[(old.component == "mle") & (old.scenario != "oscillate")]
+        new = pd.concat([pd.read_csv(f"results/thesis_bank_density4_s{b}{sfx(fam)}.csv") for b in (42, 57, 72, 87)])
+        m = old.merge(new, on=k, how="left", suffixes=("_o", "_n"))
+        d = load4(fam).pivot_table(index=k, columns="metric", values="value").reset_index()
+        mm = new.merge(d, on=k, suffixes=("_main", "_dens"))
+        print(f"{fam:9s} matched500 mle rows {len(old):5d} missing {m.rmse_n.isna().sum()} max|d| rmse {np.abs(m.rmse_o - m.rmse_n).max():.1e}"
+              f" excess {np.abs(m.excess_x1000_o - m.excess_x1000_n).max():.1e} | density file vs main: rows {len(mm)}"
+              f" max|d| {max(np.abs(mm.rmse_main - mm.rmse_dens).max(), np.abs(mm.excess_x1000_main - mm.excess_x1000_dens).max()):.1e}"
+              f" | H2 NaN {d.hellinger2_x1000.isna().sum()}")
+
+
+def wlt(x):
+    x = np.asarray(x, float); m_, s_ = x.mean(), x.std(ddof=1) / math.sqrt(len(x))
+    return "W" if m_ < -2 * s_ else "L" if m_ > 2 * s_ else "T"
+
+
+def fb():
+    print("## Step 3. MPL forgetting-factor banks: rho_S RMSE, excess log loss, squared Hellinger (x1e-3; mean (SE) over 60 seeds)\n")
+    print("Forecasts held before each tick, scored at the true PIT (excess) or against the true copula (H2). 'single' = Gaussian at the")
+    print("bank's combined rho; 'mix' = sum_k w_k c_{r_k} with the same weights. Best fixed arm chosen per cell and per metric in")
+    print("hindsight (lowest whole-window mean); W/L/T = paired difference beyond 2 SE. Lower is better for every metric.\n")
+    cells = [(f, sc) for f in BASE for sc in ["constant", "drift", "jump"]]
+    comps = [("C1 log vs squared (single)", "bank_log", "bank"), ("C1 log vs squared (mix)", "bank_log_mix", "bank_mix"),
+             ("C2 log bank vs best fixed arm (single)", "bank_log", "BEST"), ("C2 log bank vs best fixed arm (mix)", "bank_log_mix", "BEST"),
+             ("C2 squared bank vs best fixed arm", "bank", "BEST"), ("C2 log bank vs no forgetting", "bank_log", "nocum"),
+             ("C3 log bank vs VFF slow", "bank_log", "vff_slow"), ("C3 log bank vs VFF fast", "bank_log", "vff_fast"),
+             ("C3 log bank (mix) vs VFF slow", "bank_log_mix", "vff_slow"),
+             ("C4 mix vs single, log bank", "bank_log_mix", "bank_log"), ("C4 mix vs single, squared bank", "bank_mix", "bank"),
+             ("C4 mix vs single, uniform", "uniform_mix", "uniform"),
+             ("uniform vs log bank (single)", "uniform", "bank_log")]
+    tally = {}
+    for fam, sc in cells:
+        p = piv(load4(fam))
+        best = {met: min(FIX, key=lambda m: p.loc[(sc, "whole")][(m, met)].mean()) for met, _ in FBM}
+        print(f"### {fam} / {sc}   best fixed arm: RMSE {best['rmse']}, excess {best['excess_x1000']}, H2 {best['hellinger2_x1000']}\n")
+        wins = ["whole"] + (["pre", "rec_0_100", "rec_100_500", "post"] if sc == "jump" else [])
+        meths = FIX + ["nocum", "bank", "bank_log", "uniform", "bank_mix", "bank_log_mix", "uniform_mix", "vff_slow", "vff_fast"]
+        for met, lab in FBM:
+            div = 1 if met == "rmse" else 1000
+            print(f"**{lab}** (levels)\n")
+            print("| window | " + " | ".join(meths) + " |")
+            print("| --- " * (len(meths) + 1) + "|")
+            for w in wins:
+                g = p.loc[(sc, w)]
+                print(f"| {w} | " + " | ".join(f"{1000 * (g[(m, met)] / div).mean():.1f}" for m in meths) + " |")
+            print()
+        print("Paired differences A − B (mean (SE)):\n")
+        print("| comparison | window | " + " | ".join(l for _, l in FBM) + " |")
+        print("| --- | --- | --- | --- | --- |")
+        for name, a, b in comps:
+            for w in wins:
+                g = p.loc[(sc, w)]
+                row = []
+                for met, _ in FBM:
+                    bb = best[met] if b == "BEST" else b
+                    div = 1 if met == "rmse" else 1000
+                    x = (g[(a, met)] - g[(bb, met)]) / div
+                    row.append(fmt(x))
+                    tally.setdefault((name, w, met), []).append((f"{fam}/{sc}", wlt(x)))
+                print(f"| {name} | {w} | " + " | ".join(row) + " |")
+        print()
+    print("## Summary: W/L/T of A vs B (2 SE), counted over cells; 'whole' over all 12 cells, 'rec_0_100' / 'post' over the 4 jump cells\n")
+    print("| comparison | window | " + " | ".join(l for _, l in FBM) + " |")
+    print("| --- | --- | --- | --- | --- |")
+    for name, _, _ in comps:
+        for w in ("whole", "rec_0_100", "post"):
+            row = []
+            for met, _ in FBM:
+                v = [r for _, r in tally.get((name, w, met), [])]
+                row.append(f"{v.count('W')}/{v.count('L')}/{v.count('T')}")
+            print(f"| {name} | {w} | " + " | ".join(row) + " |")
+    agree = tot = 0
+    dis = []
+    for (name, w, met), v in tally.items():
+        if met != "excess_x1000": continue
+        h = tally[(name, w, "hellinger2_x1000")]
+        for (cell, a_), (_, b_) in zip(v, h):
+            tot += 1; agree += a_ == b_
+            if a_ != b_: dis.append((name, w, cell, a_, b_))
+    print(f"\nExcess vs H2 verdict agreement over all comparison x cell x window entries: {agree}/{tot}.")
+    print("Disagreements (comparison, window, cell, excess verdict, H2 verdict):")
+    for d_ in dis: print("  ", d_)
+
+
+def load_tag(fam, tag):
+    d = pd.concat([pd.read_csv(f"results/thesis_bank_density_{tag}_s{b}{sfx(fam)}.csv") for b in (42, 57, 72, 87)])
+    assert d.seed.nunique() == 60, (fam, tag)
+    return d
+
+
+def hedge():
+    k = ["copula", "scenario", "seed", "component", "window", "method", "metric"]
+    print("## Step 4. Fixed share (delta = 1e-4) vs plain Hedge (delta = 0), MPL log bank, eta = 1; everything else identical\n")
+    print("### Verification: every method other than the log bank is unchanged by delta\n")
+    for fam in BASE:
+        a, b = load_tag(fam, "density4"), load_tag(fam, "hedge0")
+        m = a.merge(b, on=k, suffixes=("_fs", "_h"))
+        oth = m[~m.method.isin(["bank_log", "bank_log_mix"])]
+        lg = m[m.method.isin(["bank_log", "bank_log_mix"])]
+        ma = pd.concat([pd.read_csv(f"results/thesis_bank_density4_s{s_}{sfx(fam)}.csv") for s_ in (42, 57, 72, 87)])
+        mb = pd.concat([pd.read_csv(f"results/thesis_bank_hedge0_s{s_}{sfx(fam)}.csv") for s_ in (42, 57, 72, 87)])
+        mm = ma.merge(mb, on=["copula", "scenario", "seed", "component", "window", "method"], suffixes=("_fs", "_h"))
+        mo = mm[mm.method != "bank_log"]
+        print(f"{fam:9s} density rows {len(m)}: other methods max|d| {np.abs(oth.value_fs - oth.value_h).max():.1e}; log-bank rows differing "
+              f"{(np.abs(lg.value_fs - lg.value_h) > 0).sum()}/{len(lg)} | main CSV other methods max|d| "
+              f"{max(np.abs(mo.rmse_fs - mo.rmse_h).max(), np.abs(mo.excess_x1000_fs - mo.excess_x1000_h).max()):.1e}")
+    print("\nPaired difference fixed share − Hedge (x1e-3, mean (SE), 60 seeds; * = beyond 2 SE; negative favours fixed share).")
+    print("Principal forecast: the Gaussian mixture (bank_log_mix); rho_S RMSE is the bank's combined estimate either way.")
+    print("Secondary: the single Gaussian at the combined rho (bank_log).\n")
+    tally = {}
+    for fam in BASE:
+        A = piv(load_tag(fam, "density4")); B = piv(load_tag(fam, "hedge0"))
+        for sc in ["constant", "drift", "jump"]:
+            wins = ["whole"] + (["pre", "rec_0_100", "rec_100_500", "rec_500_1500", "post"] if sc == "jump" else [])
+            print(f"### {fam} / {sc}\n")
+            print("| window | Hedge: RMSE / excess (mix) / H2 (mix) | FS − Hedge: rho_S RMSE | excess (mix) | H2 (mix) | excess (single) | H2 (single) |")
+            print("| --- | --- | --- | --- | --- | --- | --- |")
+            for w in wins:
+                ga, gb = A.loc[(sc, w)], B.loc[(sc, w)]
+                lev = f"{1000 * gb[('bank_log', 'rmse')].mean():.1f} / {gb[('bank_log_mix', 'excess_x1000')].mean():.1f} / {gb[('bank_log_mix', 'hellinger2_x1000')].mean():.2f}"
+                cells = []
+                for m_, met, div in [("bank_log", "rmse", 1), ("bank_log_mix", "excess_x1000", 1000), ("bank_log_mix", "hellinger2_x1000", 1000),
+                                      ("bank_log", "excess_x1000", 1000), ("bank_log", "hellinger2_x1000", 1000)]:
+                    x = (ga[(m_, met)] - gb[(m_, met)]) / div
+                    cells.append(fmt(x))
+                    tally.setdefault((sc if sc != "jump" else w, m_ + ":" + met), []).append((fam, wlt(x)))
+                print(f"| {w} | {lev} | " + " | ".join(cells) + " |")
+            print()
+    print("## Summary: W/L/T of fixed share vs Hedge (4 families per row)\n")
+    print("| scenario / window | rho_S RMSE | excess (mix) | H2 (mix) | excess (single) | H2 (single) |")
+    print("| --- | --- | --- | --- | --- | --- |")
+    for key in ["constant", "drift", "whole", "pre", "rec_0_100", "rec_100_500", "rec_500_1500", "post"]:
+        row = []
+        for mm_ in ["bank_log:rmse", "bank_log_mix:excess_x1000", "bank_log_mix:hellinger2_x1000", "bank_log:excess_x1000", "bank_log:hellinger2_x1000"]:
+            v = [r for _, r in tally.get((key, mm_), [])]
+            row.append(f"{v.count('W')}/{v.count('L')}/{v.count('T')}")
+        lab = key if key in ("constant", "drift") else "jump: " + key
+        print(f"| {lab} | " + " | ".join(row) + " |")
+
+
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "a1"
     if what == "a1": a1()
     if what == "a2": a2()
     if what == "check": check()
+    if what == "check3": check3()
+    if what == "h2": h2()
+    if what == "check4": check4()
+    if what == "fb": fb()
+    if what == "hedge": hedge()
     if what == "r1":
         r1(BASE + SWITCH, "## R1. Density forecasts on identical observations (true PIT), per regime\n")
     if what == "r2":

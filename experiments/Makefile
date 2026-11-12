@@ -46,8 +46,11 @@ probe_score_scale:
 probe_xiao_pit:
 	$(CXX) probe_xiao_pit.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_xiao_pit
 
+probe_fixed_ess:
+	$(CXX) probe_fixed_ess.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 $(DS_INC) -o probe_fixed_ess
+
 probe_memory:
-	$(CXX) probe_memory.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_memory
+	$(CXX) probe_memory.cpp -std=c++20 -O2 -pthread -I$(EIGEN)/include/eigen3 $(DS_INC) -o probe_memory
 
 probe_adaptive:
 	$(CXX) probe_adaptive.cpp -std=c++20 -O2 -I$(EIGEN)/include/eigen3 -o probe_adaptive

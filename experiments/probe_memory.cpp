@@ -21,6 +21,7 @@
 #include "../src/estimators/dependence/estimator.hpp"
 #include "../src/estimators/dependence/hermiter.hpp"
 #include "../src/estimators/dependence/kalman_local_level.hpp"
+#include "../src/estimators/dependence/recursive_mpl.hpp"
 #include "../src/estimators/dependence/xiao_spearman.hpp"
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
@@ -65,6 +66,9 @@ Cfg make_cfg(const std::string& family, double param) {
     if (family == "xiao_ew") {
         c.gain = 1.0 - param;  // registry.hpp: Xiao lambda is RETENTION
         c.obs_ticks = 1.0;
+    } else if (family.rfind("rmpl_", 0) == 0) {
+        c.gain = param;        // RMPL gain is the update weight, as for Hermite
+        c.obs_ticks = 1.0;
     } else if (family == "hermite_ew") {
         c.gain = param;  // registry.hpp: Hermite lambda is the UPDATE WEIGHT
         c.obs_ticks = 1.0;
@@ -89,6 +93,21 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c) {
             HermiteEstimator::Config{.order = 10, .lambda = c.param, .burn_in = 50},
             "hermite_ew");
     }
+    if (c.family.rfind("rmpl_", 0) == 0) {
+        // The registry's RMPL arm settings (normalised start-up gain, 30-obs warm-up); only the margin differs:
+        // rmpl_ew = EW margins N_eff 500 (as the Chapter 6 bank arms), rmpl_kll = cumulative DataSketches KLL
+        // (as E1), rmpl_exact = the true PIT (oracle reference).
+        RecursiveMPL::Config m{};
+        m.gain = c.param;
+        m.startup = true;
+        m.startup_normalised = true;
+        // rmpl_ewcum = the same EwMarginal with no decay (marginal_neff 0 -> kappa 1).
+        m.margin = (c.family == "rmpl_ew" || c.family == "rmpl_ewcum") ? RecursiveMPL::Margin::Ew
+                 : c.family == "rmpl_kll" ? RecursiveMPL::Margin::DsKll : RecursiveMPL::Margin::ExactNormal;
+        if (c.family == "rmpl_ewcum") m.marginal_neff = 0.0;
+        if (c.family == "rmpl_kll") m.kll_k = 256;
+        return std::make_unique<RecursiveMPL>(m, c.family.c_str());
+    }
     return std::make_unique<KalmanLocalLevel>(
         KalmanLocalLevel::Config{.block = kBlock, .sigma_omega2 = c.param, .burn_in_blocks = 2},
         "kalman");
@@ -110,11 +129,25 @@ const std::vector<double>& ess_targets() {
     return v;
 }
 
+// MEM_FAMILIES=a,b,... selects families (default xiao_ew,hermite_ew,kalman: the original sweep).
+bool wanted(const std::string& f) {
+    const char* e = std::getenv("MEM_FAMILIES");
+    const std::string list = e ? e : "xiao_ew,hermite_ew,kalman";
+    return ("," + list + ",").find("," + f + ",") != std::string::npos;
+}
+
 std::vector<Cfg> build_cfgs() {
     std::vector<Cfg> v;
-    for (double e : ess_targets()) v.push_back(make_cfg("xiao_ew", 1.0 - alpha_from_ess(e)));
-    for (double e : ess_targets()) v.push_back(make_cfg("hermite_ew", alpha_from_ess(e)));
-    for (double q : log_grid(1e-7, 1e0, 10)) v.push_back(make_cfg("kalman", q));
+    if (wanted("xiao_ew")) for (double e : ess_targets()) v.push_back(make_cfg("xiao_ew", 1.0 - alpha_from_ess(e)));
+    if (wanted("hermite_ew")) for (double e : ess_targets()) v.push_back(make_cfg("hermite_ew", alpha_from_ess(e)));
+    // MEM_NOCUM=1 adds each RMPL family's no-forgetting dependence arm: gain 1e-12, which the normalised start-up
+    // rule turns into 1/m (the registry's mlecum arm).
+    for (const char* f : {"rmpl_ew", "rmpl_ewcum", "rmpl_kll", "rmpl_exact"})
+        if (wanted(f)) {
+            for (double e : ess_targets()) v.push_back(make_cfg(f, alpha_from_ess(e)));
+            if (std::getenv("MEM_NOCUM")) v.push_back(make_cfg(f, 1e-12));
+        }
+    if (wanted("kalman")) for (double q : log_grid(1e-7, 1e0, 10)) v.push_back(make_cfg("kalman", q));
     return v;
 }
 
@@ -152,7 +185,7 @@ void run_seed(const std::string& scenario, const std::vector<Cfg>& cfgs, std::si
 
 struct Decomp {
     double bias2 = 0.0, var = 0.0, mse = 0.0, rmse = 0.0, se_rmse = 0.0;
-    std::vector<double> seed_rmse;
+    std::vector<double> seed_rmse, seed_bias;   // per seed: RMSE and mean signed error over the window
 };
 
 std::size_t g_assert_checks = 0;
@@ -201,13 +234,16 @@ Decomp decompose(const Panel& est, const std::vector<double>& truth, std::size_t
     d.rmse = std::sqrt(d.mse);
 
     d.seed_rmse.resize(kSeeds);
+    d.seed_bias.resize(kSeeds);
     for (std::size_t s = 0; s < kSeeds; ++s) {
-        double se = 0.0;
+        double se = 0.0, sb = 0.0;
         for (std::size_t t = lo; t < hi; ++t) {
             const double dm = est[c][s][t] - truth[t];
             se += dm * dm;
+            sb += dm;
         }
         d.seed_rmse[s] = std::sqrt(se / static_cast<double>(n));
+        d.seed_bias[s] = sb / static_cast<double>(n);
     }
     double m = 0.0;
     for (double v : d.seed_rmse) m += v;
@@ -234,11 +270,21 @@ std::vector<Window> windows_for(const std::string& scenario) {
 
 void sweep() {
     const std::vector<Cfg> cfgs = build_cfgs();
-    const std::vector<std::string> scenarios{"constant", "jump", "drift", "oscillate"};
+    std::vector<std::string> scenarios{"constant", "jump", "drift", "oscillate"};
+    if (const char* only = std::getenv("MEM_SCENARIOS")) {   // a subset of the same scenarios
+        std::vector<std::string> keep;
+        for (const auto& sc : scenarios) if (("," + std::string(only) + ",").find("," + sc + ",") != std::string::npos) keep.push_back(sc);
+        scenarios = keep;
+    }
 
     const std::string tg = (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string());
     std::ofstream out("results/memory_sweep" + tg + ".csv");
     std::ofstream gout("results/memory_sweep_gap" + tg + ".csv");
+    std::ofstream sout;   // MEM_SEEDS_OUT=1: per-seed RMSE and mean signed error, for paired comparisons
+    if (std::getenv("MEM_SEEDS_OUT")) {
+        sout.open("results/memory_sweep_seeds" + tg + ".csv");
+        sout << "estimator,scenario,window,param,mem_ticks,seed,rmse,mean_err\n";
+    }
     if (!out.is_open() || !gout.is_open()) {
         std::fprintf(stderr, "cannot write results/ (run: mkdir -p results)\n");
         std::exit(1);
@@ -273,11 +319,16 @@ void sweep() {
                 out << cfgs[c].family << "," << scenario << "," << w.name << ","
                     << cfgs[c].param << "," << cfgs[c].mem_ticks << "," << d.bias2 << ","
                     << d.var << "," << d.mse << "," << d.rmse << "," << d.se_rmse << "\n";
+                if (sout.is_open())
+                    for (std::size_t s = 0; s < kSeeds; ++s)
+                        sout << cfgs[c].family << "," << scenario << "," << w.name << "," << cfgs[c].param << ","
+                             << cfgs[c].mem_ticks << "," << kBaseSeed + s << "," << d.seed_rmse[s] << "," << d.seed_bias[s] << "\n";
                 dec[c].push_back(std::move(d));
             }
         }
 
-        for (std::size_t wi = 0; wi < wins.size(); ++wi) {
+        const bool paired_xh = cfgs.size() >= 2 * n_ess && cfgs[0].family == "xiao_ew" && cfgs[n_ess].family == "hermite_ew";
+        for (std::size_t wi = 0; paired_xh && wi < wins.size(); ++wi) {
             for (std::size_t i = 0; i < n_ess; ++i) {
                 const Decomp& dx = dec[i][wi];
                 const Decomp& dh = dec[n_ess + i][wi];

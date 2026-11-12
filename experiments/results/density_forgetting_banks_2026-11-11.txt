@@ -1,0 +1,824 @@
+# Step 3: density accuracy of the MPL forgetting-factor banks (rho_S RMSE, excess log loss, squared Hellinger). 2026-11-11.
+# Platform: Linux x86_64, libstdc++, clang++ 18 -O2 -std=c++20, Eigen /usr/include/eigen3. Code fingerprint 25c752ab1449e854
+#   (sha256 of git tree HEAD:src + probe_thesis_bank.cpp, density_metrics.hpp, scenarios.hpp, copula_source.hpp, Makefile).
+# Runs: for COPULA in gaussian clayton gumbel t, SEED_BASE in 42 57 72 87 (15 seeds each, 42-101):
+#   COMPONENTS=mle DENSITY_EVAL=1 TB_SCENARIOS=constant,drift,jump SCENARIOS=matched BANK_LOG_DELTA=1e-4 TAG=density4_s<SEED_BASE> ./probe_thesis_bank 15
+#   Margins: shared EW, N_eff,m = 500 (default). Banks as frozen (squared eta 1 delta 1e-4; log eta 1 delta 1e-4; uniform). VFF rates 0.02 / 0.1.
+#   No forgetting: the cumulative arm of mlecum_bank (RecursiveMPL, gain -> 1/m), on the same shared margins (which themselves forget at N_eff 500).
+#   H2 by normal-score quadrature n = 81, L = 8, every 50 ticks from 500 (+ every 10 in [2500, 2600) on the jump path, counted only in rec_0_100).
+# Started Wed Nov 11 02:40:27 UTC 2026; finished Wed Nov 11 02:51:30 UTC 2026; 16/16 jobs rc=0.
+# Tables: python3 density_followup.py check4 | fb. Units x1e-3; mean (SE) over 60 seeds; * = |paired mean| > 2 SE.
+
+## Verification
+gaussian  matched500 mle rows  7260 missing 0 max|d| rmse 0.0e+00 excess 0.0e+00 | density file vs main: rows 7260 max|d| 0.0e+00 | H2 NaN 0
+clayton   matched500 mle rows  7260 missing 0 max|d| rmse 0.0e+00 excess 0.0e+00 | density file vs main: rows 7260 max|d| 0.0e+00 | H2 NaN 0
+gumbel    matched500 mle rows  7260 missing 0 max|d| rmse 0.0e+00 excess 0.0e+00 | density file vs main: rows 7260 max|d| 0.0e+00 | H2 NaN 0
+t         matched500 mle rows  7260 missing 0 max|d| rmse 0.0e+00 excess 0.0e+00 | density file vs main: rows 7260 max|d| 0.0e+00 | H2 NaN 0
+
+KL-best vs Hellinger-best Gaussian copula for the misspecified truths at d = 0.6 (quadrature n = 161): Clayton r* 0.5950 vs r_H 0.6255;
+Gumbel 0.6045 vs 0.6160; t4 0.6055 vs 0.6400 (Gaussian at the true rho_S: r = 0.6000). The two metrics target different Gaussians.
+
+## Step 3. MPL forgetting-factor banks: rho_S RMSE, excess log loss, squared Hellinger (x1e-3; mean (SE) over 60 seeds)
+
+Forecasts held before each tick, scored at the true PIT (excess) or against the true copula (H2). 'single' = Gaussian at the
+bank's combined rho; 'mix' = sum_k w_k c_{r_k} with the same weights. Best fixed arm chosen per cell and per metric in
+hindsight (lowest whole-window mean); W/L/T = paired difference beyond 2 SE. Lower is better for every metric.
+
+### gaussian / constant   best fixed arm: RMSE fixed_1999, excess fixed_1999, H2 fixed_1999
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 88.0 | 56.4 | 41.3 | 31.2 | 20.7 | 19.4 | 27.0 | 24.9 | 42.7 | 27.0 | 24.9 | 42.7 | 25.5 | 32.8 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 15.4 | 6.3 | 3.4 | 1.9 | 0.8 | 0.8 | 1.5 | 1.3 | 3.5 | 1.5 | 1.3 | 3.5 | 1.3 | 2.1 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 3.5 | 1.5 | 0.8 | 0.4 | 0.2 | 0.2 | 0.3 | 0.3 | 0.8 | 0.3 | 0.3 | 0.8 | 0.3 | 0.5 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -2.1 ( 0.5)* |    -0.2 ( 0.1)* |    -0.0 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -2.1 ( 0.5)* |    -0.2 ( 0.1)* |    -0.0 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +4.3 ( 0.5)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +4.3 ( 0.5)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +6.3 ( 0.7)* |    +0.6 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |    +5.5 ( 0.9)* |    +0.5 ( 0.1)* |    +0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | whole |    -0.6 ( 0.5)  |    -0.1 ( 0.0)  |    -0.0 ( 0.0)  |
+| C3 log bank vs VFF fast | whole |    -7.9 ( 0.7)* |    -0.9 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    -0.6 ( 0.5)  |    -0.1 ( 0.0)  |    -0.0 ( 0.0)  |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +17.7 ( 0.6)* |    +2.3 ( 0.1)* |    +0.5 ( 0.0)* |
+
+### gaussian / drift   best fixed arm: RMSE fixed_399, excess fixed_399, H2 fixed_399
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 103.3 | 64.4 | 45.9 | 36.2 | 88.1 | 177.8 | 44.5 | 40.9 | 50.9 | 44.5 | 40.9 | 50.9 | 40.7 | 46.6 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 15.2 | 5.7 | 2.8 | 1.7 | 12.1 | 40.5 | 2.4 | 2.1 | 3.2 | 2.4 | 2.1 | 3.3 | 2.1 | 3.1 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 3.5 | 1.4 | 0.7 | 0.4 | 3.2 | 11.4 | 0.6 | 0.5 | 0.8 | 0.6 | 0.5 | 0.8 | 0.5 | 0.7 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -3.6 ( 0.5)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -3.6 ( 0.5)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +4.6 ( 0.5)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +4.6 ( 0.5)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +8.2 ( 0.7)* |    +0.7 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |  -137.0 ( 1.6)* |   -38.4 ( 0.7)* |   -10.9 ( 0.2)* |
+| C3 log bank vs VFF slow | whole |    +0.2 ( 0.5)  |    -0.0 ( 0.1)  |    -0.0 ( 0.0)  |
+| C3 log bank vs VFF fast | whole |    -5.8 ( 0.9)* |    -1.0 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    +0.2 ( 0.5)  |    -0.1 ( 0.0)  |    -0.0 ( 0.0)  |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    +0.0 ( 0.0)  |    +0.0 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +10.0 ( 0.5)* |    +1.1 ( 0.1)* |    +0.3 ( 0.0)* |
+
+### gaussian / jump   best fixed arm: RMSE fixed_199, excess fixed_99, H2 fixed_99
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 109.3 | 79.0 | 78.4 | 95.9 | 195.8 | 316.3 | 63.3 | 60.8 | 86.5 | 63.3 | 60.8 | 86.5 | 87.1 | 70.7 |
+| pre | 149.4 | 91.2 | 64.0 | 46.3 | 31.5 | 31.5 | 42.1 | 41.5 | 68.4 | 42.1 | 41.5 | 68.4 | 44.8 | 55.5 |
+| rec_0_100 | 191.0 | 296.7 | 394.3 | 475.4 | 561.6 | 578.9 | 324.1 | 325.9 | 369.8 | 324.1 | 325.9 | 369.8 | 491.0 | 377.2 |
+| rec_100_500 | 45.3 | 33.7 | 80.5 | 184.0 | 441.6 | 531.0 | 46.8 | 44.3 | 137.5 | 46.8 | 44.3 | 137.5 | 89.1 | 37.3 |
+| post | 60.1 | 67.0 | 87.7 | 121.5 | 260.9 | 423.1 | 75.1 | 71.8 | 98.4 | 75.1 | 71.8 | 98.4 | 108.5 | 79.3 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 16.7 | 9.2 | 9.5 | 14.5 | 61.7 | 135.7 | 8.7 | 7.0 | 13.5 | 8.5 | 6.9 | 12.5 | 12.2 | 7.2 |
+| pre | 15.2 | 5.5 | 2.7 | 1.5 | 0.7 | 0.8 | 1.3 | 1.2 | 3.0 | 1.3 | 1.2 | 3.0 | 1.4 | 2.3 |
+| rec_0_100 | 58.9 | 135.2 | 214.0 | 274.1 | 333.8 | 345.7 | 125.3 | 125.1 | 198.8 | 122.1 | 121.9 | 183.6 | 280.7 | 173.4 |
+| rec_100_500 | 16.4 | 7.1 | 20.5 | 75.7 | 260.0 | 323.0 | 15.4 | 15.6 | 54.7 | 15.0 | 15.5 | 46.2 | 26.6 | 10.6 |
+| post | 17.9 | 12.1 | 14.9 | 24.9 | 110.4 | 243.6 | 14.6 | 11.6 | 21.9 | 14.3 | 11.4 | 20.1 | 20.8 | 11.1 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 4.8 | 3.1 | 3.4 | 5.0 | 19.4 | 42.7 | 2.8 | 2.3 | 4.6 | 2.8 | 2.3 | 4.5 | 4.1 | 2.6 |
+| pre | 3.6 | 1.3 | 0.7 | 0.4 | 0.2 | 0.2 | 0.3 | 0.3 | 0.7 | 0.3 | 0.3 | 0.7 | 0.4 | 0.5 |
+| rec_0_100 | 24.1 | 47.6 | 71.8 | 90.3 | 108.1 | 111.5 | 45.6 | 45.4 | 66.8 | 44.9 | 44.7 | 63.6 | 93.1 | 60.7 |
+| rec_100_500 | 3.4 | 2.0 | 7.9 | 26.4 | 83.5 | 102.0 | 3.3 | 3.3 | 17.7 | 3.3 | 3.3 | 16.3 | 10.3 | 2.5 |
+| post | 5.8 | 4.5 | 5.5 | 8.7 | 34.8 | 76.6 | 4.8 | 4.0 | 7.6 | 4.8 | 4.0 | 7.5 | 7.0 | 4.2 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -2.5 ( 0.5)* |    -1.7 ( 0.2)* |    -0.5 ( 0.0)* |
+| C1 log vs squared (single) | pre |    -0.6 ( 0.8)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (single) | rec_0_100 |    +1.8 ( 4.0)  |    -0.2 ( 2.8)  |    -0.2 ( 0.9)  |
+| C1 log vs squared (single) | rec_100_500 |    -2.5 ( 1.2)* |    +0.2 ( 0.4)  |    +0.0 ( 0.1)  |
+| C1 log vs squared (single) | post |    -3.3 ( 0.7)* |    -3.0 ( 0.3)* |    -0.8 ( 0.1)* |
+| C1 log vs squared (mix) | whole |    -2.5 ( 0.5)* |    -1.6 ( 0.2)* |    -0.5 ( 0.0)* |
+| C1 log vs squared (mix) | pre |    -0.6 ( 0.8)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (mix) | rec_0_100 |    +1.8 ( 4.0)  |    -0.2 ( 2.6)  |    -0.2 ( 0.9)  |
+| C1 log vs squared (mix) | rec_100_500 |    -2.5 ( 1.2)* |    +0.6 ( 0.4)  |    +0.0 ( 0.1)  |
+| C1 log vs squared (mix) | post |    -3.3 ( 0.7)* |    -2.9 ( 0.3)* |    -0.8 ( 0.1)* |
+| C2 log bank vs best fixed arm (single) | whole |   -17.6 ( 0.5)* |    -2.1 ( 0.1)* |    -0.7 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | pre |   -22.5 ( 1.0)* |    -4.3 ( 0.1)* |    -1.0 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | rec_0_100 |   -68.5 ( 3.8)* |   -10.2 ( 3.1)* |    -2.3 ( 0.7)* |
+| C2 log bank vs best fixed arm (single) | rec_100_500 |   -36.2 ( 1.7)* |    +8.5 ( 0.5)* |    +1.3 ( 0.2)* |
+| C2 log bank vs best fixed arm (single) | post |   -16.0 ( 0.8)* |    -0.5 ( 0.2)* |    -0.5 ( 0.1)* |
+| C2 log bank vs best fixed arm (mix) | whole |   -17.6 ( 0.5)* |    -2.3 ( 0.1)* |    -0.7 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | pre |   -22.5 ( 1.0)* |    -4.3 ( 0.1)* |    -1.0 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | rec_0_100 |   -68.5 ( 3.8)* |   -13.3 ( 3.1)* |    -3.0 ( 0.7)* |
+| C2 log bank vs best fixed arm (mix) | rec_100_500 |   -36.2 ( 1.7)* |    +8.4 ( 0.5)* |    +1.3 ( 0.2)* |
+| C2 log bank vs best fixed arm (mix) | post |   -16.0 ( 0.8)* |    -0.6 ( 0.2)* |    -0.5 ( 0.1)* |
+| C2 squared bank vs best fixed arm | whole |   -15.1 ( 0.8)* |    -0.5 ( 0.2)* |    -0.3 ( 0.1)* |
+| C2 squared bank vs best fixed arm | pre |   -21.9 ( 1.2)* |    -4.2 ( 0.2)* |    -1.0 ( 0.0)* |
+| C2 squared bank vs best fixed arm | rec_0_100 |   -70.2 ( 6.2)* |   -10.0 ( 4.4)* |    -2.1 ( 1.4)  |
+| C2 squared bank vs best fixed arm | rec_100_500 |   -33.7 ( 1.8)* |    +8.3 ( 0.6)* |    +1.3 ( 0.2)* |
+| C2 squared bank vs best fixed arm | post |   -12.6 ( 1.1)* |    +2.6 ( 0.3)* |    +0.3 ( 0.1)* |
+| C2 log bank vs no forgetting | whole |  -255.5 ( 1.7)* |  -128.7 ( 1.1)* |   -40.3 ( 0.3)* |
+| C2 log bank vs no forgetting | pre |   +10.0 ( 1.8)* |    +0.4 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs no forgetting | rec_0_100 |  -253.0 ( 5.8)* |  -220.7 ( 7.0)* |   -66.1 ( 1.3)* |
+| C2 log bank vs no forgetting | rec_100_500 |  -486.7 ( 2.8)* |  -307.4 ( 4.2)* |   -98.7 ( 0.6)* |
+| C2 log bank vs no forgetting | post |  -351.3 ( 2.3)* |  -232.0 ( 1.9)* |   -72.6 ( 0.5)* |
+| C3 log bank vs VFF slow | whole |   -26.3 ( 1.2)* |    -5.2 ( 0.3)* |    -1.7 ( 0.1)* |
+| C3 log bank vs VFF slow | pre |    -3.3 ( 1.0)* |    -0.2 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | rec_0_100 |  -165.1 ( 7.0)* |  -155.6 ( 6.7)* |   -47.7 ( 1.7)* |
+| C3 log bank vs VFF slow | rec_100_500 |   -44.8 ( 4.7)* |   -11.0 ( 1.6)* |    -7.0 ( 0.7)* |
+| C3 log bank vs VFF slow | post |   -36.8 ( 1.8)* |    -9.1 ( 0.5)* |    -3.1 ( 0.2)* |
+| C3 log bank vs VFF fast | whole |   -10.0 ( 1.3)* |    -0.2 ( 0.2)  |    -0.2 ( 0.1)* |
+| C3 log bank vs VFF fast | pre |   -14.0 ( 1.7)* |    -1.0 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank vs VFF fast | rec_0_100 |   -51.3 ( 9.3)* |   -48.3 ( 7.6)* |   -15.4 ( 2.3)* |
+| C3 log bank vs VFF fast | rec_100_500 |    +7.1 ( 0.5)* |    +5.0 ( 0.3)* |    +0.9 ( 0.1)* |
+| C3 log bank vs VFF fast | post |    -7.6 ( 1.8)* |    +0.6 ( 0.3)  |    -0.3 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | whole |   -26.3 ( 1.2)* |    -5.3 ( 0.3)* |    -1.7 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | pre |    -3.3 ( 1.0)* |    -0.2 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | rec_0_100 |  -165.1 ( 7.0)* |  -158.7 ( 6.7)* |   -48.4 ( 1.7)* |
+| C3 log bank (mix) vs VFF slow | rec_100_500 |   -44.8 ( 4.7)* |   -11.0 ( 1.6)* |    -7.0 ( 0.7)* |
+| C3 log bank (mix) vs VFF slow | post |   -36.8 ( 1.8)* |    -9.3 ( 0.5)* |    -3.1 ( 0.2)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | pre |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | rec_0_100 |    +0.0 ( 0.0)  |    -3.2 ( 0.2)* |    -0.7 ( 0.0)* |
+| C4 mix vs single, log bank | rec_100_500 |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | post |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | pre |    +0.0 ( 0.0)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C4 mix vs single, squared bank | rec_0_100 |    +0.0 ( 0.0)  |    -3.2 ( 0.3)* |    -0.7 ( 0.0)* |
+| C4 mix vs single, squared bank | rec_100_500 |    +0.0 ( 0.0)  |    -0.4 ( 0.2)* |    -0.0 ( 0.0)  |
+| C4 mix vs single, squared bank | post |    +0.0 ( 0.0)  |    -0.3 ( 0.1)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -1.0 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, uniform | pre |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | rec_0_100 |    +0.0 ( 0.0)  |   -15.2 ( 0.8)* |    -3.1 ( 0.1)* |
+| C4 mix vs single, uniform | rec_100_500 |    +0.0 ( 0.0)  |    -8.5 ( 0.4)* |    -1.4 ( 0.0)* |
+| C4 mix vs single, uniform | post |    +0.0 ( 0.0)  |    -1.8 ( 0.1)* |    -0.2 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +25.7 ( 0.6)* |    +6.5 ( 0.2)* |    +2.2 ( 0.1)* |
+| uniform vs log bank (single) | pre |   +26.8 ( 1.1)* |    +1.8 ( 0.1)* |    +0.4 ( 0.0)* |
+| uniform vs log bank (single) | rec_0_100 |   +43.9 ( 2.9)* |   +73.8 ( 4.3)* |   +21.4 ( 0.8)* |
+| uniform vs log bank (single) | rec_100_500 |   +93.2 ( 1.7)* |   +39.1 ( 1.8)* |   +14.4 ( 0.4)* |
+| uniform vs log bank (single) | post |   +26.6 ( 0.7)* |   +10.3 ( 0.4)* |    +3.6 ( 0.1)* |
+
+### clayton / constant   best fixed arm: RMSE fixed_1999, excess fixed_1999, H2 fixed_1999
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 98.9 | 62.4 | 44.8 | 32.9 | 19.6 | 17.0 | 29.2 | 24.7 | 46.7 | 29.2 | 24.7 | 46.7 | 27.2 | 36.1 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 96.1 | 84.1 | 80.4 | 78.6 | 77.2 | 77.0 | 78.1 | 77.7 | 80.6 | 77.9 | 77.6 | 79.7 | 77.9 | 79.0 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 23.5 | 21.5 | 20.8 | 20.5 | 20.3 | 20.3 | 20.4 | 20.3 | 20.9 | 20.4 | 20.3 | 20.7 | 20.4 | 20.6 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -4.6 ( 1.0)* |    -0.4 ( 0.1)* |    -0.1 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -4.6 ( 1.0)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +5.1 ( 0.6)* |    +0.5 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +5.1 ( 0.6)* |    +0.4 ( 0.0)* |    +0.0 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +9.7 ( 1.0)* |    +0.9 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |    +7.6 ( 0.9)* |    +0.7 ( 0.1)* |    +0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | whole |    -2.5 ( 0.6)* |    -0.2 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF fast | whole |   -11.4 ( 0.9)* |    -1.3 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    -2.5 ( 0.6)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -0.9 ( 0.0)* |    -0.1 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +22.0 ( 0.5)* |    +2.9 ( 0.1)* |    +0.5 ( 0.0)* |
+
+### clayton / drift   best fixed arm: RMSE fixed_399, excess fixed_399, H2 fixed_399
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 112.6 | 70.5 | 50.1 | 38.0 | 83.6 | 170.1 | 46.1 | 41.7 | 54.7 | 46.1 | 41.7 | 54.7 | 41.9 | 50.3 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 87.9 | 75.7 | 71.9 | 70.3 | 78.3 | 103.1 | 71.3 | 70.9 | 72.0 | 71.1 | 70.7 | 70.2 | 70.7 | 72.2 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 21.0 | 19.0 | 18.4 | 18.4 | 21.5 | 28.7 | 18.6 | 18.4 | 18.9 | 18.6 | 18.4 | 18.6 | 18.5 | 18.6 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -4.3 ( 0.7)* |    -0.5 ( 0.1)* |    -0.2 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -4.3 ( 0.7)* |    -0.4 ( 0.1)* |    -0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +3.7 ( 0.4)* |    +0.6 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +3.7 ( 0.4)* |    +0.4 ( 0.0)* |    +0.0 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +8.1 ( 0.8)* |    +1.0 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |  -128.4 ( 1.3)* |   -32.2 ( 0.6)* |   -10.2 ( 0.1)* |
+| C3 log bank vs VFF slow | whole |    -0.2 ( 0.5)  |    +0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C3 log bank vs VFF fast | whole |    -8.6 ( 0.9)* |    -1.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    -0.2 ( 0.5)  |    -0.0 ( 0.0)  |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.3 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -1.8 ( 0.1)* |    -0.3 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +12.9 ( 0.5)* |    +1.2 ( 0.1)* |    +0.4 ( 0.0)* |
+
+### clayton / jump   best fixed arm: RMSE fixed_199, excess fixed_199, H2 fixed_99
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 117.3 | 84.3 | 82.0 | 98.2 | 197.2 | 313.4 | 70.0 | 65.1 | 93.1 | 70.0 | 65.1 | 93.1 | 90.3 | 74.4 |
+| pre | 153.9 | 95.0 | 67.5 | 49.0 | 31.7 | 29.5 | 44.9 | 43.1 | 71.3 | 44.9 | 43.1 | 71.3 | 48.4 | 62.5 |
+| rec_0_100 | 198.2 | 300.7 | 393.6 | 469.1 | 550.8 | 567.5 | 337.0 | 334.9 | 369.9 | 337.0 | 334.9 | 369.9 | 480.9 | 368.6 |
+| rec_100_500 | 65.1 | 49.3 | 92.8 | 192.0 | 437.1 | 522.2 | 62.1 | 61.8 | 150.3 | 62.1 | 61.8 | 150.3 | 103.1 | 52.2 |
+| post | 75.5 | 73.8 | 91.4 | 123.8 | 262.8 | 419.5 | 83.6 | 77.3 | 107.0 | 83.6 | 77.3 | 107.0 | 111.8 | 81.0 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 124.7 | 112.5 | 110.9 | 114.0 | 151.1 | 214.6 | 112.7 | 109.6 | 112.8 | 110.7 | 108.7 | 105.8 | 115.2 | 109.6 |
+| pre | 25.1 | 14.4 | 11.3 | 9.9 | 9.1 | 9.0 | 9.8 | 9.6 | 11.7 | 9.8 | 9.6 | 11.5 | 10.0 | 11.0 |
+| rec_0_100 | 233.4 | 287.5 | 353.1 | 405.2 | 459.2 | 470.2 | 298.5 | 298.6 | 339.6 | 291.7 | 293.0 | 322.8 | 407.4 | 319.0 |
+| rec_100_500 | 197.3 | 181.8 | 188.8 | 231.2 | 388.9 | 445.4 | 193.8 | 192.8 | 213.0 | 189.1 | 189.5 | 192.5 | 202.8 | 188.2 |
+| post | 204.4 | 191.0 | 190.6 | 197.2 | 264.7 | 379.1 | 195.0 | 189.6 | 193.7 | 191.5 | 188.0 | 181.3 | 199.4 | 188.4 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 30.2 | 28.8 | 29.1 | 30.8 | 44.8 | 63.9 | 28.5 | 28.0 | 31.4 | 28.3 | 27.9 | 30.1 | 29.6 | 28.3 |
+| pre | 5.6 | 3.4 | 2.7 | 2.4 | 2.2 | 2.2 | 2.4 | 2.4 | 2.8 | 2.4 | 2.4 | 2.8 | 2.5 | 2.7 |
+| rec_0_100 | 69.0 | 90.3 | 109.8 | 124.2 | 138.6 | 141.4 | 90.0 | 89.0 | 105.6 | 88.6 | 87.7 | 101.6 | 125.8 | 98.8 |
+| rec_100_500 | 48.3 | 48.2 | 55.2 | 72.3 | 118.8 | 133.6 | 48.3 | 48.2 | 65.4 | 48.0 | 48.0 | 60.1 | 55.5 | 47.5 |
+| post | 50.0 | 49.1 | 50.3 | 53.6 | 78.8 | 113.3 | 49.3 | 48.5 | 54.3 | 49.0 | 48.4 | 51.9 | 51.3 | 48.7 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -4.9 ( 0.7)* |    -3.0 ( 0.3)* |    -0.5 ( 0.0)* |
+| C1 log vs squared (single) | pre |    -1.8 ( 0.8)* |    -0.2 ( 0.1)* |    -0.0 ( 0.0)  |
+| C1 log vs squared (single) | rec_0_100 |    -2.1 ( 5.2)  |    +0.1 ( 3.0)  |    -1.0 ( 1.0)  |
+| C1 log vs squared (single) | rec_100_500 |    -0.3 ( 1.2)  |    -0.9 ( 0.7)  |    -0.1 ( 0.1)  |
+| C1 log vs squared (single) | post |    -6.3 ( 0.9)* |    -5.3 ( 0.5)* |    -0.8 ( 0.1)* |
+| C1 log vs squared (mix) | whole |    -4.9 ( 0.7)* |    -2.0 ( 0.3)* |    -0.4 ( 0.0)* |
+| C1 log vs squared (mix) | pre |    -1.8 ( 0.8)* |    -0.2 ( 0.1)* |    -0.0 ( 0.0)  |
+| C1 log vs squared (mix) | rec_0_100 |    -2.1 ( 5.2)  |    +1.3 ( 2.9)  |    -0.9 ( 1.0)  |
+| C1 log vs squared (mix) | rec_100_500 |    -0.3 ( 1.2)  |    +0.4 ( 0.7)  |    -0.0 ( 0.1)  |
+| C1 log vs squared (mix) | post |    -6.3 ( 0.9)* |    -3.5 ( 0.5)* |    -0.7 ( 0.1)* |
+| C2 log bank vs best fixed arm (single) | whole |   -16.8 ( 0.7)* |    -1.3 ( 0.2)* |    -0.8 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | pre |   -24.4 ( 1.1)* |    -1.7 ( 0.1)* |    -1.0 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | rec_0_100 |   -58.7 ( 4.3)* |   -54.4 ( 5.0)* |    -1.4 ( 0.8)  |
+| C2 log bank vs best fixed arm (single) | rec_100_500 |   -31.1 ( 2.5)* |    +4.1 ( 1.5)* |    +0.0 ( 0.2)  |
+| C2 log bank vs best fixed arm (single) | post |   -14.1 ( 0.9)* |    -0.9 ( 0.3)* |    -0.6 ( 0.1)* |
+| C2 log bank vs best fixed arm (mix) | whole |   -16.8 ( 0.7)* |    -2.2 ( 0.2)* |    -0.9 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | pre |   -24.4 ( 1.1)* |    -1.7 ( 0.1)* |    -1.0 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | rec_0_100 |   -58.7 ( 4.3)* |   -60.0 ( 4.9)* |    -2.6 ( 0.8)* |
+| C2 log bank vs best fixed arm (mix) | rec_100_500 |   -31.1 ( 2.5)* |    +0.7 ( 1.4)  |    -0.2 ( 0.2)  |
+| C2 log bank vs best fixed arm (mix) | post |   -14.1 ( 0.9)* |    -2.6 ( 0.3)* |    -0.7 ( 0.1)* |
+| C2 squared bank vs best fixed arm | whole |   -11.9 ( 0.8)* |    +1.8 ( 0.3)* |    -0.3 ( 0.1)* |
+| C2 squared bank vs best fixed arm | pre |   -22.6 ( 1.3)* |    -1.5 ( 0.1)* |    -1.0 ( 0.0)* |
+| C2 squared bank vs best fixed arm | rec_0_100 |   -56.5 ( 6.7)* |   -54.6 ( 5.7)* |    -0.4 ( 1.3)  |
+| C2 squared bank vs best fixed arm | rec_100_500 |   -30.7 ( 2.2)* |    +5.0 ( 1.9)* |    +0.1 ( 0.1)  |
+| C2 squared bank vs best fixed arm | post |    -7.8 ( 1.1)* |    +4.4 ( 0.6)* |    +0.2 ( 0.1)* |
+| C2 log bank vs no forgetting | whole |  -248.3 ( 1.5)* |  -105.0 ( 1.1)* |   -35.9 ( 0.2)* |
+| C2 log bank vs no forgetting | pre |   +13.6 ( 2.1)* |    +0.6 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs no forgetting | rec_0_100 |  -232.6 ( 6.9)* |  -171.6 ( 8.4)* |   -52.4 ( 1.5)* |
+| C2 log bank vs no forgetting | rec_100_500 |  -460.4 ( 2.9)* |  -252.5 ( 4.7)* |   -85.4 ( 0.5)* |
+| C2 log bank vs no forgetting | post |  -342.2 ( 1.9)* |  -189.4 ( 2.0)* |   -64.7 ( 0.3)* |
+| C3 log bank vs VFF slow | whole |   -25.2 ( 1.2)* |    -5.6 ( 0.3)* |    -1.6 ( 0.1)* |
+| C3 log bank vs VFF slow | pre |    -5.3 ( 1.3)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | rec_0_100 |  -145.9 ( 6.9)* |  -108.8 ( 6.4)* |   -36.8 ( 1.5)* |
+| C3 log bank vs VFF slow | rec_100_500 |   -41.3 ( 4.9)* |   -10.0 ( 1.6)* |    -7.3 ( 0.7)* |
+| C3 log bank vs VFF slow | post |   -34.5 ( 1.8)* |    -9.8 ( 0.5)* |    -2.7 ( 0.2)* |
+| C3 log bank vs VFF fast | whole |    -9.3 ( 1.2)* |    +0.1 ( 0.2)  |    -0.3 ( 0.1)* |
+| C3 log bank vs VFF fast | pre |   -19.4 ( 1.6)* |    -1.4 ( 0.1)* |    -0.3 ( 0.0)* |
+| C3 log bank vs VFF fast | rec_0_100 |   -33.7 ( 9.0)* |   -20.4 ( 5.7)* |    -9.8 ( 2.0)* |
+| C3 log bank vs VFF fast | rec_100_500 |    +9.6 ( 1.2)* |    +4.6 ( 0.5)* |    +0.7 ( 0.2)* |
+| C3 log bank vs VFF fast | post |    -3.7 ( 1.7)* |    +1.2 ( 0.3)* |    -0.2 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | whole |   -25.2 ( 1.2)* |    -6.5 ( 0.3)* |    -1.7 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | pre |    -5.3 ( 1.3)* |    -0.4 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | rec_0_100 |  -145.9 ( 6.9)* |  -114.4 ( 6.3)* |   -38.1 ( 1.5)* |
+| C3 log bank (mix) vs VFF slow | rec_100_500 |   -41.3 ( 4.9)* |   -13.3 ( 1.6)* |    -7.5 ( 0.7)* |
+| C3 log bank (mix) vs VFF slow | post |   -34.5 ( 1.8)* |   -11.4 ( 0.5)* |    -2.9 ( 0.2)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.9 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | pre |    +0.0 ( 0.0)  |    -0.0 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | rec_0_100 |    +0.0 ( 0.0)  |    -5.6 ( 0.6)* |    -1.3 ( 0.0)* |
+| C4 mix vs single, log bank | rec_100_500 |    +0.0 ( 0.0)  |    -3.3 ( 0.5)* |    -0.2 ( 0.0)* |
+| C4 mix vs single, log bank | post |    +0.0 ( 0.0)  |    -1.6 ( 0.1)* |    -0.2 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -2.0 ( 0.1)* |    -0.2 ( 0.0)* |
+| C4 mix vs single, squared bank | pre |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | rec_0_100 |    +0.0 ( 0.0)  |    -6.8 ( 0.9)* |    -1.3 ( 0.1)* |
+| C4 mix vs single, squared bank | rec_100_500 |    +0.0 ( 0.0)  |    -4.7 ( 0.6)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, squared bank | post |    +0.0 ( 0.0)  |    -3.5 ( 0.2)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -6.9 ( 0.2)* |    -1.3 ( 0.0)* |
+| C4 mix vs single, uniform | pre |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | rec_0_100 |    +0.0 ( 0.0)  |   -16.8 ( 1.0)* |    -4.0 ( 0.1)* |
+| C4 mix vs single, uniform | rec_100_500 |    +0.0 ( 0.0)  |   -20.5 ( 0.8)* |    -5.3 ( 0.1)* |
+| C4 mix vs single, uniform | post |    +0.0 ( 0.0)  |   -12.3 ( 0.3)* |    -2.4 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +27.9 ( 0.7)* |    +3.2 ( 0.2)* |    +3.4 ( 0.1)* |
+| uniform vs log bank (single) | pre |   +28.2 ( 1.2)* |    +2.0 ( 0.1)* |    +0.4 ( 0.0)* |
+| uniform vs log bank (single) | rec_0_100 |   +35.0 ( 3.5)* |   +41.0 ( 4.7)* |   +16.7 ( 0.9)* |
+| uniform vs log bank (single) | rec_100_500 |   +88.6 ( 2.3)* |   +20.2 ( 2.0)* |   +17.2 ( 0.3)* |
+| uniform vs log bank (single) | post |   +29.7 ( 0.8)* |    +4.0 ( 0.4)* |    +5.8 ( 0.1)* |
+
+### gumbel / constant   best fixed arm: RMSE fixed_1999, excess fixed_1999, H2 fixed_1999
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 100.6 | 65.1 | 48.2 | 37.0 | 25.1 | 23.3 | 33.1 | 29.9 | 49.7 | 33.1 | 29.9 | 49.7 | 30.3 | 38.8 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 48.8 | 36.9 | 33.2 | 31.3 | 29.9 | 29.9 | 30.8 | 30.5 | 33.3 | 30.6 | 30.4 | 32.5 | 30.6 | 31.6 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 10.8 | 8.6 | 7.9 | 7.6 | 7.3 | 7.3 | 7.5 | 7.4 | 7.9 | 7.4 | 7.4 | 7.8 | 7.4 | 7.6 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -3.2 ( 0.7)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -3.2 ( 0.7)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +4.9 ( 0.6)* |    +0.6 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +4.9 ( 0.6)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +8.1 ( 0.8)* |    +0.9 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |    +6.7 ( 1.0)* |    +0.6 ( 0.1)* |    +0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | whole |    -0.4 ( 0.6)  |    -0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C3 log bank vs VFF fast | whole |    -8.8 ( 0.8)* |    -1.1 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    -0.4 ( 0.6)  |    -0.2 ( 0.1)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -0.9 ( 0.0)* |    -0.1 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +19.7 ( 0.7)* |    +2.8 ( 0.1)* |    +0.6 ( 0.0)* |
+
+### gumbel / drift   best fixed arm: RMSE fixed_399, excess fixed_399, H2 fixed_399
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 113.5 | 71.0 | 50.1 | 37.0 | 80.8 | 168.4 | 46.9 | 41.8 | 53.7 | 46.9 | 41.8 | 53.7 | 40.6 | 50.0 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 44.8 | 33.0 | 29.3 | 27.8 | 37.3 | 64.2 | 28.9 | 28.3 | 29.5 | 28.6 | 28.1 | 28.0 | 28.3 | 29.6 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 9.8 | 7.6 | 7.0 | 6.8 | 9.6 | 16.8 | 7.1 | 6.9 | 7.2 | 7.0 | 6.9 | 6.9 | 6.9 | 7.1 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -5.2 ( 0.8)* |    -0.6 ( 0.1)* |    -0.2 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -5.2 ( 0.8)* |    -0.5 ( 0.1)* |    -0.2 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +4.8 ( 0.5)* |    +0.5 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +4.8 ( 0.5)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |   +10.0 ( 1.0)* |    +1.1 ( 0.1)* |    +0.3 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |  -126.6 ( 1.8)* |   -35.9 ( 0.7)* |    -9.9 ( 0.1)* |
+| C3 log bank vs VFF slow | whole |    +1.1 ( 0.5)* |    +0.0 ( 0.1)  |    -0.0 ( 0.0)  |
+| C3 log bank vs VFF fast | whole |    -8.2 ( 1.0)* |    -1.3 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    +1.1 ( 0.5)* |    -0.1 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.2 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.3 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -1.5 ( 0.1)* |    -0.3 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +12.0 ( 0.5)* |    +1.2 ( 0.1)* |    +0.3 ( 0.0)* |
+
+### gumbel / jump   best fixed arm: RMSE fixed_199, excess fixed_199, H2 fixed_99
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 116.4 | 83.8 | 80.8 | 95.8 | 192.0 | 309.6 | 67.8 | 64.1 | 88.7 | 67.8 | 64.1 | 88.7 | 89.9 | 72.4 |
+| pre | 155.4 | 95.6 | 67.1 | 48.4 | 32.0 | 30.2 | 42.9 | 42.8 | 71.9 | 42.9 | 42.8 | 71.9 | 45.7 | 58.8 |
+| rec_0_100 | 204.9 | 306.5 | 396.2 | 468.6 | 548.7 | 565.8 | 337.8 | 334.0 | 370.4 | 337.8 | 334.0 | 370.4 | 488.5 | 372.1 |
+| rec_100_500 | 59.8 | 42.9 | 83.6 | 182.2 | 431.8 | 519.3 | 58.3 | 58.4 | 137.0 | 58.3 | 58.4 | 137.0 | 104.9 | 48.0 |
+| post | 70.8 | 72.4 | 89.7 | 120.5 | 255.6 | 414.1 | 81.1 | 75.9 | 99.6 | 81.1 | 75.9 | 99.6 | 112.0 | 80.2 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 51.9 | 41.6 | 40.9 | 45.2 | 89.7 | 160.9 | 41.2 | 38.6 | 44.3 | 39.8 | 38.1 | 39.2 | 44.6 | 38.6 |
+| pre | 23.5 | 12.6 | 9.4 | 7.9 | 7.0 | 7.0 | 7.6 | 7.6 | 9.8 | 7.6 | 7.6 | 9.5 | 7.9 | 8.8 |
+| rec_0_100 | 117.5 | 190.6 | 264.6 | 320.3 | 378.3 | 390.4 | 188.4 | 184.9 | 248.4 | 183.3 | 180.1 | 230.9 | 330.6 | 221.0 |
+| rec_100_500 | 74.5 | 61.1 | 72.2 | 124.1 | 300.9 | 361.9 | 72.2 | 72.6 | 103.3 | 69.3 | 70.6 | 84.1 | 85.2 | 66.3 |
+| post | 74.6 | 64.7 | 66.1 | 75.1 | 155.8 | 284.0 | 68.0 | 63.4 | 71.9 | 65.6 | 62.5 | 63.0 | 73.9 | 62.5 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 12.2 | 10.4 | 10.6 | 12.1 | 25.7 | 46.2 | 10.1 | 9.6 | 12.2 | 9.9 | 9.5 | 11.1 | 11.3 | 9.8 |
+| pre | 5.2 | 2.9 | 2.2 | 1.8 | 1.7 | 1.7 | 1.8 | 1.8 | 2.3 | 1.8 | 1.8 | 2.2 | 1.8 | 2.0 |
+| rec_0_100 | 37.5 | 59.4 | 79.7 | 94.6 | 109.5 | 112.5 | 58.0 | 56.7 | 74.9 | 56.7 | 55.6 | 70.9 | 98.0 | 68.4 |
+| rec_100_500 | 16.1 | 14.8 | 20.8 | 37.8 | 87.8 | 104.1 | 16.0 | 15.9 | 29.9 | 15.7 | 15.7 | 25.2 | 23.8 | 14.9 |
+| post | 17.7 | 16.4 | 17.4 | 20.4 | 45.0 | 81.9 | 16.7 | 15.8 | 20.2 | 16.4 | 15.7 | 18.2 | 18.8 | 16.0 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -3.7 ( 0.5)* |    -2.6 ( 0.2)* |    -0.5 ( 0.0)* |
+| C1 log vs squared (single) | pre |    -0.1 ( 0.8)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (single) | rec_0_100 |    -3.9 ( 3.7)  |    -3.5 ( 2.8)  |    -1.3 ( 0.9)  |
+| C1 log vs squared (single) | rec_100_500 |    +0.2 ( 0.8)  |    +0.4 ( 0.4)  |    -0.1 ( 0.1)  |
+| C1 log vs squared (single) | post |    -5.2 ( 0.7)* |    -4.6 ( 0.4)* |    -0.9 ( 0.1)* |
+| C1 log vs squared (mix) | whole |    -3.7 ( 0.5)* |    -1.7 ( 0.2)* |    -0.4 ( 0.0)* |
+| C1 log vs squared (mix) | pre |    -0.1 ( 0.8)  |    -0.0 ( 0.0)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (mix) | rec_0_100 |    -3.9 ( 3.7)  |    -3.2 ( 2.8)  |    -1.2 ( 0.8)  |
+| C1 log vs squared (mix) | rec_100_500 |    +0.2 ( 0.8)  |    +1.3 ( 0.5)* |    -0.0 ( 0.1)  |
+| C1 log vs squared (mix) | post |    -5.2 ( 0.7)* |    -3.1 ( 0.4)* |    -0.8 ( 0.1)* |
+| C2 log bank vs best fixed arm (single) | whole |   -16.8 ( 0.7)* |    -2.3 ( 0.2)* |    -0.9 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | pre |   -24.3 ( 1.1)* |    -1.8 ( 0.1)* |    -1.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | rec_0_100 |   -62.2 ( 4.5)* |   -79.7 ( 5.4)* |    -2.8 ( 0.8)* |
+| C2 log bank vs best fixed arm (single) | rec_100_500 |   -25.2 ( 2.4)* |    +0.4 ( 1.6)  |    +1.1 ( 0.2)* |
+| C2 log bank vs best fixed arm (single) | post |   -13.8 ( 1.0)* |    -2.6 ( 0.3)* |    -0.7 ( 0.1)* |
+| C2 log bank vs best fixed arm (mix) | whole |   -16.8 ( 0.7)* |    -2.8 ( 0.2)* |    -0.9 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | pre |   -24.3 ( 1.1)* |    -1.9 ( 0.1)* |    -1.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | rec_0_100 |   -62.2 ( 4.5)* |   -84.5 ( 5.4)* |    -3.9 ( 0.8)* |
+| C2 log bank vs best fixed arm (mix) | rec_100_500 |   -25.2 ( 2.4)* |    -1.7 ( 1.6)  |    +0.9 ( 0.2)* |
+| C2 log bank vs best fixed arm (mix) | post |   -13.8 ( 1.0)* |    -3.5 ( 0.3)* |    -0.8 ( 0.1)* |
+| C2 squared bank vs best fixed arm | whole |   -13.1 ( 0.8)* |    +0.3 ( 0.3)  |    -0.3 ( 0.1)* |
+| C2 squared bank vs best fixed arm | pre |   -24.2 ( 1.5)* |    -1.8 ( 0.1)* |    -1.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | rec_0_100 |   -58.3 ( 6.1)* |   -76.2 ( 6.1)* |    -1.5 ( 1.2)  |
+| C2 squared bank vs best fixed arm | rec_100_500 |   -25.3 ( 2.2)* |    +0.0 ( 1.7)  |    +1.2 ( 0.2)* |
+| C2 squared bank vs best fixed arm | post |    -8.7 ( 1.2)* |    +2.0 ( 0.5)* |    +0.3 ( 0.1)* |
+| C2 log bank vs no forgetting | whole |  -245.5 ( 1.9)* |  -122.2 ( 1.1)* |   -36.7 ( 0.2)* |
+| C2 log bank vs no forgetting | pre |   +12.5 ( 1.7)* |    +0.7 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs no forgetting | rec_0_100 |  -231.9 ( 6.1)* |  -205.5 ( 7.8)* |   -55.9 ( 1.3)* |
+| C2 log bank vs no forgetting | rec_100_500 |  -460.8 ( 2.9)* |  -289.3 ( 5.2)* |   -88.3 ( 0.6)* |
+| C2 log bank vs no forgetting | post |  -338.2 ( 2.0)* |  -220.5 ( 2.0)* |   -66.1 ( 0.4)* |
+| C3 log bank vs VFF slow | whole |   -25.8 ( 1.1)* |    -6.0 ( 0.3)* |    -1.7 ( 0.1)* |
+| C3 log bank vs VFF slow | pre |    -2.9 ( 1.1)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | rec_0_100 |  -154.5 ( 6.0)* |  -145.7 ( 6.7)* |   -41.3 ( 1.4)* |
+| C3 log bank vs VFF slow | rec_100_500 |   -46.5 ( 5.0)* |   -12.5 ( 2.1)* |    -7.9 ( 0.7)* |
+| C3 log bank vs VFF slow | post |   -36.1 ( 1.7)* |   -10.5 ( 0.5)* |    -3.1 ( 0.1)* |
+| C3 log bank vs VFF fast | whole |    -8.4 ( 1.1)* |    +0.0 ( 0.1)  |    -0.2 ( 0.1)* |
+| C3 log bank vs VFF fast | pre |   -16.0 ( 1.8)* |    -1.2 ( 0.1)* |    -0.2 ( 0.0)* |
+| C3 log bank vs VFF fast | rec_0_100 |   -38.1 ( 7.3)* |   -36.1 ( 5.9)* |   -11.7 ( 1.6)* |
+| C3 log bank vs VFF fast | rec_100_500 |   +10.4 ( 0.9)* |    +6.3 ( 0.5)* |    +0.9 ( 0.1)* |
+| C3 log bank vs VFF fast | post |    -4.3 ( 1.4)* |    +1.0 ( 0.3)* |    -0.2 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | whole |   -25.8 ( 1.1)* |    -6.5 ( 0.3)* |    -1.8 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | pre |    -2.9 ( 1.1)* |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | rec_0_100 |  -154.5 ( 6.0)* |  -150.5 ( 6.8)* |   -42.4 ( 1.3)* |
+| C3 log bank (mix) vs VFF slow | rec_100_500 |   -46.5 ( 5.0)* |   -14.6 ( 2.2)* |    -8.1 ( 0.7)* |
+| C3 log bank (mix) vs VFF slow | post |   -36.1 ( 1.7)* |   -11.4 ( 0.5)* |    -3.2 ( 0.1)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.5 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | pre |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | rec_0_100 |    +0.0 ( 0.0)  |    -4.8 ( 0.4)* |    -1.1 ( 0.0)* |
+| C4 mix vs single, log bank | rec_100_500 |    +0.0 ( 0.0)  |    -2.1 ( 0.4)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | post |    +0.0 ( 0.0)  |    -0.9 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -1.4 ( 0.1)* |    -0.2 ( 0.0)* |
+| C4 mix vs single, squared bank | pre |    +0.0 ( 0.0)  |    -0.1 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, squared bank | rec_0_100 |    +0.0 ( 0.0)  |    -5.1 ( 0.6)* |    -1.2 ( 0.1)* |
+| C4 mix vs single, squared bank | rec_100_500 |    +0.0 ( 0.0)  |    -3.0 ( 0.4)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, squared bank | post |    +0.0 ( 0.0)  |    -2.5 ( 0.2)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -5.1 ( 0.1)* |    -1.1 ( 0.0)* |
+| C4 mix vs single, uniform | pre |    +0.0 ( 0.0)  |    -0.3 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, uniform | rec_0_100 |    +0.0 ( 0.0)  |   -17.5 ( 0.7)* |    -4.1 ( 0.1)* |
+| C4 mix vs single, uniform | rec_100_500 |    +0.0 ( 0.0)  |   -19.3 ( 0.6)* |    -4.8 ( 0.1)* |
+| C4 mix vs single, uniform | post |    +0.0 ( 0.0)  |    -8.9 ( 0.2)* |    -2.0 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +24.6 ( 0.7)* |    +5.7 ( 0.2)* |    +2.6 ( 0.1)* |
+| uniform vs log bank (single) | pre |   +29.1 ( 1.1)* |    +2.2 ( 0.2)* |    +0.5 ( 0.0)* |
+| uniform vs log bank (single) | rec_0_100 |   +36.4 ( 3.2)* |   +63.5 ( 4.7)* |   +18.3 ( 0.8)* |
+| uniform vs log bank (single) | rec_100_500 |   +78.6 ( 2.5)* |   +30.7 ( 2.1)* |   +14.1 ( 0.5)* |
+| uniform vs log bank (single) | post |   +23.8 ( 0.9)* |    +8.5 ( 0.4)* |    +4.4 ( 0.1)* |
+
+### t / constant   best fixed arm: RMSE fixed_1999, excess fixed_1999, H2 fixed_1999
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 117.0 | 75.1 | 55.2 | 41.6 | 25.9 | 21.8 | 35.0 | 34.4 | 56.8 | 35.0 | 34.4 | 56.8 | 34.9 | 46.0 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 60.2 | 44.3 | 39.1 | 36.5 | 34.7 | 34.5 | 35.6 | 35.7 | 39.4 | 35.0 | 35.1 | 36.7 | 35.5 | 37.1 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 10.6 | 8.1 | 7.3 | 6.9 | 6.6 | 6.6 | 6.8 | 6.7 | 7.4 | 6.7 | 6.7 | 7.0 | 6.8 | 7.0 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -0.6 ( 0.7)  |    +0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (mix) | whole |    -0.6 ( 0.7)  |    +0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C2 log bank vs best fixed arm (single) | whole |    +8.6 ( 0.7)* |    +1.0 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +8.6 ( 0.7)* |    +0.4 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +9.2 ( 0.9)* |    +0.9 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |   +12.6 ( 1.0)* |    +1.2 ( 0.1)* |    +0.2 ( 0.0)* |
+| C3 log bank vs VFF slow | whole |    -0.5 ( 0.7)  |    +0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C3 log bank vs VFF fast | whole |   -11.6 ( 1.0)* |    -1.4 ( 0.1)* |    -0.3 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    -0.5 ( 0.7)  |    -0.5 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.6 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.6 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -2.7 ( 0.1)* |    -0.3 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +22.3 ( 0.8)* |    +3.7 ( 0.2)* |    +0.6 ( 0.0)* |
+
+### t / drift   best fixed arm: RMSE fixed_399, excess fixed_399, H2 fixed_399
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 131.8 | 82.8 | 58.9 | 43.3 | 83.9 | 174.1 | 53.2 | 49.9 | 62.0 | 53.2 | 49.9 | 62.0 | 49.0 | 56.9 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 58.2 | 42.2 | 37.2 | 35.1 | 45.1 | 74.2 | 36.3 | 36.0 | 37.5 | 35.4 | 35.4 | 33.0 | 35.7 | 37.2 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 10.4 | 8.0 | 7.4 | 7.3 | 10.7 | 18.5 | 7.6 | 7.4 | 7.8 | 7.5 | 7.3 | 7.2 | 7.5 | 7.5 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -3.2 ( 0.7)* |    -0.2 ( 0.1)* |    -0.2 ( 0.0)* |
+| C1 log vs squared (mix) | whole |    -3.2 ( 0.7)* |    -0.0 ( 0.1)  |    -0.2 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | whole |    +6.7 ( 0.5)* |    +0.9 ( 0.1)* |    +0.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | whole |    +6.7 ( 0.5)* |    +0.3 ( 0.0)* |    +0.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | whole |    +9.9 ( 0.7)* |    +1.2 ( 0.1)* |    +0.3 ( 0.0)* |
+| C2 log bank vs no forgetting | whole |  -124.2 ( 1.9)* |   -38.2 ( 0.8)* |   -11.0 ( 0.2)* |
+| C3 log bank vs VFF slow | whole |    +1.0 ( 0.7)  |    +0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF fast | whole |    -6.9 ( 1.1)* |    -1.2 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | whole |    +1.0 ( 0.7)  |    -0.3 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -0.7 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -0.8 ( 0.1)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |    -4.5 ( 0.1)* |    -0.6 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +12.1 ( 0.6)* |    +1.5 ( 0.1)* |    +0.4 ( 0.0)* |
+
+### t / jump   best fixed arm: RMSE fixed_199, excess fixed_199, H2 fixed_99
+
+**rho_S RMSE** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 132.5 | 92.0 | 85.1 | 98.2 | 194.0 | 314.2 | 71.8 | 70.5 | 91.9 | 71.8 | 70.5 | 91.9 | 94.5 | 79.4 |
+| pre | 178.5 | 109.7 | 77.3 | 55.3 | 34.5 | 32.7 | 51.0 | 50.3 | 81.7 | 51.0 | 50.3 | 81.7 | 55.9 | 70.2 |
+| rec_0_100 | 196.0 | 297.5 | 393.6 | 473.3 | 558.1 | 576.3 | 347.0 | 339.6 | 367.6 | 347.0 | 339.6 | 367.6 | 495.9 | 384.7 |
+| rec_100_500 | 64.7 | 44.7 | 81.7 | 182.8 | 438.7 | 528.6 | 61.1 | 70.2 | 135.2 | 61.1 | 70.2 | 135.2 | 105.0 | 51.9 |
+| post | 77.8 | 74.2 | 90.4 | 121.8 | 258.3 | 420.4 | 84.0 | 82.3 | 99.1 | 84.0 | 82.3 | 99.1 | 115.1 | 84.4 |
+
+**excess log loss** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 62.3 | 48.1 | 46.4 | 50.8 | 98.6 | 173.7 | 46.1 | 44.3 | 50.4 | 41.5 | 41.7 | 40.0 | 50.6 | 43.9 |
+| pre | 49.4 | 33.9 | 29.6 | 27.7 | 26.5 | 26.4 | 27.4 | 27.3 | 30.2 | 27.1 | 27.0 | 28.6 | 27.6 | 28.9 |
+| rec_0_100 | 114.3 | 187.9 | 266.3 | 325.7 | 384.9 | 397.4 | 198.8 | 187.4 | 249.7 | 182.8 | 174.5 | 223.7 | 338.8 | 235.2 |
+| rec_100_500 | 66.4 | 51.0 | 63.9 | 122.8 | 312.8 | 377.3 | 62.5 | 64.7 | 100.5 | 51.3 | 57.0 | 70.7 | 77.8 | 56.5 |
+| post | 72.7 | 59.4 | 59.8 | 69.3 | 156.3 | 291.6 | 61.0 | 58.0 | 66.6 | 53.1 | 53.5 | 49.2 | 68.9 | 55.9 |
+
+**squared Hellinger** (levels)
+
+| window | fixed_39 | fixed_99 | fixed_199 | fixed_399 | fixed_1999 | nocum | bank | bank_log | uniform | bank_mix | bank_log_mix | uniform_mix | vff_slow | vff_fast |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| whole | 11.8 | 9.8 | 10.0 | 11.6 | 25.8 | 46.3 | 9.4 | 9.2 | 11.9 | 9.1 | 9.0 | 9.9 | 10.7 | 9.2 |
+| pre | 9.8 | 7.3 | 6.5 | 6.2 | 6.0 | 6.0 | 6.2 | 6.1 | 6.6 | 6.1 | 6.1 | 6.3 | 6.2 | 6.4 |
+| rec_0_100 | 31.8 | 53.7 | 74.7 | 90.2 | 105.1 | 108.1 | 54.9 | 52.7 | 70.1 | 52.7 | 51.1 | 64.3 | 93.9 | 65.7 |
+| rec_100_500 | 11.5 | 10.3 | 16.8 | 34.7 | 84.3 | 100.1 | 11.2 | 12.3 | 26.9 | 10.7 | 11.9 | 19.4 | 19.2 | 10.5 |
+| post | 13.4 | 11.8 | 12.7 | 15.8 | 41.6 | 78.5 | 11.9 | 11.6 | 16.0 | 11.5 | 11.3 | 12.8 | 14.3 | 11.4 |
+
+Paired differences A − B (mean (SE)):
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole |    -1.3 ( 0.8)  |    -1.7 ( 0.3)* |    -0.2 ( 0.1)* |
+| C1 log vs squared (single) | pre |    -0.8 ( 1.1)  |    -0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (single) | rec_0_100 |    -7.5 ( 4.7)  |   -11.5 ( 4.3)* |    -2.1 ( 1.1)  |
+| C1 log vs squared (single) | rec_100_500 |    +9.1 ( 2.3)* |    +2.2 ( 0.9)* |    +1.1 ( 0.3)* |
+| C1 log vs squared (single) | post |    -1.6 ( 1.0)  |    -3.0 ( 0.5)* |    -0.4 ( 0.1)* |
+| C1 log vs squared (mix) | whole |    -1.3 ( 0.8)  |    +0.2 ( 0.2)  |    -0.1 ( 0.1)  |
+| C1 log vs squared (mix) | pre |    -0.8 ( 1.1)  |    -0.1 ( 0.1)  |    -0.0 ( 0.0)  |
+| C1 log vs squared (mix) | rec_0_100 |    -7.5 ( 4.7)  |    -8.3 ( 4.0)* |    -1.6 ( 1.1)  |
+| C1 log vs squared (mix) | rec_100_500 |    +9.1 ( 2.3)* |    +5.7 ( 1.0)* |    +1.2 ( 0.3)* |
+| C1 log vs squared (mix) | post |    -1.6 ( 1.0)  |    +0.5 ( 0.4)  |    -0.2 ( 0.1)  |
+| C2 log bank vs best fixed arm (single) | whole |   -14.6 ( 0.9)* |    -2.1 ( 0.3)* |    -0.6 ( 0.1)* |
+| C2 log bank vs best fixed arm (single) | pre |   -27.0 ( 1.3)* |    -2.4 ( 0.1)* |    -1.1 ( 0.0)* |
+| C2 log bank vs best fixed arm (single) | rec_0_100 |   -54.0 ( 5.3)* |   -79.0 ( 9.0)* |    -1.0 ( 1.1)  |
+| C2 log bank vs best fixed arm (single) | rec_100_500 |   -11.5 ( 3.7)* |    +0.7 ( 1.9)  |    +2.1 ( 0.4)* |
+| C2 log bank vs best fixed arm (single) | post |    -8.0 ( 1.4)* |    -1.8 ( 0.5)* |    -0.3 ( 0.1)* |
+| C2 log bank vs best fixed arm (mix) | whole |   -14.6 ( 0.9)* |    -4.7 ( 0.2)* |    -0.8 ( 0.1)* |
+| C2 log bank vs best fixed arm (mix) | pre |   -27.0 ( 1.3)* |    -2.6 ( 0.1)* |    -1.2 ( 0.0)* |
+| C2 log bank vs best fixed arm (mix) | rec_0_100 |   -54.0 ( 5.3)* |   -91.8 ( 7.3)* |    -2.7 ( 1.1)* |
+| C2 log bank vs best fixed arm (mix) | rec_100_500 |   -11.5 ( 3.7)* |    -7.0 ( 1.2)* |    +1.6 ( 0.3)* |
+| C2 log bank vs best fixed arm (mix) | post |    -8.0 ( 1.4)* |    -6.3 ( 0.4)* |    -0.5 ( 0.1)* |
+| C2 squared bank vs best fixed arm | whole |   -13.3 ( 0.9)* |    -0.3 ( 0.4)  |    -0.4 ( 0.1)* |
+| C2 squared bank vs best fixed arm | pre |   -26.2 ( 1.4)* |    -2.2 ( 0.2)* |    -1.1 ( 0.0)* |
+| C2 squared bank vs best fixed arm | rec_0_100 |   -46.6 ( 6.4)* |   -67.5 ( 8.6)* |    +1.1 ( 1.4)  |
+| C2 squared bank vs best fixed arm | rec_100_500 |   -20.7 ( 2.7)* |    -1.5 ( 1.8)  |    +1.0 ( 0.2)* |
+| C2 squared bank vs best fixed arm | post |    -6.4 ( 1.3)* |    +1.2 ( 0.6)  |    +0.1 ( 0.1)  |
+| C2 log bank vs no forgetting | whole |  -243.7 ( 1.7)* |  -129.4 ( 1.5)* |   -37.1 ( 0.2)* |
+| C2 log bank vs no forgetting | pre |   +17.6 ( 2.1)* |    +0.8 ( 0.1)* |    +0.2 ( 0.0)* |
+| C2 log bank vs no forgetting | rec_0_100 |  -236.7 ( 5.6)* |  -210.0 (12.1)* |   -55.4 ( 1.4)* |
+| C2 log bank vs no forgetting | rec_100_500 |  -458.4 ( 4.0)* |  -312.7 ( 6.4)* |   -87.7 ( 0.6)* |
+| C2 log bank vs no forgetting | post |  -338.0 ( 2.0)* |  -233.6 ( 2.7)* |   -66.9 ( 0.4)* |
+| C3 log bank vs VFF slow | whole |   -23.9 ( 1.2)* |    -6.3 ( 0.4)* |    -1.5 ( 0.1)* |
+| C3 log bank vs VFF slow | pre |    -5.7 ( 1.5)* |    -0.4 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank vs VFF slow | rec_0_100 |  -156.3 ( 6.6)* |  -151.4 (10.8)* |   -41.2 ( 1.6)* |
+| C3 log bank vs VFF slow | rec_100_500 |   -34.7 ( 5.5)* |   -13.2 ( 2.0)* |    -6.9 ( 0.8)* |
+| C3 log bank vs VFF slow | post |   -32.7 ( 1.9)* |   -11.0 ( 0.7)* |    -2.7 ( 0.2)* |
+| C3 log bank vs VFF fast | whole |    -8.9 ( 1.4)* |    +0.4 ( 0.3)  |    -0.0 ( 0.1)  |
+| C3 log bank vs VFF fast | pre |   -20.0 ( 1.7)* |    -1.7 ( 0.2)* |    -0.3 ( 0.0)* |
+| C3 log bank vs VFF fast | rec_0_100 |   -45.2 ( 9.4)* |   -47.8 ( 8.1)* |   -13.0 ( 2.1)* |
+| C3 log bank vs VFF fast | rec_100_500 |   +18.3 ( 2.4)* |    +8.2 ( 0.7)* |    +1.9 ( 0.4)* |
+| C3 log bank vs VFF fast | post |    -2.1 ( 2.0)  |    +2.0 ( 0.5)* |    +0.2 ( 0.2)  |
+| C3 log bank (mix) vs VFF slow | whole |   -23.9 ( 1.2)* |    -8.8 ( 0.4)* |    -1.7 ( 0.1)* |
+| C3 log bank (mix) vs VFF slow | pre |    -5.7 ( 1.5)* |    -0.6 ( 0.1)* |    -0.1 ( 0.0)* |
+| C3 log bank (mix) vs VFF slow | rec_0_100 |  -156.3 ( 6.6)* |  -164.3 ( 9.3)* |   -42.8 ( 1.5)* |
+| C3 log bank (mix) vs VFF slow | rec_100_500 |   -34.7 ( 5.5)* |   -20.9 ( 2.2)* |    -7.3 ( 0.8)* |
+| C3 log bank (mix) vs VFF slow | post |   -32.7 ( 1.9)* |   -15.4 ( 0.8)* |    -3.0 ( 0.2)* |
+| C4 mix vs single, log bank | whole |    +0.0 ( 0.0)  |    -2.6 ( 0.2)* |    -0.2 ( 0.0)* |
+| C4 mix vs single, log bank | pre |    +0.0 ( 0.0)  |    -0.3 ( 0.0)* |    -0.0 ( 0.0)* |
+| C4 mix vs single, log bank | rec_0_100 |    +0.0 ( 0.0)  |   -12.8 ( 3.2)* |    -1.7 ( 0.1)* |
+| C4 mix vs single, log bank | rec_100_500 |    +0.0 ( 0.0)  |    -7.7 ( 1.4)* |    -0.4 ( 0.0)* |
+| C4 mix vs single, log bank | post |    +0.0 ( 0.0)  |    -4.4 ( 0.4)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, squared bank | whole |    +0.0 ( 0.0)  |    -4.5 ( 0.3)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, squared bank | pre |    +0.0 ( 0.0)  |    -0.3 ( 0.0)* |    -0.1 ( 0.0)* |
+| C4 mix vs single, squared bank | rec_0_100 |    +0.0 ( 0.0)  |   -16.0 ( 3.0)* |    -2.2 ( 0.1)* |
+| C4 mix vs single, squared bank | rec_100_500 |    +0.0 ( 0.0)  |   -11.1 ( 1.7)* |    -0.6 ( 0.0)* |
+| C4 mix vs single, squared bank | post |    +0.0 ( 0.0)  |    -7.9 ( 0.5)* |    -0.5 ( 0.0)* |
+| C4 mix vs single, uniform | whole |    +0.0 ( 0.0)  |   -10.4 ( 0.2)* |    -1.9 ( 0.0)* |
+| C4 mix vs single, uniform | pre |    +0.0 ( 0.0)  |    -1.6 ( 0.1)* |    -0.3 ( 0.0)* |
+| C4 mix vs single, uniform | rec_0_100 |    +0.0 ( 0.0)  |   -26.0 ( 1.3)* |    -5.8 ( 0.2)* |
+| C4 mix vs single, uniform | rec_100_500 |    +0.0 ( 0.0)  |   -29.8 ( 1.0)* |    -7.5 ( 0.1)* |
+| C4 mix vs single, uniform | post |    +0.0 ( 0.0)  |   -17.4 ( 0.5)* |    -3.3 ( 0.0)* |
+| uniform vs log bank (single) | whole |   +21.4 ( 0.8)* |    +6.1 ( 0.3)* |    +2.7 ( 0.1)* |
+| uniform vs log bank (single) | pre |   +31.4 ( 1.4)* |    +2.9 ( 0.2)* |    +0.5 ( 0.0)* |
+| uniform vs log bank (single) | rec_0_100 |   +28.0 ( 3.9)* |   +62.3 ( 8.3)* |   +17.4 ( 1.1)* |
+| uniform vs log bank (single) | rec_100_500 |   +65.0 ( 3.4)* |   +35.8 ( 2.7)* |   +14.5 ( 0.5)* |
+| uniform vs log bank (single) | post |   +16.7 ( 1.1)* |    +8.6 ( 0.6)* |    +4.5 ( 0.1)* |
+
+## Summary: W/L/T of A vs B (2 SE), counted over cells; 'whole' over all 12 cells, 'rec_0_100' / 'post' over the 4 jump cells
+
+| comparison | window | rho_S RMSE | excess log loss | squared Hellinger |
+| --- | --- | --- | --- | --- |
+| C1 log vs squared (single) | whole | 10/0/2 | 11/0/1 | 11/0/1 |
+| C1 log vs squared (single) | rec_0_100 | 0/0/4 | 1/0/3 | 0/0/4 |
+| C1 log vs squared (single) | post | 3/0/1 | 4/0/0 | 4/0/0 |
+| C1 log vs squared (mix) | whole | 10/0/2 | 9/0/3 | 10/0/2 |
+| C1 log vs squared (mix) | rec_0_100 | 0/0/4 | 1/0/3 | 0/0/4 |
+| C1 log vs squared (mix) | post | 3/0/1 | 3/0/1 | 3/0/1 |
+| C2 log bank vs best fixed arm (single) | whole | 4/8/0 | 4/8/0 | 4/8/0 |
+| C2 log bank vs best fixed arm (single) | rec_0_100 | 4/0/0 | 4/0/0 | 2/0/2 |
+| C2 log bank vs best fixed arm (single) | post | 4/0/0 | 4/0/0 | 4/0/0 |
+| C2 log bank vs best fixed arm (mix) | whole | 4/8/0 | 4/8/0 | 4/8/0 |
+| C2 log bank vs best fixed arm (mix) | rec_0_100 | 4/0/0 | 4/0/0 | 4/0/0 |
+| C2 log bank vs best fixed arm (mix) | post | 4/0/0 | 4/0/0 | 4/0/0 |
+| C2 squared bank vs best fixed arm | whole | 4/8/0 | 1/9/2 | 4/8/0 |
+| C2 squared bank vs best fixed arm | rec_0_100 | 4/0/0 | 4/0/0 | 0/0/4 |
+| C2 squared bank vs best fixed arm | post | 4/0/0 | 0/3/1 | 0/3/1 |
+| C2 log bank vs no forgetting | whole | 8/4/0 | 8/4/0 | 8/4/0 |
+| C2 log bank vs no forgetting | rec_0_100 | 4/0/0 | 4/0/0 | 4/0/0 |
+| C2 log bank vs no forgetting | post | 4/0/0 | 4/0/0 | 4/0/0 |
+| C3 log bank vs VFF slow | whole | 5/1/6 | 5/2/5 | 7/0/5 |
+| C3 log bank vs VFF slow | rec_0_100 | 4/0/0 | 4/0/0 | 4/0/0 |
+| C3 log bank vs VFF slow | post | 4/0/0 | 4/0/0 | 4/0/0 |
+| C3 log bank vs VFF fast | whole | 12/0/0 | 8/0/4 | 11/0/1 |
+| C3 log bank vs VFF fast | rec_0_100 | 4/0/0 | 4/0/0 | 4/0/0 |
+| C3 log bank vs VFF fast | post | 3/0/1 | 0/3/1 | 3/0/1 |
+| C3 log bank (mix) vs VFF slow | whole | 5/1/6 | 9/0/3 | 10/0/2 |
+| C3 log bank (mix) vs VFF slow | rec_0_100 | 4/0/0 | 4/0/0 | 4/0/0 |
+| C3 log bank (mix) vs VFF slow | post | 4/0/0 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, log bank | whole | 0/0/12 | 10/0/2 | 12/0/0 |
+| C4 mix vs single, log bank | rec_0_100 | 0/0/4 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, log bank | post | 0/0/4 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, squared bank | whole | 0/0/12 | 10/0/2 | 11/0/1 |
+| C4 mix vs single, squared bank | rec_0_100 | 0/0/4 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, squared bank | post | 0/0/4 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, uniform | whole | 0/0/12 | 10/0/2 | 11/1/0 |
+| C4 mix vs single, uniform | rec_0_100 | 0/0/4 | 4/0/0 | 4/0/0 |
+| C4 mix vs single, uniform | post | 0/0/4 | 4/0/0 | 4/0/0 |
+| uniform vs log bank (single) | whole | 0/12/0 | 0/12/0 | 0/12/0 |
+| uniform vs log bank (single) | rec_0_100 | 0/4/0 | 0/4/0 | 0/4/0 |
+| uniform vs log bank (single) | post | 0/4/0 | 0/4/0 | 0/4/0 |
+
+Excess vs H2 verdict agreement over all comparison x cell x window entries: 324/364.
+Disagreements (comparison, window, cell, excess verdict, H2 verdict):
+   ('C1 log vs squared (mix)', 'whole', 't/drift', 'T', 'W')
+   ('C2 squared bank vs best fixed arm', 'whole', 'clayton/jump', 'L', 'W')
+   ('C2 squared bank vs best fixed arm', 'whole', 'gumbel/jump', 'T', 'W')
+   ('C2 squared bank vs best fixed arm', 'whole', 't/jump', 'T', 'W')
+   ('C3 log bank vs VFF slow', 'whole', 'clayton/drift', 'L', 'W')
+   ('C3 log bank vs VFF slow', 'whole', 't/drift', 'L', 'W')
+   ('C3 log bank vs VFF fast', 'whole', 'gaussian/jump', 'T', 'W')
+   ('C3 log bank vs VFF fast', 'whole', 'clayton/jump', 'T', 'W')
+   ('C3 log bank vs VFF fast', 'whole', 'gumbel/jump', 'T', 'W')
+   ('C3 log bank (mix) vs VFF slow', 'whole', 'clayton/drift', 'T', 'W')
+   ('C4 mix vs single, log bank', 'whole', 'gaussian/constant', 'T', 'W')
+   ('C4 mix vs single, log bank', 'whole', 'gaussian/drift', 'T', 'W')
+   ('C4 mix vs single, squared bank', 'whole', 'gaussian/constant', 'T', 'W')
+   ('C4 mix vs single, uniform', 'whole', 'gaussian/constant', 'T', 'W')
+   ('C4 mix vs single, uniform', 'whole', 'gaussian/drift', 'T', 'L')
+   ('C1 log vs squared (single)', 'pre', 'clayton/jump', 'W', 'T')
+   ('C1 log vs squared (single)', 'rec_0_100', 't/jump', 'W', 'T')
+   ('C1 log vs squared (mix)', 'pre', 'clayton/jump', 'W', 'T')
+   ('C1 log vs squared (mix)', 'rec_0_100', 't/jump', 'W', 'T')
+   ('C1 log vs squared (mix)', 'rec_100_500', 'gumbel/jump', 'L', 'T')
+   ('C2 log bank vs best fixed arm (single)', 'rec_0_100', 'clayton/jump', 'W', 'T')
+   ('C2 log bank vs best fixed arm (single)', 'rec_0_100', 't/jump', 'W', 'T')
+   ('C2 log bank vs best fixed arm (single)', 'rec_100_500', 'clayton/jump', 'L', 'T')
+   ('C2 log bank vs best fixed arm (single)', 'rec_100_500', 'gumbel/jump', 'T', 'L')
+   ('C2 log bank vs best fixed arm (single)', 'rec_100_500', 't/jump', 'T', 'L')
+   ('C2 log bank vs best fixed arm (mix)', 'rec_100_500', 'gumbel/jump', 'T', 'L')
+   ('C2 log bank vs best fixed arm (mix)', 'rec_100_500', 't/jump', 'W', 'L')
+   ('C2 squared bank vs best fixed arm', 'rec_0_100', 'gaussian/jump', 'W', 'T')
+   ('C2 squared bank vs best fixed arm', 'rec_0_100', 'clayton/jump', 'W', 'T')
+   ('C2 squared bank vs best fixed arm', 'rec_0_100', 'gumbel/jump', 'W', 'T')
+   ('C2 squared bank vs best fixed arm', 'rec_0_100', 't/jump', 'W', 'T')
+   ('C2 squared bank vs best fixed arm', 'rec_100_500', 'clayton/jump', 'L', 'T')
+   ('C2 squared bank vs best fixed arm', 'rec_100_500', 'gumbel/jump', 'T', 'L')
+   ('C2 squared bank vs best fixed arm', 'rec_100_500', 't/jump', 'T', 'L')
+   ('C3 log bank vs VFF fast', 'post', 'gaussian/jump', 'T', 'W')
+   ('C3 log bank vs VFF fast', 'post', 'clayton/jump', 'L', 'W')
+   ('C3 log bank vs VFF fast', 'post', 'gumbel/jump', 'L', 'W')
+   ('C3 log bank vs VFF fast', 'post', 't/jump', 'L', 'T')
+   ('C4 mix vs single, log bank', 'pre', 'gaussian/jump', 'T', 'W')
+   ('C4 mix vs single, squared bank', 'rec_100_500', 'gaussian/jump', 'W', 'T')

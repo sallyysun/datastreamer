@@ -1,0 +1,43 @@
+90% recovery after the jump: rho_S 0.1913 -> 0.7859 (gap 0.5946); threshold B(k) <= 0.1 held for 20
+consecutive forecasts; k = post-jump observations absorbed before the forecast; 60 seeds; Linux/libstdc++.
+check gaussian: per-tick MSE vs fixed_ess_jumppath: 81000 rows, max relative difference 5.0e-08
+check clayton: per-tick MSE vs fixed_ess_jumppath: 81000 rows, max relative difference 5.0e-08
+check gumbel: per-tick MSE vs fixed_ess_jumppath: 81000 rows, max relative difference 5.0e-08
+check t: per-tick MSE vs fixed_ess_jumppath: 81000 rows, max relative difference 5.0e-08
+
+=== gaussian: recovery time (observations); B(100) in brackets; tail = mean B over the last 500 observations ===
+N_eff                                RMPL             Counting Matrix              Hermite Series
+39                        46 [0.00] tail 0.006             66 [0.04] tail 0.020             50 [0.02] tail 0.016
+99                       121 [0.14] tail 0.004            121 [0.15] tail 0.010            112 [0.15] tail 0.008
+199                      231 [0.38] tail 0.002            233 [0.38] tail 0.006            228 [0.38] tail 0.007
+399                      474 [0.62] tail 0.001            472 [0.62] tail 0.006            463 [0.62] tail 0.007
+1999                    2283 [0.91] tail 0.105           2298 [0.91] tail 0.106           2193 [0.91] tail 0.095
+No forgetting  not recovered [0.98] tail 0.540  not recovered [0.97] tail 0.536  not recovered [0.97] tail 0.530
+
+=== clayton: recovery time (observations); B(100) in brackets; tail = mean B over the last 500 observations ===
+N_eff                                RMPL             Counting Matrix              Hermite Series
+39                        67 [0.06] tail 0.030             57 [0.04] tail 0.017             55 [0.01] tail 0.020
+99                       154 [0.18] tail 0.031            125 [0.15] tail 0.008            118 [0.13] tail 0.014
+199                      276 [0.41] tail 0.033            231 [0.38] tail 0.005            225 [0.36] tail 0.014
+399                      606 [0.63] tail 0.035            478 [0.62] tail 0.003            455 [0.60] tail 0.014
+1999           not recovered [0.90] tail 0.138           2232 [0.90] tail 0.100           2112 [0.90] tail 0.086
+No forgetting  not recovered [0.96] tail 0.550  not recovered [0.97] tail 0.531  not recovered [0.96] tail 0.521
+
+=== gumbel: recovery time (observations); B(100) in brackets; tail = mean B over the last 500 observations ===
+N_eff                                RMPL             Counting Matrix              Hermite Series
+39                        45 [0.00] tail 0.011             47 [0.02] tail 0.024             46 [0.01] tail 0.020
+99                       120 [0.14] tail 0.007            128 [0.15] tail 0.012            107 [0.12] tail 0.009
+199                      236 [0.37] tail 0.005            249 [0.38] tail 0.007            224 [0.36] tail 0.007
+399                      464 [0.61] tail 0.005            481 [0.61] tail 0.005            450 [0.60] tail 0.009
+1999                    2295 [0.88] tail 0.106           2274 [0.90] tail 0.104           2173 [0.89] tail 0.092
+No forgetting  not recovered [0.95] tail 0.528  not recovered [0.96] tail 0.530  not recovered [0.96] tail 0.522
+
+=== t: recovery time (observations); B(100) in brackets; tail = mean B over the last 500 observations ===
+N_eff                                RMPL             Counting Matrix              Hermite Series
+39                        44 [0.02] tail 0.012             56 [0.05] tail 0.030             51 [0.01] tail 0.021
+99                       112 [0.14] tail 0.008            120 [0.16] tail 0.020            113 [0.14] tail 0.008
+199                      229 [0.38] tail 0.006            247 [0.39] tail 0.017            235 [0.37] tail 0.004
+399                      451 [0.62] tail 0.005            472 [0.62] tail 0.015            448 [0.61] tail 0.002
+1999                    2215 [0.90] tail 0.098           2345 [0.91] tail 0.109           2192 [0.90] tail 0.095
+No forgetting  not recovered [0.97] tail 0.533  not recovered [0.97] tail 0.535  not recovered [0.97] tail 0.526
+

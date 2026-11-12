@@ -156,7 +156,87 @@ Gaussian mixture uses the old (η, δ) and is provisional.
   - **so** better density prediction coincided with worse upper-tail estimation before the change, but
     not after.
 
-## Budget study (paired per-seed comparisons; test RMSE ×10⁻²)
+## Squared Hellinger beside excess log loss (family-bank density evaluation; seeds 42–101; oscillation excluded)
+
+Evaluation only. Every existing ρ_S-RMSE and excess-log-loss row is reproduced exactly. Method and full
+table: `notes/studies/chapter6_metrics.md` §13. Tables: `experiments/results/density_hellinger_2026-11-11.txt`.
+
+- **Excess log loss remains the primary density metric.** H² is a secondary check: the family-bank mixture,
+  the single Gaussian, the Gaussian mixture and the best fixed arm, scored on the same pre-observation
+  forecasts and windows.
+- **Agreement:** across 144 cell × window × comparator triples the 2-SE verdicts agree in 138. All 6
+  disagreements are significant-vs-tie, with no sign reversal:
+  - the family bank's cost of flexibility under a Gaussian truth before a switch (excess +0.2 to +0.3, H² tie);
+  - two steady-state gaps to the best arm after a jump.
+- **Magnitudes:** H² differences are typically 3–6× smaller than excess differences (2–14× overall; it is
+  bounded and less tail-sensitive). Examples, family bank minus single Gaussian, ×10⁻³ (excess / H²):
+  - Clayton constant −76.3 / −20.0;
+  - Gauss → Clayton post −72.3 / −18.5;
+  - mixture post −4.6 / −0.8;
+  - Clayton → Gumbel 0–100 after +46.3 / +12.8.
+- **The hindsight-best arm is the same under both metrics in all 16 cells.**
+
+## MPL forgetting-factor banks: density accuracy (excess log loss, H²; seeds 42–101; constant, drift, jump)
+
+Evaluation only. The matched bank rows are reproduced exactly. Method, answers and caveats:
+`notes/studies/chapter6_metrics.md` §14. Tables: `experiments/results/density_forgetting_banks_2026-11-11.txt`.
+
+W/L/T at 2 SE:
+
+| A vs B | ρ_S RMSE (whole, 12 cells) | Excess log loss | H² |
+|---|---|---|---|
+| Log vs squared bank (single Gaussian) | 10/0/2 | 11/0/1 | 11/0/1 |
+| Log bank vs best fixed arm (metric-specific hindsight) | 4/8/0 | 4/8/0 | 4/8/0 |
+| Log bank vs no forgetting | 8/4/0 | 8/4/0 | 8/4/0 |
+| Log bank vs VFF slow / fast | 5/1/6, 12/0/0 | 5/2/5, 8/0/4 | 7/0/5, 11/0/1 |
+| Gaussian mixture vs single Gaussian (log bank) | identical ρ̂ | 10/0/2 | 12/0/0 |
+
+- Against the best fixed arm and against no forgetting, the wins are the jump cells; the losses are the
+  constant and drift cells (and constant only, for no forgetting).
+- Log weighting's ρ_S advantage carries over to density prediction.
+- The bank's advantage is after jumps, mostly in the first 100 ticks. It pays a small steady-state cost
+  against the hindsight-best fixed memory.
+- Mixing the arms' Gaussians helps most just after a jump.
+- Fast VFF recovers faster at 100–500 ticks after a jump.
+- Hellinger agrees in direction. A few small opposite-sign cases under non-Gaussian truth reflect the
+  different KL- and Hellinger-best Gaussians.
+
+## Plain Hedge (δ = 0) vs fixed share (δ = 10⁻⁴), MPL log bank (seeds 42–101; only δ differs)
+
+Details: `notes/studies/chapter6_metrics.md` §16. Tables: `experiments/results/hedge_vs_fixedshare_2026-11-11.txt`.
+Figure: `notes/thesis/figures/matched/ch6_hedge_vs_fixedshare.png`.
+
+Fixed share minus Hedge, ×10⁻³:
+
+| Window | ρ_S RMSE | Excess log loss (mixture) | H² (mixture) |
+|---|---|---|---|
+| Jump, 0–100 after (4/4 W) | −119 to −136 | −90 to −140 | −32 to −37 |
+| Jump, post (4/4 W) | −23 to −24 | −4.6 to −9.0 | −1.6 to −1.8 |
+| Constant / drift | +0.4 to +2.8 (cost) | +0.0 to +0.1 | ≈ 0 |
+
+- **Hedge after the jump:** it never uses the 39-tick arm (max weight ≤ 0.02), and it stays at short memory
+  (≈ 100–156 at t = 4000).
+- **Fixed share after the jump:** it moves to the 39-tick arm (0.92–0.99), then back to 199–399 (memory
+  221–387 at t = 4000).
+- **100–500 ticks after:** Hedge is slightly better in excess; H² does not show this.
+
+## Budget study, extended gain grid (SUPERSEDES the 9/2/1 below; `budget_mpl.md` §25)
+
+**Setup:** gain grid extended to {cumulative, 0.0005, 0.001, 0.002, 0.005, …, 0.10} for the constant and drift cells
+(validation 1000–1039, test 42–141). Jump cells are unchanged.
+
+**DS-MPL vs the better of Xiao and Hermite: 6/6/0 at 16, 64 and 256 KiB.**
+- **Constant:** every estimator selects cumulative estimation. Xiao is lowest in all four cells (DS-MPL +0.15 to +0.30
+  ×10⁻²).
+- **Drift:** DS-MPL wins all four, with g = 0.005 now an interior optimum.
+- **Jump:** DS-MPL wins Gaussian and Gumbel, loses Clayton and t₄.
+- **Why MPL loses on constant:** with exact PIT the MPL would win on constant (Gaussian 1.23 vs Xiao 1.53). Its
+  stationary loss comes from the KLL marginal sketch.
+- **Memory:** tuned accuracy hardly varies with budget.
+
+Table: `experiments/results/budget_gainext_2026-11-11.txt`.
+
+## Budget study (paired per-seed comparisons; test RMSE ×10⁻²) — original gain grid g ≥ 0.005, superseded
 
 **DataSketches-MPL against the better of Xiao and Hermite**, paired over 100 test seeds:
 

@@ -1,0 +1,132 @@
+% Draft of Section 6.2 (E1). Sources: experiments/results/budget_gainext_2026-11-11.txt (analyze_budget_gainext.py),
+% budget_timing_final.csv, budget_mpl.md §25. Figures: notes/thesis/figures/matched/ch6_budget_paired.png (main),
+% ch6_budget_memory.png (main), ch6_budget_memory_all.png, ch6_budget_runtime.png, ch6_budget_rmse_vs_k.png (appendix).
+\section{Estimation under memory constraints}\label{sec:ch6-e1}
+
+Which online estimator should one use when the retained state is limited?
+We compare Xiao's counting matrix, the Hermite series estimator and the recursive Gaussian MPL.
+Each is tuned to its best configuration within a fixed memory budget, and we ask how accurately each tracks $\rho_S$ and at what computational cost.
+
+\subsection{Setup}
+
+Each estimator runs alone, without a bank.
+Its memory is controlled by an approximation parameter: Xiao's number of bins, the Hermite order, or the KLL sketch size $k$ of the recursive MPL's margins (Apache DataSketches).
+Its forgetting is controlled by the gain $g$.
+The candidate gains are $g \in \{0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.10\}$, plus each estimator's cumulative mode (no forgetting).
+On the jump path the validated choice was interior to the original grid $g \ge 0.005$, so only that grid was evaluated there.
+
+For each family, path and budget (16, 64 or 256\,KiB of measured retained state), we choose each estimator's approximation parameter and gain by validation RMSE on seeds 1000--1039.
+The chosen configuration is then scored on test seeds 42--141.
+The recursive MPL uses cumulative KLL margins here, because the question concerns a single estimator at matched memory (Appendix~\ref{app:ch6-design}).
+
+We compare the recursive MPL with the better of Xiao and Hermite in each cell, by the paired per-seed difference in test RMSE.
+Selecting that comparator on the test means makes the comparison conservative for the MPL.
+
+This is an offline benchmark: validation tuning picks the gain for each scenario, which no online procedure can do without knowing the type of change.
+
+\subsection{Results}
+
+Table~\ref{tab:ch6-e1} and Figure~\ref{fig:ch6-e1-paired} give the test RMSE of the validated configurations at 64\,KiB.
+Every paired verdict is the same at 16 and 256\,KiB (Appendix~\ref{app:ch6-e1}).
+Over the twelve cells, the recursive MPL is more accurate than the better of Xiao and Hermite in six and less accurate in six, with no ties.
+The split follows the type of change.
+
+\begin{table}[ht]
+\centering\small
+\caption{Test RMSE of $\rho_S$ ($\times10^{-2}$, 100 seeds) at 64\,KiB, with the validated gain ($g$; ``cum'' = no forgetting) and the paired difference MPL $-$ better of Xiao/Hermite (mean $\pm$ SE). W/L: MPL lower/higher by more than 2 SE.}\label{tab:ch6-e1}
+\begin{tabular}{@{}llccccl@{}}
+\toprule
+Path & Copula & $g$ & Xiao & Hermite & MPL & MPL $-$ better \\
+\midrule
+constant & Gaussian & cum & \textbf{1.53} & 1.58 & 1.71 & $+0.18 \pm 0.08$ L \\
+         & Clayton  & cum & \textbf{1.51} & 1.53 & 1.81 & $+0.30 \pm 0.09$ L \\
+         & Gumbel   & cum & 1.51 & \textbf{1.49} & 1.67 & $+0.18 \pm 0.06$ L \\
+         & $t_4$    & cum & \textbf{1.64} & 1.79 & 1.81 & $+0.17 \pm 0.07$ L \\
+\addlinespace
+drift    & Gaussian & 0.005 & 4.62 & 4.64 & \textbf{4.15} & $-0.46 \pm 0.04$ W \\
+         & Clayton  & 0.005 & 4.65 & 4.69 & \textbf{4.47} & $-0.18 \pm 0.06$ W \\
+         & Gumbel   & 0.005 & 4.63 & 4.66 & \textbf{3.98} & $-0.65 \pm 0.05$ W \\
+         & $t_4$    & 0.005 & 4.86 & 4.88 & \textbf{4.65} & $-0.20 \pm 0.05$ W \\
+\addlinespace
+jump     & Gaussian & 0.01 & 8.19 & 8.25 & \textbf{7.91} & $-0.28 \pm 0.04$ W \\
+         & Clayton  & 0.01 & \textbf{8.29} & 8.36 & 8.49 & $+0.20 \pm 0.04$ L \\
+         & Gumbel   & 0.01 & 8.31 & 8.36 & \textbf{8.12} & $-0.19 \pm 0.04$ W \\
+         & $t_4$    & 0.01 & \textbf{8.52} & 8.54 & 8.63 & $+0.11 \pm 0.04$ L \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\linewidth]{figures/matched/ch6_budget_paired.png}
+\caption{Recursive MPL minus the better of Xiao and Hermite in test RMSE of $\rho_S$, paired over 100 test seeds (mean $\pm$ 2 SE), for each cell and memory budget. Configurations are chosen on validation seeds within each budget. Negative values favour the MPL.}\label{fig:ch6-e1-paired}
+\end{figure}
+
+\paragraph{Constant dependence.}
+All three estimators select cumulative estimation.
+Forgetting only adds variance when dependence does not change.
+With it removed, Xiao has the lowest RMSE in three families and Hermite in the fourth (Gumbel, 1.49 against Xiao's 1.51).
+The recursive MPL is higher by 0.17 to 0.30 ($\times10^{-2}$) in all four.
+The exact-PIT diagnostic, which replaces the MPL's sketched margins by the true probability integral transform, lowers its RMSE to 1.23, 1.50, 1.34 and 1.67 (Gaussian, Clayton, Gumbel, $t_4$).
+That is below Xiao's for the Gaussian and Gumbel copulas and level with it for Clayton and $t_4$ (1.51 and 1.64).
+The KLL marginal approximation therefore contributes a substantial part of the MPL's additional error under stationarity.
+The diagnostic is not budget-feasible, and we did not isolate how this error depends on $k$.
+
+\paragraph{Gradual drift.}
+Every estimator selects $g = 0.005$, an interior optimum of the extended grid.
+The recursive MPL is the most accurate in all four families, by 0.18 to 0.65.
+The largest gain is in the Gumbel family, so this advantage is not confined to the correctly specified Gaussian case.
+
+\paragraph{Abrupt change.}
+The recursive MPL is more accurate for the Gaussian and Gumbel copulas, and Xiao for the Clayton and $t_4$ copulas.
+All four differences lie within 0.3 and beyond two standard errors.
+Gumbel is also non-Gaussian, so the losses are not explained by misspecification alone.
+The two losing families have lower or symmetric tail dependence, but this experiment does not isolate the cause.
+
+\paragraph{Memory.}
+With tuned gains, accuracy changes little beyond the smallest budget (Figure~\ref{fig:ch6-e1-memory}).
+\begin{itemize}
+  \item On the constant path, the validated test RMSE is identical at 16, 64 and 256\,KiB for Xiao and the MPL. Hermite improves by at most 0.09.
+  \item On the drift path, from 16 to 256\,KiB the MPL improves by at most 0.02, Xiao by at most 0.05 and Hermite by at most 0.12.
+\end{itemize}
+The configurations chosen at 16\,KiB already lie on each method's error floor.
+This does not mean the residual error is all sampling variance.
+The MPL's gap to its exact-PIT reference persists at the largest sketch tested ($k = 1024$), so marginal approximation remains a source of error.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures/matched/ch6_budget_memory.png}
+\caption{Test RMSE of $\rho_S$ against measured retained state for the Gaussian and Clayton copulas. Each point is one approximation setting at its validation-best gain; error bars are unpaired $\pm$2 SE over 100 test seeds; the dashed line is the MPL with exact PIT (a reference that does not fit the budgets). Paired comparisons are in Table~\ref{tab:ch6-e1}; all four families are in Appendix~\ref{app:ch6-e1}.}\label{fig:ch6-e1-memory}
+\end{figure}
+
+\paragraph{Computational cost.}
+At the configurations validated at 16\,KiB, which already reach each method's error floor, the mean update-and-estimate time per observation is:
+\begin{itemize}
+  \item 0.6--1.1\,$\mu$s for Xiao (20--30 bins);
+  \item 0.7--1.3\,$\mu$s for Hermite (order 10--20);
+  \item 1.3--2.0\,$\mu$s for the recursive MPL ($k = 256$ or 512).
+\end{itemize}
+Larger budgets select larger summaries and cost more (up to 14.6\,$\mu$s for Xiao at 130 bins and 2.9\,$\mu$s for the MPL at $k = 1024$) for almost no gain in accuracy.
+Times are single-threaded, on one machine (Appendix~\ref{app:ch6-e1}).
+Xiao and Hermite costs grow quadratically in their approximation parameter, and the MPL's slowly in $k$.
+At the configurations that matter, all three cost one to two microseconds per observation, and the MPL is not the cheapest.
+
+\subsection{Interpretation and limitations}
+
+Under limited memory, no estimator dominates.
+The ranking depends on whether forgetting is needed:
+\begin{itemize}
+  \item \emph{When dependence is stable}, all estimators prefer no forgetting. The cheap cumulative counting matrix is then the most accurate, and the recursive MPL is held back by its sketched margins.
+  \item \emph{When dependence drifts}, the recursive MPL is the most accurate in every family tested.
+  \item \emph{After abrupt changes}, the result depends on the copula family.
+\end{itemize}
+Larger summaries buy little once the gain is tuned (at most 0.12).
+For streaming copula estimation, the choice of forgetting therefore matters more than the size of the summary, within the budgets tested.
+
+Four limitations qualify these conclusions:
+\begin{enumerate}
+  \item The gains are tuned per scenario on validation data. This benchmarks each method's best achievable accuracy, not what an online procedure attains without knowing the type of change (that is the subject of Sections~\ref{sec:ch6-e3}--\ref{sec:ch6-e4}).
+  \item The exact-PIT diagnostic indicates, but does not quantify, the role of marginal approximation.
+  \item The jump path was tuned on the original grid $g \ge 0.005$. Its validated gain was interior, so this is unlikely to matter.
+  \item Results cover one target $\rho_S$ level per path and four copula families.
+\end{enumerate}

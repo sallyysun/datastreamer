@@ -38,7 +38,21 @@ constexpr std::size_t kPost = 1000;        // post-change window
 constexpr unsigned kTestSeed = 42;
 constexpr unsigned kValSeed = 1000;
 
-const std::vector<double> kGains{0.005, 0.01, 0.02, 0.05, 0.10};
+// BUDGET_GAINS=g1,g2,... replaces the grid (harness only); g = 0 is each estimator's cumulative (no-forgetting)
+// mode: Xiao lambda = 0, Hermite weight 1/m, MPL gain 1/m through the normalised start-up. budget_mpl.md §25.
+std::vector<double> gain_grid() {
+    const char* e = std::getenv("BUDGET_GAINS");
+    if (!e) return {0.005, 0.01, 0.02, 0.05, 0.10};
+    std::vector<double> g;
+    std::string str(e);
+    for (std::size_t a = 0, b; a <= str.size(); a = b + 1) {
+        b = str.find(',', a);
+        if (b == std::string::npos) b = str.size();
+        if (b > a) g.push_back(std::atof(str.substr(a, b - a).c_str()));
+    }
+    return g;
+}
+const std::vector<double> kGains = gain_grid();
 
 struct Cfg {
     std::string est;    // xiao | hermite | mpl_kll | mpl_exact | mpl_ew | mpl_fit_kll
@@ -64,17 +78,17 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     if (c.est == "xiao") {
         XiaoSpearmanEstimator::Config x{};
         x.bins = static_cast<std::size_t>(c.approx);
-        x.lambda = 1.0 - c.gain;
+        x.lambda = c.gain > 0.0 ? 1.0 - c.gain : 0.0;   // 0 = cumulative
         return std::make_unique<XiaoSpearmanEstimator>(x, "xiao");
     }
     if (c.est == "hermite") {
         HermiteEstimator::Config h{};
         h.order = c.approx;
-        h.lambda = c.gain;
+        h.lambda = c.gain;                               // 0 = cumulative (1/m)
         return std::make_unique<HermiteEstimator>(h, "hermite");
     }
     RecursiveMPL::Config m{};
-    m.gain = c.gain;
+    m.gain = c.gain > 0.0 ? c.gain : 1e-12;              // normalised start-up: gain/(1-(1-gain)^m) -> 1/m
     m.seed = seed;
     if (c.est == "mpl_kll" || c.est == "mpl_fit_kll" || c.est == "mpl_dskll") m.kll_k = static_cast<std::size_t>(c.approx);
     if (c.est == "mpl_dskll") m.margin = RecursiveMPL::Margin::DsKll;
@@ -201,6 +215,8 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
     pout << "family,scenario,estimator,approx,gain,t,est,truth\n";
     for (const std::string& fam : families) {
         for (const std::string sc : {"constant", "drift", "jump"}) {
+            if (const char* only = std::getenv("BUDGET_SCENARIOS"))   // a subset of the same scenarios
+                if (("," + std::string(only) + ",").find("," + sc + ",") == std::string::npos) continue;
             for (int split = 0; split < 2; ++split) {
                 const unsigned base = split ? kTestSeed : kValSeed;
                 const std::size_t ns = split ? n_test : n_val;

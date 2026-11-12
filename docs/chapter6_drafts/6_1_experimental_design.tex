@@ -1,0 +1,208 @@
+% Draft of Section 6.1 (replaces the current 6.1, which describes the live market simulator, not the Chapter 6 experiments).
+% Settings checked against code and the final matched protocol (docs/chapter6_outline.md, notes/studies/chapter6_metrics.md).
+%
+% Cross-references: the thesis source was not available, only its text export (Thesis_5). Labels below are placeholders
+% named for the sections they must point to; replace them with the thesis's own labels:
+%   sec:ch2-tail     -> 2.4.4 Tail Dependence
+%   sec:ch4-quant    -> 4.2.1 Quantile Summary Methods
+%   sec:ch4-xiao     -> 4.2.2 Counting Matrix Estimator
+%   sec:ch4-hermite  -> 4.2.3 Hermite Polynomial Estimator
+%   sec:ch4-mom      -> 4.3.1 Rank-Based Method of Moments
+%   sec:ch4-mpl      -> 4.3.2 Online Pseudo-Maximum Likelihood Estimation (MPL)
+%   sec:ch5-ess      -> 5.1.1 Effective Sample Size
+%   sec:ch5-vff      -> 5.2 Variable Forgetting Factor
+%   sec:ch5-scoring  -> 5.3.1 Estimator Scoring
+%   sec:ch5-bank     -> 5.3.3 Final Bank Algorithm (alg:ch5-bank -> the bank algorithm in 5.3.3)
+%   sec:ch5-bounds   -> 5.3.4 Theoretical Bounds
+%   app:ch6-design   -> new appendix (docs/chapter6_drafts/appendix_6_design.tex)
+% Three methods used here are not yet described in Chapters 4-5 of Thesis_5: the exponentially weighted marginal, the
+% common VFF controller and the family bank. This section defines each in one paragraph; the appendix gives details.
+\section{Experimental design}\label{sec:ch6-design}
+
+We evaluate the estimators of Chapters 4 and 5 on simulated streams whose copula is known at every time step.
+Table~\ref{tab:ch6-experiments} states the five questions and the experiments that answer them.
+
+\begin{table}[ht]
+\centering\small
+\caption{Questions, comparisons and metrics of the five experiments.}\label{tab:ch6-experiments}
+\begin{tabular}{@{}lp{0.40\linewidth}p{0.27\linewidth}p{0.18\linewidth}@{}}
+\toprule
+ & Question & Comparison & Metrics \\
+\midrule
+E1 & How do Xiao, Hermite and recursive MPL compare in accuracy and computational cost under limited memory? & Single estimators within 16, 64 and 256\,KiB & $\rho_S$ RMSE, memory, runtime \\
+E2 & How does effective memory trade estimation variance against adaptation, and does the approximate optimal memory describe the observed one? & Fixed exponential forgetting over $N_{\mathrm{eff}}$ & $\rho_S$ RMSE \\
+E3 & When does adaptive weighting of forgetting factors help? & Fixed memory, no forgetting, VFF, banks & $\rho_S$ RMSE, excess log loss, $H^2$ \\
+E4 & How do the scoring loss and the fixed-share step affect the bank? & Squared vs.\ logarithmic loss; Hedge vs.\ fixed share & as E3; weights, regret \\
+E5 & Does accurate $\rho_S$ estimation imply accurate copula-density prediction, and do multiple copula families help when the dependence structure changes? & Family bank vs.\ Gaussian forecasts & excess log loss, $H^2$, tail RMSE \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Simulated streams}\label{sec:ch6-dgp}
+
+Each stream contains $T = 5000$ pairs $(X_t, Y_t)$ with standard normal margins and copula $C_t$.
+The copula belongs to one of four families: Gaussian, Clayton, Gumbel and Student-$t$ with $\nu = 4$.
+A path $d_t$ sets the target Spearman correlation
+\begin{equation}\label{eq:ch6-target}
+  \rho_{S,t} = \tfrac{6}{\pi}\arcsin(d_t/2),
+\end{equation}
+the Spearman correlation of a Gaussian copula with correlation $d_t$.
+Each family's parameter is the method-of-moments inverse $\theta_t = g_F^{-1}(\rho_{S,t})$ of Section~\ref{sec:ch4-mom}.
+The true $\rho_S$ path is therefore the same for all four families, and differences between families reflect copula shape alone.
+
+We use three paths:
+\begin{equation}\label{eq:ch6-paths}
+  d_t = 0.6 \;\;\text{(constant)}, \qquad
+  d_t = 0.2 + 0.6\,\tfrac{t-1}{T-1} \;\;\text{(drift)}, \qquad
+  d_t = 0.2 + 0.6\,\mathbb 1\{t > 2500\} \;\;\text{(jump)}.
+\end{equation}
+These give $\rho_S = 0.582$ on the constant path and $\rho_S$ from $0.191$ to $0.786$ on the other two.
+
+E5 adds four regimes that hold $\rho_S = 0.582$ fixed and change the copula at $t = 2500$:
+\begin{itemize}
+  \item Gaussian $\to t_4$;
+  \item Clayton $\to$ Gumbel;
+  \item Gaussian $\to$ Clayton;
+  \item a Clayton--Gumbel mixture $\pi_t c^{\mathrm{Cl}} + (1-\pi_t) c^{\mathrm{Gu}}$, with both components at $\rho_S = 0.582$ and Clayton weight $\pi_t$ falling from $0.75$ to $0.25$.
+\end{itemize}
+Because $\rho_S$ is linear in the copula, the mixture's $\rho_S$ stays fixed while its lower and upper tail dependence move in opposite directions.
+No copula available to the family bank equals this mixture.
+
+\subsection{Estimators and comparators}\label{sec:ch6-methods}
+
+\paragraph{Pseudo-observations.}
+All banks and comparators share one exponentially weighted empirical marginal per variable, with memory $N_{\mathrm{eff},m} = 500$.
+It extends the weighted quantile summary of Section~\ref{sec:ch4-quant} to exponential forgetting (Appendix~\ref{app:ch6-design}).
+Before absorbing $X_t$ it returns the pseudo-observation $\widehat U_t$, a forgetting analogue of the rank $(R_t + 1)/(t + 2)$.
+
+\paragraph{Estimators.}
+The three estimators are:
+\begin{itemize}
+  \item Xiao's counting matrix (Section~\ref{sec:ch4-xiao});
+  \item the Hermite series estimator (Section~\ref{sec:ch4-hermite});
+  \item the recursive Gaussian MPL (Section~\ref{sec:ch4-mpl}).
+\end{itemize}
+Each forgets exponentially with effective sample size $N_{\mathrm{eff}} \in \{39, 99, 199, 399, 1999\}$ (Section~\ref{sec:ch5-ess}).
+Their fixed settings are in Appendix~\ref{app:ch6-design}.
+
+\paragraph{Forgetting-factor banks.}
+A bank (Algorithm~\ref{alg:ch5-bank}, Section~\ref{sec:ch5-bank}) combines the five memories of one estimator.
+Its estimate is $\widehat\rho_{S,t} = \sum_k w_{k,t}\widehat\rho_{S,k,t}$.
+It updates the weights by Hedge with fixed share,
+\begin{equation}\label{eq:ch6-hedge}
+  w_{k,t} = (1-\delta)\,\frac{w_{k,t-1}e^{-\eta\ell_{k,t}}}{\sum_j w_{j,t-1}e^{-\eta\ell_{j,t}}} + \frac{\delta}{K}, \qquad K = 5.
+\end{equation}
+The online loss $\ell_{k,t}$ is one of the two scoring rules of Section~\ref{sec:ch5-scoring}, both evaluated at the shared pseudo-observations $(\widehat U_t, \widehat V_t)$:
+\begin{itemize}
+  \item the squared loss $(p_t - \widehat\rho_{S,k,t-1})^2$ with $p_t = 12(\widehat U_t - \tfrac12)(\widehat V_t - \tfrac12)$;
+  \item the logarithmic loss $-\log c^{\mathrm{Ga}}_{\widehat r_{k,t-1}}(\widehat U_t, \widehat V_t)$, where $\widehat r_{k,t-1} = 2\sin(\pi\widehat\rho_{S,k,t-1}/6)$.
+\end{itemize}
+Both banks use $(\eta, \delta) = (1, 10^{-4})$.
+Plain Hedge sets $\delta = 0$, and the uniform control fixes $w_{k,t} = 1/K$.
+
+\paragraph{Comparators.}
+\begin{itemize}
+  \item \emph{Fixed memory}: the bank's five arms, scored on their own.
+  \item \emph{No forgetting}: a cumulative recursive MPL on the same pseudo-observations.
+  \item \emph{Variable forgetting} (VFF, Section~\ref{sec:ch5-vff}): a single controller sets the memory of all three estimators.
+    It adapts $\log N_{\mathrm{eff}} \in [\log 39, \log 1999]$ by stochastic gradient descent on the one-step squared prediction error of an exponentially weighted mean of $p_t$.
+    It runs at rate $0.02$ (slow) or $0.1$ (fast).
+\end{itemize}
+
+\paragraph{Family bank (E5).}
+The family bank applies \eqref{eq:ch6-hedge} to 24 parametric copulas: eight shapes (Gaussian, $t_4$, Clayton, Gumbel and the rotated Clayton and Gumbel copulas) at memories 99, 399 and 1999.
+Each copula is fitted online by Fisher scoring.
+The loss is each copula's own log density, with $\eta = 1$ and $\delta = 2.1\times10^{-4}$.
+Its forecast density is the weighted mixture of the 24 copulas.
+
+\subsection{Evaluation against the simulation truth}\label{sec:ch6-metrics}
+
+The online losses above train the bank weights.
+They use only the estimator's pseudo-observations.
+We evaluate every method, whatever its training loss, against the known copula $c_t$ with the same truth-based metrics.
+Each metric scores the forecast held before observation $t$, and lower values are better.
+
+\paragraph{Dependence strength.}
+Over a window $\mathcal W$ the primary metric is
+\begin{equation}\label{eq:ch6-rmse}
+  \mathrm{RMSE}_{\rho_S} = \Bigl(|\mathcal W|^{-1}\textstyle\sum_{t\in\mathcal W}(\widehat\rho_{S,t-1} - \rho_{S,t})^2\Bigr)^{1/2}.
+\end{equation}
+
+\paragraph{Copula density.}
+The primary density metric is the excess logarithmic loss at the true probability integral transform $(U_t, V_t) = (\Phi(X_t), \Phi(Y_t))$:
+\begin{equation}\label{eq:ch6-excess}
+  \bar\ell^{\,\mathrm{ex}} = |\mathcal W|^{-1}\textstyle\sum_{t\in\mathcal W}\bigl[\log c_t(U_t, V_t) - \log\widehat c_{t\mid t-1}(U_t, V_t)\bigr],
+\end{equation}
+in nats per observation.
+For a normalised forecast $\widehat c_{t\mid t-1}$ its conditional expectation is $D_{\mathrm{KL}}(c_t\,\|\,\widehat c_{t\mid t-1}) \ge 0$, and the logarithmic score is strictly proper.
+Both properties need a valid density, so we report \eqref{eq:ch6-excess} only for copula densities.
+
+The secondary metric is the squared Hellinger distance
+\begin{equation}\label{eq:ch6-hellinger}
+  H_t^2 = 1 - \int_0^1\!\!\int_0^1\sqrt{c_t(u,v)\,\widehat c_{t\mid t-1}(u,v)}\,du\,dv \in [0, 1].
+\end{equation}
+It is symmetric, bounded and gives less weight to the tails than \eqref{eq:ch6-excess}.
+We compute it by quadrature every 50 observations, averaging uniformly in time within each window (Appendix~\ref{app:ch6-design}).
+
+Two forecasts with the same $\rho_S$ can differ greatly in density.
+\eqref{eq:ch6-excess} and \eqref{eq:ch6-hellinger} therefore measure something \eqref{eq:ch6-rmse} cannot.
+
+\paragraph{Forecast densities.}
+\begin{itemize}
+  \item A recursive MPL arm forecasts its fitted Gaussian copula.
+  \item A recursive MPL bank yields two forecasts from the same weights:
+    \begin{itemize}
+      \item the \emph{single Gaussian} at its combined estimate, $c^{\mathrm{Ga}}_{\widehat r_{t-1}}$ with $\widehat r_{t-1} = 2\sin(\pi\widehat\rho_{S,t-1}/6)$;
+      \item the \emph{Gaussian mixture} $\sum_k w_{k,t-1}c^{\mathrm{Ga}}_{\widehat r_{k,t-1}}$.
+    \end{itemize}
+  \item The family bank forecasts its mixture.
+\end{itemize}
+Xiao's histogram density is normalised but does not have uniform margins, and Hermite's series density is not normalised (Appendix~\ref{app:ch6-design}).
+We therefore evaluate Xiao and Hermite by $\rho_S$ RMSE only.
+
+\paragraph{Tails and other measures.}
+The tail experiments use the finite-level coefficients of Section~\ref{sec:ch2-tail} at $q = 0.05$:
+\begin{equation}\label{eq:ch6-chi}
+  \chi_L(q) = C(q,q)/q, \qquad \chi_U(q) = \bigl[1 - 2(1-q) + C(1-q, 1-q)\bigr]/q.
+\end{equation}
+We report their RMSE against the truth.
+The comparators are exponentially weighted corner counters with memories 99, 399 and 1999.
+
+Where relevant we also report:
+\begin{itemize}
+  \item bank weight paths and the weighted memory $\sum_k w_{k,t}N_{\mathrm{eff},k}$;
+  \item regret against the bounds of Section~\ref{sec:ch5-bounds};
+  \item retained state in bytes;
+  \item update time.
+\end{itemize}
+
+\subsection{Comparison protocol}\label{sec:ch6-protocol}
+
+\paragraph{Seeds and tuning.}
+Development seeds 1--30 fixed the bank and family-bank constants $(\eta, \delta)$ and the VFF rates.
+Evaluation uses seeds 42--101, which played no part in those choices.
+E1 tunes each estimator within each memory budget on validation seeds 1000--1039 and tests on seeds 42--141.
+We retuned nothing for any evaluation metric.
+
+\paragraph{Windows.}
+We discard the first 500 observations and evaluate on $[500, 5000)$.
+On jump and switch paths we also report the pre-change window $[500, 2500)$, the post-change window $[2500, 5000)$, and recovery windows $[2500, 2600)$, $[2600, 3000)$ and $[3000, 4000)$.
+
+\paragraph{Paired comparison.}
+Within a cell (family and path, and estimator where relevant), every method sees the same 60 streams.
+For methods $A$ and $B$ we report the mean and standard error of the per-seed difference $\Delta_s = M_s(A) - M_s(B)$ of a window metric.
+$A$ wins if the mean is below $-2$ standard errors, loses if it is above $+2$, and ties otherwise.
+We make no multiplicity correction.
+
+The \emph{hindsight-best fixed memory} is the arm with the lowest mean in that cell, chosen separately for each metric.
+It is an oracle that no online method can select in advance.
+
+\paragraph{Controlled and tuned comparisons.}
+Three comparisons change exactly one component, so their differences are attributable to it:
+\begin{itemize}
+  \item Hedge vs.\ fixed share ($\delta$ only);
+  \item single Gaussian vs.\ Gaussian mixture (forecast construction only);
+  \item the Gaussian-only vs.\ full family bank (the set of shapes only).
+\end{itemize}
+The remaining comparisons set complete procedures against each other, each tuned separately: squared vs.\ logarithmic banks, banks vs.\ VFF, and the E1 estimators.
+They identify the better procedure, not the component responsible.

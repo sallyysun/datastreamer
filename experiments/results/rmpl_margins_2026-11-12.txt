@@ -1,0 +1,10 @@
+check (seed 42, 5000 obs): max |EwMarginal(0) - (R+1)/(n+2)| = 0.0048; max |EwMarginal(500) - exact EW| = 0.0049
+  (the summary's rank tolerance is eps = 0.005 of the weight, i.e. up to ~0.01 in u)
+
+scenario  margin          rmse(U-Phi)     mean z^2    mean z1z2  z1z2/oracle
+constant  EW 500              0.01843       0.9454       0.5629       0.9493
+constant  cumulative EW       0.00930       0.9850       0.5878       0.9913
+constant  oracle PIT          0.00000       0.9916       0.5929       1.0000
+drift     EW 500              0.01847       0.9454       0.4961       0.9481
+drift     cumulative EW       0.00950       0.9848       0.5184       0.9906
+drift     oracle PIT          0.00000       0.9928       0.5233       1.0000

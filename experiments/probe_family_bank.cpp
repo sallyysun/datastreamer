@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -27,6 +28,7 @@
 #include "../src/streamgenerator/datasource/copula.hpp"
 #include "../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "density_metrics.hpp"
 #include "gauss_floor.hpp"
 #include "scenarios.hpp"
 
@@ -102,13 +104,24 @@ int main(int argc, char** argv) {
     // DENSITY_AUDIT=2 also writes every family-bank arm's excess log loss, the Gaussian misspecification floor
     // (realised lc - log c_G(r*) and its expectation D(t)), and chi at q = 0.10. ew_marginals.md §33.
     const bool audit2 = audit && std::atoi(std::getenv("DENSITY_AUDIT")) >= 2;
+    // DENSITY_AUDIT=3 also writes the squared Hellinger distance H^2(c_t, chat_{t|t-1}) of the family-bank mixture,
+    // the single Gaussian, the Gaussian mixture and every arm, at checkpoints (every 50 ticks; every 10 in the
+    // first 100 after a change), by normal-score quadrature (density_metrics.hpp, n = 81, L = 8; error <= 1e-8,
+    // check_density_metrics F). Evaluation only: the forecasts are the ones the excess log loss scores at t.
+    const bool audit3 = audit && std::atoi(std::getenv("DENSITY_AUDIT")) >= 3;
+    const dmetric::Grid hgrid = dmetric::Grid::full(81, 8.0);
     const copula::Shape S0 = cop_name == "gauss2t" || cop_name == "gauss2clayton" || tnu ? copula::Shape::Gaussian
                            : cop_name == "clayton2gumbel" || mix ? copula::Shape::Clayton : shape_of(cop_name);
     const copula::Shape S1 = cop_name == "gauss2t" || tnu ? copula::Shape::StudentT
                            : cop_name == "clayton2gumbel" || mix ? copula::Shape::Gumbel
                            : cop_name == "gauss2clayton" ? copula::Shape::Clayton : S0;
-    const std::vector<std::string> scenarios = shape ? std::vector<std::string>{"shape"}
+    std::vector<std::string> scenarios = shape ? std::vector<std::string>{"shape"}
         : std::vector<std::string>{"constant", "drift", "jump", "oscillate"};
+    if (const char* only = std::getenv("FB_SCENARIOS"); only && !shape) {   // e.g. constant,drift,jump: a subset, same settings
+        std::vector<std::string> keep;
+        for (const auto& sc : scenarios) if (("," + std::string(only) + ",").find("," + sc + ",") != std::string::npos) keep.push_back(sc);
+        scenarios = keep;
+    }
     const std::string sfx = (cop_name == "gaussian" ? "" : "_" + cop_name);
     const std::string tag = std::to_string(first) + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + sfx + ".csv";
 
@@ -158,6 +171,8 @@ int main(int argc, char** argv) {
             for (int m : kRatioMem) ratios.push_back({1.0 - 2.0 / (m + 1.0)});
             std::vector<Ratio> ratios2;
             for (int m : kRatioMem) ratios2.push_back({1.0 - 2.0 / (m + 1.0), kQ2});
+            const float kNaNf = std::numeric_limits<float>::quiet_NaN();
+            std::vector<std::vector<float>> hel(3 + K, std::vector<float>(kN, kNaNf));   // FB, single, mixture, arms
             std::vector<std::vector<float>> aex(K, std::vector<float>(kN)), fex(2, std::vector<float>(kN)),
                 cl2(1 + kRatioMem.size(), std::vector<float>(kN)), cu2(1 + kRatioMem.size(), std::vector<float>(kN));
 
@@ -198,6 +213,35 @@ int main(int argc, char** argv) {
                     };
                     tt = blend(kQ);
                     tt2 = blend(kQ2);
+                }
+                const bool change_sc = shape || sc == "jump";
+                if (audit3 && t >= kBurn && ((t - kBurn) % 50 == 0 || (change_sc && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0))) {
+                    auto dens = [](double l) { return std::isfinite(l) ? std::exp(l) : 0.0; };
+                    const double tsr = dgp::detail::target_spearman(smp.rho);
+                    const double pc = copula::param_from_spearman(copula::Family::Clayton, tsr);
+                    const double pg = copula::param_from_spearman(copula::Family::Gumbel, tsr);
+                    const dmetric::Table truth(hgrid, [&](double u, double v) {
+                        return mix ? dens(gfloor::Table::log_mix(copula::Family::Clayton, copula::Family::Gumbel, pi_t, pc, pg, nu_true, u, v))
+                                   : dens(copula::log_density(Ft, u, v, par, nu_true));
+                    });
+                    dmetric::Table fbt(hgrid, [](double, double) { return 0.0; });
+                    for (std::size_t k = 0; k < K; ++k) {
+                        const dmetric::Table a(hgrid, [&](double u, double v) { return dens(fb->arm_log_density(k, u, v)); });
+                        hel[3 + k][t] = float(dmetric::hellinger2(hgrid, truth, a));
+                        const double wk = fb->weight(k);
+                        for (std::size_t i = 0; i < a.v.size(); ++i) fbt.v[i] += wk * a.v[i];
+                    }
+                    hel[0][t] = float(dmetric::hellinger2(hgrid, truth, fbt));
+                    const dmetric::Table single(hgrid, [&](double u, double v) { return dens(mle_log->log_density(u, v)); });
+                    hel[1][t] = float(dmetric::hellinger2(hgrid, truth, single));
+                    const dmetric::Table gmix(hgrid, [&](double u, double v) {
+                        double sum = 0;
+                        for (std::size_t k = 0; k < mle_log->size(); ++k)
+                            sum += mle_log->weight(k) * dens(copula::Gaussian::log_density(u, v,
+                                       copula::param_from_spearman(copula::Family::Gaussian, mle_log->model(k).estimate())));
+                        return sum;
+                    });
+                    hel[2][t] = float(dmetric::hellinger2(hgrid, truth, gmix));
                 }
                 if (audit2) {
                     for (std::size_t k = 0; k < K; ++k) aex[k][t] = float(lc - fb->arm_log_density(k, u0, v0));
@@ -306,6 +350,22 @@ int main(int argc, char** argv) {
                 for (std::size_t i = 0; i < chi_m.size(); ++i) {
                     emit(chi_m[i], "chiL_rmse", cl[i], 1.0, true);
                     emit(chi_m[i], "chiU_rmse", cu[i], 1.0, true);
+                }
+                if (audit3) {
+                    auto emit_h = [&](const std::string& m, const std::vector<float>& x) {
+                        double a = 0; int n = 0;
+                        // Equal spacing within a window: the extra 10-tick checkpoints count only in rec_0_100, so
+                        // the other windows weight time uniformly (every 50 ticks).
+                        const bool dense = std::string(w.name) == "rec_0_100";
+                        for (std::size_t t = w.a; t < w.b; ++t)
+                            if (!std::isnan(x[t]) && (dense || (t - kBurn) % 50 == 0)) { a += x[t]; ++n; }
+                        std::fprintf(out, "%s,%s,%u,%s,%s,hellinger2_x1000,%.6f\n", cop_name.c_str(), sc.c_str(), first + s, w.name,
+                                     m.c_str(), n ? 1000.0 * a / n : std::nan(""));
+                    };
+                    emit_h("family_bank", hel[0]);
+                    emit_h("mle_bank_log_point", hel[1]);
+                    emit_h("mle_bank_log_mix", hel[2]);
+                    for (std::size_t k = 0; k < K; ++k) emit_h(rho_m[nb + k], hel[3 + k]);
                 }
                 if (audit2) {
                     for (std::size_t k = 0; k < K; ++k) emit(rho_m[nb + k], "excess_x1000", aex[k], 1000.0, false);
