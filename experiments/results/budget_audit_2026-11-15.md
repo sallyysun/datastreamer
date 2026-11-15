@@ -1,4 +1,4 @@
-# Section 6.2 (E1) memory-constraint audit, 2026-11-15
+# Section 6.2 (E1) memory-constraint audit, 2026-11-15 (extended RMPL grid k = 8-8192; the k <= 1024 version is budget_audit_2026-11-15_k1024.md)
 
 Platform of the runs: Linux x86_64, libstdc++, g++ -O2 (budget_gainext_2026-11-11.txt header). No new simulation was run for this audit.
 
@@ -11,7 +11,7 @@ Platform of the runs: Linux x86_64, libstdc++, g++ -O2 (budget_gainext_2026-11-1
 - Gain grid, jump: 0.005, 0.01, 0.02, 0.05, 0.1
 - Approximation grid, Counting Matrix (bins B): [10, 20, 30, 45, 65, 90, 130, 180]
 - Approximation grid, Hermite Series (order N): [5, 10, 15, 20, 30, 43, 60, 89, 128]
-- Approximation grid, RMPL (KLL k): [8, 16, 32, 64, 128, 256, 512, 1024]
+- Approximation grid, RMPL (KLL k): [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
 - Validation seeds 1000–1039 (n_val = 40) and test seeds 42–141 (n_test = 100): from the probe_budget sweep invocation (`sweep 100 40`, kValSeed = 1000, kTestSeed = 42) recorded in the run header.
 
 ## 2. Selection uses validation only
@@ -27,20 +27,20 @@ Cell entries: RMSE ± SE [approx, gain]. Approx = KLL k (RMPL), bins B (CM), ord
 | Scenario | Family | Budget | RMPL | Counting Matrix | Hermite Series |
 |---|---|---|---|---|---|
 | constant | Gaussian | 16 | 1.71 ± 0.11 [512, cum] | 1.53 ± 0.08 [30, cum] | 1.60 ± 0.07 [20, cum] |
-| constant | Gaussian | 64 | 1.71 ± 0.11 [1024, cum] | 1.53 ± 0.08 [30, cum] | 1.58 ± 0.08 [30, cum] |
-| constant | Gaussian | 256 | 1.71 ± 0.11 [1024, cum] | 1.53 ± 0.08 [30, cum] | 1.58 ± 0.08 [30, cum] |
+| constant | Gaussian | 64 | 1.71 ± 0.11 [2048, cum] | 1.53 ± 0.08 [30, cum] | 1.58 ± 0.08 [30, cum] |
+| constant | Gaussian | 256 | 1.71 ± 0.11 [2048, cum] | 1.53 ± 0.08 [30, cum] | 1.58 ± 0.08 [30, cum] |
 | constant | t4 | 16 | 1.81 ± 0.08 [256, cum] | 1.66 ± 0.07 [30, cum] | 1.79 ± 0.09 [10, cum] |
 | constant | t4 | 64 | 1.81 ± 0.08 [256, cum] | 1.64 ± 0.07 [65, cum] | 1.79 ± 0.09 [10, cum] |
 | constant | t4 | 256 | 1.81 ± 0.08 [256, cum] | 1.64 ± 0.07 [90, cum] | 1.79 ± 0.09 [10, cum] |
 | constant | Clayton | 16 | 1.81 ± 0.09 [512, cum] | 1.51 ± 0.07 [30, cum] | 1.60 ± 0.07 [15, cum] |
-| constant | Clayton | 64 | 1.81 ± 0.09 [1024, cum] | 1.51 ± 0.07 [30, cum] | 1.53 ± 0.08 [30, cum] |
-| constant | Clayton | 256 | 1.81 ± 0.09 [1024, cum] | 1.51 ± 0.07 [30, cum] | 1.53 ± 0.08 [30, cum] |
+| constant | Clayton | 64 | 1.81 ± 0.09 [4096, cum] | 1.51 ± 0.07 [30, cum] | 1.53 ± 0.08 [30, cum] |
+| constant | Clayton | 256 | 1.81 ± 0.09 [8192, cum] | 1.51 ± 0.07 [30, cum] | 1.53 ± 0.08 [30, cum] |
 | constant | Gumbel | 16 | 1.67 ± 0.08 [512, cum] | 1.51 ± 0.08 [20, cum] | 1.58 ± 0.07 [20, cum] |
-| constant | Gumbel | 64 | 1.67 ± 0.08 [1024, cum] | 1.51 ± 0.08 [20, cum] | 1.49 ± 0.07 [60, cum] |
-| constant | Gumbel | 256 | 1.67 ± 0.08 [1024, cum] | 1.51 ± 0.08 [20, cum] | 1.52 ± 0.07 [89, cum] |
+| constant | Gumbel | 64 | 1.67 ± 0.08 [4096, cum] | 1.51 ± 0.08 [20, cum] | 1.49 ± 0.07 [60, cum] |
+| constant | Gumbel | 256 | 1.67 ± 0.08 [8192, cum] | 1.51 ± 0.08 [20, cum] | 1.52 ± 0.07 [89, cum] |
 | drift | Gaussian | 16 | 4.16 ± 0.09 [512, 0.005] | 4.66 ± 0.08 [30, 0.005] | 4.71 ± 0.08 [20, 0.005] |
-| drift | Gaussian | 64 | 4.15 ± 0.09 [1024, 0.005] | 4.62 ± 0.08 [65, 0.005] | 4.64 ± 0.08 [60, 0.005] |
-| drift | Gaussian | 256 | 4.15 ± 0.09 [1024, 0.005] | 4.61 ± 0.08 [130, 0.005] | 4.65 ± 0.08 [89, 0.005] |
+| drift | Gaussian | 64 | 4.15 ± 0.09 [4096, 0.005] | 4.62 ± 0.08 [65, 0.005] | 4.64 ± 0.08 [60, 0.005] |
+| drift | Gaussian | 256 | 4.15 ± 0.09 [4096, 0.005] | 4.61 ± 0.08 [130, 0.005] | 4.65 ± 0.08 [89, 0.005] |
 | drift | t4 | 16 | 4.67 ± 0.09 [512, 0.005] | 4.89 ± 0.08 [30, 0.005] | 4.95 ± 0.08 [20, 0.005] |
 | drift | t4 | 64 | 4.65 ± 0.09 [1024, 0.005] | 4.86 ± 0.08 [65, 0.005] | 4.88 ± 0.08 [60, 0.005] |
 | drift | t4 | 256 | 4.65 ± 0.09 [1024, 0.005] | 4.85 ± 0.08 [90, 0.005] | 4.84 ± 0.08 [89, 0.005] |
@@ -48,11 +48,11 @@ Cell entries: RMSE ± SE [approx, gain]. Approx = KLL k (RMPL), bins B (CM), ord
 | drift | Clayton | 64 | 4.47 ± 0.09 [512, 0.005] | 4.65 ± 0.08 [65, 0.005] | 4.69 ± 0.08 [43, 0.005] |
 | drift | Clayton | 256 | 4.47 ± 0.09 [512, 0.005] | 4.64 ± 0.08 [130, 0.005] | 4.66 ± 0.09 [89, 0.005] |
 | drift | Gumbel | 16 | 3.99 ± 0.08 [512, 0.005] | 4.66 ± 0.09 [30, 0.005] | 4.77 ± 0.09 [20, 0.005] |
-| drift | Gumbel | 64 | 3.98 ± 0.08 [1024, 0.005] | 4.63 ± 0.09 [65, 0.005] | 4.66 ± 0.09 [43, 0.005] |
-| drift | Gumbel | 256 | 3.98 ± 0.08 [1024, 0.005] | 4.62 ± 0.09 [130, 0.005] | 4.65 ± 0.09 [89, 0.005] |
+| drift | Gumbel | 64 | 3.98 ± 0.08 [2048, 0.005] | 4.63 ± 0.09 [65, 0.005] | 4.66 ± 0.09 [43, 0.005] |
+| drift | Gumbel | 256 | 3.98 ± 0.08 [2048, 0.005] | 4.62 ± 0.09 [130, 0.005] | 4.65 ± 0.09 [89, 0.005] |
 | jump | Gaussian | 16 | 7.91 ± 0.07 [512, 0.01] | 8.22 ± 0.07 [30, 0.01] | 8.37 ± 0.07 [20, 0.01] |
-| jump | Gaussian | 64 | 7.91 ± 0.07 [1024, 0.01] | 8.19 ± 0.07 [65, 0.01] | 8.25 ± 0.06 [43, 0.01] |
-| jump | Gaussian | 256 | 7.91 ± 0.07 [1024, 0.01] | 8.19 ± 0.07 [65, 0.01] | 8.24 ± 0.07 [89, 0.01] |
+| jump | Gaussian | 64 | 7.91 ± 0.07 [4096, 0.01] | 8.19 ± 0.07 [65, 0.01] | 8.25 ± 0.06 [43, 0.01] |
+| jump | Gaussian | 256 | 7.91 ± 0.07 [4096, 0.01] | 8.19 ± 0.07 [65, 0.01] | 8.24 ± 0.07 [89, 0.01] |
 | jump | t4 | 16 | 8.63 ± 0.08 [512, 0.01] | 8.52 ± 0.08 [30, 0.01] | 8.64 ± 0.08 [20, 0.01] |
 | jump | t4 | 64 | 8.63 ± 0.08 [1024, 0.01] | 8.52 ± 0.08 [30, 0.01] | 8.54 ± 0.08 [60, 0.01] |
 | jump | t4 | 256 | 8.63 ± 0.08 [1024, 0.01] | 8.51 ± 0.08 [90, 0.01] | 8.55 ± 0.08 [89, 0.01] |
@@ -60,35 +60,35 @@ Cell entries: RMSE ± SE [approx, gain]. Approx = KLL k (RMPL), bins B (CM), ord
 | jump | Clayton | 64 | 8.49 ± 0.09 [512, 0.01] | 8.29 ± 0.09 [30, 0.01] | 8.36 ± 0.09 [60, 0.01] |
 | jump | Clayton | 256 | 8.49 ± 0.09 [512, 0.01] | 8.29 ± 0.09 [30, 0.01] | 8.36 ± 0.09 [60, 0.01] |
 | jump | Gumbel | 16 | 8.12 ± 0.08 [512, 0.01] | 8.32 ± 0.08 [30, 0.01] | 8.46 ± 0.08 [20, 0.01] |
-| jump | Gumbel | 64 | 8.12 ± 0.08 [1024, 0.01] | 8.31 ± 0.08 [65, 0.01] | 8.36 ± 0.08 [43, 0.01] |
-| jump | Gumbel | 256 | 8.12 ± 0.08 [1024, 0.01] | 8.31 ± 0.08 [65, 0.01] | 8.36 ± 0.08 [89, 0.01] |
+| jump | Gumbel | 64 | 8.12 ± 0.08 [2048, 0.01] | 8.31 ± 0.08 [65, 0.01] | 8.36 ± 0.08 [43, 0.01] |
+| jump | Gumbel | 256 | 8.12 ± 0.08 [2048, 0.01] | 8.31 ± 0.08 [65, 0.01] | 8.36 ± 0.08 [89, 0.01] |
 
 ## 4. Effect of storage (RMSE reduction ×10⁻², positive = more storage helps; paired over the 100 test seeds)
 
 | Step | Estimator | cells with a different configuration | max reduction (cell) | median | mean | min (cell) | cells reduction > 2 SE | cells worse by > 2 SE |
 |---|---|---|---|---|---|---|---|---|
-| 16->64 | RMPL | 9/12 | +0.014 ± 0.003 (t4 drift) | +0.002 | +0.004 | -0.004 ± 0.006 (Clayton constant) | 4/12 | 0/12 |
+| 16->64 | RMPL | 9/12 | +0.014 ± 0.003 (t4 drift) | +0.001 | +0.004 | -0.005 ± 0.008 (Clayton constant) | 4/12 | 0/12 |
 | 16->64 | Counting Matrix | 7/12 | +0.046 ± 0.006 (Gaussian drift) | +0.013 | +0.017 | +0.000 ± 0.000 (Gaussian constant) | 5/12 | 0/12 |
 | 16->64 | Hermite Series | 11/12 | +0.126 ± 0.024 (Gaussian jump) | +0.075 | +0.073 | +0.000 ± 0.000 (t4 constant) | 8/12 | 0/12 |
-| 64->256 | RMPL | 0/12 | +0.000 ± 0.000 (Gaussian constant) | +0.000 | +0.000 | +0.000 ± 0.000 (Gaussian constant) | 0/12 | 0/12 |
+| 64->256 | RMPL | 2/12 | +0.000 ± 0.000 (Clayton constant) | +0.000 | +0.000 | +0.000 ± 0.000 (Gaussian constant) | 0/12 | 0/12 |
 | 64->256 | Counting Matrix | 6/12 | +0.011 ± 0.002 (Gumbel drift) | +0.000 | +0.003 | -0.003 ± 0.003 (t4 constant) | 3/12 | 0/12 |
 | 64->256 | Hermite Series | 8/12 | +0.039 ± 0.017 (t4 drift) | +0.000 | +0.003 | -0.033 ± 0.024 (Gumbel constant) | 1/12 | 0/12 |
-| 16->256 | RMPL | 9/12 | +0.014 ± 0.003 (t4 drift) | +0.002 | +0.004 | -0.004 ± 0.006 (Clayton constant) | 4/12 | 0/12 |
+| 16->256 | RMPL | 9/12 | +0.014 ± 0.003 (t4 drift) | +0.001 | +0.004 | -0.005 ± 0.008 (Clayton constant) | 4/12 | 0/12 |
 | 16->256 | Counting Matrix | 8/12 | +0.057 ± 0.005 (Gaussian drift) | +0.012 | +0.020 | +0.000 ± 0.000 (Gaussian constant) | 5/12 | 0/12 |
 | 16->256 | Hermite Series | 11/12 | +0.134 ± 0.024 (Gaussian jump) | +0.077 | +0.077 | +0.000 ± 0.000 (t4 constant) | 7/12 | 0/12 |
 
-All estimators, 16->64: max +0.126, median +0.012, mean +0.031, median over cells where the configuration changed +0.032 (27/36 changed).
+All estimators, 16->64: max +0.126, median +0.013, mean +0.031, median over cells where the configuration changed +0.032 (27/36 changed).
 
-All estimators, 64->256: max +0.039, median +0.000, mean +0.002, median over cells where the configuration changed +0.007 (14/36 changed).
+All estimators, 64->256: max +0.039, median +0.000, mean +0.002, median over cells where the configuration changed +0.005 (16/36 changed).
 
-All estimators, 16->256: max +0.134, median +0.012, mean +0.033, median over cells where the configuration changed +0.033 (28/36 changed).
+All estimators, 16->256: max +0.134, median +0.013, mean +0.033, median over cells where the configuration changed +0.033 (28/36 changed).
 
 **Check of 'at most 0.12 ×10⁻²' (16 → 256 KiB):** 2 of 36 estimator-cells exceed 0.12 (unrounded):
 - Hermite Series, Gaussian jump: +0.134 ± 0.024 [20,0.01 → 89,0.01]
 - Hermite Series, Gumbel drift: +0.125 ± 0.029 [20,0.005 → 89,0.005]
 - Restricted to constant and drift (the draft's scope): max +0.125 (Hermite Series, Gumbel drift).
 - Largest single-step (16→64 or 64→256) reduction: +0.126 (Hermite Series, Gaussian jump, 16->64).
-- More storage gave a *higher* test RMSE in 8 estimator-cell-steps (validation selection noise): RMPL Gaussian constant 16->64 -0.001 ± 0.003; RMPL Gaussian constant 16->256 -0.001 ± 0.003; Hermite Series Gaussian drift 64->256 -0.014 ± 0.018; Counting Matrix t4 constant 64->256 -0.003 ± 0.003; Hermite Series t4 jump 64->256 -0.004 ± 0.017; RMPL Clayton constant 16->64 -0.004 ± 0.006; RMPL Clayton constant 16->256 -0.004 ± 0.006; Hermite Series Gumbel constant 64->256 -0.033 ± 0.024.
+- More storage gave a *higher* test RMSE in 8 estimator-cell-steps (validation selection noise): RMPL Gaussian constant 16->64 -0.001 ± 0.003; RMPL Gaussian constant 16->256 -0.001 ± 0.003; Hermite Series Gaussian drift 64->256 -0.014 ± 0.018; Counting Matrix t4 constant 64->256 -0.003 ± 0.003; Hermite Series t4 jump 64->256 -0.004 ± 0.017; RMPL Clayton constant 16->64 -0.005 ± 0.008; RMPL Clayton constant 16->256 -0.005 ± 0.008; Hermite Series Gumbel constant 64->256 -0.033 ± 0.024.
 
 ## 5. RMPL minus the better nonparametric estimator (×10⁻², paired mean ± SE; W/L at 2 SE)
 
@@ -103,9 +103,9 @@ All estimators, 16->256: max +0.134, median +0.012, mean +0.033, median over cel
 |---|---|---|---|---|---|---|---|
 | constant | Gaussian | cum | 1.53 | 1.58 | 1.71 | +0.18 ± 0.08 L (CM) | +0.18 ± 0.08 L (CM) |
 | constant | Clayton | cum | 1.51 | 1.53 | 1.81 | +0.30 ± 0.09 L (CM) | +0.30 ± 0.09 L (CM) |
-| constant | Gumbel | cum | 1.51 | 1.49 | 1.67 | +0.18 ± 0.06 L (HS) | +0.15 ± 0.07 L (CM) |
+| constant | Gumbel | cum | 1.51 | 1.49 | 1.67 | +0.18 ± 0.06 L (HS) | +0.16 ± 0.07 L (CM) |
 | constant | t4 | cum | 1.64 | 1.79 | 1.81 | +0.17 ± 0.07 L (CM) | +0.02 ± 0.08 T (HS) |
-| drift | Gaussian | 0.005 | 4.62 | 4.64 | 4.15 | -0.46 ± 0.04 W (CM) | -0.46 ± 0.04 W (CM) |
+| drift | Gaussian | 0.005 | 4.62 | 4.64 | 4.15 | -0.47 ± 0.04 W (CM) | -0.47 ± 0.04 W (CM) |
 | drift | Clayton | 0.005 | 4.65 | 4.69 | 4.47 | -0.18 ± 0.06 W (CM) | -0.18 ± 0.06 W (CM) |
 | drift | Gumbel | 0.005 | 4.63 | 4.66 | 3.98 | -0.65 ± 0.05 W (CM) | -0.65 ± 0.05 W (CM) |
 | drift | t4 | 0.005 | 4.86 | 4.88 | 4.65 | -0.20 ± 0.05 W (CM) | -0.20 ± 0.05 W (CM) |
@@ -119,8 +119,8 @@ All estimators, 16->256: max +0.134, median +0.012, mean +0.033, median over cel
 | Estimator | Budget | selected approx (cells) | peak bytes min–max | utilisation of cap min–median–max |
 |---|---|---|---|---|
 | RMPL | 16 KiB | 256 (1), 512 (11) | 6,520–11,040 | 39.8% – 67.4% – 67.4% |
-| RMPL | 64 KiB | 256 (1), 512 (2), 1024 (9) | 6,520–18,440 | 9.9% – 28.1% – 28.1% |
-| RMPL | 256 KiB | 256 (1), 512 (2), 1024 (9) | 6,520–18,440 | 2.5% – 7.0% – 7.0% |
+| RMPL | 64 KiB | 256 (1), 512 (2), 1024 (2), 2048 (3), 4096 (4) | 6,520–55,760 | 9.9% – 43.4% – 85.1% |
+| RMPL | 256 KiB | 256 (1), 512 (2), 1024 (2), 2048 (3), 4096 (2), 8192 (2) | 6,520–66,664 | 2.5% – 10.9% – 25.4% |
 | Counting Matrix | 16 KiB | 20 (1), 30 (11) | 9,032–13,192 | 55.1% – 80.5% – 80.5% |
 | Counting Matrix | 64 KiB | 20 (1), 30 (4), 65 (7) | 9,032–40,352 | 13.8% – 61.6% – 61.6% |
 | Counting Matrix | 256 KiB | 20 (1), 30 (3), 65 (2), 90 (3), 130 (3) | 9,032–142,792 | 3.4% – 21.4% – 54.5% |
@@ -139,55 +139,50 @@ Component breakdown (diag_mem_breakdown.cpp, 5000 Gaussian draws, cumulative mod
 
 | Estimator | Budget | mean tick time min–median–max | update share of tick (median) |
 |---|---|---|---|
-| RMPL | 16 KiB | 1.33 – 1.99 – 1.99 | 98% |
-| RMPL | 64 KiB | 1.33 – 2.88 – 2.88 | 98% |
-| RMPL | 256 KiB | 1.33 – 2.88 – 2.88 | 98% |
-| Counting Matrix | 16 KiB | 0.59 – 1.11 – 1.11 | 23% |
-| Counting Matrix | 64 KiB | 0.59 – 4.73 – 4.73 | 16% |
-| Counting Matrix | 256 KiB | 0.59 – 6.80 – 14.60 | 22% |
-| Hermite Series | 16 KiB | 0.71 – 1.33 – 1.33 | 62% |
-| Hermite Series | 64 KiB | 0.71 – 3.64 – 6.93 | 62% |
-| Hermite Series | 256 KiB | 0.71 – 14.47 – 14.47 | 62% |
+| RMPL | 16 KiB | 1.70 – 2.80 – 2.80 | 98% |
+| RMPL | 64 KiB | 1.70 – 8.41 – 13.93 | 99% |
+| RMPL | 256 KiB | 1.70 – 8.41 – 18.43 | 99% |
+| Counting Matrix | 16 KiB | 0.72 – 1.32 – 1.32 | 33% |
+| Counting Matrix | 64 KiB | 0.72 – 6.06 – 6.06 | 26% |
+| Counting Matrix | 256 KiB | 0.72 – 10.18 – 34.69 | 24% |
+| Hermite Series | 16 KiB | 0.59 – 1.26 – 1.26 | 56% |
+| Hermite Series | 64 KiB | 0.59 – 3.47 – 6.62 | 58% |
+| Hermite Series | 256 KiB | 0.59 – 14.14 – 14.14 | 61% |
 
 Full timing grid (µs, mean / p95; update only in brackets):
 
 | Estimator | approx | peak bytes | mean | p95 | update |
 |---|---|---|---|---|---|
-| Counting Matrix | 10 | 6,472 | 0.27 | 0.29 | 0.10 |
-| Counting Matrix | 20 | 9,032 | 0.59 | 0.66 | 0.17 |
-| Counting Matrix | 30 | 13,192 | 1.11 | 1.36 | 0.26 |
-| Counting Matrix | 45 | 22,432 | 2.47 | 2.75 | 0.43 |
-| Counting Matrix | 65 | 40,352 | 4.73 | 5.27 | 0.75 |
-| Counting Matrix | 90 | 71,752 | 8.86 | 12.01 | 1.85 |
-| Counting Matrix | 130 | 142,792 | 14.60 | 17.91 | 3.22 |
-| Counting Matrix | 180 | 267,592 | 27.53 | 32.40 | 6.06 |
-| Hermite Series | 5 | 1,304 | 0.47 | 0.74 | 0.22 |
-| Hermite Series | 10 | 2,784 | 0.71 | 1.13 | 0.37 |
-| Hermite Series | 15 | 5,064 | 0.87 | 0.96 | 0.55 |
-| Hermite Series | 20 | 8,144 | 1.33 | 1.35 | 0.82 |
-| Hermite Series | 30 | 16,704 | 2.25 | 3.03 | 1.40 |
-| Hermite Series | 43 | 32,616 | 3.64 | 3.85 | 2.27 |
-| Hermite Series | 60 | 61,584 | 6.93 | 7.91 | 4.28 |
-| Hermite Series | 89 | 132,344 | 14.47 | 18.30 | 8.97 |
-| Hermite Series | 128 | 269,936 | 28.44 | 33.47 | 16.83 |
-| RMPL, own KLL | 8 | 4,616 | 0.80 | 1.05 | 0.75 |
-| RMPL, own KLL | 16 | 5,896 | 0.78 | 1.05 | 0.73 |
-| RMPL, own KLL | 32 | 8,840 | 0.76 | 1.20 | 0.71 |
-| RMPL, own KLL | 64 | 14,472 | 0.66 | 1.21 | 0.61 |
-| RMPL, own KLL | 128 | 23,688 | 0.67 | 0.76 | 0.61 |
-| RMPL, own KLL | 256 | 38,024 | 0.63 | 0.61 | 0.58 |
-| RMPL, own KLL | 512 | 58,312 | 0.69 | 0.68 | 0.64 |
-| RMPL, own KLL | 1024 | 82,888 | 0.88 | 0.96 | 0.82 |
-| RMPL | 8 | 1,816 | 0.43 | 0.79 | 0.38 |
-| RMPL | 16 | 1,904 | 0.44 | 0.82 | 0.39 |
-| RMPL | 32 | 2,104 | 0.47 | 0.88 | 0.43 |
-| RMPL | 64 | 2,640 | 0.63 | 1.13 | 0.58 |
-| RMPL | 128 | 3,976 | 0.91 | 0.95 | 0.86 |
-| RMPL | 256 | 6,520 | 1.33 | 1.50 | 1.28 |
-| RMPL | 512 | 11,040 | 1.99 | 2.39 | 1.94 |
-| RMPL | 1024 | 18,440 | 2.88 | 4.02 | 2.83 |
+| Hermite Series | 5 | 1,304 | 0.41 | 0.43 | 0.18 |
+| Hermite Series | 10 | 2,784 | 0.59 | 0.64 | 0.30 |
+| Hermite Series | 15 | 5,064 | 0.91 | 0.99 | 0.53 |
+| Hermite Series | 20 | 8,144 | 1.26 | 1.38 | 0.71 |
+| Hermite Series | 30 | 16,704 | 2.08 | 2.18 | 1.23 |
+| Hermite Series | 43 | 32,616 | 3.47 | 3.90 | 2.00 |
+| Hermite Series | 60 | 61,584 | 6.62 | 8.47 | 3.84 |
+| Hermite Series | 89 | 132,344 | 14.14 | 16.98 | 8.59 |
+| Hermite Series | 128 | 269,936 | 28.38 | 36.72 | 16.23 |
+| RMPL | 8 | 1,816 | 0.60 | 1.00 | 0.56 |
+| RMPL | 16 | 1,904 | 0.62 | 1.02 | 0.57 |
+| RMPL | 32 | 2,104 | 0.67 | 1.12 | 0.62 |
+| RMPL | 64 | 2,640 | 0.79 | 1.25 | 0.74 |
+| RMPL | 128 | 3,976 | 1.09 | 1.33 | 1.04 |
+| RMPL | 256 | 6,520 | 1.70 | 2.34 | 1.64 |
+| RMPL | 512 | 11,040 | 2.80 | 4.97 | 2.74 |
+| RMPL | 1024 | 18,440 | 5.33 | 10.96 | 5.27 |
+| RMPL | 2048 | 28,448 | 8.41 | 18.12 | 8.35 |
+| RMPL | 4096 | 55,760 | 13.93 | 32.43 | 13.85 |
+| RMPL | 8192 | 66,664 | 18.43 | 41.06 | 18.36 |
+| Counting Matrix | 10 | 6,472 | 0.31 | 0.36 | 0.13 |
+| Counting Matrix | 20 | 9,032 | 0.72 | 0.83 | 0.28 |
+| Counting Matrix | 30 | 13,192 | 1.32 | 1.63 | 0.44 |
+| Counting Matrix | 45 | 22,432 | 2.75 | 3.46 | 0.81 |
+| Counting Matrix | 65 | 40,352 | 6.06 | 7.37 | 1.56 |
+| Counting Matrix | 90 | 71,752 | 14.31 | 18.41 | 3.17 |
+| Counting Matrix | 130 | 142,792 | 34.69 | 47.26 | 6.54 |
+| Counting Matrix | 180 | 267,592 | 61.46 | 81.33 | 12.17 |
 
-Run-to-run reproducibility: budget_timing_final (2026-11-10) / budget_timing (2026-11-09, same code paths for these keys): ratio median 1.08, range 0.90–1.34.
+Run-to-run reproducibility: 5-run mean (2026-11-15) / single run budget_timing_final (2026-11-10): ratio median 1.20, range 0.83–2.38.
 
 ## 8. Hand-written KLL vs Apache DataSketches KLL inside RMPL, matched k
 
@@ -211,11 +206,11 @@ Per test seed, average the four families' RMSEs at their own validated configura
 | Scenario | Budget | RMPL | Counting Matrix | Hermite Series |
 |---|---|---|---|---|
 | constant | 16 KiB | 1.750 ± 0.046 | 1.554 ± 0.038 | 1.640 ± 0.039 |
-| constant | 64 KiB | 1.750 ± 0.046 | 1.549 ± 0.038 | 1.597 ± 0.040 |
-| constant | 256 KiB | 1.750 ± 0.046 | 1.550 ± 0.038 | 1.606 ± 0.040 |
+| constant | 64 KiB | 1.751 ± 0.045 | 1.549 ± 0.038 | 1.597 ± 0.040 |
+| constant | 256 KiB | 1.751 ± 0.045 | 1.550 ± 0.038 | 1.606 ± 0.040 |
 | drift | 16 KiB | 4.322 ± 0.044 | 4.725 ± 0.044 | 4.797 ± 0.044 |
-| drift | 64 KiB | 4.314 ± 0.044 | 4.688 ± 0.044 | 4.716 ± 0.044 |
-| drift | 256 KiB | 4.314 ± 0.044 | 4.679 ± 0.043 | 4.699 ± 0.045 |
+| drift | 64 KiB | 4.313 ± 0.044 | 4.688 ± 0.044 | 4.716 ± 0.044 |
+| drift | 256 KiB | 4.313 ± 0.044 | 4.679 ± 0.043 | 4.699 ± 0.045 |
 | jump | 16 KiB | 8.288 ± 0.038 | 8.335 ± 0.037 | 8.472 ± 0.036 |
 | jump | 64 KiB | 8.285 ± 0.038 | 8.327 ± 0.037 | 8.376 ± 0.036 |
 | jump | 256 KiB | 8.285 ± 0.038 | 8.325 ± 0.036 | 8.375 ± 0.036 |

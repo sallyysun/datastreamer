@@ -1,9 +1,9 @@
-"""Section 6.2 (E1) audit and consolidation, no simulation. Candidates = results/budget_{sweep,seeds}_final.csv (matched sweep,
+"""Section 6.2 (E1) audit and consolidation, no simulation. Candidates = results/budget_{sweep,seeds}_ext.csv (budget_*_final.csv plus RMPL k = 2048, 4096, 8192 from TAG kllext; matched sweep,
 g in {0.005, 0.01, 0.02, 0.05, 0.10}, plus the extension g in {cum, 0.0005, 0.001, 0.002} for constant and drift; jump cells
 only have the original grid). Per family x scenario x budget each estimator's (approx, gain) is chosen on validation seeds
 1000-1039 among candidates whose validation peak retained state fits the cap (the analyze_budget_gainext.py rule), then scored
 on test seeds 42-141. Paired SEs use the per-seed test RMSEs (same seeds for every configuration and family). Timing:
-results/budget_timing_final.csv (probe_budget time: Gaussian drift, g = 0.02, single thread, 5 seeds x 4500 ticks,
+results/budget_timing_repmean.csv (mean of budget_timing_rep1-5.csv, probe_budget time: Gaussian drift, g = 0.02, single thread, 5 seeds x 4500 ticks,
 update + estimate). Retained-state breakdown: scratch diagnostic mem_breakdown.cpp (see the summary).
 Usage (from experiments/): python3 audit_budget.py -> results/budget_audit_2026-11-15.md, results/budget_audit_cells.csv,
 results/budget_audit_familyavg.csv, ../images/ch6/6.2/ch6_budget_accuracy_storage.png"""
@@ -22,16 +22,17 @@ FAMS = ["gaussian", "t", "clayton", "gumbel"]
 FL = {"gaussian": "Gaussian", "t": "t4", "clayton": "Clayton", "gumbel": "Gumbel"}
 SC = ["constant", "drift", "jump"]
 
-sw = pd.read_csv(R + "budget_sweep_final.csv")
-sd = pd.read_csv(R + "budget_seeds_final.csv")
-tm = pd.read_csv(R + "budget_timing_final.csv")
+sw = pd.read_csv(R + "budget_sweep_ext.csv")   # final sweep + RMPL k = 2048-8192 (TAG kllext)
+sd = pd.read_csv(R + "budget_seeds_ext.csv")
+tm = pd.read_csv(R + "budget_timing_repmean.csv")   # mean of 5 repeated runs, gain 0.02
+tmk = pd.read_csv(R + "budget_timing_final.csv")    # hand-written vs DataSketches KLL, same single run
 val, tst = sw[sw.split == "val"], sw[sw.split == "test"]
 SD = sd.set_index(["family", "scenario", "estimator", "approx", "gain", "seed"]).rmse.sort_index()
 M = []
 P = M.append
 
 # ---------- 1. design checks
-P("# Section 6.2 (E1) memory-constraint audit, 2026-11-15\n")
+P("# Section 6.2 (E1) memory-constraint audit, 2026-11-15 (extended RMPL grid k = 8-8192; the k <= 1024 version is budget_audit_2026-11-15_k1024.md)\n")
 P("Platform of the runs: Linux x86_64, libstdc++, g++ -O2 (budget_gainext_2026-11-11.txt header). No new simulation was run for this audit.\n")
 P("## 1. Design verification\n")
 nseed = sd.groupby(["family", "scenario", "estimator", "approx", "gain"]).seed.agg(["count", "min", "max"])
@@ -206,12 +207,12 @@ for e in E:
 P("\nFull timing grid (µs, mean / p95; update only in brackets):\n")
 P("| Estimator | approx | peak bytes | mean | p95 | update |")
 P("|---|---|---|---|---|---|")
-for _, r in tm[tm.estimator.isin(E + ["mpl_kll"])].iterrows():
+for _, r in tm[tm.estimator.isin(E)].iterrows():
     P(f"| {NAME.get(r.estimator, 'RMPL, own KLL')} | {r.approx} | {r.peak_bytes:,} | {r.mean_ns / 1e3:.2f} | {r.p95_ns / 1e3:.2f} | {r.update_mean_ns / 1e3:.2f} |")
-old = pd.read_csv(R + "budget_timing.csv").set_index(["estimator", "approx"]).mean_ns
+old = pd.read_csv(R + "budget_timing_final.csv").set_index(["estimator", "approx"]).mean_ns
 new = tm.set_index(["estimator", "approx"]).mean_ns
 rr = (new / old).dropna()
-P(f"\nRun-to-run reproducibility: budget_timing_final (2026-11-10) / budget_timing (2026-11-09, same code paths for these keys): ratio median "
+P(f"\nRun-to-run reproducibility: 5-run mean (2026-11-15) / single run budget_timing_final (2026-11-10): ratio median "
   f"{rr.median():.2f}, range {rr.min():.2f}–{rr.max():.2f}.")
 
 # ---------- 8. KLL implementations
@@ -221,8 +222,8 @@ P("Bytes and times: timing grid above. RMSE: test RMSE at the gain validation pi
 P("| k | own bytes | DS bytes | own / DS | own µs | DS µs | DS / own time | mean RMSE own | mean RMSE DS | max abs cell diff |")
 P("|---|---|---|---|---|---|---|---|---|---|")
 kl = []
-for k in sorted(tm[tm.estimator == "mpl_kll"].approx):
-    ro, rd = tm[(tm.estimator == "mpl_kll") & (tm.approx == k)].iloc[0], tm[(tm.estimator == "mpl_dskll") & (tm.approx == k)].iloc[0]
+for k in sorted(tmk[tmk.estimator == "mpl_kll"].approx):
+    ro, rd = tmk[(tmk.estimator == "mpl_kll") & (tmk.approx == k)].iloc[0], tmk[(tmk.estimator == "mpl_dskll") & (tmk.approx == k)].iloc[0]
     ro_, rd_ = [], []
     for f in FAMS:
         for s in SC:

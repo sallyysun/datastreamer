@@ -30,9 +30,10 @@
 
 namespace {
 
-constexpr std::size_t kN = 5000;
+// BUDGET_N overrides the stream length (harness only; default 5000). Drift spans the whole stream; the jump is at kN / 2.
+const std::size_t kN = std::getenv("BUDGET_N") ? std::strtoul(std::getenv("BUDGET_N"), nullptr, 10) : 5000;
 constexpr std::size_t kBurn = 500;
-constexpr std::size_t kJump = kN / 2;
+const std::size_t kJump = kN / 2;
 constexpr std::size_t kEvery = 5;          // score every 5th tick
 constexpr std::size_t kPost = 1000;        // post-change window
 constexpr unsigned kTestSeed = 42;
@@ -54,6 +55,32 @@ std::vector<double> gain_grid() {
 }
 const std::vector<double> kGains = gain_grid();
 
+// Harness only (Section 6.2 extension, 2026-11-15): BUDGET_EST=a,b restricts the estimators; BUDGET_KLL=k1,k2 replaces the
+// mpl_dskll capacity grid; BUDGET_TIME_GAIN sets the gain timed by `time` (default 0.02).
+std::vector<std::string> csv_env(const char* name) {
+    std::vector<std::string> v;
+    const char* e = std::getenv(name);
+    if (!e) return v;
+    std::string str(e);
+    for (std::size_t a = 0, b; a <= str.size(); a = b + 1) {
+        b = str.find(',', a);
+        if (b == std::string::npos) b = str.size();
+        if (b > a) v.push_back(str.substr(a, b - a));
+    }
+    return v;
+}
+bool est_on(const std::string& est) {
+    const auto v = csv_env("BUDGET_EST");
+    return v.empty() || std::find(v.begin(), v.end(), est) != v.end();
+}
+std::vector<int> ds_kll_grid() {
+    const auto v = csv_env("BUDGET_KLL");
+    if (v.empty()) return {8, 16, 32, 64, 128, 256, 512, 1024};
+    std::vector<int> k;
+    for (const auto& x : v) k.push_back(std::atoi(x.c_str()));
+    return k;
+}
+
 struct Cfg {
     std::string est;    // xiao | hermite | mpl_kll | mpl_exact | mpl_ew | mpl_fit_kll
     int approx;         // B, N, k or W
@@ -63,13 +90,13 @@ struct Cfg {
 std::vector<Cfg> build_cfgs() {
     std::vector<Cfg> v;
     for (double g : kGains) {
-        for (int b : {10, 20, 30, 45, 65, 90, 130, 180}) v.push_back({"xiao", b, g});
-        for (int n : {5, 10, 15, 20, 30, 43, 60, 89, 128}) v.push_back({"hermite", n, g});
-        for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_kll", k, g});
-        for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_dskll", k, g});
-        v.push_back({"mpl_exact", 0, g});
-        v.push_back({"mpl_ew", 500, g});
-        v.push_back({"mpl_fit_kll", 256, g});
+        if (est_on("xiao")) for (int b : {10, 20, 30, 45, 65, 90, 130, 180}) v.push_back({"xiao", b, g});
+        if (est_on("hermite")) for (int n : {5, 10, 15, 20, 30, 43, 60, 89, 128}) v.push_back({"hermite", n, g});
+        if (est_on("mpl_kll")) for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_kll", k, g});
+        if (est_on("mpl_dskll")) for (int k : ds_kll_grid()) v.push_back({"mpl_dskll", k, g});
+        if (est_on("mpl_exact")) v.push_back({"mpl_exact", 0, g});
+        if (est_on("mpl_ew")) v.push_back({"mpl_ew", 500, g});
+        if (est_on("mpl_fit_kll")) v.push_back({"mpl_fit_kll", 256, g});
     }
     return v;
 }
@@ -120,7 +147,7 @@ Data simulate(const std::string& family, const std::string& scenario, unsigned s
     return d;
 }
 
-constexpr std::size_t kPts = (kN - kBurn) / kEvery;
+const std::size_t kPts = (kN - kBurn) / kEvery;
 
 struct Acc {
     std::vector<double> rmse, post;   // per seed
@@ -135,7 +162,9 @@ void run_split(const std::string& family, const std::string& scenario, unsigned 
     for (auto& a : acc) { a.rmse.assign(n_seeds, 0.0); a.post.assign(n_seeds, 0.0); a.path.assign(kPts, 0.0); }
     truth_path.assign(kPts, 0.0);
     std::mutex mu;
-    const unsigned hw = std::max(1u, std::thread::hardware_concurrency());
+    // BUDGET_THREADS caps the worker threads (harness only; on a batch cluster set it to the allocated cores).
+    const unsigned hw = std::getenv("BUDGET_THREADS") ? std::max(1, std::atoi(std::getenv("BUDGET_THREADS")))
+                                                        : std::max(1u, std::thread::hardware_concurrency());
     std::vector<std::thread> pool;
     for (unsigned w = 0; w < hw; ++w) {
         pool.emplace_back([&, w] {
@@ -253,7 +282,8 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
 // is the whole online pipeline per observation. Data are generated before the clock starts.
 void timing() {
     std::vector<Cfg> cfgs;
-    for (const Cfg& c : build_cfgs()) if (c.gain == 0.02) cfgs.push_back(c);
+    const double tg = std::getenv("BUDGET_TIME_GAIN") ? std::atof(std::getenv("BUDGET_TIME_GAIN")) : 0.02;
+    for (Cfg c : build_cfgs()) if (c.gain == kGains.front()) { c.gain = tg; cfgs.push_back(c); }
     std::ofstream out("results/budget_timing" + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + ".csv");
     out << "estimator,approx,peak_bytes,mean_ns,p95_ns,update_mean_ns\n";
     for (const Cfg& c : cfgs) {
