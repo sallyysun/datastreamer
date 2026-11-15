@@ -1,0 +1,53 @@
+Family-switch adaptation (family bank: 8 shapes x memories 99/399/1999, eta = 1, delta = 2.1e-4, own copula log loss).
+Switch at tick 2500 of 5000 at constant rho_S (d = 0.6, rho_S ~ 0.58). t50 / t90: ticks after the switch until the
+new family's summed weight first reaches 50% / 90%; success = reached within the remaining 2500 ticks.
+
+=== Switch times by run version (median [IQR], success out of n) ===
+-- original (rank-window PIT, 2026-11-01)
+   Gaussian -> t4         n= 60  t50 174 [130, 247]     success 60/60   t90 262 [178, 342]     success 60/60   pre-switch weight on new family 0.0072
+   Gaussian -> Clayton    n= 60  t50 94 [80, 124]       success 60/60   t90 128 [99, 162]      success 60/60   pre-switch weight on new family 0.0022
+   Clayton -> Gumbel      n= 60  t50 68 [45, 143]       success 60/60   t90 156 [109, 213]     success 60/60   pre-switch weight on new family 0.0010
+-- EW margins, density run (§32)
+   Gaussian -> t4         n= 60  t50 174 [130, 247]     success 60/60   t90 262 [178, 342]     success 60/60   pre-switch weight on new family 0.0072
+   Gaussian -> Clayton    n= 60  t50 94 [80, 124]       success 60/60   t90 128 [99, 162]      success 60/60   pre-switch weight on new family 0.0022
+   Clayton -> Gumbel      n= 60  t50 68 [45, 143]       success 60/60   t90 156 [109, 213]     success 60/60   pre-switch weight on new family 0.0010
+-- EW margins, matched, density2
+   Gaussian -> t4         n= 60  t50 174 [130, 247]     success 60/60   t90 262 [178, 342]     success 60/60   pre-switch weight on new family 0.0072
+   Gaussian -> Clayton    n= 60  t50 94 [80, 124]       success 60/60   t90 128 [99, 162]      success 60/60   pre-switch weight on new family 0.0022
+   Clayton -> Gumbel      n= 60  t50 68 [45, 143]       success 60/60   t90 156 [109, 213]     success 60/60   pre-switch weight on new family 0.0010
+-- EW margins, matched, density3b (latest)
+   Gaussian -> t4         n= 60  t50 174 [130, 247]     success 60/60   t90 262 [178, 342]     success 60/60   pre-switch weight on new family 0.0072
+   Gaussian -> Clayton    n= 60  t50 94 [80, 124]       success 60/60   t90 128 [99, 162]      success 60/60   pre-switch weight on new family 0.0022
+   Clayton -> Gumbel      n= 60  t50 68 [45, 143]       success 60/60   t90 156 [109, 213]     success 60/60   pre-switch weight on new family 0.0010
+
+=== False switches on constant paths (density3; no change): seeds (of 60) in which another shape reaches 50% / 90% of the
+weight within the 2500 ticks after tick 2500; correct-family weight = path mean over ticks 500-4990 (seed mean) ===
+gaussian  correct-family weight 0.961; any shape >=50%: 14/60 seeds {'clayton': 4, 'gumbel': 7, 't': 3}; >=90%: 7/60 {'clayton': 1, 'gumbel': 5, 't': 1}
+t         correct-family weight 0.983; any shape >=50%: 6/60 seeds {'clayton': 2, 'gaussian': 2, 'gumbel': 3}; >=90%: 1/60 {'gaussian': 1}
+clayton   correct-family weight 0.992; any shape >=50%: 2/60 seeds {'gaussian': 1, 't': 1}; >=90%: 0/60 {}
+gumbel    correct-family weight 0.981; any shape >=50%: 9/60 seeds {'clayton': 2, 't': 7}; >=90%: 2/60 {'t': 2}
+
+=== Excess log loss (x1e-3 nats/obs), density3b switches, paired over 60 seeds: mean (2 SE) ===
+family = family bank mixture; gaussMFF = gauss_bank (same Hedge/fixed-share machinery, Gaussian arms 99/399/1999,
+delta = 3/(2*4969)); single = MPL log bank point density (Gaussian at its combined rho, Chapter 6 log bank, delta 1e-4);
+Gmix = MPL log bank's Gaussian mixture (log-bank weights).
+-- Gaussian -> t4
+   pre          family    1.90  gaussMFF    1.45  single    1.65  Gmix    1.66 | family-gaussMFF   +0.46 (0.20)  family-single   +0.25 (0.21)  family-Gmix   +0.25 (0.21)
+   rec_0_100    family   27.79  gaussMFF   39.43  single   40.13  Gmix   39.34 | family-gaussMFF  -11.64 (7.82)  family-single  -12.33 (8.20)  family-Gmix  -11.54 (7.81)
+   rec_100_500  family    7.34  gaussMFF   34.03  single   34.48  Gmix   34.11 | family-gaussMFF  -26.70 (4.47)  family-single  -27.14 (4.52)  family-Gmix  -26.78 (4.50)
+   post         family    3.25  gaussMFF   33.97  single   34.45  Gmix   33.96 | family-gaussMFF  -30.72 (1.91)  family-single  -31.20 (1.95)  family-Gmix  -30.71 (1.92)
+   whole        family    2.65  gaussMFF   19.52  single   19.87  Gmix   19.60 | family-gaussMFF  -16.87 (1.09)  family-single  -17.22 (1.12)  family-Gmix  -16.95 (1.10)
+-- Gaussian -> Clayton
+   pre          family    1.90  gaussMFF    1.45  single    1.65  Gmix    1.66 | family-gaussMFF   +0.46 (0.20)  family-single   +0.25 (0.21)  family-Gmix   +0.25 (0.21)
+   rec_0_100    family   67.28  gaussMFF   84.48  single   84.78  Gmix   84.58 | family-gaussMFF  -17.20 (6.14)  family-single  -17.50 (6.15)  family-Gmix  -17.30 (6.14)
+   rec_100_500  family    9.72  gaussMFF   78.59  single   78.78  Gmix   78.63 | family-gaussMFF  -68.86 (5.27)  family-single  -69.05 (5.32)  family-Gmix  -68.91 (5.31)
+   post         family    6.39  gaussMFF   78.58  single   78.71  Gmix   78.56 | family-gaussMFF  -72.19 (2.15)  family-single  -72.33 (2.16)  family-Gmix  -72.18 (2.16)
+   whole        family    4.39  gaussMFF   44.30  single   44.46  Gmix   44.38 | family-gaussMFF  -39.90 (1.19)  family-single  -40.07 (1.19)  family-Gmix  -39.99 (1.19)
+-- Clayton -> Gumbel
+   pre          family    1.92  gaussMFF   77.23  single   77.65  Gmix   77.48 | family-gaussMFF  -75.31 (2.42)  family-single  -75.73 (2.43)  family-Gmix  -75.56 (2.43)
+   rec_0_100    family   75.26  gaussMFF   28.84  single   29.00  Gmix   28.91 | family-gaussMFF  +46.42 (7.42)  family-single  +46.26 (7.46)  family-Gmix  +46.36 (7.45)
+   rec_100_500  family    5.08  gaussMFF   28.72  single   28.89  Gmix   28.65 | family-gaussMFF  -23.64 (3.48)  family-single  -23.80 (3.53)  family-Gmix  -23.56 (3.50)
+   post         family    5.35  gaussMFF   29.11  single   29.19  Gmix   29.02 | family-gaussMFF  -23.76 (1.19)  family-single  -23.84 (1.18)  family-Gmix  -23.67 (1.19)
+   whole        family    3.82  gaussMFF   50.50  single   50.73  Gmix   50.56 | family-gaussMFF  -46.67 (1.19)  family-single  -46.90 (1.18)  family-Gmix  -46.73 (1.19)
+-- Gaussian, constant (baseline)
+   whole        family    1.49  gaussMFF    1.19  single    1.26  Gmix    1.26 | family-gaussMFF   +0.29 (0.10)  family-single   +0.22 (0.10)  family-Gmix   +0.22 (0.10)

@@ -6,10 +6,12 @@ per seed, the mean over the four families of each strategy's metric; SEs from th
 streams are independent, so this is the SE of the family-averaged paired difference).
 Usage (from experiments/): python3 analyze_strategies.py -> results/strategies_2026-11-12.txt, results/strategies_summary.csv"""
 import math
+import os
 import numpy as np
 import pandas as pd
 
 R = "results/"
+T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture (MIXDENS run)
 FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
 FL = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "t4"}
 EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
@@ -18,7 +20,7 @@ MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log lo
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
 WINS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
 
-d = pd.concat([pd.read_csv(R + f"strategies_seeds{s}.csv") for _, s in FAMS])
+d = pd.concat([pd.read_csv(R + f"strategies_seeds{T}{s}.csv") for _, s in FAMS])
 L = []; P = lambda s="": L.append(s)
 rows = []
 
@@ -35,8 +37,10 @@ def cell(f, sc, e, w, m, scale):
 
 P("Chapter 6.3.2 estimation accuracy. 60 seeds (42-101), matched paths, forecasts held before each observation,")
 P("RMPL and all MFF/VFF signals on cumulative DataSketches KLL k = 256 pseudo-observations; Linux/libstdc++.")
-P("Excess log loss and Hellinger use the Gaussian copula at each forecast rho (RMPL's own density; a plug-in working")
-P("model for the counting matrix and Hermite series). Fixed = hindsight-best fixed memory per cell and metric.")
+P("Excess log loss and Hellinger: fixed and VFF use the Gaussian copula at their forecast rho (RMPL's own density; a plug-in")
+P("working model for the counting matrix and Hermite series). MFF: " + ("the mixture sum_k w_k c_G(rho_k) of its candidates' Gaussian" if T else "the Gaussian copula at its forecast rho."))
+if T: P("copula densities (weights held before each observation). Fixed = hindsight-best fixed memory per cell and metric.")
+else: P("Fixed = hindsight-best fixed memory per cell and metric.")
 P("Differences are paired (same streams): mean ± 2 SE.")
 for m, mlab, scale in MET:
     P(); P("#" * 100); P(f"# {mlab}"); P("#" * 100)
@@ -64,7 +68,7 @@ for m, mlab, scale in MET:
                   f"{mu.mff:7.2f}({s.mff:.2f}) {d1.mean():+7.2f}±{2*se(d1):.2f} {d2.mean():+7.2f}±{2*se(d2):.2f}   (MFF-VFFfast {d3.mean():+.2f}±{2*se(d3):.2f})")
                 for k in ["fixed", "vff_slow", "vff_fast", "mff"]:
                     rows.append(dict(metric=m, scenario=sc, window=w, estimator=e, copula="mean4", strategy=k, mean=mu[k], se=s[k], best_fixed=""))
-pd.DataFrame(rows).to_csv(R + "strategies_summary.csv", index=False)
+pd.DataFrame(rows).to_csv(R + f"strategies_summary{T}.csv", index=False)
 
 # Sign agreement of MFF - Fixed across metrics (whole run), per family x estimator x scenario
 P(); P("=== agreement across metrics: sign of MFF - hindsight Fixed at 2 SE (W = MFF lower), whole run ===")
@@ -79,5 +83,5 @@ for sc in WINS:
                 v.append("W" if dd.mean() < -2 * se(dd) else "L" if dd.mean() > 2 * se(dd) else "T")
             out.append("".join(v))
     P(f"{sc:9s} (RMSE/excess/H2 per family x estimator): " + " ".join(out))
-open(R + "strategies_2026-11-12.txt", "w").write("\n".join(L) + "\n")
+open(R + ("strategies_2026-11-12.txt" if not T else f"strategies{T}_2026-11-14.txt"), "w").write("\n".join(L) + "\n")
 print("\n".join(L))

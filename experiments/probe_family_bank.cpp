@@ -132,6 +132,12 @@ int main(int argc, char** argv) {
     std::fprintf(out, "copula,scenario,seed,window,method,metric,value\n");
     std::fprintf(pout, "copula,scenario,t,series,value\n");
     std::fprintf(sout, "copula,scenario,seed,new_shape,t50,t90,pre_weight_new\n");
+    // INITID=1: initial identification on the constant path. Per seed, for the true shape's summed weight (held before
+    // observation t, i.e. after t observations): first t with weight >= 0.5 / 0.9 (-1 = never), the last t < 5000
+    // with weight < 0.5 (sustained identification from last_below50 + 1), the number
+    // of ticks t >= t50 with weight >= 0.5, and the weight at t = 100, 250, 500, 1000. Outputs only; nothing else changes.
+    std::FILE* iout = std::getenv("INITID") ? std::fopen(("results/family_bank_initid_" + tag).c_str(), "w") : nullptr;
+    if (iout) std::fprintf(iout, "copula,scenario,seed,t50,t90,last_below50,ticks_ge50_after_t50,w100,w250,w500,w1000\n");
     std::map<int, std::unique_ptr<gfloor::Table>> floors;   // keyed by the true base family (or -1: the mixture)
     auto floor_at = [&](copula::Family f, double d, double pi) {
         const int key = mix ? -1 : int(f);
@@ -189,6 +195,8 @@ int main(int argc, char** argv) {
             std::vector<long> t50(copula::kShapes, -1), t90(copula::kShapes, -1);
             std::vector<double> pre_w(copula::kShapes, 0.0);
             const bool null_path = !shape && sc == "constant";
+            long i50 = -1, i90 = -1, ilast = -1, iafter = 0;
+            double iw[4] = {NAN, NAN, NAN, NAN};
 
             for (std::size_t t = 0; t < kN; ++t) {
                 const auto smp = src.next();
@@ -318,6 +326,15 @@ int main(int argc, char** argv) {
                                  ft.chi_U, ratios[1].chi_U(), ft.lambda_L, ft.lambda_U})
                     vals.push_back(x);
                 for (std::size_t i = 0; i < series.size(); ++i) path[i][t] += vals[i] / seeds;
+                if (iout && null_path) {
+                    const double w0 = sw[int(S0)];
+                    if (i50 < 0 && w0 >= 0.5) i50 = long(t);
+                    if (i90 < 0 && w0 >= 0.9) i90 = long(t);
+                    if (w0 < 0.5) ilast = long(t);
+                    if (i50 >= 0 && w0 >= 0.5) ++iafter;
+                    const long hz[4] = {100, 250, 500, 1000};
+                    for (int h = 0; h < 4; ++h) if (long(t) == hz[h]) iw[h] = w0;
+                }
                 for (int j = 0; j < copula::kShapes; ++j) {
                     if (t == kChange - 1) pre_w[j] = sw[j];
                     if (t >= kChange && t50[j] < 0 && sw[j] >= 0.5) t50[j] = long(t - kChange);
@@ -332,6 +349,9 @@ int main(int argc, char** argv) {
                 if (scorable) for (auto& r : ratios) r.update(u, v);
                 if (scorable && audit2) for (auto& r : ratios2) r.update(u, v);
             }
+            if (iout && null_path)
+                std::fprintf(iout, "%s,%s,%u,%ld,%ld,%ld,%ld,%.4f,%.4f,%.4f,%.4f\n", cop_name.c_str(), sc.c_str(), first + s,
+                             i50, i90, ilast, iafter, iw[0], iw[1], iw[2], iw[3]);
             for (int j = 0; j < copula::kShapes; ++j)
                 if ((shape && j == int(S1)) || (null_path && j != int(S0)))
                     std::fprintf(sout, "%s,%s,%u,%s,%ld,%ld,%.4f\n", cop_name.c_str(), sc.c_str(), first + s,
@@ -393,5 +413,6 @@ int main(int argc, char** argv) {
     std::fclose(out);
     std::fclose(pout);
     std::fclose(sout);
+    if (iout) std::fclose(iout);
     return 0;
 }

@@ -3,6 +3,7 @@
 averaged over the four families; VFF = line + markers ± 2 SE (estimator colour); MFF = dashed horizontal line with its
 ± 2 SE band (dark shade); dotted vertical line at alpha = 0.02 (the development choice).
 Usage (repo root): python3 experiments/plot_vffsens.py -> images/ch6/ch6_vffsens_rmse.png, ch6_vffsens_h2.png"""
+import os
 import sys
 import numpy as np
 import pandas as pd
@@ -15,7 +16,8 @@ plt, core = ce.plt, ce.core
 EST = [("rmpl", "RMPL", "mle"), ("xiao", "Counting Matrix", "xiao"), ("hermite", "Hermite Series", "hermite")]
 SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
 RATES = [0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
-S = pd.read_csv(core.R + "vffsens_summary.csv")
+T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture
+S = pd.read_csv(core.R + f"vffsens_summary{T}.csv")
 S = S[(S.window == "whole") & (S.copula == "mean4")]
 
 
@@ -43,8 +45,8 @@ def fig(metric, ylab, out):
                  frameon=False, fontsize=7, bbox_to_anchor=(0.53, 1.0))
         f.text(0.53, 0.01, r"VFF learning rate, $\alpha$ (log scale)", ha="center", fontsize=8)
         f.subplots_adjust(left=0.12, right=0.985, top=0.9, bottom=0.08, hspace=0.35, wspace=0.1)
-        f.savefig("images/ch6/" + out); plt.close(f)
-    print("wrote images/ch6/" + out)
+        f.savefig("images/ch6/" + out.replace(".png", T + ".png")); plt.close(f)
+    print("wrote images/ch6/" + out.replace(".png", T + ".png"))
 
 
 if __name__ == "__main__":

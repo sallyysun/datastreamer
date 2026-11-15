@@ -1,0 +1,224 @@
+MFF density forecast: plug-in (old) vs mixture (new). mean ± 2 SE over 60 seeds; diff = new - old (paired).
+Verdict columns: sign of (MFF - hindsight-best fixed) and (MFF - VFF a=0.02), old -> new, at 2 SE (W = MFF better, L = worse, T = tie).
+
+=== gaussian: H2 x1e-3 ===
+constant whole       RMPL             old    0.230  new    0.229  diff   -0.001 ± 0.000 (  -0.2%)  fixed[1999]    0.174  vs fixed L->L  vs VFF W->W
+constant whole       Counting Matrix  old    0.237  new    0.236  diff   -0.000 ± 0.000 (  -0.2%)  fixed[1999]    0.177  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old    0.255  new    0.255  diff   -0.000 ± 0.000 (  -0.2%)  fixed[1999]    0.192  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old    0.677  new    0.676  diff   -0.000 ± 0.000 (  -0.1%)  fixed[399]    0.594  vs fixed L->L  vs VFF W->W
+drift    whole       Counting Matrix  old    0.877  new    0.876  diff   -0.001 ± 0.000 (  -0.1%)  fixed[399]    0.785  vs fixed L->L  vs VFF W->W
+drift    whole       Hermite Series   old    0.885  new    0.884  diff   -0.001 ± 0.000 (  -0.1%)  fixed[399]    0.794  vs fixed L->L  vs VFF W->W
+jump     whole       RMPL             old    2.205  new    2.193  diff   -0.011 ± 0.004 (  -0.5%)  fixed[99]    2.977  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old    2.611  new    2.598  diff   -0.013 ± 0.004 (  -0.5%)  fixed[199]    3.651  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old    2.874  new    2.862  diff   -0.012 ± 0.010 (  -0.4%)  fixed[199]    4.094  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old   45.555  new   44.873  diff   -0.681 ± 0.065 (  -1.5%)  fixed[99]   47.958  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old   48.447  new   47.762  diff   -0.686 ± 0.064 (  -1.4%)  fixed[199]   72.576  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old   51.063  new   50.425  diff   -0.639 ± 0.132 (  -1.3%)  fixed[199]   72.726  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old    3.109  new    3.102  diff   -0.007 ± 0.001 (  -0.2%)  fixed[99]    2.099  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old    5.162  new    5.143  diff   -0.019 ± 0.005 (  -0.4%)  fixed[199]    8.733  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 Hermite Series   old    5.600  new    5.567  diff   -0.033 ± 0.030 (  -0.6%)  fixed[199]    8.864  vs fixed W->W  vs VFF W->W
+jump     post        RMPL             old    3.756  new    3.735  diff   -0.020 ± 0.008 (  -0.5%)  fixed[99]    4.277  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old    4.490  new    4.468  diff   -0.023 ± 0.008 (  -0.5%)  fixed[199]    6.010  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old    4.937  new    4.916  diff   -0.022 ± 0.018 (  -0.4%)  fixed[199]    6.734  vs fixed W->W  vs VFF W->W
+
+=== gaussian: excess x1e-3 ===
+constant whole       RMPL             old    0.834  new    0.836  diff    0.002 ± 0.007 (  +0.2%)  fixed[1999]    0.597  vs fixed L->L  vs VFF W->W
+constant whole       Counting Matrix  old    0.961  new    0.961  diff   -0.000 ± 0.009 (  -0.0%)  fixed[1999]    0.683  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old    1.032  new    1.033  diff    0.001 ± 0.010 (  +0.1%)  fixed[1999]    0.786  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old    2.614  new    2.610  diff   -0.004 ± 0.011 (  -0.2%)  fixed[399]    2.317  vs fixed L->L  vs VFF W->W
+drift    whole       Counting Matrix  old    3.434  new    3.436  diff    0.003 ± 0.008 (  +0.1%)  fixed[399]    3.127  vs fixed L->L  vs VFF W->W
+drift    whole       Hermite Series   old    3.455  new    3.458  diff    0.003 ± 0.008 (  +0.1%)  fixed[399]    3.136  vs fixed L->L  vs VFF W->W
+jump     whole       RMPL             old    6.140  new    6.043  diff   -0.097 ± 0.023 (  -1.6%)  fixed[99]    8.466  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old    7.664  new    7.555  diff   -0.109 ± 0.025 (  -1.4%)  fixed[199]   10.544  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old    9.111  new    8.845  diff   -0.266 ± 0.105 (  -2.9%)  fixed[199]   12.456  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old  125.125  new  121.928  diff   -3.197 ± 0.404 (  -2.6%)  fixed[99]  135.971  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old  134.975  new  131.769  diff   -3.206 ± 0.428 (  -2.4%)  fixed[199]  216.081  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old  148.574  new  145.530  diff   -3.044 ± 1.001 (  -2.0%)  fixed[199]  216.632  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   13.604  new   13.537  diff   -0.066 ± 0.056 (  -0.5%)  fixed[99]    6.762  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   21.082  new   20.784  diff   -0.299 ± 0.208 (  -1.4%)  fixed[199]   23.194  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   27.106  new   25.229  diff   -1.876 ± 1.125 (  -6.9%)  fixed[199]   24.485  vs fixed T->T  vs VFF W->W
+jump     post        RMPL             old   10.262  new   10.094  diff   -0.168 ± 0.040 (  -1.6%)  fixed[99]   10.884  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old   12.917  new   12.723  diff   -0.194 ± 0.044 (  -1.5%)  fixed[199]   16.618  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old   15.523  new   15.045  diff   -0.478 ± 0.189 (  -3.1%)  fixed[199]   19.883  vs fixed W->W  vs VFF W->W
+
+=== t: H2 x1e-3 ===
+constant whole       RMPL             old    7.034  new    6.973  diff   -0.061 ± 0.007 (  -0.9%)  fixed[1999]    6.947  vs fixed L->T  vs VFF W->W
+constant whole       Counting Matrix  old    7.182  new    7.122  diff   -0.060 ± 0.007 (  -0.8%)  fixed[1999]    7.063  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old    7.086  new    7.021  diff   -0.065 ± 0.007 (  -0.9%)  fixed[1999]    6.958  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old    7.804  new    7.733  diff   -0.071 ± 0.007 (  -0.9%)  fixed[399]    7.626  vs fixed L->L  vs VFF T->W
+drift    whole       Counting Matrix  old    8.098  new    8.033  diff   -0.065 ± 0.006 (  -0.8%)  fixed[199]    7.942  vs fixed L->L  vs VFF T->W
+drift    whole       Hermite Series   old    8.036  new    7.964  diff   -0.072 ± 0.007 (  -0.9%)  fixed[399]    7.831  vs fixed L->L  vs VFF T->W
+jump     whole       RMPL             old    9.334  new    9.174  diff   -0.160 ± 0.013 (  -1.7%)  fixed[99]    9.997  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old    9.845  new    9.700  diff   -0.145 ± 0.011 (  -1.5%)  fixed[99]   10.608  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old    9.861  new    9.680  diff   -0.181 ± 0.027 (  -1.8%)  fixed[199]   10.651  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old   52.467  new   50.778  diff   -1.689 ± 0.150 (  -3.2%)  fixed[99]   53.700  vs fixed T->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old   55.354  new   53.824  diff   -1.530 ± 0.115 (  -2.8%)  fixed[99]   55.829  vs fixed T->T  vs VFF W->W
+jump     rec_0_100   Hermite Series   old   56.791  new   55.156  diff   -1.636 ± 0.386 (  -2.9%)  fixed[199]   74.987  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   12.492  new   12.072  diff   -0.420 ± 0.082 (  -3.4%)  fixed[99]   10.472  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   14.347  new   13.942  diff   -0.405 ± 0.075 (  -2.8%)  fixed[99]   12.074  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   14.878  new   14.296  diff   -0.582 ± 0.178 (  -3.9%)  fixed[199]   17.497  vs fixed W->W  vs VFF W->W
+jump     post        RMPL             old   11.859  new   11.607  diff   -0.251 ± 0.022 (  -2.1%)  fixed[99]   12.069  vs fixed T->W  vs VFF W->W
+jump     post        Counting Matrix  old   12.803  new   12.577  diff   -0.226 ± 0.020 (  -1.8%)  fixed[99]   13.387  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old   12.826  new   12.536  diff   -0.289 ± 0.048 (  -2.3%)  fixed[199]   13.912  vs fixed W->W  vs VFF W->W
+
+=== t: excess x1e-3 ===
+constant whole       RMPL             old   35.309  new   34.831  diff   -0.477 ± 0.066 (  -1.4%)  fixed[1999]   34.588  vs fixed L->L  vs VFF T->W
+constant whole       Counting Matrix  old   35.358  new   34.804  diff   -0.554 ± 0.123 (  -1.6%)  fixed[1999]   34.584  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old   35.466  new   34.905  diff   -0.561 ± 0.103 (  -1.6%)  fixed[1999]   34.674  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old   36.628  new   36.056  diff   -0.572 ± 0.094 (  -1.6%)  fixed[399]   35.755  vs fixed L->L  vs VFF L->W
+drift    whole       Counting Matrix  old   37.281  new   36.713  diff   -0.568 ± 0.139 (  -1.5%)  fixed[399]   36.436  vs fixed L->L  vs VFF T->W
+drift    whole       Hermite Series   old   37.302  new   36.657  diff   -0.646 ± 0.147 (  -1.7%)  fixed[399]   36.382  vs fixed L->L  vs VFF T->W
+jump     whole       RMPL             old   43.689  new   41.501  diff   -2.188 ± 0.404 (  -5.0%)  fixed[199]   46.121  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old   44.378  new   42.455  diff   -1.923 ± 0.445 (  -4.3%)  fixed[199]   46.649  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old   48.315  new   43.397  diff   -4.918 ± 3.051 ( -10.2%)  fixed[199]   48.759  vs fixed T->W  vs VFF W->W
+jump     rec_0_100   RMPL             old  185.753  new  173.778  diff  -11.976 ± 5.855 (  -6.4%)  fixed[199]  266.937  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old  198.578  new  186.547  diff  -12.031 ± 6.290 (  -6.1%)  fixed[199]  271.224  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old  226.922  new  194.667  diff  -32.255 ± 18.092 ( -14.2%)  fixed[199]  266.578  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   63.717  new   56.737  diff   -6.980 ± 2.487 ( -11.0%)  fixed[199]   64.370  vs fixed T->W  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   66.035  new   60.534  diff   -5.501 ± 2.199 (  -8.3%)  fixed[199]   68.320  vs fixed T->W  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   94.291  new   64.381  diff  -29.910 ± 34.509 ( -31.7%)  fixed[199]   67.707  vs fixed T->W  vs VFF W->W
+jump     post        RMPL             old   56.977  new   53.236  diff   -3.741 ± 0.731 (  -6.6%)  fixed[199]   59.153  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old   58.268  new   55.001  diff   -3.267 ± 0.810 (  -5.6%)  fixed[199]   60.634  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old   65.254  new   56.610  diff   -8.644 ± 5.492 ( -13.2%)  fixed[199]   64.013  vs fixed T->W  vs VFF W->W
+
+=== clayton: H2 x1e-3 ===
+constant whole       RMPL             old   20.658  new   20.636  diff   -0.022 ± 0.002 (  -0.1%)  fixed[1999]   20.639  vs fixed L->T  vs VFF W->W
+constant whole       Counting Matrix  old   20.558  new   20.533  diff   -0.025 ± 0.003 (  -0.1%)  fixed[1999]   20.496  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old   20.533  new   20.504  diff   -0.028 ± 0.004 (  -0.1%)  fixed[1999]   20.463  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old   18.904  new   18.880  diff   -0.024 ± 0.003 (  -0.1%)  fixed[199]   18.799  vs fixed L->L  vs VFF W->W
+drift    whole       Counting Matrix  old   18.799  new   18.772  diff   -0.027 ± 0.003 (  -0.1%)  fixed[399]   18.704  vs fixed L->L  vs VFF T->W
+drift    whole       Hermite Series   old   18.839  new   18.805  diff   -0.035 ± 0.004 (  -0.2%)  fixed[399]   18.684  vs fixed L->L  vs VFF T->T
+jump     whole       RMPL             old   28.806  new   28.711  diff   -0.096 ± 0.009 (  -0.3%)  fixed[99]   29.559  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old   28.377  new   28.205  diff   -0.173 ± 0.016 (  -0.6%)  fixed[99]   28.947  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old   29.003  new   28.763  diff   -0.240 ± 0.019 (  -0.8%)  fixed[199]   29.132  vs fixed T->W  vs VFF W->W
+jump     rec_0_100   RMPL             old   91.629  new   90.327  diff   -1.302 ± 0.097 (  -1.4%)  fixed[99]   91.830  vs fixed T->T  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old   91.440  new   90.081  diff   -1.359 ± 0.106 (  -1.5%)  fixed[99]   90.893  vs fixed T->T  vs VFF W->W
+jump     rec_0_100   Hermite Series   old   93.760  new   92.393  diff   -1.367 ± 0.224 (  -1.5%)  fixed[199]  109.599  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   50.103  new   49.815  diff   -0.288 ± 0.049 (  -0.6%)  fixed[99]   49.923  vs fixed T->T  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   49.305  new   48.795  diff   -0.510 ± 0.075 (  -1.0%)  fixed[99]   48.004  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   51.108  new   50.442  diff   -0.666 ± 0.109 (  -1.3%)  fixed[199]   53.453  vs fixed W->W  vs VFF W->W
+jump     post        RMPL             old   50.011  new   49.843  diff   -0.168 ± 0.015 (  -0.3%)  fixed[99]   50.494  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old   49.215  new   48.909  diff   -0.306 ± 0.030 (  -0.6%)  fixed[99]   49.308  vs fixed T->W  vs VFF W->W
+jump     post        Hermite Series   old   50.338  new   49.911  diff   -0.426 ± 0.033 (  -0.8%)  fixed[199]   50.145  vs fixed T->T  vs VFF W->W
+
+=== clayton: excess x1e-3 ===
+constant whole       RMPL             old   77.252  new   77.115  diff   -0.137 ± 0.020 (  -0.2%)  fixed[1999]   76.867  vs fixed L->L  vs VFF W->W
+constant whole       Counting Matrix  old   77.314  new   77.164  diff   -0.150 ± 0.029 (  -0.2%)  fixed[1999]   76.898  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old   77.571  new   77.362  diff   -0.209 ± 0.063 (  -0.3%)  fixed[1999]   77.120  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old   71.538  new   71.371  diff   -0.168 ± 0.041 (  -0.2%)  fixed[399]   71.021  vs fixed L->L  vs VFF T->W
+drift    whole       Counting Matrix  old   71.766  new   71.574  diff   -0.192 ± 0.038 (  -0.3%)  fixed[399]   71.250  vs fixed L->L  vs VFF W->W
+drift    whole       Hermite Series   old   72.277  new   72.001  diff   -0.276 ± 0.074 (  -0.4%)  fixed[399]   71.675  vs fixed L->L  vs VFF T->W
+jump     whole       RMPL             old  108.903  new  108.113  diff   -0.790 ± 0.118 (  -0.7%)  fixed[199]  110.686  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old  110.626  new  109.022  diff   -1.604 ± 0.198 (  -1.4%)  fixed[199]  112.841  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old  113.496  new  110.619  diff   -2.876 ± 0.595 (  -2.5%)  fixed[399]  117.402  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old  305.386  new  299.894  diff   -5.491 ± 1.198 (  -1.8%)  fixed[199]  357.806  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old  305.880  new  299.928  diff   -5.952 ± 1.274 (  -1.9%)  fixed[199]  355.023  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old  320.294  new  308.306  diff  -11.988 ± 4.992 (  -3.7%)  fixed[399]  407.463  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old  191.452  new  188.466  diff   -2.986 ± 0.848 (  -1.6%)  fixed[199]  191.465  vs fixed T->W  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old  193.932  new  188.820  diff   -5.112 ± 1.279 (  -2.6%)  fixed[199]  188.967  vs fixed L->T  vs VFF W->W
+jump     rec_100_500 Hermite Series   old  203.460  new  191.546  diff  -11.914 ± 6.848 (  -5.9%)  fixed[399]  223.457  vs fixed W->W  vs VFF W->W
+jump     post        RMPL             old  188.476  new  187.079  diff   -1.397 ± 0.211 (  -0.7%)  fixed[199]  190.195  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old  191.480  new  188.621  diff   -2.859 ± 0.355 (  -1.5%)  fixed[199]  193.868  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old  196.639  new  191.487  diff   -5.152 ± 1.072 (  -2.6%)  fixed[399]  203.189  vs fixed W->W  vs VFF W->W
+
+=== gumbel: H2 x1e-3 ===
+constant whole       RMPL             old    7.412  new    7.388  diff   -0.023 ± 0.004 (  -0.3%)  fixed[1999]    7.337  vs fixed L->L  vs VFF W->W
+constant whole       Counting Matrix  old    7.478  new    7.453  diff   -0.025 ± 0.004 (  -0.3%)  fixed[1999]    7.408  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old    7.453  new    7.428  diff   -0.025 ± 0.004 (  -0.3%)  fixed[1999]    7.386  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old    7.105  new    7.080  diff   -0.025 ± 0.003 (  -0.3%)  fixed[399]    7.011  vs fixed L->L  vs VFF W->W
+drift    whole       Counting Matrix  old    7.335  new    7.310  diff   -0.024 ± 0.003 (  -0.3%)  fixed[399]    7.244  vs fixed L->L  vs VFF W->W
+drift    whole       Hermite Series   old    7.313  new    7.284  diff   -0.029 ± 0.004 (  -0.4%)  fixed[399]    7.211  vs fixed L->L  vs VFF W->W
+jump     whole       RMPL             old    9.623  new    9.554  diff   -0.069 ± 0.008 (  -0.7%)  fixed[99]   10.531  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old    9.991  new    9.912  diff   -0.080 ± 0.008 (  -0.8%)  fixed[199]   11.050  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old   10.135  new   10.030  diff   -0.106 ± 0.011 (  -1.0%)  fixed[199]   11.264  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old   56.701  new   55.595  diff   -1.105 ± 0.074 (  -1.9%)  fixed[99]   59.345  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old   59.125  new   58.014  diff   -1.111 ± 0.068 (  -1.9%)  fixed[199]   80.788  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old   60.738  new   59.486  diff   -1.252 ± 0.111 (  -2.1%)  fixed[199]   79.936  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   15.810  new   15.663  diff   -0.147 ± 0.032 (  -0.9%)  fixed[99]   14.950  vs fixed L->L  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   17.441  new   17.214  diff   -0.228 ± 0.040 (  -1.3%)  fixed[199]   21.612  vs fixed W->W  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   17.817  new   17.533  diff   -0.284 ± 0.053 (  -1.6%)  fixed[199]   21.080  vs fixed W->W  vs VFF W->W
+jump     post        RMPL             old   15.933  new   15.817  diff   -0.116 ± 0.014 (  -0.7%)  fixed[99]   16.633  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old   16.611  new   16.476  diff   -0.135 ± 0.014 (  -0.8%)  fixed[199]   18.172  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old   16.869  new   16.687  diff   -0.182 ± 0.020 (  -1.1%)  fixed[199]   18.493  vs fixed W->W  vs VFF W->W
+
+=== gumbel: excess x1e-3 ===
+constant whole       RMPL             old   30.091  new   29.950  diff   -0.142 ± 0.027 (  -0.5%)  fixed[1999]   29.641  vs fixed L->L  vs VFF W->W
+constant whole       Counting Matrix  old   30.048  new   29.907  diff   -0.140 ± 0.030 (  -0.5%)  fixed[1999]   29.646  vs fixed L->L  vs VFF W->W
+constant whole       Hermite Series   old   30.200  new   30.030  diff   -0.169 ± 0.057 (  -0.6%)  fixed[1999]   29.784  vs fixed L->L  vs VFF W->W
+drift    whole       RMPL             old   28.802  new   28.660  diff   -0.142 ± 0.024 (  -0.5%)  fixed[399]   28.364  vs fixed L->L  vs VFF T->W
+drift    whole       Counting Matrix  old   29.622  new   29.486  diff   -0.136 ± 0.026 (  -0.5%)  fixed[399]   29.188  vs fixed L->L  vs VFF W->W
+drift    whole       Hermite Series   old   29.816  new   29.626  diff   -0.191 ± 0.060 (  -0.6%)  fixed[399]   29.320  vs fixed L->L  vs VFF W->W
+jump     whole       RMPL             old   37.773  new   37.319  diff   -0.454 ± 0.070 (  -1.2%)  fixed[199]   40.459  vs fixed W->W  vs VFF W->W
+jump     whole       Counting Matrix  old   39.004  new   38.375  diff   -0.630 ± 0.108 (  -1.6%)  fixed[199]   41.652  vs fixed W->W  vs VFF W->W
+jump     whole       Hermite Series   old   42.181  new   39.595  diff   -2.586 ± 1.764 (  -6.1%)  fixed[199]   43.952  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   RMPL             old  185.042  new  180.110  diff   -4.932 ± 1.020 (  -2.7%)  fixed[199]  264.744  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Counting Matrix  old  191.282  new  186.391  diff   -4.891 ± 1.010 (  -2.6%)  fixed[199]  267.538  vs fixed W->W  vs VFF W->W
+jump     rec_0_100   Hermite Series   old  249.578  new  201.725  diff  -47.854 ± 69.585 ( -19.2%)  fixed[199]  263.945  vs fixed T->W  vs VFF W->W
+jump     rec_100_500 RMPL             old   70.111  new   68.533  diff   -1.579 ± 0.642 (  -2.3%)  fixed[199]   72.554  vs fixed T->W  vs VFF W->W
+jump     rec_100_500 Counting Matrix  old   76.689  new   73.452  diff   -3.238 ± 1.142 (  -4.2%)  fixed[199]   75.486  vs fixed T->T  vs VFF W->W
+jump     rec_100_500 Hermite Series   old   88.479  new   75.862  diff  -12.617 ± 9.578 ( -14.3%)  fixed[199]   75.205  vs fixed L->T  vs VFF W->W
+jump     post        RMPL             old   62.069  new   61.294  diff   -0.774 ± 0.127 (  -1.2%)  fixed[199]   65.250  vs fixed W->W  vs VFF W->W
+jump     post        Counting Matrix  old   64.247  new   63.149  diff   -1.098 ± 0.195 (  -1.7%)  fixed[199]   67.357  vs fixed W->W  vs VFF W->W
+jump     post        Hermite Series   old   69.967  new   65.352  diff   -4.615 ± 3.174 (  -6.6%)  fixed[199]   71.348  vs fixed T->W  vs VFF W->W
+
+=== verdict changes (MFF vs hindsight-best fixed / VFF) ===
+t h2_x1000 constant whole RMPL: vs fixed L->T, vs VFF W->W
+t h2_x1000 drift whole RMPL: vs fixed L->L, vs VFF T->W
+t h2_x1000 drift whole Counting Matrix: vs fixed L->L, vs VFF T->W
+t h2_x1000 drift whole Hermite Series: vs fixed L->L, vs VFF T->W
+t h2_x1000 jump rec_0_100 RMPL: vs fixed T->W, vs VFF W->W
+t h2_x1000 jump post RMPL: vs fixed T->W, vs VFF W->W
+t excess_x1000 constant whole RMPL: vs fixed L->L, vs VFF T->W
+t excess_x1000 drift whole RMPL: vs fixed L->L, vs VFF L->W
+t excess_x1000 drift whole Counting Matrix: vs fixed L->L, vs VFF T->W
+t excess_x1000 drift whole Hermite Series: vs fixed L->L, vs VFF T->W
+t excess_x1000 jump whole Hermite Series: vs fixed T->W, vs VFF W->W
+t excess_x1000 jump rec_100_500 RMPL: vs fixed T->W, vs VFF W->W
+t excess_x1000 jump rec_100_500 Counting Matrix: vs fixed T->W, vs VFF W->W
+t excess_x1000 jump rec_100_500 Hermite Series: vs fixed T->W, vs VFF W->W
+t excess_x1000 jump post Hermite Series: vs fixed T->W, vs VFF W->W
+clayton h2_x1000 constant whole RMPL: vs fixed L->T, vs VFF W->W
+clayton h2_x1000 drift whole Counting Matrix: vs fixed L->L, vs VFF T->W
+clayton h2_x1000 jump whole Hermite Series: vs fixed T->W, vs VFF W->W
+clayton h2_x1000 jump post Counting Matrix: vs fixed T->W, vs VFF W->W
+clayton excess_x1000 drift whole RMPL: vs fixed L->L, vs VFF T->W
+clayton excess_x1000 drift whole Hermite Series: vs fixed L->L, vs VFF T->W
+clayton excess_x1000 jump rec_100_500 RMPL: vs fixed T->W, vs VFF W->W
+clayton excess_x1000 jump rec_100_500 Counting Matrix: vs fixed L->T, vs VFF W->W
+gumbel excess_x1000 drift whole RMPL: vs fixed L->L, vs VFF T->W
+gumbel excess_x1000 jump rec_0_100 Hermite Series: vs fixed T->W, vs VFF W->W
+gumbel excess_x1000 jump rec_100_500 RMPL: vs fixed T->W, vs VFF W->W
+gumbel excess_x1000 jump rec_100_500 Hermite Series: vs fixed L->T, vs VFF W->W
+gumbel excess_x1000 jump post Hermite Series: vs fixed T->W, vs VFF W->W
+
+=== scoring function (Gaussian, eta = 1): squared - log, old -> new density, mean ± 2 SE ===
+H2 x1e-3     RMPL             constant whole      old    0.083 ± 0.026   new    0.083 ± 0.026
+H2 x1e-3     RMPL             drift    whole      old    0.072 ± 0.029   new    0.071 ± 0.029
+H2 x1e-3     RMPL             jump     whole      old    0.509 ± 0.101   new    0.509 ± 0.099
+H2 x1e-3     RMPL             jump     rec_0_100  old   -0.832 ± 1.918   new   -0.775 ± 1.875
+H2 x1e-3     RMPL             jump     post       old    0.888 ± 0.179   new    0.888 ± 0.176
+H2 x1e-3     Counting Matrix  constant whole      old    0.128 ± 0.045   new    0.127 ± 0.045
+H2 x1e-3     Counting Matrix  drift    whole      old    0.097 ± 0.039   new    0.096 ± 0.038
+H2 x1e-3     Counting Matrix  jump     whole      old    0.763 ± 0.129   new    0.757 ± 0.128
+H2 x1e-3     Counting Matrix  jump     rec_0_100  old   -1.183 ± 1.519   new   -1.147 ± 1.477
+H2 x1e-3     Counting Matrix  jump     post       old    1.343 ± 0.231   new    1.332 ± 0.229
+H2 x1e-3     Hermite Series   constant whole      old    0.132 ± 0.047   new    0.131 ± 0.046
+H2 x1e-3     Hermite Series   drift    whole      old    0.105 ± 0.054   new    0.105 ± 0.054
+H2 x1e-3     Hermite Series   jump     whole      old    1.542 ± 0.397   new    1.563 ± 0.449
+H2 x1e-3     Hermite Series   jump     rec_0_100  old    0.126 ± 2.659   new    0.371 ± 2.828
+H2 x1e-3     Hermite Series   jump     post       old    2.743 ± 0.718   new    2.782 ± 0.811
+excess x1e-3 RMPL             constant whole      old    0.415 ± 0.123   new    0.412 ± 0.120
+excess x1e-3 RMPL             drift    whole      old    0.319 ± 0.106   new    0.316 ± 0.104
+excess x1e-3 RMPL             jump     whole      old    1.818 ± 0.329   new    1.762 ± 0.328
+excess x1e-3 RMPL             jump     rec_0_100  old   -2.981 ± 5.522   new   -2.683 ± 5.308
+excess x1e-3 RMPL             jump     post       old    3.160 ± 0.597   new    3.064 ± 0.592
+excess x1e-3 Counting Matrix  constant whole      old    0.567 ± 0.153   new    0.551 ± 0.151
+excess x1e-3 Counting Matrix  drift    whole      old    0.439 ± 0.128   new    0.417 ± 0.120
+excess x1e-3 Counting Matrix  jump     whole      old    3.020 ± 0.533   new    2.976 ± 0.524
+excess x1e-3 Counting Matrix  jump     rec_0_100  old   -4.095 ± 4.642   new   -3.743 ± 4.423
+excess x1e-3 Counting Matrix  jump     post       old    5.358 ± 0.965   new    5.280 ± 0.947
+excess x1e-3 Hermite Series   constant whole      old    0.550 ± 0.157   new    0.523 ± 0.151
+excess x1e-3 Hermite Series   drift    whole      old    0.471 ± 0.158   new    0.437 ± 0.143
+excess x1e-3 Hermite Series   jump     whole      old   17.359 ± 10.484   new    7.577 ± 1.790
+excess x1e-3 Hermite Series   jump     rec_0_100  old   80.762 ± 162.493   new   12.173 ± 29.101
+excess x1e-3 Hermite Series   jump     post       old   31.132 ± 18.869   new   13.526 ± 3.218

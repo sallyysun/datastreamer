@@ -6,10 +6,12 @@ Family averages: per seed, the mean over the four families; paired SEs from thos
 Usage (from experiments/): python3 analyze_vffsens.py -> results/vffsens_2026-11-12.txt, results/vffsens_summary.csv,
 results/vffsens_extremes.csv"""
 import math
+import os
 import numpy as np
 import pandas as pd
 
 R = "results/"
+T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture
 FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
 FL = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "t4", "mean4": "mean of 4"}
 EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
@@ -20,7 +22,7 @@ MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log lo
 SCEN = ["constant", "drift", "jump"]
 WINS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
 
-d = pd.concat([pd.read_csv(R + f"strategies_seeds_vffsens{s}.csv") for _, s in FAMS])
+d = pd.concat([pd.read_csv(R + f"strategies_seeds_vffsens{T[1:]}{s}.csv") for _, s in FAMS])
 L = []; P = lambda s="": L.append(s)
 se = lambda x: x.std(ddof=1) / math.sqrt(len(x))
 wtl = lambda x: "W" if x.mean() < -2 * se(x) else "L" if x.mean() > 2 * se(x) else "T"   # W = MFF lower
@@ -51,7 +53,7 @@ for m, _, scale in MET:
                             r.update(mff_minus=dd.mean(), mff_minus_se=se(dd), verdict=wtl(dd))
                         rows.append(r)
 S = pd.DataFrame(rows)
-S.to_csv(R + "vffsens_summary.csv", index=False)
+S.to_csv(R + f"vffsens_summary{T}.csv", index=False)
 
 P("VFF learning-rate sensitivity. 60 seeds (42-101), matched paths, prequential forecasts, KLL k = 256 margins (shared by")
 P("RMPL arms, VFF controller and MFF scoring), MFF eta = 1, delta = 1e-4 (log loss) fixed throughout. Linux/libstdc++.")
@@ -99,7 +101,7 @@ for m, mlab, scale in MET:
           f"worst {rel[a1][1]:.3f}); 0.05: {rel['0.05'][0]:.3f}/{rel['0.05'][1]:.3f}, 0.075: {rel['0.075'][0]:.3f}/{rel['0.075'][1]:.3f}, "
           f"0.02: {rel['0.02'][0]:.3f}/{rel['0.02'][1]:.3f}")
 B = pd.DataFrame(best_rows)
-B.to_csv(R + "vffsens_best_alpha.csv", index=False)
+B.to_csv(R + f"vffsens_best_alpha{T}.csv", index=False)
 
 P(); P("=" * 110); P("MFF COMPARISONS, whole run, family mean: MFF - VFF, mean ± 2 SE (W/T/L)"); P("=" * 110)
 for m, mlab, scale in MET:
@@ -132,8 +134,8 @@ for m, mlab, scale in MET:
       + "   (12 cells each: 3 estimators x 4 families)")
 
 # extremes (excess log loss), whole window
-X = pd.concat([pd.read_csv(R + f"strategies_extremes_vffsens{s}.csv") for _, s in FAMS])
-X.to_csv(R + "vffsens_extremes.csv", index=False)
+X = pd.concat([pd.read_csv(R + f"strategies_extremes_vffsens{T[1:]}{s}.csv") for _, s in FAMS])
+X.to_csv(R + f"vffsens_extremes{T}.csv", index=False)
 P(); P("=" * 110); P("EXCESS LOG LOSS EXTREMES (whole window, all 60 seeds x 4500 ticks per family; nothing clipped or dropped)"); P("=" * 110)
 P("seeds / seed-ticks with |rho_hat| > 0.98 summed over families; max per-tick loss; mean and median of per-tick excess")
 P("(averaged over families); share of the summed excess from the worst 1% of seed-ticks (averaged over families).")
@@ -145,5 +147,5 @@ for e, el in EST:
             h = g[g.strategy == k]
             P(f"   {k:10s} seeds {int(h.seeds_extreme.sum()):3d}  seed-ticks {int(h.seedticks_extreme.sum()):5d}  max {h.ex_max.max():9.0f}"
               f"  mean {h.ex_mean.mean():8.2f}  median {h.ex_median.mean():6.2f}  top-1% share {h.top1pct_share.mean():5.2f}")
-open(R + "vffsens_2026-11-12.txt", "w").write("\n".join(L) + "\n")
+open(R + ("vffsens_2026-11-12.txt" if not T else f"vffsens{T}_2026-11-14.txt"), "w").write("\n".join(L) + "\n")
 print("\n".join(L))

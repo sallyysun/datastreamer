@@ -1,0 +1,463 @@
+VFF learning-rate sensitivity. 60 seeds (42-101), matched paths, prequential forecasts, KLL k = 256 margins (shared by
+RMPL arms, VFF controller and MFF scoring), MFF eta = 1, delta = 1e-4 (log loss) fixed throughout. Linux/libstdc++.
+alpha = 0.02 = development choice. 'best alpha' = HINDSIGHT on the evaluation seeds. MFF - VFF: paired, mean ± 2 SE;
+W/T/L = MFF lower / within 2 SE / higher. Reproduction: alpha 0.02, 0.1, MFF and fixed rows equal strategies_seeds exactly.
+
+##############################################################################################################
+# Spearman RMSE (x 10^-2)
+##############################################################################################################
+
+=== constant, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      3.73    3.25    2.84    3.08    3.46    3.70    5.09 |    2.55    2.04
+                    -1.18W  -0.70W  -0.29W  -0.53W  -0.91W  -1.15W  -2.54W   (MFF - VFF)
+                   ± 0.06  ± 0.06  ± 0.06  ± 0.09  ± 0.10  ± 0.10  ± 0.17 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      4.13    3.56    3.09    3.51    4.13    4.67    7.48 |    2.51    1.99
+                    -1.62W  -1.05W  -0.57W  -0.99W  -1.61W  -2.16W  -4.97W   (MFF - VFF)
+                   ± 0.09  ± 0.09  ± 0.09  ± 0.11  ± 0.11  ± 0.11  ± 0.19 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      4.49    3.86    3.33    3.76    4.39    4.92    7.51 |    2.64    2.13
+                    -1.85W  -1.22W  -0.69W  -1.12W  -1.75W  -2.28W  -4.87W   (MFF - VFF)
+                   ± 0.09  ± 0.10  ± 0.11  ± 0.11  ± 0.12  ± 0.12  ± 0.21 
+
+=== drift, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      4.90    4.84    4.91    5.36    5.48    5.45    6.08 |    4.92    4.44
+                    +0.02T  +0.08L  +0.01T  -0.43W  -0.56W  -0.53W  -1.16W   (MFF - VFF)
+                   ± 0.07  ± 0.06  ± 0.05  ± 0.09  ± 0.10  ± 0.11  ± 0.19 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      5.34    5.28    5.37    5.84    5.96    5.95    7.39 |    5.33    4.89
+                    -0.01T  +0.05T  -0.04T  -0.50W  -0.63W  -0.62W  -2.06W   (MFF - VFF)
+                   ± 0.06  ± 0.06  ± 0.05  ± 0.09  ± 0.11  ± 0.12  ± 0.21 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      5.51    5.37    5.42    5.98    6.14    6.13    7.58 |    5.42    4.96
+                    -0.10W  +0.05T  -0.01T  -0.56W  -0.72W  -0.71W  -2.16W   (MFF - VFF)
+                   ± 0.07  ± 0.07  ± 0.07  ± 0.10  ± 0.12  ± 0.13  ± 0.25 
+
+=== jump, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      8.87    9.16    9.17    7.81    7.49    7.50    8.96 |    6.54    8.28
+                    -2.33W  -2.62W  -2.63W  -1.27W  -0.95W  -0.96W  -2.42W   (MFF - VFF)
+                   ± 0.09  ± 0.11  ± 0.13  ± 0.12  ± 0.11  ± 0.13  ± 0.19 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      8.90    9.25    9.42    8.04    7.74    7.79    9.65 |    6.73    8.33
+                    -2.18W  -2.53W  -2.70W  -1.32W  -1.01W  -1.07W  -2.92W   (MFF - VFF)
+                   ± 0.10  ± 0.12  ± 0.13  ± 0.12  ± 0.13  ± 0.14  ± 0.21 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      9.08    9.48    9.82    8.40    8.06    8.07    9.78 |    6.93    8.56
+                    -2.14W  -2.54W  -2.89W  -1.47W  -1.12W  -1.14W  -2.84W   (MFF - VFF)
+                   ± 0.10  ± 0.12  ± 0.13  ± 0.13  ± 0.13  ± 0.15  ± 0.21 
+
+=== jump, window pre: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      6.06    5.50    4.88    4.78    5.41    6.02    9.61 |    4.04    3.01
+                    -2.02W  -1.46W  -0.84W  -0.74W  -1.37W  -1.98W  -5.57W   (MFF - VFF)
+                   ± 0.12  ± 0.13  ± 0.15  ± 0.15  ± 0.18  ± 0.19  ± 0.26 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      6.02    5.46    4.86    4.86    5.59    6.34   10.58 |    4.00    2.94
+                    -2.02W  -1.46W  -0.86W  -0.86W  -1.59W  -2.34W  -6.58W   (MFF - VFF)
+                   ± 0.13  ± 0.14  ± 0.16  ± 0.15  ± 0.17  ± 0.18  ± 0.31 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      6.34    5.75    5.09    4.99    5.70    6.42   10.49 |    4.10    3.08
+                    -2.23W  -1.64W  -0.98W  -0.88W  -1.59W  -2.31W  -6.39W   (MFF - VFF)
+                   ± 0.13  ± 0.15  ± 0.17  ± 0.16  ± 0.17  ± 0.19  ± 0.31 
+
+=== jump, window rec_0_100: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     44.74   47.45   49.26   42.75   39.36   38.03   37.50 |   33.82   19.92
+                   -10.92W -13.63W -15.45W  -8.94W  -5.54W  -4.22W  -3.68W   (MFF - VFF)
+                   ± 0.57  ± 0.68  ± 0.77  ± 0.84  ± 0.84  ± 0.94  ± 1.29 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     45.01   47.75   49.60   43.13   39.76   38.33   37.37 |   34.51   21.29
+                   -10.50W -13.23W -15.09W  -8.62W  -5.25W  -3.81W  -2.85W   (MFF - VFF)
+                   ± 0.51  ± 0.61  ± 0.71  ± 0.81  ± 0.85  ± 0.90  ± 1.28 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     44.75   47.51   49.39   43.19   39.90   38.48   37.58 |   34.79   21.91
+                    -9.97W -12.73W -14.60W  -8.40W  -5.11W  -3.69W  -2.79W   (MFF - VFF)
+                   ± 0.59  ± 0.67  ± 0.76  ± 0.89  ± 0.91  ± 0.97  ± 1.34 
+
+=== jump, window rec_100_500: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     11.74   12.14   10.28    6.03    5.38    5.06    4.36 |    6.27    4.64
+                    -5.46W  -5.87W  -4.01W  +0.24L  +0.89L  +1.21L  +1.91L   (MFF - VFF)
+                   ± 0.43  ± 0.55  ± 0.52  ± 0.23  ± 0.18  ± 0.18  ± 0.21 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     11.60   12.15   11.03    7.08    6.33    5.91    4.99 |    7.04    5.20
+                    -4.56W  -5.12W  -4.00W  -0.04T  +0.71L  +1.12L  +2.05L   (MFF - VFF)
+                   ± 0.43  ± 0.54  ± 0.48  ± 0.22  ± 0.20  ± 0.20  ± 0.23 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     11.38   12.19   11.95    8.50    7.74    7.29    6.27 |    7.19    5.98
+                    -4.18W  -5.00W  -4.76W  -1.31W  -0.55W  -0.10T  +0.92L   (MFF - VFF)
+                   ± 0.40  ± 0.51  ± 0.46  ± 0.24  ± 0.23  ± 0.23  ± 0.26 
+
+=== jump, window post: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     10.49   11.14   11.36    9.41    8.63    8.33    8.17 |    7.89    7.20
+                    -2.60W  -3.24W  -3.46W  -1.51W  -0.74W  -0.43W  -0.28W   (MFF - VFF)
+                   ± 0.15  ± 0.19  ± 0.21  ± 0.17  ± 0.17  ± 0.19  ± 0.26 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     10.58   11.30   11.74    9.73    8.93    8.62    8.61 |    8.20    7.83
+                    -2.37W  -3.10W  -3.53W  -1.53W  -0.73W  -0.41W  -0.41W   (MFF - VFF)
+                   ± 0.15  ± 0.19  ± 0.20  ± 0.18  ± 0.18  ± 0.19  ± 0.25 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     10.69   11.51   12.22   10.19    9.36    9.02    8.93 |    8.46    8.46
+                    -2.23W  -3.05W  -3.77W  -1.74W  -0.90W  -0.56W  -0.48W   (MFF - VFF)
+                   ± 0.15  ± 0.19  ± 0.20  ± 0.19  ± 0.19  ± 0.20  ± 0.26 
+
+##############################################################################################################
+# Excess log loss (x 10^-3 nats/obs)
+##############################################################################################################
+
+=== constant, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     37.09   36.51   36.09   36.36   36.77   37.04   38.88 |   35.68   35.42
+                    -1.40W  -0.83W  -0.40W  -0.67W  -1.09W  -1.35W  -3.19W   (MFF - VFF)
+                   ± 0.07  ± 0.07  ± 0.06  ± 0.08  ± 0.08  ± 0.09  ± 0.23 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     37.65   36.96   36.46   36.94   37.69   38.41   43.81 |   35.71   35.45
+                    -1.94W  -1.25W  -0.75W  -1.23W  -1.98W  -2.70W  -8.10W   (MFF - VFF)
+                   ± 0.12  ± 0.11  ± 0.10  ± 0.14  ± 0.15  ± 0.15  ± 0.36 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     38.36   37.50   36.87   37.40   38.27   39.09   44.38 |   35.83   35.59
+                    -2.53W  -1.67W  -1.04W  -1.56W  -2.44W  -3.26W  -8.55W   (MFF - VFF)
+                   ± 0.15  ± 0.14  ± 0.13  ± 0.16  ± 0.19  ± 0.20  ± 0.49 
+
+=== drift, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     34.74   34.77   34.92   35.72   35.94   35.86   36.49 |   34.67   34.36
+                    -0.07W  -0.10W  -0.24W  -1.05W  -1.27W  -1.18W  -1.81W   (MFF - VFF)
+                   ± 0.03  ± 0.04  ± 0.06  ± 0.10  ± 0.10  ± 0.12  ± 0.20 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     35.44   35.46   35.67   36.65   37.02   37.11   40.38 |   35.30   35.00
+                    -0.14W  -0.16W  -0.36W  -1.35W  -1.72W  -1.81W  -5.08W   (MFF - VFF)
+                   ± 0.04  ± 0.04  ± 0.06  ± 0.14  ± 0.14  ± 0.16  ± 0.29 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     35.75   35.61   35.85   37.39   38.19   39.03   43.28 |   35.44   35.13
+                    -0.31W  -0.17W  -0.41W  -1.95W  -2.76W  -3.60W  -7.85W   (MFF - VFF)
+                   ± 0.06  ± 0.07  ± 0.09  ± 0.23  ± 0.46  ± 1.78  ± 2.13 
+
+=== jump, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     52.98   53.88   54.93   50.88   49.74   49.36   50.52 |   48.24   51.43
+                    -4.73W  -5.63W  -6.68W  -2.63W  -1.49W  -1.12W  -2.28W   (MFF - VFF)
+                   ± 0.24  ± 0.31  ± 0.35  ± 0.23  ± 0.20  ± 0.21  ± 0.27 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     54.27   55.70   58.13   53.48   52.16   51.85   54.52 |   49.35   52.92
+                    -4.92W  -6.35W  -8.77W  -4.13W  -2.81W  -2.50W  -5.16W   (MFF - VFF)
+                   ± 0.23  ± 0.31  ± 0.38  ± 0.27  ± 0.26  ± 0.26  ± 0.35 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     57.11   60.52  116.02   83.91   74.77   72.08   74.25 |   50.61   55.64
+                    -6.49W  -9.91W -65.40W -33.30W -24.16W -21.47W -23.63W   (MFF - VFF)
+                   ± 0.41  ± 0.79  ±14.09  ± 8.51  ± 7.39  ± 7.42  ± 9.22 
+
+=== jump, window pre: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     12.56   12.15   11.75   11.74   12.17   12.63   16.30 |   11.14   10.73
+                    -1.41W  -1.00W  -0.60W  -0.60W  -1.03W  -1.49W  -5.16W   (MFF - VFF)
+                   ± 0.07  ± 0.07  ± 0.09  ± 0.11  ± 0.12  ± 0.14  ± 0.25 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     12.58   12.18   11.81   11.83   12.31   12.92   17.69 |   11.20   10.75
+                    -1.38W  -0.99W  -0.61W  -0.63W  -1.11W  -1.72W  -6.49W   (MFF - VFF)
+                   ± 0.08  ± 0.08  ± 0.10  ± 0.11  ± 0.13  ± 0.16  ± 0.37 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     12.80   12.37   11.96   11.97   12.46   13.03   17.71 |   11.23   10.79
+                    -1.58W  -1.15W  -0.73W  -0.74W  -1.23W  -1.81W  -6.48W   (MFF - VFF)
+                   ± 0.10  ± 0.10  ± 0.12  ± 0.14  ± 0.15  ± 0.18  ± 0.44 
+
+=== jump, window rec_0_100: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                    312.20  330.91  341.26  278.50  250.99  239.79  236.28 |  193.93  131.39
+                   -118.27W -136.98W -147.33W -84.58W -57.07W -45.86W -42.35W   (MFF - VFF)
+                   ± 7.26  ± 7.97  ± 8.53  ± 7.83  ± 7.31  ± 7.60  ± 9.01 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                    313.52  332.45  343.10  281.16  253.59  241.62  235.81 |  201.16  140.58
+                   -112.36W -131.30W -141.94W -80.00W -52.43W -40.46W -34.65W   (MFF - VFF)
+                   ± 6.86  ± 7.56  ± 8.18  ± 7.53  ± 7.21  ± 7.18  ± 8.54 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                    311.22  330.44  341.50  300.45  289.82  283.97  288.54 |  212.56  201.30
+                   -98.66W -117.88W -128.95W -87.89W -77.26W -71.41W -75.98W   (MFF - VFF)
+                   ± 6.77  ± 7.38  ± 7.91  ±29.89  ±41.67  ±48.33  ±52.28 
+
+=== jump, window rec_100_500: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     99.54  100.37   96.81   83.35   80.67   79.19   76.08 |   81.82   75.01
+                   -17.72W -18.56W -14.99W  -1.53W  +1.14L  +2.63L  +5.74L   (MFF - VFF)
+                   ± 1.93  ± 2.33  ± 2.17  ± 0.81  ± 0.71  ± 0.69  ± 0.64 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                    100.88  103.59  106.51   93.16   89.80   87.98   85.16 |   85.90   80.10
+                   -14.98W -17.69W -20.62W  -7.27W  -3.90W  -2.09W  +0.73T   (MFF - VFF)
+                   ± 2.01  ± 2.30  ± 2.23  ± 1.25  ± 1.17  ± 1.16  ± 1.24 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                    101.99  109.58  343.92  306.56  253.95  227.39  214.18 |   89.25   88.20
+                   -12.74W -20.33W -254.67W -217.30W -164.70W -138.13W -124.92W   (MFF - VFF)
+                   ± 1.71  ± 2.53  ±105.99  ±82.44  ±70.85  ±67.07  ±81.43 
+
+=== jump, window post: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     85.31   87.26   89.47   82.19   79.79   78.74   77.90 |   77.93   80.60
+                    -7.38W  -9.34W -11.55W  -4.26W  -1.87W  -0.82W  +0.02T   (MFF - VFF)
+                   ± 0.44  ± 0.58  ± 0.67  ± 0.44  ± 0.40  ± 0.40  ± 0.41 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     87.62   90.52   95.18   86.80   84.04   83.00   83.97 |   79.87   84.45
+                    -7.75W -10.64W -15.31W  -6.93W  -4.16W  -3.12W  -4.10W   (MFF - VFF)
+                   ± 0.41  ± 0.57  ± 0.73  ± 0.51  ± 0.49  ± 0.48  ± 0.53 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     92.55   99.04  199.26  141.47  124.62  119.32  119.48 |   82.12   89.61
+                   -10.43W -16.92W -117.14W -59.35W -42.50W -37.20W -37.35W   (MFF - VFF)
+                   ± 0.74  ± 1.44  ±25.39  ±15.33  ±13.31  ±13.37  ±16.61 
+
+##############################################################################################################
+# Squared Hellinger (x 10^-3)
+##############################################################################################################
+
+=== constant, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      9.06    8.96    8.88    8.93    9.02    9.08    9.53 |    8.81    8.77
+                    -0.25W  -0.15W  -0.08W  -0.13W  -0.21W  -0.27W  -0.72W   (MFF - VFF)
+                   ± 0.02  ± 0.02  ± 0.02  ± 0.02  ± 0.03  ± 0.03  ± 0.07 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      9.23    9.08    8.98    9.07    9.22    9.37   10.53 |    8.84    8.79
+                    -0.39W  -0.25W  -0.15W  -0.23W  -0.38W  -0.53W  -1.69W   (MFF - VFF)
+                   ± 0.03  ± 0.03  ± 0.02  ± 0.03  ± 0.03  ± 0.03  ± 0.09 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      9.30    9.12    8.99    9.09    9.27    9.43   10.56 |    8.80    8.75
+                    -0.50W  -0.32W  -0.19W  -0.29W  -0.46W  -0.63W  -1.75W   (MFF - VFF)
+                   ± 0.03  ± 0.03  ± 0.03  ± 0.03  ± 0.04  ± 0.04  ± 0.10 
+
+=== drift, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      8.56    8.63    8.67    8.78    8.80    8.75    8.66 |    8.59    8.51
+                    +0.03L  -0.04W  -0.08W  -0.19W  -0.21W  -0.16W  -0.06W   (MFF - VFF)
+                   ± 0.02  ± 0.02  ± 0.02  ± 0.03  ± 0.03  ± 0.04  ± 0.05 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      8.73    8.79    8.83    8.97    8.99    8.93    9.08 |    8.75    8.67
+                    +0.02L  -0.04W  -0.08W  -0.22W  -0.24W  -0.19W  -0.33W   (MFF - VFF)
+                   ± 0.02  ± 0.02  ± 0.02  ± 0.03  ± 0.04  ± 0.05  ± 0.08 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      8.72    8.75    8.79    9.01    9.07    9.02    9.29 |    8.73    8.63
+                    +0.01T  -0.02T  -0.06W  -0.28W  -0.33W  -0.29W  -0.55W   (MFF - VFF)
+                   ± 0.02  ± 0.02  ± 0.03  ± 0.04  ± 0.05  ± 0.06  ± 0.10 
+
+=== jump, window whole: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     13.98   14.14   14.12   13.08   12.80   12.71   12.99 |   12.41   13.27
+                    -1.58W  -1.73W  -1.72W  -0.68W  -0.39W  -0.30W  -0.58W   (MFF - VFF)
+                   ± 0.07  ± 0.09  ± 0.09  ± 0.07  ± 0.07  ± 0.08  ± 0.11 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     14.01   14.28   14.56   13.37   13.03   12.93   13.46 |   12.60   13.56
+                    -1.41W  -1.68W  -1.96W  -0.77W  -0.43W  -0.33W  -0.85W   (MFF - VFF)
+                   ± 0.08  ± 0.10  ± 0.11  ± 0.09  ± 0.09  ± 0.09  ± 0.13 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     14.19   14.70   15.95   14.29   13.72   13.52   13.95 |   12.83   13.79
+                    -1.35W  -1.86W  -3.11W  -1.45W  -0.89W  -0.69W  -1.12W   (MFF - VFF)
+                   ± 0.09  ± 0.12  ± 0.21  ± 0.16  ± 0.14  ± 0.14  ± 0.18 
+
+=== jump, window pre: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      2.89    2.81    2.73    2.72    2.82    2.91    3.73 |    2.60    2.51
+                    -0.29W  -0.21W  -0.13W  -0.12W  -0.21W  -0.31W  -1.13W   (MFF - VFF)
+                   ± 0.02  ± 0.02  ± 0.03  ± 0.03  ± 0.03  ± 0.04  ± 0.07 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      2.89    2.81    2.74    2.74    2.85    2.97    4.02 |    2.60    2.51
+                    -0.29W  -0.21W  -0.14W  -0.14W  -0.25W  -0.37W  -1.43W   (MFF - VFF)
+                   ± 0.02  ± 0.03  ± 0.03  ± 0.03  ± 0.03  ± 0.04  ± 0.09 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                      2.95    2.86    2.77    2.76    2.87    2.98    4.01 |    2.61    2.52
+                    -0.34W  -0.25W  -0.16W  -0.15W  -0.26W  -0.37W  -1.40W   (MFF - VFF)
+                   ± 0.03  ± 0.03  ± 0.03  ± 0.03  ± 0.04  ± 0.04  ± 0.10 
+
+=== jump, window rec_0_100: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     94.84  100.16  103.32   86.12   77.74   74.31   72.58 |   60.39   40.99
+                   -34.45W -39.76W -42.93W -25.72W -17.35W -13.91W -12.18W   (MFF - VFF)
+                   ± 1.35  ± 1.54  ± 1.75  ± 2.08  ± 2.00  ± 2.16  ± 2.65 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     95.29  100.66  103.87   86.76   78.39   74.69   72.08 |   62.42   43.65
+                   -32.87W -38.24W -41.45W -24.34W -15.97W -12.27W  -9.66W   (MFF - VFF)
+                   ± 1.23  ± 1.41  ± 1.66  ± 2.00  ± 2.00  ± 2.08  ± 2.64 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     94.74  100.16  103.42   87.14   79.31   75.83   73.80 |   64.36   46.82
+                   -30.37W -35.80W -39.06W -22.77W -14.94W -11.47W  -9.44W   (MFF - VFF)
+                   ± 1.47  ± 1.62  ± 1.83  ± 2.25  ± 2.19  ± 2.21  ± 2.71 
+
+=== jump, window rec_100_500: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     30.29   30.50   27.54   20.75   19.70   19.28   18.54 |   20.16   19.36
+                   -10.12W -10.33W  -7.38W  -0.58W  +0.46L  +0.88L  +1.62L   (MFF - VFF)
+                   ± 0.66  ± 0.81  ± 0.78  ± 0.37  ± 0.28  ± 0.27  ± 0.30 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     30.04   30.58   29.01   22.26   21.01   20.41   19.22 |   21.27   19.91
+                    -8.76W  -9.30W  -7.74W  -0.99W  +0.26T  +0.87L  +2.06L   (MFF - VFF)
+                   ± 0.71  ± 0.85  ± 0.78  ± 0.39  ± 0.32  ± 0.31  ± 0.37 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     29.67   30.86   33.41   26.96   25.24   24.38   22.81 |   21.96   20.91
+                    -7.71W  -8.90W -11.45W  -5.00W  -3.28W  -2.42W  -0.85T   (MFF - VFF)
+                   ± 0.82  ± 0.95  ± 1.30  ± 1.00  ± 0.90  ± 0.88  ± 0.87 
+
+=== jump, window post: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ===
+RMPL             a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     22.86   23.20   23.24   21.37   20.79   20.55   20.39 |   20.25   20.87
+                    -2.61W  -2.95W  -2.99W  -1.12W  -0.54W  -0.30W  -0.14T   (MFF - VFF)
+                   ± 0.14  ± 0.17  ± 0.18  ± 0.13  ± 0.13  ± 0.13  ± 0.17 
+Counting Matrix  a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     22.90   23.45   24.02   21.87   21.18   20.90   21.00 |   20.61   21.49
+                    -2.30W  -2.84W  -3.41W  -1.27W  -0.57W  -0.30W  -0.39W   (MFF - VFF)
+                   ± 0.15  ± 0.18  ± 0.20  ± 0.16  ± 0.16  ± 0.16  ± 0.21 
+Hermite Series   a=  0.005    0.01    0.02    0.05   0.075     0.1     0.2 |     MFF   Fixed
+                     23.18   24.16   26.49   23.51   22.41   21.95   21.90 |   21.01   22.32
+                    -2.16W  -3.15W  -5.48W  -2.50W  -1.40W  -0.94W  -0.89W   (MFF - VFF)
+                   ± 0.17  ± 0.21  ± 0.38  ± 0.30  ± 0.25  ± 0.25  ± 0.31 
+
+==============================================================================================================
+BEST TESTED ALPHA (HINDSIGHT, evaluation seeds), whole run, family mean
+==============================================================================================================
+-- Spearman RMSE (x 10^-2)
+   RMPL             constant:  0.02 (2.84)   drift:  0.01 (4.84)   jump: 0.075 (7.49)   | best single alpha: 0.05 (mean ratio to per-scenario best 1.077, worst 1.107); 0.05: 1.077/1.107, 0.075: 1.117/1.217, 0.02: 1.079/1.224
+   Counting Matrix  constant:  0.02 (3.09)   drift:  0.01 (5.28)   jump: 0.075 (7.74)   | best single alpha: 0.02 (mean ratio to per-scenario best 1.078, worst 1.218); 0.05: 1.093/1.136, 0.075: 1.155/1.337, 0.02: 1.078/1.218
+   Hermite Series   constant:  0.02 (3.33)   drift:  0.01 (5.37)   jump: 0.075 (8.06)   | best single alpha: 0.02 (mean ratio to per-scenario best 1.076, worst 1.219); 0.05: 1.095/1.128, 0.075: 1.153/1.318, 0.02: 1.076/1.219
+-- Excess log loss (x 10^-3 nats/obs)
+   RMPL             constant:  0.02 (36.09)   drift: 0.005 (34.74)   jump:   0.1 (49.36)   | best single alpha: 0.1 (mean ratio to per-scenario best 1.019, worst 1.032); 0.05: 1.022/1.031, 0.075: 1.020/1.034, 0.02: 1.039/1.113
+   Counting Matrix  constant:  0.02 (36.46)   drift: 0.005 (35.44)   jump:   0.1 (51.85)   | best single alpha: 0.05 (mean ratio to per-scenario best 1.026, worst 1.034); 0.05: 1.026/1.034, 0.075: 1.028/1.045, 0.02: 1.042/1.121
+   Hermite Series   constant:  0.02 (36.87)   drift:  0.01 (35.61)   jump: 0.005 (57.11)   | best single alpha: 0.005 (mean ratio to per-scenario best 1.015, worst 1.040); 0.05: 1.178/1.469, 0.075: 1.140/1.309, 0.02: 1.346/2.032
+-- Squared Hellinger (x 10^-3)
+   RMPL             constant:  0.02 (8.88)   drift: 0.005 (8.56)   jump:   0.1 (12.71)   | best single alpha: 0.1 (mean ratio to per-scenario best 1.015, worst 1.023); 0.05: 1.020/1.029, 0.075: 1.017/1.029, 0.02: 1.041/1.111
+   Counting Matrix  constant:  0.02 (8.98)   drift: 0.005 (8.73)   jump:   0.1 (12.93)   | best single alpha: 0.075 (mean ratio to per-scenario best 1.021, worst 1.030); 0.05: 1.024/1.034, 0.075: 1.021/1.030, 0.02: 1.046/1.126
+   Hermite Series   constant:  0.02 (8.99)   drift: 0.005 (8.72)   jump:   0.1 (13.52)   | best single alpha: 0.005 (mean ratio to per-scenario best 1.028, worst 1.049); 0.05: 1.034/1.057, 0.075: 1.028/1.040, 0.02: 1.063/1.179
+
+==============================================================================================================
+MFF COMPARISONS, whole run, family mean: MFF - VFF, mean ± 2 SE (W/T/L)
+==============================================================================================================
+-- Spearman RMSE (x 10^-2)
+   RMPL:
+      constant: 0.02(dev) -0.29±0.06W, best 0.02 -0.29±0.06W, single 0.05 -0.53±0.09W, every alpha WWWWWWW
+      drift: 0.02(dev) +0.01±0.05T, best 0.01 +0.08±0.06L, single 0.05 -0.43±0.09W, every alpha TLTWWWW
+      jump: 0.02(dev) -2.63±0.13W, best 0.075 -0.95±0.11W, single 0.05 -1.27±0.12W, every alpha WWWWWWW
+   Counting Matrix:
+      constant: 0.02(dev) -0.57±0.09W, best 0.02 -0.57±0.09W, single 0.02 -0.57±0.09W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.04±0.05T, best 0.01 +0.05±0.06T, single 0.02 -0.04±0.05T, every alpha TTTWWWW
+      jump: 0.02(dev) -2.70±0.13W, best 0.075 -1.01±0.13W, single 0.02 -2.70±0.13W, every alpha WWWWWWW
+   Hermite Series:
+      constant: 0.02(dev) -0.69±0.11W, best 0.02 -0.69±0.11W, single 0.02 -0.69±0.11W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.01±0.07T, best 0.01 +0.05±0.07T, single 0.02 -0.01±0.07T, every alpha WTTWWWW
+      jump: 0.02(dev) -2.89±0.13W, best 0.075 -1.12±0.13W, single 0.02 -2.89±0.13W, every alpha WWWWWWW
+-- Excess log loss (x 10^-3 nats/obs)
+   RMPL:
+      constant: 0.02(dev) -0.40±0.06W, best 0.02 -0.40±0.06W, single 0.1 -1.35±0.09W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.24±0.06W, best 0.005 -0.07±0.03W, single 0.1 -1.18±0.12W, every alpha WWWWWWW
+      jump: 0.02(dev) -6.68±0.35W, best 0.1 -1.12±0.21W, single 0.1 -1.12±0.21W, every alpha WWWWWWW
+   Counting Matrix:
+      constant: 0.02(dev) -0.75±0.10W, best 0.02 -0.75±0.10W, single 0.05 -1.23±0.14W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.36±0.06W, best 0.005 -0.14±0.04W, single 0.05 -1.35±0.14W, every alpha WWWWWWW
+      jump: 0.02(dev) -8.77±0.38W, best 0.1 -2.50±0.26W, single 0.05 -4.13±0.27W, every alpha WWWWWWW
+   Hermite Series:
+      constant: 0.02(dev) -1.04±0.13W, best 0.02 -1.04±0.13W, single 0.005 -2.53±0.15W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.41±0.09W, best 0.01 -0.17±0.07W, single 0.005 -0.31±0.06W, every alpha WWWWWWW
+      jump: 0.02(dev) -65.40±14.09W, best 0.005 -6.49±0.41W, single 0.005 -6.49±0.41W, every alpha WWWWWWW
+-- Squared Hellinger (x 10^-3)
+   RMPL:
+      constant: 0.02(dev) -0.08±0.02W, best 0.02 -0.08±0.02W, single 0.1 -0.27±0.03W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.08±0.02W, best 0.005 +0.03±0.02L, single 0.1 -0.16±0.04W, every alpha LWWWWWW
+      jump: 0.02(dev) -1.72±0.09W, best 0.1 -0.30±0.08W, single 0.1 -0.30±0.08W, every alpha WWWWWWW
+   Counting Matrix:
+      constant: 0.02(dev) -0.15±0.02W, best 0.02 -0.15±0.02W, single 0.075 -0.38±0.03W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.08±0.02W, best 0.005 +0.02±0.02L, single 0.075 -0.24±0.04W, every alpha LWWWWWW
+      jump: 0.02(dev) -1.96±0.11W, best 0.1 -0.33±0.09W, single 0.075 -0.43±0.09W, every alpha WWWWWWW
+   Hermite Series:
+      constant: 0.02(dev) -0.19±0.03W, best 0.02 -0.19±0.03W, single 0.005 -0.50±0.03W, every alpha WWWWWWW
+      drift: 0.02(dev) -0.06±0.03W, best 0.005 +0.01±0.02T, single 0.005 +0.01±0.02T, every alpha TTWWWWW
+      jump: 0.02(dev) -3.11±0.21W, best 0.1 -0.69±0.14W, single 0.005 -1.35±0.09W, every alpha WWWWWWW
+
+==============================================================================================================
+ROBUSTNESS: MFF vs the hindsight-best alpha for that family, estimator, scenario and metric (whole run)
+==============================================================================================================
+-- Spearman RMSE (x 10^-2): constant W/T/L 12/0/0  drift W/T/L 0/8/4  jump W/T/L 12/0/0   (12 cells each: 3 estimators x 4 families)
+-- Excess log loss (x 10^-3 nats/obs): constant W/T/L 12/0/0  drift W/T/L 8/3/1  jump W/T/L 12/0/0   (12 cells each: 3 estimators x 4 families)
+-- Squared Hellinger (x 10^-3): constant W/T/L 12/0/0  drift W/T/L 1/5/6  jump W/T/L 10/2/0   (12 cells each: 3 estimators x 4 families)
+
+==============================================================================================================
+EXCESS LOG LOSS EXTREMES (whole window, all 60 seeds x 4500 ticks per family; nothing clipped or dropped)
+==============================================================================================================
+seeds / seed-ticks with |rho_hat| > 0.98 summed over families; max per-tick loss; mean and median of per-tick excess
+(averaged over families); share of the summed excess from the worst 1% of seed-ticks (averaged over families).
+-- RMPL, constant
+   vff_0.005  seeds   0  seed-ticks     0  max     20889  mean    37.09  median  23.72  top-1% share  0.78
+   vff_0.01   seeds   0  seed-ticks     0  max     21432  mean    36.51  median  24.30  top-1% share  0.83
+   vff_0.02   seeds   0  seed-ticks     0  max     20768  mean    36.09  median  24.85  top-1% share  0.88
+   vff_0.05   seeds   0  seed-ticks     0  max     21518  mean    36.36  median  24.94  top-1% share  0.82
+   vff_0.075  seeds   0  seed-ticks     0  max     20813  mean    36.77  median  24.77  top-1% share  0.77
+   vff_0.1    seeds   0  seed-ticks     0  max     21030  mean    37.04  median  24.57  top-1% share  0.74
+   vff_0.2    seeds   0  seed-ticks     0  max     24523  mean    38.88  median  24.76  top-1% share  0.65
+   mff        seeds   0  seed-ticks     0  max     20388  mean    35.68  median  25.12  top-1% share  0.91
+-- RMPL, drift
+   vff_0.005  seeds   0  seed-ticks     0  max     21665  mean    34.74  median  28.28  top-1% share  0.58
+   vff_0.01   seeds   0  seed-ticks     0  max     21147  mean    34.77  median  30.29  top-1% share  0.54
+   vff_0.02   seeds   0  seed-ticks     0  max     21008  mean    34.92  median  31.03  top-1% share  0.53
+   vff_0.05   seeds   0  seed-ticks     0  max     22468  mean    35.72  median  29.75  top-1% share  0.55
+   vff_0.075  seeds   0  seed-ticks     0  max     22961  mean    35.94  median  28.81  top-1% share  0.57
+   vff_0.1    seeds   0  seed-ticks     0  max     23240  mean    35.86  median  27.78  top-1% share  0.59
+   vff_0.2    seeds   0  seed-ticks     0  max     25595  mean    36.49  median  19.87  top-1% share  0.67
+   mff        seeds   0  seed-ticks     0  max     20204  mean    34.67  median  30.89  top-1% share  0.56
+-- RMPL, jump
+   vff_0.005  seeds   0  seed-ticks     0  max     39511  mean    52.98  median  21.43  top-1% share  0.45
+   vff_0.01   seeds   0  seed-ticks     0  max     42042  mean    53.88  median  20.56  top-1% share  0.46
+   vff_0.02   seeds   0  seed-ticks     0  max     43080  mean    54.93  median  19.19  top-1% share  0.49
+   vff_0.05   seeds   0  seed-ticks     0  max     42107  mean    50.88  median  19.23  top-1% share  0.55
+   vff_0.075  seeds   0  seed-ticks     0  max     40679  mean    49.74  median  19.39  top-1% share  0.57
+   vff_0.1    seeds   0  seed-ticks     0  max     40539  mean    49.36  median  19.55  top-1% share  0.57
+   vff_0.2    seeds   0  seed-ticks     0  max     39978  mean    50.52  median  19.62  top-1% share  0.55
+   mff        seeds   0  seed-ticks     0  max     20476  mean    48.24  median  19.21  top-1% share  0.59
+-- Counting Matrix, constant
+   vff_0.005  seeds   0  seed-ticks     0  max     19098  mean    37.65  median  25.34  top-1% share  0.68
+   vff_0.01   seeds   0  seed-ticks     0  max     19146  mean    36.96  median  25.79  top-1% share  0.72
+   vff_0.02   seeds   0  seed-ticks     0  max     19269  mean    36.46  median  26.16  top-1% share  0.76
+   vff_0.05   seeds   0  seed-ticks     0  max     19609  mean    36.94  median  25.78  top-1% share  0.73
+   vff_0.075  seeds   0  seed-ticks     0  max     20454  mean    37.69  median  25.41  top-1% share  0.69
+   vff_0.1    seeds   0  seed-ticks     0  max     21756  mean    38.41  median  24.85  top-1% share  0.66
+   vff_0.2    seeds   0  seed-ticks     0  max     28980  mean    43.81  median  23.47  top-1% share  0.56
+   mff        seeds   0  seed-ticks     0  max     18372  mean    35.71  median  26.21  top-1% share  0.83
+-- Counting Matrix, drift
+   vff_0.005  seeds   0  seed-ticks     0  max     18090  mean    35.44  median  29.85  top-1% share  0.54
+   vff_0.01   seeds   0  seed-ticks     0  max     18114  mean    35.46  median  31.71  top-1% share  0.51
+   vff_0.02   seeds   0  seed-ticks     0  max     18367  mean    35.67  median  32.29  top-1% share  0.51
+   vff_0.05   seeds   0  seed-ticks     0  max     22875  mean    36.65  median  30.58  top-1% share  0.55
+   vff_0.075  seeds   0  seed-ticks     0  max     26657  mean    37.02  median  29.10  top-1% share  0.58
+   vff_0.1    seeds   0  seed-ticks     0  max     27112  mean    37.11  median  27.04  top-1% share  0.61
+   vff_0.2    seeds   0  seed-ticks     0  max     27592  mean    40.38  median  13.22  top-1% share  0.68
+   mff        seeds   0  seed-ticks     0  max     17662  mean    35.30  median  32.28  top-1% share  0.51
+-- Counting Matrix, jump
+   vff_0.005  seeds   0  seed-ticks     0  max     44346  mean    54.27  median  22.08  top-1% share  0.44
+   vff_0.01   seeds   0  seed-ticks     0  max     45134  mean    55.70  median  21.44  top-1% share  0.45
+   vff_0.02   seeds   0  seed-ticks     0  max     38140  mean    58.13  median  20.43  top-1% share  0.47
+   vff_0.05   seeds   0  seed-ticks     0  max     46343  mean    53.48  median  20.06  top-1% share  0.52
+   vff_0.075  seeds   0  seed-ticks     0  max     46678  mean    52.16  median  19.84  top-1% share  0.54
+   vff_0.1    seeds   0  seed-ticks     0  max     47800  mean    51.85  median  19.68  top-1% share  0.54
+   vff_0.2    seeds   0  seed-ticks     0  max     51251  mean    54.52  median  18.75  top-1% share  0.52
+   mff        seeds   0  seed-ticks     0  max     19763  mean    49.35  median  20.60  top-1% share  0.55
+-- Hermite Series, constant
+   vff_0.005  seeds   0  seed-ticks     0  max     20073  mean    38.36  median  23.39  top-1% share  0.69
+   vff_0.01   seeds   0  seed-ticks     0  max     20143  mean    37.50  median  23.86  top-1% share  0.74
+   vff_0.02   seeds   0  seed-ticks     0  max     20316  mean    36.87  median  24.16  top-1% share  0.79
+   vff_0.05   seeds   0  seed-ticks     0  max     21681  mean    37.40  median  23.87  top-1% share  0.74
+   vff_0.075  seeds   0  seed-ticks     0  max     21977  mean    38.27  median  23.47  top-1% share  0.69
+   vff_0.1    seeds   0  seed-ticks     0  max     22775  mean    39.09  median  22.96  top-1% share  0.66
+   vff_0.2    seeds   0  seed-ticks     0  max     31284  mean    44.38  median  22.52  top-1% share  0.57
+   mff        seeds   0  seed-ticks     0  max     20069  mean    35.83  median  24.49  top-1% share  0.88
+-- Hermite Series, drift
+   vff_0.005  seeds   0  seed-ticks     0  max     21371  mean    35.75  median  28.10  top-1% share  0.57
+   vff_0.01   seeds   0  seed-ticks     0  max     20792  mean    35.61  median  30.03  top-1% share  0.54
+   vff_0.02   seeds   0  seed-ticks     0  max     21031  mean    35.85  median  30.62  top-1% share  0.54
+   vff_0.05   seeds   1  seed-ticks     2  max     59513  mean    37.39  median  29.06  top-1% share  0.58
+   vff_0.075  seeds   1  seed-ticks     5  max     99431  mean    38.19  median  27.66  top-1% share  0.61
+   vff_0.1    seeds   2  seed-ticks     8  max    691107  mean    39.03  median  25.84  top-1% share  0.65
+   vff_0.2    seeds   2  seed-ticks    10  max    691107  mean    43.28  median  13.07  top-1% share  0.69
+   mff        seeds   0  seed-ticks     0  max     18442  mean    35.44  median  31.32  top-1% share  0.53
+-- Hermite Series, jump
+   vff_0.005  seeds   1  seed-ticks     1  max     50736  mean    57.11  median  19.63  top-1% share  0.47
+   vff_0.01   seeds   3  seed-ticks    31  max    105139  mean    60.52  median  19.29  top-1% share  0.48
+   vff_0.02   seeds 120  seed-ticks   993  max   1175850  mean   116.02  median  19.14  top-1% share  0.72
+   vff_0.05   seeds  84  seed-ticks   586  max   1175850  mean    83.91  median  18.38  top-1% share  0.69
+   vff_0.075  seeds  58  seed-ticks   367  max   1175850  mean    74.77  median  18.05  top-1% share  0.67
+   vff_0.1    seeds  45  seed-ticks   281  max   1175850  mean    72.08  median  17.73  top-1% share  0.67
+   vff_0.2    seeds  38  seed-ticks   275  max   1212490  mean    74.25  median  16.92  top-1% share  0.65
+   mff        seeds  26  seed-ticks    41  max     19329  mean    50.61  median  19.75  top-1% share  0.56

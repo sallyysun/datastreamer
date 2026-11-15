@@ -1,0 +1,12 @@
+Table A: whole-run Spearman RMSE (x 10^-2), mean over 4 families, 60 seeds; SE in brackets.
+Fixed = hindsight-best fixed ESS by RMSE per family/estimator/scenario (N in brackets). Paired: mean ± 2 SE.
+
+Constant       RMPL             Fixed  2.04 (0.04) [N 1999]  VFF  2.84 (0.05)  MFF  2.55 (0.05)   MFF-Fixed +0.51±0.06  MFF-VFF -0.29±0.06
+Constant       Counting Matrix  Fixed  1.99 (0.04) [N 1999]  VFF  3.09 (0.05)  MFF  2.51 (0.05)   MFF-Fixed +0.53±0.06  MFF-VFF -0.57±0.09
+Constant       Hermite Series   Fixed  2.13 (0.04) [N 1999]  VFF  3.33 (0.06)  MFF  2.64 (0.04)   MFF-Fixed +0.51±0.06  MFF-VFF -0.69±0.11
+Gradual drift  RMPL             Fixed  4.44 (0.06) [N 399]  VFF  4.91 (0.07)  MFF  4.92 (0.07)   MFF-Fixed +0.48±0.04  MFF-VFF +0.01±0.05
+Gradual drift  Counting Matrix  Fixed  4.89 (0.06) [N 399]  VFF  5.37 (0.07)  MFF  5.33 (0.07)   MFF-Fixed +0.44±0.04  MFF-VFF -0.04±0.05
+Gradual drift  Hermite Series   Fixed  4.96 (0.06) [N 399]  VFF  5.42 (0.08)  MFF  5.42 (0.07)   MFF-Fixed +0.46±0.04  MFF-VFF -0.01±0.07
+Abrupt jump    RMPL             Fixed  8.28 (0.05) [N 199]  VFF  9.17 (0.06)  MFF  6.54 (0.05)   MFF-Fixed -1.75±0.08  MFF-VFF -2.63±0.13
+Abrupt jump    Counting Matrix  Fixed  8.33 (0.05) [N 199]  VFF  9.42 (0.07)  MFF  6.73 (0.05)   MFF-Fixed -1.60±0.09  MFF-VFF -2.70±0.13
+Abrupt jump    Hermite Series   Fixed  8.56 (0.06) [N 199]  VFF  9.82 (0.06)  MFF  6.93 (0.06)   MFF-Fixed -1.63±0.10  MFF-VFF -2.89±0.13

@@ -1,8 +1,10 @@
 """LaTeX tables for Section 6.3.2 from results/strategies_summary.csv (analyze_strategies.py).
 Usage (from experiments/): python3 make_strategies_tex.py -> results/strategies_tables.tex"""
+import os
 import pandas as pd
+T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""
 
-s = pd.read_csv("results/strategies_summary.csv").fillna("")
+s = pd.read_csv(f"results/strategies_summary{T}.csv").fillna("")
 EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
 FAM = [("gaussian", "Gaussian"), ("clayton", "Clayton"), ("gumbel", "Gumbel"), ("t", "Student $t_4$")]
 SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
@@ -50,5 +52,5 @@ for m, (mlab, tag) in MET.items():
                 out.append(f"{fl if i == 0 else ''} & {el} & {fx} & " + " & ".join(fmt(r, False) for r in rs[1:]) + " \\\\")
             if fi < 3: out.append("\\addlinespace")
         out += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
-open("results/strategies_tables.tex", "w").write("\n".join(out) + "\n")
-print("wrote results/strategies_tables.tex")
+open(f"results/strategies_tables{T}.tex", "w").write("\n".join(out) + "\n")
+print(f"wrote results/strategies_tables{T}.tex")

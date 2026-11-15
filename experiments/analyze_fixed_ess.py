@@ -16,6 +16,8 @@ MAIN = ["39", "99", "199", "399", "1999", "nocum"]
 T = 5000
 t = np.arange(500, T); r = 0.2 + 0.6 * t / (T - 1)
 D = np.sqrt(np.mean(((3 / np.pi) / np.sqrt(1 - r ** 2 / 4) * 0.6 / (T - 1)) ** 2))
+import os  # noqa: E402
+VMAX = float(os.environ.get("V_NMAX", "2000"))   # upper end of the N_eff range for v; 350 = the flat region (calibrated v)
 
 seeds = pd.concat([pd.read_csv(R + f"fixed_ess_seeds{s}.csv", dtype={"neff": str}) for _, s in FAMS])
 dec = pd.concat([pd.read_csv(R + f"fixed_ess_decomp{s}.csv", dtype={"neff": str}) for _, s in FAMS])
@@ -48,7 +50,7 @@ for sc, wins in [("constant", ["whole"]), ("drift", ["whole"]), ("jump", ["pre",
 
 # --- drift: fine-grid optimum and the approximation
 P(); P("=== drift: empirical MSE-optimal N_eff (fine + main + sweep grids) vs (2v/d^2)^(1/3) ===")
-P(f"d_rms = {D:.5e}. v from sweep-grid memories 50 <= N <= 2000 (median of var * N). optimum: log-quadratic through the")
+P(f"d_rms = {D:.5e}. v from sweep-grid memories 50 <= N <= {VMAX:g} (median of var * N). optimum: log-quadratic through the")
 P("grid minimum and its two neighbours; 'bracket' = those neighbours; 5-pt = the same through five points (sensitivity).")
 P(f"{'family':9s} {'estimator':16s} {'grid min':>8s} {'bracket':>11s} {'optimum':>8s} {'5-pt':>6s} {'approx':>8s} {'diff %':>7s} {'v':>6s} {'MSE min':>8s}")
 rows = []
@@ -62,12 +64,12 @@ for f, _ in FAMS:
         c2, c1, _ = np.polyfit(np.log(N[i - 1:i + 2]), M[i - 1:i + 2], 2); nm = np.exp(-c1 / (2 * c2))
         c5 = np.polyfit(np.log(N[i - 2:i + 3]), M[i - 2:i + 3], 2); n5 = np.exp(-c5[1] / (2 * c5[0]))
         ok = ok and c2 > 0 and N[i - 1] <= nm <= N[i + 1] and 200 <= N[i] <= 600
-        sw = g[(g.grid == "sweep") & (g.N >= 50) & (g.N <= 2000)]
+        sw = g[(g.grid == "sweep") & (g.N >= 50) & (g.N <= VMAX)]
         v = np.median(sw["var"].values * sw.N.values); npred = max(1.0, (2 * v / D ** 2) ** (1 / 3))
         rows.append(dict(copula=f, estimator=e, optimum=nm, approx=npred, diff_pct=100 * (npred - nm) / nm, v=v, ok=ok))
         P(f"{FL[f]:9s} {EL[e]:16s} {N[i]:8.0f} {N[i-1]:5.0f}-{N[i+1]:<5.0f} {nm:8.1f} {n5:6.0f} {npred:8.1f} {100*(npred-nm)/nm:+7.2f} "
           f"{v:6.3f} {1e3*M[i]:8.3f}  {'interior, convex, inside fine grid' if ok else 'CHECK GRID'}")
-pd.DataFrame(rows).to_csv(R + "fixed_ess_optimum.csv", index=False)
+pd.DataFrame(rows).to_csv(R + ("fixed_ess_optimum.csv" if VMAX == 2000 else f"fixed_ess_optimum_v{int(VMAX)}.csv"), index=False)
 
 # --- RMPL: KLL against the earlier EW-500 fixed arms (thesis_bank_matched500, same seeds and streams)
 P(); P("=== RMPL KLL vs earlier EW-500 fixed arms (thesis_bank_matched500, same streams), whole window, RMSE x 10^-2 ===")
@@ -81,5 +83,5 @@ for f, s in FAMS:
             d = new[m] - old[f"fixed_{m}"]
             cells.append(f"N{m}: {old[f'fixed_{m}'].mean():5.2f} -> {new[m].mean():5.2f} ({d.mean():+.2f}±{2*d.std(ddof=1)/math.sqrt(len(d)):.2f})")
         P(f"{FL[f]:9s} {sc:9s} " + "   ".join(cells))
-open(R + "fixed_ess_2026-11-12.txt", "w").write("\n".join(L) + "\n")
+open(R + ("fixed_ess_2026-11-12.txt" if VMAX == 2000 else f"fixed_ess_v{int(VMAX)}_2026-11-14.txt"), "w").write("\n".join(L) + "\n")
 print("\n".join(L))

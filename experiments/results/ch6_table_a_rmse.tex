@@ -1,0 +1,22 @@
+\begin{table}[htbp]
+\centering
+\caption{Whole-run Spearman's $\rho_S$ RMSE ($\times10^{-2}$) of fixed forgetting, VFF ($\alpha=0.02$) and MFF, averaged over the four generating copula families (60 paired replications; standard errors in brackets). Fixed uses the effective sample size with the lowest whole-run RMSE, selected in hindsight for each family, estimator and scenario ($N_{\mathrm{eff}}=1999$ under constant dependence, 399 under drift and 199 under the jump, in every family). Bold: lowest in the row.}
+\label{tab:strategy-rmse}
+\begin{tabular}{llrrr}
+\toprule
+Scenario & Estimator & Fixed & VFF & MFF \\
+\midrule
+Constant & RMPL & \textbf{2.04 (0.04)} & 2.84 (0.05) & 2.55 (0.05) \\
+ & Counting Matrix & \textbf{1.99 (0.04)} & 3.09 (0.05) & 2.51 (0.05) \\
+ & Hermite Series & \textbf{2.13 (0.04)} & 3.33 (0.06) & 2.64 (0.04) \\
+\addlinespace
+Gradual drift & RMPL & \textbf{4.44 (0.06)} & 4.91 (0.07) & 4.92 (0.07) \\
+ & Counting Matrix & \textbf{4.89 (0.06)} & 5.37 (0.07) & 5.33 (0.07) \\
+ & Hermite Series & \textbf{4.96 (0.06)} & 5.42 (0.08) & 5.42 (0.07) \\
+\addlinespace
+Abrupt jump & RMPL & 8.28 (0.05) & 9.17 (0.06) & \textbf{6.54 (0.05)} \\
+ & Counting Matrix & 8.33 (0.05) & 9.42 (0.07) & \textbf{6.73 (0.05)} \\
+ & Hermite Series & 8.56 (0.06) & 9.82 (0.06) & \textbf{6.93 (0.06)} \\
+\bottomrule
+\end{tabular}
+\end{table}
