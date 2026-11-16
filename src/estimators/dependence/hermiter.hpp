@@ -336,12 +336,6 @@ public:
         pit_y_.reset();
     }
 
-    double kendall() const {
-        if (n_ < config_.burn_in) return 0.0;
-        const double tau = 4.0 * (W_.transpose() * A_.transpose() * W_).trace() - 1.0;
-        return std::clamp(tau, -1.0, 1.0);
-    }
-
     // Everything the object holds: itself, the coefficients a_x, a_y, A (and A_fast), and the fixed
     // coupling matrix W and integrals z that estimate() needs, plus the rank windows' heap.
     std::size_t store_bytes() const override {
