@@ -8,7 +8,7 @@
 #include "estimator.hpp"
 #include "memory_control.hpp"
 #include "predictive_density.hpp"
-#if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/Makefile DS_INC)
+#if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/build.sh)
 #include "ds_margin.hpp"
 #define RECURSIVE_MPL_HAS_DS 1
 #endif
@@ -25,7 +25,7 @@
 //   Exact          arg max of Q_t(r) = sum kappa^k log c_r(a_k, b_k): the root in (-1, 1) of
 //                  -W r^3 + P r^2 + (W - S) r + P, W = sum kappa^k, S = sum kappa^k (a^2+b^2), P = sum kappa^k ab
 //   CopulaFit      the pre-2026-11-06 registered recursion (step clamp, unprojected phi)
-// Spec and results: notes/studies/budget_mpl.md.
+// Spec and results: archive/notes/studies/budget_mpl.md.
 class RecursiveMPL : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
 public:
     enum class Margin { Kll, DsKll, ExactNormal, RankWindow, Ew };

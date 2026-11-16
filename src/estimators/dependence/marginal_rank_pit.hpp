@@ -12,7 +12,7 @@
 // Exact rank-PIT needs every past observation. This keeps a bounded sorted
 // window instead, which is what makes it streaming-admissible: O(log W) to rank,
 // O(W) to maintain the sorted order. See section 0.5 of
-// notes/studies/kalman_changepoint_results.md for why ranks and not
+// archive/notes/studies/kalman_changepoint_results.md for why ranks and not
 // standardization.
 class RankPit {
 public:

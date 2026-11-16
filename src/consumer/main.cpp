@@ -9,6 +9,9 @@
 // Usage:
 //   ./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT]
 //              [--policy all|snapshot|latest] [--print 20] [--rate 0]
+//              [--score <scenario> --seed <s> --out <file.csv>] [--n <observations>]
+// --score: score every strategy against the ground truth on the ticks and append the probe's strategies_seeds rows
+// (copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000) to --out when the stream ends.
 //
 // The consumer subscribes to "trades.equity.<X>" and "trades.equity.<Y>" and
 // pairs by arrival order. This assumes the producers publish synchronously (one
@@ -71,6 +74,10 @@ int main(int argc, char** argv) {
     const ConsumerPolicy policy = parse_policy(arg(argc, argv, "--policy", "all"));
     const int print_every = std::atoi(arg(argc, argv, "--print", "20"));
     const double rate = std::atof(arg(argc, argv, "--rate", "0"));  // msg/s, 0 = unlimited
+    const std::string score = arg(argc, argv, "--score", "");
+    const unsigned seed = unsigned(std::atol(arg(argc, argv, "--seed", "0")));
+    const std::string out = arg(argc, argv, "--out", "");
+    const std::size_t n_max = std::strtoul(arg(argc, argv, "--n", "0"), nullptr, 10);
 
     const std::string topic_x = "trades.equity." + sym_x;
     const std::string topic_y = "trades.equity." + sym_y;
@@ -92,6 +99,7 @@ int main(int argc, char** argv) {
                 rate > 0.0 ? " (throttled)" : "");
 
     Consumer device(1024, policy);
+    if (!score.empty()) device.enable_scoring(score);
 
     // One FIFO per leg; when both are non-empty we can emit a paired sample.
     std::deque<SymbolTick> queue_x, queue_y;
@@ -99,9 +107,10 @@ int main(int argc, char** argv) {
     std::string buf;
     char chunk[4096];
     std::size_t n_events = 0;
-    while (true) {
+    bool done = false;
+    while (!done) {
         const ssize_t r = ::recv(fd, chunk, sizeof(chunk), 0);
-        if (r <= 0) { std::printf("consumer: broker closed connection\n"); break; }
+        if (r <= 0) { std::printf("consumer: end of stream after %zu observations\n", device.observations()); break; }
         buf.append(chunk, static_cast<std::size_t>(r));
 
         std::size_t pos;
@@ -128,18 +137,25 @@ int main(int argc, char** argv) {
                 queue_y.pop_front();
                 device.on_event(event);
 
-                if (++n_events % static_cast<std::size_t>(print_every) == 0) {
-                    std::printf("n=%zu true_rho_s=%+.3f | ", n_events, event.x.true_rho_s);
-                    for (const auto& [name, rho] : device.dependence()) {
-                        std::printf("%s=%+.3f ", name.c_str(), rho);
-                    }
+                ++n_events;
+                if (print_every > 0 && n_events % static_cast<std::size_t>(print_every) == 0) {
+                    std::printf("n=%zu true_rho_s=%+.3f | ", device.observations(), event.x.true_rho_s);
+                    for (const auto& [name, rho] : device.dependence())
+                        if (name.ends_with("_mff") || name.ends_with("_vff_slow")) std::printf("%s=%+.3f ", name.c_str(), rho);
                     std::printf("\n");
                     std::fflush(stdout);
                 }
+                if (n_max && device.observations() >= n_max) { done = true; break; }
             }
         }
     }
 
     ::close(fd);
+    if (!score.empty() && !out.empty()) {
+        std::FILE* f = std::fopen(out.c_str(), "a");
+        if (!f) { std::fprintf(stderr, "cannot open %s\n", out.c_str()); return 1; }
+        device.write_scores(f, seed);
+        std::fclose(f);
+    }
     return 0;
 }

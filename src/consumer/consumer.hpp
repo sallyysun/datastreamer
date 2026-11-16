@@ -75,6 +75,9 @@ public:
     // ----------- statistics -----------
 
     DeviceState::Moments moments() const { return state_.moments(); }
+    void enable_scoring(const std::string& scenario) { state_.enable_scoring(scenario); }
+    std::size_t observations() const { return state_.observations(); }
+    void write_scores(std::FILE* out, unsigned seed) const { state_.write_scores(out, seed); }
 
     // ----------- introspection -----------
 

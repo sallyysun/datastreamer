@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <random>
 #include <thread>
 
 #include <nlohmann/json.hpp>
@@ -40,6 +41,13 @@ static Config load_config() {
     return c;
 }
 
+// Experiment controls (all optional): SEED (DGP seed; default random), N (stop after N observations and exit; 0 =
+// endless), RATE (observations per second; 0 = as fast as delivery allows; default 10), WAIT_CONSUMERS (hold the first
+// observation until this many consumers have subscribed to both legs; delivery is then lossless), PORT / BROKER_PORT.
+static long env_long(const char* k, long d) { const char* e = std::getenv(k); return e && *e ? std::atol(e) : d; }
+static double env_double(const char* k, double d) { const char* e = std::getenv(k); return e && *e ? std::atof(e) : d;
+}
+
 // =========================================================
 // MIME + topic helpers
 // =========================================================
@@ -69,17 +77,15 @@ static std::string equity_topic(const std::string &symbol) {
     return "trades.equity." + symbol;
 }
 
-// Pick the live dependence regime from the DEPENDENCE env var (see
-// make_live_dependence below). Same binary demos any regime without recompiling.
+// Live regime from DEPENDENCE=constant|drift|jump (default jump).
+// The thesis scenarios (dependence.hpp) over kLiveN observations, as offline; the clock keeps running after.
+constexpr std::size_t kLiveN = 5000;
 static std::unique_ptr<Dependence> make_live_dependence() {
     const char* env = std::getenv("DEPENDENCE");
-    const std::string name = env ? env : "oscillate";
-    if (name == "constant")   return std::make_unique<ConstantDependence>(0.6);
-    if (name == "drift")      return std::make_unique<DriftDependence>(-0.5, 0.8, 1500);
-    if (name == "jump")       return std::make_unique<JumpDependence>(0.2, 0.8, 1000);
-    if (name == "stochastic") return std::make_unique<StochasticDependence>(0.01, 0.6, 12345);
-    if (name != "oscillate") std::cout << "unknown DEPENDENCE='" << name << "', using oscillate\n";
-    return std::make_unique<OscillatingDependence>(0.6, 400.0, 0.0);
+    const std::string name = env ? env : "jump";
+    if (auto d = make_scenario(name, kLiveN)) return d;
+    std::cout << "unknown DEPENDENCE='" << name << "', using jump\n";
+    return make_scenario("jump", kLiveN);
 }
 
 // Pick the live copula family from the COPULA env var (gaussian|clayton|gumbel|t,
@@ -96,6 +102,14 @@ static std::unique_ptr<dgp::Copula> make_live_copula() {
 // =========================================================
 int main() {
     Config cfg = load_config();
+    cfg.port = int(env_long("PORT", cfg.port));
+    cfg.broker_port = int(env_long("BROKER_PORT", cfg.broker_port));
+    const long n_obs = env_long("N", 0), wait_consumers = env_long("WAIT_CONSUMERS", 0);
+    const double rate = env_double("RATE", 10.0);
+    const unsigned seed = std::getenv("SEED") ? unsigned(env_long("SEED", 0)) : std::random_device{}();
+    const char* cop_env = std::getenv("COPULA");
+    const std::string cop = cop_env ? cop_env : "gaussian";
+    const bool truth = cop == "gaussian" || cop == "clayton" || cop == "gumbel" || cop == "t";
 
     uWS::App app;
     Serializer serializer;
@@ -108,7 +122,9 @@ int main() {
     std::cout << "live dependence: " << dependence->name() << " | copula: " << copula->name()
               << " | symbols: " << sym_x << ", " << sym_y << " (topics " << equity_topic(sym_x)
               << " / " << equity_topic(sym_y) << ")\n";
-    auto source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula));
+    std::cout << "seed " << seed << (n_obs ? " | n " + std::to_string(n_obs) : std::string()) << " | rate "
+              << (rate > 0 ? std::to_string(rate) : std::string("max")) << "\n";
+    auto source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula), seed, truth ? cop : "");
 
     // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
@@ -118,7 +134,8 @@ int main() {
         std::cout << "failed to start broker on tcp/" << cfg.broker_port << "\n";
     }
 
-    Producer producer(source, fixed_delay(10.0));
+    Producer producer(source, rate > 0 ? fixed_delay(rate) : zero_delay());
+    if (wait_consumers > 0) broker.set_lossless(true);
 
     // Serve the React build (display client).
     app.get("/*", [](auto *res, auto *req) {
@@ -174,8 +191,10 @@ int main() {
     // WS). A subscriber -- C++ consumer or browser -- pairs the symbols it wants.
     // No estimation here.
     std::thread producer_thread([&]() {
+        while (wait_consumers > 0 && broker.ready_count(2) < std::size_t(wait_consumers))
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::size_t n = 0;
-        producer.run([&](const TickPair &event) {
+        auto sink = [&](const TickPair &event) {
             // The DGP leaves the legs unnamed; the server names the instruments.
             SymbolTick tick_x = event.x; tick_x.symbol = sym_x;
             SymbolTick tick_y = event.y; tick_y.symbol = sym_y;
@@ -185,11 +204,18 @@ int main() {
             broker.publish(equity_topic(sym_y), msg_y);
             app.publish(equity_topic(sym_x), msg_x, uWS::OpCode::TEXT);
             app.publish(equity_topic(sym_y), msg_y, uWS::OpCode::TEXT);
-            if (++n % 20 == 0) {
+            if (++n % 1000 == 0) {
                 std::cout << "events=" << n
                           << " tcp_consumers=" << broker.subscriber_count() << "\n";
             }
-        });
+        };
+        if (n_obs > 0) {
+            producer.run(sink, int(n_obs) + 1);   // + the opening tick
+            std::cout << "done: " << n - 1 << " observations" << std::endl;
+            broker.stop();       // closes the consumers' sockets after the queued bytes: they see end of stream
+            std::_Exit(0);
+        }
+        producer.run(sink);
     });
 
     app.listen(cfg.port, [&](auto *token) {

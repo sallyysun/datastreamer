@@ -22,8 +22,8 @@
 // c_{g^{-1}(rho_k)} of `family` (thesis section 4.3.1), so it sees only rho; Loss::Own
 // asks each component for its own predictive density (PredictiveDensity), falling back
 // to the method-of-moments density for a component that has none.
-// notes/studies/thesis_bank_own_density.md.
-// Design and how it differs from EstimatorBank: notes/thesis/chapter6_plan.md.
+// archive/notes/studies/thesis_bank_own_density.md.
+// Design and how it differs from EstimatorBank: archive/notes/thesis/chapter6_plan.md.
 class ForgettingBank : public DependenceEstimator {
 public:
     enum class Loss { Squared, Log, Own };

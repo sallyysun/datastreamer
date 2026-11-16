@@ -38,7 +38,7 @@
 // rank_pit_window > 0 replaces the calibrated cutpoints with rank-PIT: each
 // marginal goes through RankPit, so the cutpoints are exactly k/bins and no
 // calibration window is needed. Section 14.19 of
-// notes/studies/kalman_changepoint_results.md.
+// archive/notes/studies/kalman_changepoint_results.md.
 class XiaoSpearmanEstimator : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
 public:
     struct Config {
@@ -64,7 +64,7 @@ public:
         // which is 1 when the memory is right -- the same statistic and the same
         // multiplicative rule as KalmanLocalLevel's vff_rate. Mirror image: here
         // it drives alpha = 1 - lambda, so C_ > 1 LOWERS lambda.
-        // See notes/studies/adaptive_memory.md.
+        // See archive/notes/studies/adaptive_memory.md.
         double vff_rate = 0.0;             // 0 disables
         std::size_t vff_block = 20;        // ticks per C_ update, as the Kalman's
         double vff_null_var = 1.0;         // section 14.14 measured 0.92-1.00
@@ -193,7 +193,7 @@ public:
     // integrates to one but its margins are uniform only approximately, so it is a density on the
     // unit square, not a copula density. NaN outside rank-PIT mode (raw-scale calibrated cells are
     // not equal-area in u) and under VFF (the stored counts mix observations weighted by different
-    // lambdas). notes/studies/memory_tradeoff.md.
+    // lambdas). archive/notes/studies/memory_tradeoff.md.
     double log_density_uv(double u, double v) const {
         constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
         if (config_.rank_pit_window == 0 || config_.vff_rate > 0.0) return kNaN;

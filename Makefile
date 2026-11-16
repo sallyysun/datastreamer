@@ -1,11 +1,13 @@
-CXX = clang++
+CXX ?= clang++
 
 UWS = external/uWebSockets
 USOCKETS = $(UWS)/uSockets/uSockets.a
 
-OPENSSL = /opt/homebrew/opt/openssl
-EIGEN = /opt/homebrew/opt/eigen
-JSON = /opt/homebrew/opt/nlohmann-json
+OPENSSL ?= /opt/homebrew/opt/openssl
+EIGEN ?= /opt/homebrew/opt/eigen
+JSON ?= /opt/homebrew/opt/nlohmann-json
+DS = external/datasketches-cpp
+DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
 
 SERVER_SRC = \
 src/streamgenerator/main.cpp \
@@ -20,7 +22,8 @@ INCLUDES = \
 -I$(UWS)/uSockets/src \
 -I$(OPENSSL)/include \
 -I$(EIGEN)/include/eigen3 \
--I$(JSON)/include
+-I$(JSON)/include \
+$(DS_INC)
 
 LIBS = \
 -L$(OPENSSL)/lib \
@@ -37,17 +40,16 @@ server:
 	-o $(SERVER_OUT)
 
 # Standalone C++ consumer: connects to the broker over TCP, runs its own device
-# + inference. Needs Eigen (Hermite) + nlohmann (deserialize); no uWebSockets.
+# + inference (the thesis VFF/MFF strategies). Needs Eigen (Hermite), nlohmann (deserialize) and the
+# datasketches submodule (RMPL's KLL margin); no uWebSockets.
 CONSUMER_OUT = consumer
 
 consumer:
 	$(CXX) src/consumer/main.cpp src/protocol/serializer.cpp -std=c++20 -O2 \
-	-I$(EIGEN)/include/eigen3 -I$(JSON)/include \
+	-I$(EIGEN)/include/eigen3 -I$(JSON)/include $(DS_INC) -pthread \
 	-o $(CONSUMER_OUT)
 
-# NOTE: the offline experiment harness has its own Makefile (experiments/Makefile)
-# and is intentionally NOT built here, so this repo has no dependency on it --
-# experiments/ can be gitignored or split into a separate repo.
+# The Chapter 6 experiments are built from their own folders (experiments/README.md).
 
 clean:
 	rm -f server consumer

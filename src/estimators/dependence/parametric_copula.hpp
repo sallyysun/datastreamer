@@ -13,7 +13,7 @@
 
 // Online MLE for the Clayton / Gumbel / Student-t copulas, fitted in an
 // unconstrained coordinate phi by an empirical-Fisher natural-gradient step.
-// Derivation: notes/studies/roadmap.md.
+// Derivation: archive/notes/studies/roadmap.md.
 namespace copula {
 
 class CopulaFit {

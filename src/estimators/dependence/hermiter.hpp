@@ -23,7 +23,7 @@
 // Scope: this port covers only the online bivariate Spearman's-rho path. The
 // reference package additionally does univariate pdf/cdf/quantile estimation,
 // Kendall's tau, consistent merging of sub-estimators, and batch mode -- none
-// ported (see notes/code_changes). The Spearman coupling matrix W is built in
+// ported (see archive/notes/code_changes). The Spearman coupling matrix W is built in
 // closed form (see integral_matrix), matching the reference; there is no
 // remaining quadrature/approximation step.
 class HermiteEstimator : public DependenceEstimator, public PredictiveDensity, public MemoryControlled {
@@ -39,7 +39,7 @@ public:
         // Divide the three EWMA accumulators by the weight actually accumulated,
         // 1 - (1-w)^n. Without it a long-memory Hermite is still shrunk toward
         // zero at t ~ ESS, which reads as a memory effect and is not one. Off by
-        // default so no registered number moves. See notes/studies/adaptive_memory.md.
+        // default so no registered number moves. See archive/notes/studies/adaptive_memory.md.
         bool debias = false;
         // Coefficient weight on the m-th absorbed observation (EW mode):
         //   Normalised  : w_m = lambda / W_m, W_m = (1 - lambda) W_{m-1} + lambda, W_0 = 0. The thesis
@@ -49,7 +49,7 @@ public:
         //   Literal     : w_1 = 1, then lambda: 5.1.2 verbatim. The first observation keeps weight
         //                 (1 - lambda)^{m-1}, i.e. counts as 1/lambda observations.
         //   RunningMean : max(lambda, 1/m), the pre-2026-11-09 rule.
-        // Cumulative mode (lambda = 0) is the running mean 1/m. notes/studies/ew_marginals.md §3.
+        // Cumulative mode (lambda = 0) is the running mean 1/m. archive/notes/studies/ew_marginals.md §3.
         enum class Start { Normalised, Literal, RunningMean };
         Start start = Start::Normalised;
         // Inputs are already normal scores z = probit(u) of shared pseudo-observations (the bank

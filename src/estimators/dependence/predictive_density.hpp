@@ -6,7 +6,7 @@
 // that the caller is about to feed it as (probit(u), probit(v)), under the state held before that
 // update. Each implementation maps (u, v) through its own marginal step and includes the
 // Jacobian, so densities from different estimators are in the same coordinates and comparable.
-// NaN means "no density in this configuration". notes/studies/thesis_bank_own_density.md.
+// NaN means "no density in this configuration". archive/notes/studies/thesis_bank_own_density.md.
 class PredictiveDensity {
 public:
     virtual ~PredictiveDensity() = default;

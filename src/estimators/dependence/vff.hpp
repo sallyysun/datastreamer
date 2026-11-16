@@ -17,7 +17,7 @@
 // forgetting factor), with the derivative of m with respect to lambda carried recursively. The step is
 // taken in theta = log N_eff, scaled by a running RMS of the gradient, and N_eff is clamped to the
 // bank's span. Each wrapped estimator's memory is set to the controller's N_eff before it updates.
-// Design and validation: notes/studies/ew_marginals.md §12.
+// Design and validation: archive/notes/studies/ew_marginals.md §12.
 class VffController {
 public:
     struct Config {

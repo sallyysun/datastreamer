@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cerrno>
+
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -73,11 +75,21 @@ public:
         for (auto& [fd, sub] : subs_) {
             if (!sub.matches(topic)) continue;
             if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
-            ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
+            if (lossless_) send_all(fd, framed);
+            else ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
             sub.last_sent = now;
         }
     }
 
+    // Experiments: block until every byte is delivered instead of dropping (a slow consumer slows the producer).
+    void set_lossless(bool on) { lossless_ = on; }
+    // Connections subscribed to at least min_topics topics (a pairing consumer subscribes to both legs).
+    std::size_t ready_count(std::size_t min_topics) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::size_t n = 0;
+        for (const auto& [fd, sub] : subs_) n += sub.topics.size() >= min_topics;
+        return n;
+    }
     std::size_t subscriber_count() {
         std::lock_guard<std::mutex> lock(mutex_);
         return subs_.size();
@@ -94,6 +106,19 @@ public:
     }
 
 private:
+    static void send_all(int fd, const std::string& msg) {
+        std::size_t off = 0;
+        while (off < msg.size()) {
+            const ssize_t k = ::send(fd, msg.data() + off, msg.size() - off, 0);
+            if (k > 0) { off += static_cast<std::size_t>(k); continue; }
+            if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                pollfd p{fd, POLLOUT, 0};
+                if (::poll(&p, 1, 5000) <= 0) return;   // consumer stalled for 5 s: give up on this message
+                continue;
+            }
+            return;   // connection gone
+        }
+    }
     void run() {
         while (running_) {
             std::vector<pollfd> pfds;
@@ -186,6 +211,7 @@ private:
     };
 
     int port_;
+    bool lossless_ = false;
     int listen_fd_ = -1;
     std::atomic<bool> running_{false};
     std::thread thread_;

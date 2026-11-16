@@ -21,7 +21,7 @@ inline double default_marginal_neff() {
 // a weighted Greenwald-Khanna summary with forward decay: observation i enters with weight
 // lambda^{-i}, so relative weights are exact without rescaling old tuples. Combining every
 // floor(1/(2 eps)) inserts keeps g + Delta <= 2 eps W. Ranks are read at the midpoint of each rank
-// interval. neff <= 0 gives no forgetting. Design and checks: notes/studies/ew_marginals.md.
+// interval. neff <= 0 gives no forgetting. Design and checks: archive/notes/studies/ew_marginals.md.
 class EwMarginal {
 public:
     explicit EwMarginal(double neff = 500.0, double eps = 0.005)

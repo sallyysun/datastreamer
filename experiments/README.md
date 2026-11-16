@@ -1,0 +1,43 @@
+# Chapter 6 experiments
+
+One folder per thesis section. Each holds its simulation program (or uses `common/probe_strategies.cpp`), its
+analysis and plotting scripts, `run.sh`, and `images/` containing exactly the figures in the thesis.
+`results/` (raw and derived CSVs) is git-ignored.
+
+| Folder | Thesis | Program | Figures / tables |
+| --- | --- | --- | --- |
+| `ch3-background/` | Ch. 3 | — | `ch3_parametric`, `ch3_empirical` |
+| `6.2-fixed-forgetting/` | §6.2 | `probe_fixed_ess.cpp` | constant/drift/jump ESS RMSE, drift bias–variance, jump recovery; tab:optimal-ess-*, tab:jump-recovery |
+| `6.3-adaptive-forgetting/` | §6.3 + app. | `common/probe_strategies.cpp` | strategy RMSE bars, trajectories, MFF weights / fixed share, VFF rate sensitivity |
+| `6.4-copula-density/` | §6.4 + app. | `common/probe_strategies.cpp` (`SCORESFAM`, `REGRET`, `REGRETFAM`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
+| `6.5-family-switching/` | §6.5 | `common/probe_strategies.cpp` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
+| `6.6-real-data/` | §6.6 + app. | `probe_real_practical.cpp` | final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage |
+| `live/` | §6.3–6.4 over TCP | `../server` + `../consumer` | `run_live.sh` (results/live_seeds[_fam].csv), `compare_live.py` (vs the probe) |
+| `6.7-computational-cost/` | §6.7 + app. | `probe_budget.cpp`, `probe_margins.cpp` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
+
+```bash
+./build.sh                          # EIGEN=/usr (Linux) or /opt/homebrew/opt/eigen (macOS)
+6.2-fixed-forgetting/run.sh         # figures + tables from results/
+SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 families)
+```
+
+Shared code in `common/`: `probe_strategies.cpp` (the fixed / VFF / MFF simulation used by 6.3–6.5),
+`copula_source.hpp` (simulated streams), `density_metrics.hpp` (excess log loss, H²), and the plot style
+(`ch6_style.py`, `plot_ch6_core.py`, `plot_style.py`).
+
+Conventions:
+
+- Simulations: 60 seeds (42–101), T = 5,000, evaluation from observation 500, change at 2,500, scenarios from
+  `make_scenario` in `src/streamgenerator/datasource/dependence.hpp` (constant 0.6, drift 0.2 → 0.8, jump
+  0.2 → 0.8). 6.7 uses n = 15,000, validation seeds 1000–1039, test seeds 42–141.
+- The estimator and strategy configurations come from `src/estimators/registry.hpp` (`thesis::arm`, `thesis::vff`,
+  `thesis::mff`). The probes apply the same MFF/VFF rules to shared KLL pseudo-observations; `VALIDATE=1` checks
+  them against the framework classes (max difference 0).
+- `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
+  Linux and macOS. The thesis numbers come from Linux/libstdc++.
+- `live/`: the same device and scoring as the probe (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed
+  over TCP. The consumer sees log returns ln(p_t/p_{t-1}) = 1e-4 + 0.01 z rather than the draws z; ranks are
+  unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):
+  707 streams byte-identical to the probe; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means
+  by at most 1e-5 relative. `common/test/device_vs_probe.cpp` reproduces both (draws and returns) in-process.
+- 6.6 needs the real-data inputs, which are not in the repository (see `6.6-real-data/run.sh`).

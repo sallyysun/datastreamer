@@ -9,7 +9,7 @@
 
 // KLL quantile sketch (Karnin, Lang & Liberty 2016) for one marginal: approximate
 // ranks in bounded memory. Cumulative, so exact only for stationary margins.
-// See notes/studies/budget_mpl.md.
+// See archive/notes/studies/budget_mpl.md.
 class KllSketch {
 public:
     explicit KllSketch(std::size_t k = 200, unsigned seed = 1) : k_(k), rng_(seed) {

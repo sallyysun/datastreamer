@@ -1,5 +1,8 @@
 #pragma once
 
+#include <random>
+#include <string>
+
 #include "copula.hpp"
 #include "datasource.hpp"
 #include "dependence.hpp"
@@ -19,7 +22,9 @@ public:
     explicit SyntheticSource(std::unique_ptr<Dependence> dependence =
                                  std::make_unique<ConstantDependence>(0.6),
                              std::unique_ptr<dgp::Copula> copula =
-                                 std::make_unique<dgp::GaussianCopula>());
+                                 std::make_unique<dgp::GaussianCopula>(),
+                             unsigned seed = std::random_device{}(),
+                             std::string family = "");
 
     TickPair next() override;
 
@@ -40,5 +45,7 @@ private:
     std::unique_ptr<dgp::Copula> copula_;
 
     std::mt19937 rng_;
+    bool opened_ = false;
+    std::string family_;   // gaussian|clayton|gumbel|t: ground truth is attached to each tick; empty: none
     std::normal_distribution<double> normal_;
 };

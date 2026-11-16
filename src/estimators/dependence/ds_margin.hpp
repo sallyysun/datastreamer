@@ -8,7 +8,7 @@
 #include <req_sketch.hpp>
 
 // One marginal rank summary backed by Apache DataSketches (external/datasketches-cpp): KLL, or REQ
-// in high-rank-accuracy mode. Same interface as KllSketch. See notes/studies/budget_mpl.md §10.
+// in high-rank-accuracy mode. Same interface as KllSketch. See archive/notes/studies/budget_mpl.md §10.
 namespace ds_margin {
 
 // Counts the heap the sketch actually holds, so store_bytes() is allocation, not serialised size.
