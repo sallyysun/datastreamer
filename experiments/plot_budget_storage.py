@@ -2,6 +2,10 @@
 over the 12 family x scenario selections (labelled in KiB). Storage = peak store_bytes() over every tick, max over validation seeds (all fit on test seeds too), in KiB
 (1 KiB = 1024 B). RMPL counts both DataSketches KLL margins and its parameter / gain state. Source: results/budget_audit_cells.csv
 (audit_budget.py). Usage (from experiments/): python3 plot_budget_storage.py -> ../images/ch6/6.2/ch6_budget_storage.png"""
+import os
+SUF = os.environ.get("BUDGET_SET", "")          # "" = n = 5000 (extended grid); "_n15k" = n = 15,000
+SRC = SUF if SUF else "_ext"
+
 import sys
 import numpy as np
 import pandas as pd
@@ -10,7 +14,7 @@ sys.path.insert(0, ".")
 import plot_constant_ess as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-C = pd.read_csv("results/budget_audit_cells.csv")
+C = pd.read_csv(f"results/budget_audit_cells{SUF}.csv")
 C["kib"] = C.peak_val / 1024
 E = [("mpl_dskll", "RMPL", ce.COL["mle"]), ("xiao", "Counting Matrix", ce.COL["xiao"]), ("hermite", "Hermite Series", ce.COL["hermite"])]
 B = [16, 64, 256]
@@ -34,6 +38,6 @@ with plt.rc_context(ce.RC):
     h, l = ax.get_legend_handles_labels()
     fig.legend(h, l, loc="upper center", ncol=3, frameon=False, fontsize=6.5, bbox_to_anchor=(0.53, 1.0), handlelength=1.2, columnspacing=1.0)
     fig.subplots_adjust(left=0.15, right=0.97, top=0.86, bottom=0.17)
-    fig.savefig("../images/ch6/6.2/ch6_budget_storage.png"); plt.close(fig)
+    fig.savefig(f"../images/ch6/6.2/ch6_budget_storage{SUF}.png"); plt.close(fig)
 print(C.groupby(["estimator", "budget_kib"]).kib.agg(["min", "median", "max"]).round(2))
-print("wrote ../images/ch6/6.2/ch6_budget_storage.png")
+print(f"wrote ../images/ch6/6.2/ch6_budget_storage{SUF}.png")

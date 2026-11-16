@@ -56,7 +56,7 @@ std::vector<double> gain_grid() {
 const std::vector<double> kGains = gain_grid();
 
 // Harness only (Section 6.2 extension, 2026-11-15): BUDGET_EST=a,b restricts the estimators; BUDGET_KLL=k1,k2 replaces the
-// mpl_dskll capacity grid; BUDGET_TIME_GAIN sets the gain timed by `time` (default 0.02).
+// capacity grid of both KLL implementations (mpl_kll, mpl_dskll); BUDGET_TIME_GAIN sets the gain timed by `time` (default 0.02).
 std::vector<std::string> csv_env(const char* name) {
     std::vector<std::string> v;
     const char* e = std::getenv(name);
@@ -92,7 +92,7 @@ std::vector<Cfg> build_cfgs() {
     for (double g : kGains) {
         if (est_on("xiao")) for (int b : {10, 20, 30, 45, 65, 90, 130, 180}) v.push_back({"xiao", b, g});
         if (est_on("hermite")) for (int n : {5, 10, 15, 20, 30, 43, 60, 89, 128}) v.push_back({"hermite", n, g});
-        if (est_on("mpl_kll")) for (int k : {8, 16, 32, 64, 128, 256, 512, 1024}) v.push_back({"mpl_kll", k, g});
+        if (est_on("mpl_kll")) for (int k : ds_kll_grid()) v.push_back({"mpl_kll", k, g});   // BUDGET_KLL applies to both KLL implementations
         if (est_on("mpl_dskll")) for (int k : ds_kll_grid()) v.push_back({"mpl_dskll", k, g});
         if (est_on("mpl_exact")) v.push_back({"mpl_exact", 0, g});
         if (est_on("mpl_ew")) v.push_back({"mpl_ew", 500, g});

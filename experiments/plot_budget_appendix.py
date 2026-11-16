@@ -5,6 +5,10 @@ cum / 0.0005-0.10 on constant and drift, 0.005-0.10 on jump; validation seeds 10
 (2) ch6_budget_kll_comparison.png: RMPL on the hand-written vs DataSketches KLL at matched k: family-averaged test RMSE (per
     seed, mean over the four families, each at its validation-best gain for that k; ±2 SE over seeds) against retained state.
 Usage (from experiments/): python3 plot_budget_appendix.py"""
+import os
+SUF = os.environ.get("BUDGET_SET", "")          # "" = n = 5000 (extended grid); "_n15k" = n = 15,000
+SRC = SUF if SUF else "_ext"
+
 import sys
 import numpy as np
 import pandas as pd
@@ -13,8 +17,8 @@ sys.path.insert(0, ".")
 import plot_constant_ess as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-sw = pd.read_csv("results/budget_sweep_ext.csv")
-SD = pd.read_csv("results/budget_seeds_ext.csv").set_index(["family", "scenario", "estimator", "approx", "gain", "seed"]).rmse.sort_index()
+sw = pd.read_csv(f"results/budget_sweep{SRC}.csv")
+SD = pd.read_csv(f"results/budget_seeds{SRC}.csv").set_index(["family", "scenario", "estimator", "approx", "gain", "seed"]).rmse.sort_index()
 val = sw[sw.split == "val"]
 FAMS = [("gaussian", "Gaussian"), ("t", "Student's $t_4$"), ("clayton", "Clayton"), ("gumbel", "Gumbel")]
 SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
@@ -56,8 +60,9 @@ with plt.rc_context(ce.RC):
     fig.text(0.53, 0.01, "Retained state (KiB, log scale); dotted lines mark the 16, 64 and 256 KiB budgets", ha="center", fontsize=7.5)
     fig.text(0.005, 0.5, "Spearman RMSE ($\\times10^{-2}$)", rotation=90, va="center", fontsize=7.5)
     fig.subplots_adjust(left=0.1, right=0.99, top=0.93, bottom=0.07, hspace=0.18, wspace=0.22)
-    fig.savefig("../images/ch6/6.2/ch6_budget_memory_curves.png"); plt.close(fig)
+    fig.savefig(f"../images/ch6/6.2/ch6_budget_memory_curves{SUF}.png"); plt.close(fig)
 
+if SUF: sys.exit(0)   # the KLL implementation comparison exists only at n = 5000
 KE = [("mpl_kll", "Hand-written KLL", "#6250d6", "v"), ("mpl_dskll", "Apache DataSketches KLL", ce.COL["mle"], "^")]
 rows = []
 with plt.rc_context(ce.RC):

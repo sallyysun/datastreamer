@@ -7,6 +7,10 @@ results/budget_timing_repmean.csv (mean of budget_timing_rep1-5.csv, probe_budge
 update + estimate). Retained-state breakdown: scratch diagnostic mem_breakdown.cpp (see the summary).
 Usage (from experiments/): python3 audit_budget.py -> results/budget_audit_2026-11-15.md, results/budget_audit_cells.csv,
 results/budget_audit_familyavg.csv, ../images/ch6/6.2/ch6_budget_accuracy_storage.png"""
+import os
+SUF = os.environ.get("BUDGET_SET", "")          # "" = n = 5000 (extended grid); "_n15k" = n = 15,000
+SRC = SUF if SUF else "_ext"
+
 import math
 import os
 import sys
@@ -22,8 +26,8 @@ FAMS = ["gaussian", "t", "clayton", "gumbel"]
 FL = {"gaussian": "Gaussian", "t": "t4", "clayton": "Clayton", "gumbel": "Gumbel"}
 SC = ["constant", "drift", "jump"]
 
-sw = pd.read_csv(R + "budget_sweep_ext.csv")   # final sweep + RMPL k = 2048-8192 (TAG kllext)
-sd = pd.read_csv(R + "budget_seeds_ext.csv")
+sw = pd.read_csv(R + f"budget_sweep{SRC}.csv")   # final sweep + RMPL k = 2048-8192 (TAG kllext)
+sd = pd.read_csv(R + f"budget_seeds{SRC}.csv")
 tm = pd.read_csv(R + "budget_timing_repmean.csv")   # mean of 5 repeated runs, gain 0.02
 tmk = pd.read_csv(R + "budget_timing_final.csv")    # hand-written vs DataSketches KLL, same single run
 val, tst = sw[sw.split == "val"], sw[sw.split == "test"]
@@ -69,13 +73,14 @@ for f in FAMS:
                 a, g, pk, vr = pick(f, s, e, cap)
                 t = tst[(tst.family == f) & (tst.scenario == s) & (tst.estimator == e) & (tst.approx == a) & np.isclose(tst.gain, g)].iloc[0]
                 x = seeds(f, s, e, a, g)
-                tt = tm[(tm.estimator == e) & (tm.approx == a)].iloc[0]
+                tt = tm[(tm.estimator == e) & (tm.approx == a)]
+                tt = tt.iloc[0] if len(tt) else pd.Series(dict(mean_ns=np.nan, update_mean_ns=np.nan, p95_ns=np.nan))
                 rows.append(dict(family=f, scenario=s, budget_kib=b, estimator=e, approx=a, gain=g, val_rmse=100 * vr,
                                  rmse=100 * x.mean(), se=100 * x.std(ddof=1) / math.sqrt(len(x)), n=len(x),
                                  peak_val=pk, peak_test=int(t.peak_bytes), cap=cap, util=100 * max(pk, t.peak_bytes) / cap,
                                  tick_ns=tt.mean_ns, update_ns=tt.update_mean_ns, p95_ns=tt.p95_ns))
 C = pd.DataFrame(rows)
-C.to_csv(R + "budget_audit_cells.csv", index=False)
+C.to_csv(R + f"budget_audit_cells{SUF}.csv", index=False)
 assert len(C) == 108
 
 P("## 2. Selection uses validation only\n")
@@ -111,7 +116,7 @@ for f in FAMS:
                                 same_cfg=(cfg[lo].approx == cfg[hi].approx) and (cfg[lo].gain == cfg[hi].gain),
                                 cfg_lo=f"{cfg[lo].approx},{glab(cfg[lo].gain)}", cfg_hi=f"{cfg[hi].approx},{glab(cfg[hi].gain)}"))
 I = pd.DataFrame(imp)
-I.to_csv(R + "budget_audit_storage.csv", index=False)
+I.to_csv(R + f"budget_audit_storage{SUF}.csv", index=False)
 P("| Step | Estimator | cells with a different configuration | max reduction (cell) | median | mean | min (cell) | cells reduction > 2 SE | cells worse by > 2 SE |")
 P("|---|---|---|---|---|---|---|---|---|")
 for step in ["16->64", "64->256", "16->256"]:
@@ -155,7 +160,7 @@ for f in FAMS:
                 out.update({f"{rule}_comp": comp, f"{rule}_d": m, f"{rule}_se": se, f"{rule}_v": "W" if m < -2 * se else "L" if m > 2 * se else "T"})
             cmp.append(out)
 K = pd.DataFrame(cmp)
-K.to_csv(R + "budget_audit_rmpl_vs_best.csv", index=False)
+K.to_csv(R + f"budget_audit_rmpl_vs_best{SUF}.csv", index=False)
 for b in BUD:
     k = K[K.budget_kib == b]
     P(f"- {b} KiB: test-chosen comparator W/L/T = {(k.test_v == 'W').sum()}/{(k.test_v == 'L').sum()}/{(k.test_v == 'T').sum()}; "
@@ -222,7 +227,7 @@ P("Bytes and times: timing grid above. RMSE: test RMSE at the gain validation pi
 P("| k | own bytes | DS bytes | own / DS | own µs | DS µs | DS / own time | mean RMSE own | mean RMSE DS | max abs cell diff |")
 P("|---|---|---|---|---|---|---|---|---|---|")
 kl = []
-for k in sorted(tmk[tmk.estimator == "mpl_kll"].approx):
+for k in ([] if SUF else sorted(tmk[tmk.estimator == "mpl_kll"].approx)):   # hand-written KLL not run at n = 15,000
     ro, rd = tmk[(tmk.estimator == "mpl_kll") & (tmk.approx == k)].iloc[0], tmk[(tmk.estimator == "mpl_dskll") & (tmk.approx == k)].iloc[0]
     ro_, rd_ = [], []
     for f in FAMS:
@@ -249,7 +254,7 @@ for s in SC:
             fa.append(dict(scenario=s, budget_kib=b, estimator=e, mean=a.mean(), se=a.std(ddof=1) / math.sqrt(len(a)),
                            peak_mean=C[(C.scenario == s) & (C.budget_kib == b) & (C.estimator == e)].peak_val.mean()))
 FA = pd.DataFrame(fa)
-FA.to_csv(R + "budget_audit_familyavg.csv", index=False)
+FA.to_csv(R + f"budget_audit_familyavg{SUF}.csv", index=False)
 P("\n## 9. Family-averaged test RMSE for the figure (×10⁻²)\n")
 P("Per test seed, average the four families' RMSEs at their own validated configurations; mean ± SE over the 100 seeds "
   "(seed s of every family is one replication, so the SE does not treat 400 family–seed combinations as independent).\n")
@@ -260,7 +265,7 @@ for s in SC:
         x = FA[(FA.scenario == s) & (FA.budget_kib == b)].set_index("estimator")
         P(f"| {s} | {b} KiB | " + " | ".join(f"{x.loc[e]['mean']:.3f} ± {x.loc[e].se:.3f}" for e in E) + " |")
 
-open(R + "budget_audit_2026-11-15.md", "w").write("\n".join(M) + "\n")
+open(R + f"budget_audit_2026-11-15{SUF}.md", "w").write("\n".join(M) + "\n")
 print("\n".join(M))
 
 # ---------- figure
@@ -286,5 +291,5 @@ with plt.rc_context(ce.RC):
     fig.legend(h, l, loc="upper center", ncol=3, frameon=False, fontsize=7, bbox_to_anchor=(0.54, 1.0), handlelength=1.6, columnspacing=1.4)
     fig.text(0.54, 0.01, "Storage budget (KiB)", ha="center", fontsize=7.5)
     fig.subplots_adjust(left=0.09, right=0.99, top=0.8, bottom=0.19, wspace=0.3)
-    fig.savefig("../images/ch6/6.2/ch6_budget_accuracy_storage.png"); plt.close(fig)
-print("wrote ../images/ch6/6.2/ch6_budget_accuracy_storage.png")
+    fig.savefig(f"../images/ch6/6.2/ch6_budget_accuracy_storage{SUF}.png"); plt.close(fig)
+print(f"wrote ../images/ch6/6.2/ch6_budget_accuracy_storage{SUF}.png")
