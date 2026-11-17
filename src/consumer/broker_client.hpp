@@ -64,6 +64,16 @@ public:
         return true;
     }
 
+    // Send one line back through the broker (the lab's device state; payload must not contain a newline).
+    void publish(const std::string& topic, const std::string& payload) {
+        const std::string line = "PUBLISH " + topic + " " + payload + "\n";
+        for (std::size_t off = 0; off < line.size();) {
+            const ssize_t k = ::send(fd_, line.data() + off, line.size() - off, 0);
+            if (k <= 0) return;
+            off += static_cast<std::size_t>(k);
+        }
+    }
+
     void close() { if (fd_ >= 0) ::close(fd_); fd_ = -1; }
     ~BrokerClient() { close(); }
 

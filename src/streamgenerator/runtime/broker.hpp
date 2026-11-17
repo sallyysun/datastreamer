@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cerrno>
+#include <functional>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -81,6 +82,15 @@ public:
         }
     }
 
+    // Consumers may send "PUBLISH <topic> <payload>\n" back (the lab's device state); each is handed to this callback
+    // on the broker thread.
+    void on_publish(std::function<void(const std::string&, const std::string&)> f) { on_publish_ = std::move(f); }
+    // Whether some connection subscribes to exactly this topic.
+    bool subscribed(const std::string& topic) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [fd, sub] : subs_) if (sub.topics.count(topic)) return true;
+        return false;
+    }
     // Experiments: block until every byte is delivered instead of dropping (a slow consumer slows the producer).
     void set_lossless(bool on) { lossless_ = on; }
     // Connections subscribed to at least min_topics topics (a pairing consumer subscribes to both legs).
@@ -159,6 +169,11 @@ private:
             buf.erase(0, pos + 1);
             while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
 
+            if (line.rfind("PUBLISH ", 0) == 0) {
+                const std::size_t sp = line.find(' ', 8);
+                if (sp != std::string::npos && on_publish_) on_publish_(line.substr(8, sp - 8), line.substr(sp + 1));
+                continue;
+            }
             const std::string kw = "SUBSCRIBE ";
             if (line.rfind(kw, 0) != 0) continue;
 
@@ -212,6 +227,7 @@ private:
 
     int port_;
     bool lossless_ = false;
+    std::function<void(const std::string&, const std::string&)> on_publish_;
     int listen_fd_ = -1;
     std::atomic<bool> running_{false};
     std::thread thread_;

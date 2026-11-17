@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <numbers>
 #include <string>
 
 // A Dependence produces the true copula parameter rho_t for each step,
@@ -55,6 +56,26 @@ private:
     double r0_, r1_;
     std::size_t tau_;
     std::size_t t_ = 0;
+};
+
+// Steered from outside (the browser lab): holds rho_S until told to jump to a new value or drift to one linearly
+// over a number of steps. Values are in Spearman's rho; the knob is d = 2 sin(pi rho_S / 6). Not thread-safe: the
+// owner serialises next() and the commands.
+class ControlledDependence : public Dependence {
+public:
+    explicit ControlledDependence(double rho_s) : d_(knob(rho_s)) {}
+    double next() override {
+        if (left_ > 0) { d_ += (target_ - d_) / static_cast<double>(left_); --left_; }
+        return d_;
+    }
+    const char* name() const override { return "controlled"; }
+    void jump(double rho_s) { d_ = knob(rho_s); left_ = 0; }
+    void drift(double rho_s, std::size_t steps) { target_ = knob(rho_s); left_ = std::max<std::size_t>(steps, 1); }
+    static double knob(double rho_s) { return 2.0 * std::sin(std::numbers::pi * std::clamp(rho_s, -0.95, 0.95) / 6.0); }
+
+private:
+    double d_, target_ = 0.0;
+    std::size_t left_ = 0;
 };
 
 // The thesis scenarios (Table 6.2), over n observations: constant 0.6; drift 0.2 -> 0.8 linearly, reaching 0.8 at

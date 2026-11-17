@@ -27,6 +27,8 @@ public:
                              std::string family = "");
 
     TickPair next() override;
+    // Change the generating copula family from the next draw on (same dependence path and generator).
+    void set_family(const std::string& family) { copula_ = dgp::make_copula(family); family_ = family; }
 
 private:
     double price_x_;

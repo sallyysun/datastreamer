@@ -40,6 +40,16 @@ On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first
   VFF) and prints the true ρ_S with the MFF and VFF estimates. `--score <scenario> --seed <s> --out f.csv [--n N]`
   scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process probe writes.
 
+## MFF lab (browser)
+
+`./run.sh dev` (or `make && make consumer && ./server`, then open http://localhost:9002) opens the **MFF lab**:
+each viewer gets a private stream from a steerable generator and a consumer process running an MFF they build
+(estimator, memories N_eff, working families, η, δ). Jump, drift, switch the copula family or turn on automatic
+events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by family, and the effective memory
+live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
+the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
+is the thesis MFF exactly (`experiments/common/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
+
 ## Experiments
 
 See `experiments/README.md`. Every simulation program has a live mode (`LIVE=1`): its streams come from seeded servers

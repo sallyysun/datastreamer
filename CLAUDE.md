@@ -15,7 +15,7 @@ raw results) is in the git-ignored `archive/` and on branch `bank-vff-study`.
 | `src/consumer/` | **consumer**: TCP client, ring buffer, device state. Runs the thesis strategies. |
 | `src/estimators/` | Ch. 4 estimators (`registry.hpp`: `thesis::arm`), Ch. 5 strategies MFF/VFF and Ch. 6 scoring (`evaluation.hpp`), the Ch. 6 device (`thesis_device.hpp`). |
 | `src/protocol/` | `SymbolTick`, serializer, topic matching. |
-| `client/` | React/Vite browser viewer. **Strict viewer**: renders what it receives, computes nothing. |
+| `client/` | React/Vite browser viewer: the MFF lab (`Lab.tsx`: per-viewer steerable stream + viewer-built MFF, run by a spawned `./consumer --live`) and the market view. **Strict viewer**: renders what it receives, computes nothing. |
 | `experiments/` | One folder per Chapter 6 section (+ `ch3-background/`), each with code, `run.sh`, `images/`. See `experiments/README.md`. |
 | `external/` | `uWebSockets`, `datasketches-cpp` (submodules). |
 

@@ -8,15 +8,22 @@
 // --score: score every strategy against the ground truth on the ticks and append the probe's strategies_seeds rows
 // (copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000) to --out when the stream ends.
 // Leave --rate 0 for estimation: throttling can desync the two legs.
+// --live <id>: the browser lab's device (live_lab.hpp) instead: an MFF built from --estimator rmpl|xiao|hermite,
+// --memories 39,99,... and --families gaussian,t,... (--eta, --delta), publishing its state as "device.<id>" every
+// --publish-every observations. The server starts one per lab session.
 
 #include <cstdio>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
+#include <sstream>
+#include <vector>
 #include <string>
 #include <utility>
 
 #include "broker_client.hpp"
 #include "consumer.hpp"
+#include "live_lab.hpp"
 
 namespace {
 
@@ -30,6 +37,37 @@ const char* arg(int argc, char** argv, const char* key, const char* fallback) {
     for (int i = 1; i + 1 < argc; ++i)
         if (std::strcmp(argv[i], key) == 0) return argv[i + 1];
     return fallback;
+}
+
+std::vector<std::string> split(const std::string& s) {
+    std::vector<std::string> v;
+    std::stringstream ss(s);
+    for (std::string x; std::getline(ss, x, ',');) if (!x.empty()) v.push_back(x);
+    return v;
+}
+
+// The browser lab's device loop: returns from consecutive prices, the lab MFF, state back through the broker.
+int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
+    std::vector<double> mem;
+    for (const auto& m : split(arg(argc, argv, "--memories", "39,99,199,399,1999"))) mem.push_back(std::atof(m.c_str()));
+    const auto fams = split(arg(argc, argv, "--families", "gaussian"));
+    LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
+                std::atof(arg(argc, argv, "--delta", "1e-4")));
+    const std::size_t every = std::max<std::size_t>(1, std::strtoul(arg(argc, argv, "--publish-every", "4"), nullptr, 10));
+    const std::string topic = std::string("device.") + id;
+    client.publish(topic, lab.config_json().dump());
+    TickPair e;
+    double px = 0, py = 0;
+    bool opened = false;
+    std::size_t n = 0;
+    while (client.next(e)) {
+        if (opened) {
+            lab.update(std::log(e.x.price / px), std::log(e.y.price / py));
+            if (++n % every == 0) client.publish(topic, lab.state_json(e.x.true_rho_s, e.x.true_family).dump());
+        }
+        px = e.x.price; py = e.y.price; opened = true;
+    }
+    return 0;
 }
 
 std::pair<std::string, std::string> parse_symbols(const std::string& s) {
@@ -59,6 +97,8 @@ int main(int argc, char** argv) {
     }
     std::printf("consumer: connected to %s:%d, pairing '%s' x '%s'%s\n", host.c_str(), port, sym_x.c_str(),
                 sym_y.c_str(), rate > 0.0 ? " (throttled)" : "");
+
+    if (const char* id = arg(argc, argv, "--live", nullptr)) return run_lab(client, argc, argv, id);
 
     Consumer device(1024, policy);
     if (!score.empty()) device.enable_scoring(score);
