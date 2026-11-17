@@ -14,13 +14,14 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 CMAP = plt.get_cmap("plasma")
-MEM = [(39, CMAP(0.82)), (99, CMAP(0.64)), (199, CMAP(0.47)), (399, CMAP(0.30)), (1999, CMAP(0.10))]   # = plot_jump_time
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
+MEM = [(m, CMAP(C.MEMORY_CMAP_POS[m])) for m in C.MEMORIES]
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 JUMP, T0, T1 = 2500, 500, 5000
 FS_COL, HEDGE_COL = "#C2185B", "#7a7a7a"
 W = pd.read_csv(core.R + "strategies_weights.csv")

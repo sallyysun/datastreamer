@@ -8,10 +8,14 @@ Usage: python3 select_configs.py"""
 import math
 import numpy as np
 import pandas as pd
+import sys
 
-BUD = {16: 16384, 64: 65536, 256: 262144}
+sys.path.insert(0, "../common")
+import config as cfg  # noqa: E402
+
+BUD = {b: b * 1024 for b in cfg.BUDGETS}
 E = ["mpl_dskll", "xiao", "hermite"]
-FAMS, SC = ["gaussian", "t", "clayton", "gumbel"], ["constant", "drift", "jump"]
+FAMS, SC = cfg.FAMILIES_T31, cfg.SCENARIOS
 sw, sd = pd.read_csv("results/budget_sweep_n15k.csv"), pd.read_csv("results/budget_seeds_n15k.csv")
 val, tst = sw[sw.split == "val"], sw[sw.split == "test"]
 SD = sd.set_index(["family", "scenario", "estimator", "approx", "gain", "seed"]).rmse.sort_index()

@@ -22,7 +22,7 @@ public:
     LiveLab(const std::string& est, const std::vector<double>& memories, const std::vector<std::string>& families,
             double eta, double delta)
         : est_(est), raw_(est != "rmpl"), mem_(memories), fam_names_(families), eta_(eta), delta_(delta),
-          vff_(est, 0.02), kx_(256), ky_(256) {
+          vff_(est, thesis::vff_rates()[0]), kx_(thesis::kKll), ky_(thesis::kKll) {
         for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m"));
         for (const auto& f : fam_names_) { fam_.push_back(thesis::family_of(f)); tab_.push_back(Inverse(fam_.back())); }
         const std::size_t M = fam_.size() * mem_.size();

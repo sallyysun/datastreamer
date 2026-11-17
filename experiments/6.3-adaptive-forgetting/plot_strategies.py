@@ -9,18 +9,19 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 OUT = "images/"
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 # VFF = the development-selected rate alpha = 0.02 (strategy "vff_slow"); alpha = 0.1 is not shown.
 # Colour = strategy (Fixed charcoal solid, VFF purple dashed, MFF crimson solid), the same in every panel.
 
 
 # One colour per strategy, the same in every panel (outside the green / blue / orange estimator palette):
-STRCOL = {"fixed": "#333333", "vff_slow": "#8E6BB8", "mff": "#C2185B"}
+STRCOL = C.STRATEGY_COLOUR
 
 
 def shade(e, k):

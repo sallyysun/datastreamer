@@ -7,17 +7,21 @@ Regret over the scored ticks (t >= 30). Bound (Chapter 5): B_{T,m}(delta) = log 
 + m log(K/delta); delta = 0: static log K only. The bound is pathwise (realised losses), so it needs no correct specification.
 Usage: python3 analyze_regretfam.py -> results/regretfam_2026-11-14.txt"""
 import math
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
 r = pd.concat([pd.read_csv(R + f"regretfam_seeds{s}.csv") for s in ["", "_t", "_clayton", "_gumbel"]])
-GEN = ["gaussian", "t", "clayton", "gumbel"]
-WK = ["rmpl", "cf_gaussian", "cf_t", "cf_clayton", "cf_gumbel"]
+GEN = C.FAMILIES_T31
+WK = ["rmpl"] + [f"cf_{f}" for f in C.FAMILIES_T31]
 MATCH = {"gaussian": "rmpl", "t": "cf_t", "clayton": "cf_clayton", "gumbel": "cf_gumbel"}
-GL = {"gaussian": "Gaussian", "t": "t4", "clayton": "Clayton", "gumbel": "Gumbel"}
+GL = C.FAMILY_TEXT
 WL = {"rmpl": "RMPL (Gauss)", "cf_gaussian": "CF Gaussian", "cf_t": "CF t4", "cf_clayton": "CF Clayton", "cf_gumbel": "CF Gumbel"}
-K = 5
+K = len(C.MEMORIES)
 L = []; P = lambda s="": L.append(s)
 
 

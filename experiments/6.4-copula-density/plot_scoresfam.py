@@ -7,14 +7,15 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as cfg  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 C = pd.read_csv(core.R + "scoresfam_cells.csv")
 C = C[C.window == "whole"]
-FAM = ["gaussian", "t", "clayton", "gumbel"]
-FL = ["Gaussian", "$t_4$", "Clayton", "Gumbel"]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
+FAM = cfg.FAMILIES_T31
+FL = [cfg.FAMILY_MATH[f] for f in FAM]
+SC = [(s, cfg.SCENARIO_LABEL[s]) for s in cfg.SCENARIOS]
 MET = [("rmse", "Spearman RMSE"), ("h2_x1000", "$H^2$"), ("excess_x1000", "Excess log loss")]
 
 
@@ -23,7 +24,7 @@ def fig_thesis(e):
     -> images/ch6_scoresfam_heatmap_<est>.png"""
     lim = 60
     ML = {"rmse": "Spearman RMSE", "h2_x1000": "Squared Hellinger", "excess_x1000": "Excess log loss"}
-    FS = ["Gaussian", "$t_4$", "Clayton", "Gumbel"]
+    FS = FL
     with plt.rc_context(ce.RC):
         f, axs = plt.subplots(3, 3, figsize=(core.W, 6.0))
         for ri, (m, _) in enumerate(MET):

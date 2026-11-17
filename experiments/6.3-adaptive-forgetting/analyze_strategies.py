@@ -7,18 +7,22 @@ streams are independent, so this is the SE of the family-averaged paired differe
 Usage: python3 analyze_strategies.py -> results/strategies_2026-11-12.txt, results/strategies_summary.csv"""
 import math
 import os
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
 T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture (MIXDENS run)
-FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
-FL = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "t4"}
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
-FIXED = ["fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999"]
+FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
+FL = C.FAMILY_TEXT
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
+FIXED = [f"fixed_{m}" for m in C.MEMORIES]
 MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log loss (x 10^-3 nats/obs)", 1),
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
-WINS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
+WINS = C.WINDOWS
 
 d = pd.concat([pd.read_csv(R + f"strategies_seeds{T}{s}.csv") for _, s in FAMS])
 L = []; P = lambda s="": L.append(s)

@@ -9,15 +9,15 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402  (RC of the approved Chapter 6 figures)
 
 plt, core = ce.plt, ce.core
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 CMAP = plt.get_cmap("plasma")
-MEM = [("39.000000", "39", CMAP(0.82), "-"), ("99.000000", "99", CMAP(0.64), "-"), ("199.000000", "199", CMAP(0.47), "-"),
-       ("399.000000", "399", CMAP(0.30), "-"), ("1999.000000", "1999", CMAP(0.10), "-"),
-       ("nocum", "No forgetting", "#0b0b0b", (0, (3, 1.6)))]
-JUMP, BEFORE, AFTER = 2500, 300, 500
+MEM = [(f"{m}.000000", str(m), CMAP(C.MEMORY_CMAP_POS[m]), "-") for m in C.MEMORIES] + [
+    ("nocum", "No forgetting", "#0b0b0b", (0, (3, 1.6)))]
+JUMP, BEFORE, AFTER = C.CHANGE, 300, 500
 
 d = pd.read_csv(core.R + "fixed_ess_jumppath.csv", dtype={"neff": str})
 d = d[(d.t >= JUMP - BEFORE) & (d.t <= JUMP + AFTER)]

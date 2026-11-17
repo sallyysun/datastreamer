@@ -10,12 +10,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-EST = [("rmpl", "RMPL"), ("xiao", "Counting\nMatrix"), ("hermite", "Hermite\nSeries")]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
-FIX = ["39", "99", "199", "399", "1999"]
+EST = [(e, C.EST_LABEL2[e]) for e in C.ESTIMATORS]
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
+FIX = [str(m) for m in C.MEMORIES]
 BARS = [f"fixed_{n}" for n in FIX] + ["vff_slow", "mff"]
 C_OTHER, C_BEST, C_VFF, C_MFF = "#cfcfcf", "#333333", "#8E6BB8", "#C2185B"
 # METRIC=h2 | excess: the density metrics from the mixture-density run (MFF density = sum_k w_k c_k, log-loss weights;

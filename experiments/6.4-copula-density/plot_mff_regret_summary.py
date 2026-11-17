@@ -14,17 +14,18 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 OUT = "images/"
 os.makedirs(OUT, exist_ok=True)
-EST = [("rmpl", "RMPL"), ("xiao", "Counting\nMatrix"), ("hermite", "Hermite\nSeries")]
-EST1 = {"rmpl": "RMPL", "xiao": "Counting Matrix", "hermite": "Hermite Series"}
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
+EST = [(e, C.EST_LABEL2[e]) for e in C.ESTIMATORS]
+EST1 = C.EST_LABEL
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 C_STAT, C_SW = "#3b4f7a", "#9fb0cf"
 C_FS, C_H = "#0072B2", "#E69F00"
-N = 60
+N = len(C.SEEDS)
 S = pd.read_csv(core.R + "regret_seeds.csv")
 P = pd.read_csv(core.R + "regret_paths.csv")
 P = P[P.loss == "mix"]

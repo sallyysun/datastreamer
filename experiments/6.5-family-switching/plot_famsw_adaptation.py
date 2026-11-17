@@ -9,11 +9,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-SW = [("gauss2t", "Gaussian → $t_4$", "t", "#C2185B"), ("gauss2clayton", "Gaussian → Clayton", "clayton", "#8E6BB8"),
-      ("clayton2gumbel", "Clayton → Gumbel", "gumbel", "#E3B505")]
+SW = [(g, f"{C.FAMILY_MATH[a]} → {C.FAMILY_MATH[b]}", b, C.FAMILY_COLOUR[b]) for g, a, b in C.SWITCHES]
 D = {g: pd.read_csv(core.R + f"famsw_ident_{g}.csv") for g, _, _, _ in SW}
 for g, _, tgt, _ in SW:
     d = D[g]

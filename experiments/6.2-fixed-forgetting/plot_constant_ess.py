@@ -7,12 +7,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-import plot_ch6_core as core  # noqa: E402  (style, colours, paths)
+import config as C  # noqa: E402
+import plot_style as ce  # noqa: E402
 
-plt = core.plt
-ARMS = ["fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999", "nocum"]
-LAB = ["39", "99", "199", "399", "1999", "No\nforgetting"]
-EST = [("mle", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
+plt, core = ce.plt, ce.core
+ARMS = [f"fixed_{m}" for m in C.MEMORIES] + ["nocum"]
+LAB = [str(m) for m in C.MEMORIES] + ["No\nforgetting"]
+EST = [(C.EST_COLOUR_KEY[e], C.EST_LABEL[e]) for e in C.ESTIMATORS]
 SC = 100   # RMSE x 10^-2
 
 
@@ -25,16 +26,7 @@ def load(f):
     return d
 
 
-# The first accepted look (2026-11-12): original Chapter 6 palette and type, 6.1 x 2.35 in at the printed width.
-COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mle": "#1baf7a"}
-INK, GRID = "#0b0b0b", "#e4e3df"
-RC = {"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans"], "mathtext.fontset": "dejavusans",
-      "font.size": 8, "axes.titlesize": 8.5, "axes.titleweight": "normal", "axes.labelsize": 8,
-      "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "axes.spines.top": False, "axes.spines.right": False,
-      "axes.edgecolor": "#8a8984", "axes.linewidth": 0.6, "xtick.color": "#52514e", "ytick.color": "#52514e",
-      "text.color": INK, "axes.labelcolor": INK, "axes.titlecolor": INK, "axes.titlelocation": "left",
-      "axes.titlepad": 6, "axes.facecolor": "white", "figure.facecolor": "white", "savefig.facecolor": "white",
-      "figure.dpi": 300, "savefig.dpi": 300}
+COL, INK, GRID, RC = ce.COL, ce.INK, ce.GRID, ce.RC
 
 
 def figure(scenario="constant", out=core.OUT + "ch6_constant_ess_rmse.png", ylim=13.5, label_nocum=False, est=None):

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <numbers>
 #include <memory>
@@ -23,6 +24,7 @@ namespace thesis {
 constexpr std::size_t kK = 5;                       // MFF arms: mff_memories()
 constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
 constexpr double kClip = 1e-3;                      // pseudo-observations clipped to [kClip, 1 - kClip]
+constexpr std::uint16_t kKll = 256;                 // capacity of the shared DataSketches KLL margins
 inline const double kMem[kK] = {39, 99, 199, 399, 1999};
 inline const std::vector<double>& vff_rates() { static const std::vector<double> v = {0.02, 0.1}; return v; }
 // Strategy order of every output row: five fixed arms, MFF, VFF at each rate.

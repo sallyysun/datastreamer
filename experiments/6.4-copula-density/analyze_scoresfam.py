@@ -8,17 +8,21 @@ results/scoresfam_seeds_sfdev[_fam].csv.
 Usage: python3 analyze_scoresfam.py -> results/scoresfam_2026-11-15.txt, scoresfam_cells.csv"""
 import math
 import os
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as cfg  # noqa: E402
+
 R = "results/"
-FS = ["", "_t", "_clayton", "_gumbel"]
-GEN = ["gaussian", "t", "clayton", "gumbel"]
+FS = [cfg.sfx(f) for f in cfg.FAMILIES_T31]
+GEN = cfg.FAMILIES_T31
 GL = {"gaussian": "Gauss", "t": "t4", "clayton": "Clay", "gumbel": "Gumb"}
 EST = ["rmpl", "xiao", "hermite", "cf"]
 EL = {"rmpl": "RMPL (inv)", "xiao": "Counting Matrix (inv)", "hermite": "Hermite (inv)", "cf": "CopulaFit (MPL)"}
 MET = [("rmse", "RMSE x1e-2", 100), ("h2_x1000", "H2 x1e-3", 1), ("excess_x1000", "excess x1e-3", 1)]
-SC = ["constant", "drift", "jump"]
+SC = cfg.SCENARIOS
 d = pd.concat([pd.read_csv(R + f"scoresfam_seeds_sfeval{s}.csv") for s in FS])
 dg = pd.concat([pd.read_csv(R + f"scoresfam_diag_sfeval{s}.csv") for s in FS])
 L = []; P = lambda s="": L.append(s)

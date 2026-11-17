@@ -12,14 +12,15 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 sw = pd.read_csv("results/budget_sweep_n15k.csv")
 SD = pd.read_csv("results/budget_seeds_n15k.csv").set_index(["family", "scenario", "estimator", "approx", "gain", "seed"]).rmse.sort_index()
 val = sw[sw.split == "val"]
-FAMS = [("gaussian", "Gaussian"), ("t", "Student's $t_4$"), ("clayton", "Clayton"), ("gumbel", "Gumbel")]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
+FAMS = [(f, C.FAMILY_LONG[f]) for f in C.FAMILIES_T31]
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 E = [("mpl_dskll", "RMPL (KLL $k$)", ce.COL["mle"], "^"), ("xiao", "Counting Matrix (bins)", ce.COL["xiao"], "o"),
      ("hermite", "Hermite Series (order)", ce.COL["hermite"], "s")]
 

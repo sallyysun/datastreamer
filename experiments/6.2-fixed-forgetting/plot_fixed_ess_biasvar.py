@@ -7,13 +7,14 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 # (column, label, colour, line style, width, marker, z): squared bias and variance drawn above MSE.
 COMP = [("mse", "MSE", "#303030", "-", 1.1, "o", 3), ("bias2", "Squared bias", "#E69F00", (0, (4, 2)), 1.2, "^", 4),
         ("var", "Variance", "#0072B2", (0, (1, 1.3)), 1.4, "s", 5)]
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 
 d = pd.read_csv(core.R + "fixed_ess_decomp.csv", dtype={"neff": str})
 d = d[(d.scenario == "drift") & (d.window == "whole") & (d.neff != "nocum")].copy()

@@ -10,12 +10,13 @@ import pandas as pd
 from matplotlib.colors import to_rgb
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-EST = [("rmpl", "RMPL", "mle"), ("xiao", "Counting Matrix", "xiao"), ("hermite", "Hermite Series", "hermite")]
-SC = [("constant", "Constant"), ("drift", "Gradual drift"), ("jump", "Abrupt jump")]
-RATES = [0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]
+EST = [(e, C.EST_LABEL[e], C.EST_COLOUR_KEY[e]) for e in C.ESTIMATORS]
+SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
+RATES = C.VFF_RATES
 T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture
 S = pd.read_csv(core.R + f"vffsens_summary{T}.csv")
 S = S[(S.window == "whole") & (S.copula == "mean4")]

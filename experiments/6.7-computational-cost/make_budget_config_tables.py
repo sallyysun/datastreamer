@@ -4,15 +4,19 @@ each cap) and results/budget_sweep_n15k.csv (validation SE, for the 'smallest co
 Retention factor lambda = 1 - g, g = per-observation gain (Hermite's own parameter is the update weight g; same memory).
 Usage: python3 make_budget_config_tables.py -> results/budget_configs_n15k.csv,
 results/budget_configs_n15k_main.tex, results/budget_configs_n15k_appendix.tex"""
+import sys
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, "../common")
+import config as cfg  # noqa: E402
 
 C = pd.read_csv("results/budget_selected.csv")
 S = pd.read_csv("results/budget_sweep_n15k.csv")
 V = S[S.split == "val"]
 E = [("mpl_dskll", "RMPL", "k"), ("xiao", "Counting Matrix", "B"), ("hermite", "Hermite Series", "N")]
-FAM = [("gaussian", "Gaussian"), ("t", "Student $t_4$"), ("clayton", "Clayton"), ("gumbel", "Gumbel")]
-SC = [("constant", "Constant"), ("drift", "Drift"), ("jump", "Jump")]
+FAM = [(f, "Student $t_4$" if f == "t" else cfg.FAMILY_TEXT[f]) for f in cfg.FAMILIES_T31]
+SC = [(s, s.capitalize()) for s in cfg.SCENARIOS]
 C["kib"] = C.peak_val / 1024
 C["lam"] = 1 - C.gain
 rows = []

@@ -51,7 +51,7 @@ private:
 
 class Device {
 public:
-    Device() : sets_(make_sets()), seeded_(reseed()), kx_(256), ky_(256) {}
+    Device() : sets_(make_sets()), seeded_(reseed()), kx_(kKll), ky_(kKll) {}
     // Forecasts held before the next observation: sets()[e].forecasts().
     const std::vector<StrategySet>& sets() const { return sets_; }
     // Absorb one observation; returns the shared pseudo-observations (U, V) it was scored at.

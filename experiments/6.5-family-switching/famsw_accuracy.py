@@ -13,13 +13,13 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 R = core.R
-SW = [("gauss2t", "Gaussian → t4", "Gaussian →\n$t_4$"), ("gauss2clayton", "Gaussian → Clayton", "Gaussian →\nClayton"),
-      ("clayton2gumbel", "Clayton → Gumbel", "Clayton →\nGumbel")]
-EST = [("rmpl", "RMPL", "mle"), ("xiao", "Counting Matrix", "xiao"), ("hermite", "Hermite Series", "hermite")]
+SW = [(g, f"{C.FAMILY_TEXT[a]} → {C.FAMILY_TEXT[b]}", f"{C.FAMILY_MATH[a]} →\n{C.FAMILY_MATH[b]}") for g, a, b in C.SWITCHES]
+EST = [(e, C.EST_LABEL[e], C.EST_COLOUR_KEY[e]) for e in C.ESTIMATORS]
 MET = [("excess_x1000", "Excess log loss"), ("h2_x1000", "Squared Hellinger")]
 rng = np.random.default_rng(20261115)
 B = 10000

@@ -24,6 +24,7 @@
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
 #include "../../src/estimators/dependence/marginal_rank_pit.hpp"
+#include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
@@ -31,9 +32,9 @@
 #include "../common/live_source.hpp"
 
 namespace {
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
-constexpr double kDelta = 1e-3;          // RecursiveMPL's clip
-constexpr std::uint16_t kK = 256;
+using thesis::kN; using thesis::kBurn; using thesis::kChange;
+constexpr double kDelta = thesis::kClip;
+constexpr std::uint16_t kK = thesis::kKll;
 constexpr double kNoForget = -1.0;       // neff marker for the no-forgetting arm
 
 struct Arm { std::string est, grid; double neff; };
@@ -47,7 +48,7 @@ std::vector<double> log_grid(double lo, double hi, int n) {
 std::vector<Arm> arms_for(const std::string& sc) {
     std::vector<Arm> a;
     for (const char* e : {"xiao", "hermite", "rmpl"}) {
-        for (double n : {39.0, 99.0, 199.0, 399.0, 1999.0}) a.push_back({e, "main", n});
+        for (double n : thesis::kMem) a.push_back({e, "main", n});
         a.push_back({e, "main", kNoForget});
         if (sc == "drift") {
             for (double n : log_grid(200, 600, 21)) a.push_back({e, "fine", n});

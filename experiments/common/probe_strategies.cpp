@@ -47,14 +47,13 @@
 namespace {
 using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;
 using thesis::Win; using thesis::windows; using thesis::checkpoint;
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500, kK = 5;
-constexpr double kDelta = 1e-3;
-const double kMem[kK] = {39, 99, 199, 399, 1999};
+using thesis::kN; using thesis::kBurn; using thesis::kChange; using thesis::kK; using thesis::kMem;
+constexpr double kDelta = thesis::kClip;
 const char* kEst[3] = {"xiao", "hermite", "rmpl"};
 // Strategies: five fixed arms, MFF, then one VFF per rate. Default rates 0.02 / 0.1 named vff_slow / vff_fast (the
 // original outputs); VFF_RATES=a,b,... names them vff_<a>, ... (sensitivity runs; write under TAG=...).
-std::vector<std::string> kStrat{"fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999", "mff", "vff_slow", "vff_fast"};
-std::vector<double> kRates{0.02, 0.1};
+std::vector<std::string> kStrat = thesis::strategy_names();
+std::vector<double> kRates = thesis::vff_rates();
 
 std::unique_ptr<DependenceEstimator> arm(const std::string& e, double n) { return thesis::arm(e, n, "m"); }
 

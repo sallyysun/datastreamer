@@ -13,16 +13,16 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 R = core.R
 OUT = "images/"
 os.makedirs(OUT, exist_ok=True)
-CONST = [("gaussian", "Gaussian"), ("t", "Student's t4"), ("clayton", "Clayton"), ("gumbel", "Gumbel")]
-SW = [("gauss2t", r"Gaussian $\rightarrow$ $t_4$", "Gaussian → t4"), ("gauss2clayton", r"Gaussian $\rightarrow$ Clayton", "Gaussian → Clayton"),
-      ("clayton2gumbel", r"Clayton $\rightarrow$ Gumbel", "Clayton → Gumbel")]
-FAMS = [("gaussian", "Gaussian", "#9a9a9a"), ("t", "$t_4$", "#C2185B"), ("clayton", "Clayton", "#8E6BB8"), ("gumbel", "Gumbel", "#E3B505")]
+CONST = [(f, C.FAMILY_LONG_TEXT[f]) for f in C.FAMILIES_T31]
+SW = [(g, f"{C.FAMILY_MATH[a]} $\\rightarrow$ {C.FAMILY_MATH[b]}", f"{C.FAMILY_TEXT[a]} → {C.FAMILY_TEXT[b]}") for g, a, b in C.SWITCHES]
+FAMS = [(f, C.FAMILY_MATH[f], C.FAMILY_COLOUR[f]) for f in C.FAMILIES_T31]
 
 
 def rd(kind, g): return pd.read_csv(R + f"famsw_{kind}_{g}.csv")

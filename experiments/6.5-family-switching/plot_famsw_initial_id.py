@@ -9,10 +9,11 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
-FAMS = [("gaussian", "Gaussian", "#9a9a9a"), ("t", "Student's $t_4$", "#C2185B"), ("clayton", "Clayton", "#8E6BB8"), ("gumbel", "Gumbel", "#E3B505")]
+FAMS = [(f, C.FAMILY_LONG[f], C.FAMILY_COLOUR[f]) for f in C.FAMILIES_T31]
 D = {f: pd.read_csv(core.R + f"famsw_ident_{f}.csv") for f, _, _ in FAMS}
 for f, _, _ in FAMS:
     assert len(D[f]) == 60 and (D[f].t50 >= 0).all() and (D[f].t90 >= 0).all() and (D[f].kind == "initial").all()

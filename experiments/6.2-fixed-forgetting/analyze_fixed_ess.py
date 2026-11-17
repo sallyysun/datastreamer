@@ -5,18 +5,22 @@ N* = (2 v / d^2)^(1/3): v = median of var * N_eff over the sweep-grid memories w
 procedure), d = RMS of d rho_S / dt along the matched drift path. Percentages from unrounded values.
 Usage: python3 analyze_fixed_ess.py -> results/fixed_ess_2026-11-12.txt, results/fixed_ess_optimum.csv"""
 import math
+import os
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
-FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
-FL = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "t4"}
-EL = {"xiao": "Counting Matrix", "hermite": "Hermite Series", "rmpl": "RMPL"}
-MAIN = ["39", "99", "199", "399", "1999", "nocum"]
-T = 5000
-t = np.arange(500, T); r = 0.2 + 0.6 * t / (T - 1)
-D = np.sqrt(np.mean(((3 / np.pi) / np.sqrt(1 - r ** 2 / 4) * 0.6 / (T - 1)) ** 2))
-import os  # noqa: E402
+FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
+FL = C.FAMILY_TEXT
+EL = {e: C.EST_LABEL[e] for e in ("xiao", "hermite", "rmpl")}
+MAIN = C.MEMORY_KEYS
+T = C.T
+t = np.arange(C.BURN, T); r = C.DRIFT_FROM + C.DRIFT_SPAN * t / (T - 1)
+D = np.sqrt(np.mean(((3 / np.pi) / np.sqrt(1 - r ** 2 / 4) * C.DRIFT_SPAN / (T - 1)) ** 2))
 VMAX = float(os.environ.get("V_NMAX", "2000"))   # upper end of the N_eff range for v; 350 = the flat region (calibrated v)
 
 seeds = pd.concat([pd.read_csv(R + f"fixed_ess_seeds{s}.csv", dtype={"neff": str}) for _, s in FAMS])

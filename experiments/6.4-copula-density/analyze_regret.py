@@ -7,13 +7,17 @@ same guarded arm losses. Two MFF losses: mix = -log sum_k w_k c_k (the Chapter 5
 +delta/K) + m log(K/delta), eta = 1; with delta = 0 only the static bound log K.
 Usage: python3 analyze_regret.py -> results/regret_2026-11-14.txt"""
 import math
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
-EL = {"rmpl": "RMPL", "xiao": "Counting Matrix", "hermite": "Hermite Series"}
+EL = C.EST_LABEL
 r = pd.read_csv(R + "regret_seeds.csv")
-K = 5
+K = len(C.MEMORIES)
 L = []; P = lambda s="": L.append(s)
 
 

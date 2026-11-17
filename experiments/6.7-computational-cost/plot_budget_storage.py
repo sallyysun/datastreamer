@@ -7,13 +7,14 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+import config as cfg  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt, core = ce.plt, ce.core
 C = pd.read_csv("results/budget_selected.csv")
 C["kib"] = C.peak_val / 1024
 E = [("mpl_dskll", "RMPL", ce.COL["mle"]), ("xiao", "Counting Matrix", ce.COL["xiao"]), ("hermite", "Hermite Series", ce.COL["hermite"])]
-B = [16, 64, 256]
+B = cfg.BUDGETS
 bw = 0.26
 with plt.rc_context(ce.RC):
     fig, ax = plt.subplots(figsize=(core.W * 0.72, 2.5))

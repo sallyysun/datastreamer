@@ -5,16 +5,19 @@ observations) = rho_S,post + mean error. B(k) = |mean estimate - rho_S,post| / |
 Recovery time = smallest k with B(j) <= 0.1 for j = k, ..., k + 19 (20 consecutive forecasts). Window: k <= 2499, so a
 recovery must start by k = 2480; otherwise 'not recovered'.
 Usage: python3 analyze_jump_recovery.py -> results/jump_recovery_2026-11-12.txt, results/jump_recovery.csv"""
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
-FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
-MEM = [("39.000000", "39"), ("99.000000", "99"), ("199.000000", "199"), ("399.000000", "399"), ("1999.000000", "1999"),
-       ("nocum", "No forgetting")]
-JUMP, N, RUN, THR = 2500, 5000, 20, 0.1
-PRE, POST = 6 / np.pi * np.arcsin(0.1), 6 / np.pi * np.arcsin(0.4)
+FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
+MEM = [(f"{m}.000000", str(m)) for m in C.MEMORIES] + [("nocum", "No forgetting")]
+JUMP, N, RUN, THR = C.CHANGE, C.T, 20, 0.1
+PRE, POST = C.rho_s(C.JUMP_KNOB[0]), C.rho_s(C.JUMP_KNOB[1])
 GAP = abs(PRE - POST)
 L = []; P = lambda s="": L.append(s)
 

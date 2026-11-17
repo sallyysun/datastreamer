@@ -7,20 +7,24 @@ Usage: python3 analyze_vffsens.py -> results/vffsens_2026-11-12.txt, results/vff
 results/vffsens_extremes.csv"""
 import math
 import os
+import sys
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, "../common")
+import config as C  # noqa: E402
+
 R = "results/"
 T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""   # mix: MFF density = mixture
-FAMS = [("gaussian", ""), ("clayton", "_clayton"), ("gumbel", "_gumbel"), ("t", "_t")]
-FL = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "t4", "mean4": "mean of 4"}
-EST = [("rmpl", "RMPL"), ("xiao", "Counting Matrix"), ("hermite", "Hermite Series")]
-RATES = ["0.005", "0.01", "0.02", "0.05", "0.075", "0.1", "0.2"]
-FIXED = ["fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999"]
+FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
+FL = {**C.FAMILY_TEXT, "mean4": "mean of 4"}
+EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
+RATES = [f"{r:g}" for r in C.VFF_RATES]
+FIXED = [f"fixed_{m}" for m in C.MEMORIES]
 MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log loss (x 10^-3 nats/obs)", 1),
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
-SCEN = ["constant", "drift", "jump"]
-WINS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
+SCEN = C.SCENARIOS
+WINS = C.WINDOWS
 
 d = pd.concat([pd.read_csv(R + f"strategies_seeds_vffsens{T[1:]}{s}.csv") for _, s in FAMS])
 L = []; P = lambda s="": L.append(s)

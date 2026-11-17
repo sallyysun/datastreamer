@@ -27,13 +27,13 @@
 #include "../../src/estimators/dependence/marginal_rank_pit.hpp"
 #include "../../src/estimators/copula_family.hpp"
 #include "../../src/estimators/dependence/vff.hpp"
+#include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "../common/live_source.hpp"
 
 namespace {
-constexpr std::size_t kK = 5;
-constexpr double kDelta = 1e-3, kNu = 4.0;
-const double kMem[kK] = {39, 99, 199, 399, 1999};
+using thesis::kK; using thesis::kMem;
+constexpr double kDelta = thesis::kClip, kNu = 4.0;
 
 std::string est_kind() { const char* e = std::getenv("EST"); return e ? e : "rmpl"; }
 bool raw_inputs() { return est_kind() != "rmpl"; }
@@ -171,7 +171,7 @@ int main(int argc, char** argv) {
         d.x = L.x; d.y = L.y;
     }
     ds_margin::seed(1);
-    ds_margin::Kll kx(256), ky(256);
+    ds_margin::Kll kx(thesis::kKll), ky(thesis::kKll);
     auto arms = make_arms();
     Mff mg{copula::Family::Gaussian}, mt{copula::Family::StudentT};
     Vff vff(0.02);
