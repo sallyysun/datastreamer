@@ -35,8 +35,8 @@
 #include <vector>
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/dependence/marginal_rank_pit.hpp"
-#include "../../src/estimators/dependence/parametric_copula.hpp"
+#include "../../src/estimators/special_functions.hpp"
+#include "copula_fit.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
@@ -302,7 +302,7 @@ int main(int argc, char** argv) {
                         };
                         hedge(wf, true); hedge(wg, false);
                     }
-                    const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                     for (auto& a : arms) { if (fest == "rmpl") a->update(zx, zy); else a->update(s.x[t], s.y[t]); }   // as in 6.3
                 }
                 // windows
@@ -479,7 +479,7 @@ int main(int argc, char** argv) {
                         bool ready = true;
                         for (std::size_t k = 0; k < kK; ++k) { FC[ei][k][t] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
                         RD[ei][t] = ready;
-                        const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                        const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                         for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                     }
                 }
@@ -647,7 +647,7 @@ int main(int argc, char** argv) {
                             L.push_back(l); mf.push_back(row); tt.push_back(t);
                         }
                         if (is_rmpl) {
-                            const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                            const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                             for (auto& a : arms) a->update(zx, zy);
                         } else {
                             for (auto& c : cf) c.update_uv(s.u[t], s.v[t]);
@@ -760,7 +760,7 @@ int main(int argc, char** argv) {
                             }
                             L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                         }
-                        const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                        const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                         for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                     }
                     const std::size_t T = L.size();
@@ -915,7 +915,7 @@ int main(int argc, char** argv) {
                                 }
                             }
                         }
-                        const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                        const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                         for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                     }
                     for (const auto& w : wins) {
@@ -982,7 +982,7 @@ int main(int argc, char** argv) {
                             for (std::size_t k = 0; k < kK; ++k) ws[b * kK + k] += m[di].w[k];
                         }
                         for (int di = 0; di < 2; ++di) m[di].score(arms, s.u[t], s.v[t], t);
-                        const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                        const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                         for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                     }
                     for (int di = 0; di < 2; ++di)
@@ -1100,7 +1100,7 @@ int main(int argc, char** argv) {
                         }
                     }
                     mff.score(arms, s.u[t], s.v[t], t);
-                    const double zx = RankPit::probit(s.u[t]), zy = RankPit::probit(s.v[t]);
+                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                     for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                     for (auto& v : vffs) v.update(s.x[t], s.y[t], s.u[t], s.v[t], t + 1, raw);
                     if (fx && t >= kBurn)

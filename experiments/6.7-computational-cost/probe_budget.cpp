@@ -18,7 +18,7 @@
 
 #include "../../src/estimators/dependence/estimator.hpp"
 #include "../../src/estimators/dependence/hermiter.hpp"
-#include "../../src/estimators/dependence/recursive_mpl.hpp"
+#include "../../src/estimators/dependence/rmpl.hpp"
 #include "../../src/estimators/dependence/xiao_spearman.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"

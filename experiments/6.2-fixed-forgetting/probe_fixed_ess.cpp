@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/dependence/marginal_rank_pit.hpp"
+#include "../../src/estimators/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
@@ -93,7 +93,7 @@ Stream make_stream(const std::string& cop, const std::string& sc, unsigned seed)
         const double u = std::clamp(kx.cdf(x), kDelta, 1 - kDelta), v = std::clamp(ky.cdf(y), kDelta, 1 - kDelta);
         kx.insert(x); ky.insert(y);   // pseudo-observation from the sketch BEFORE this pair
         s.x.push_back(x); s.y.push_back(y); s.rho.push_back(rho_s);
-        s.zx.push_back(RankPit::probit(u)); s.zy.push_back(RankPit::probit(v));
+        s.zx.push_back(special::probit(u)); s.zy.push_back(special::probit(v));
     }
     return s;
 }

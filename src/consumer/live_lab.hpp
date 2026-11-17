@@ -45,7 +45,7 @@ public:
         const double v = std::clamp(ky_.cdf(y), thesis::kClip, 1 - thesis::kClip);
         kx_.insert(x); ky_.insert(y);
         score(u, v);
-        const double zx = RankPit::probit(u), zy = RankPit::probit(v);
+        const double zx = special::probit(u), zy = special::probit(v);
         for (auto& a : arms_) { if (raw_) a->update(x, y); else a->update(zx, zy); }
         vff_.update(x, y, u, v, t_ + 1, raw_);
         ++t_;

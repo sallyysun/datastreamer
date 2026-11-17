@@ -31,7 +31,8 @@ Conventions:
   `make_scenario` in `src/streamgenerator/datasource/dependence.hpp` (constant 0.6, drift 0.2 → 0.8, jump
   0.2 → 0.8). 6.7 uses n = 15,000, validation seeds 1000–1039, test seeds 42–141.
 - The estimators come from `src/estimators/registry.hpp` (`thesis::arm`); MFF, VFF and the scoring from
-  `src/estimators/evaluation.hpp`, applied to shared KLL pseudo-observations. The live consumer runs the same code.
+  `src/estimators/dependence/mff.hpp` and `vff.hpp`, the scoring from `src/estimators/evaluation.hpp`, applied to shared KLL
+  pseudo-observations. The live consumer runs the same code.
 - §6.7 storage is `store_bytes()`: the object plus its heap. Since the 2026-11-17 cut of unused estimator options it
   counts only what the thesis configuration holds (Hermite 344 B, Counting Matrix 488 B, RMPL 456/648 B less than
   the version the thesis draft measured); accuracy is unchanged. The pre-cut inputs are in

@@ -7,8 +7,7 @@
 
 #include "estimator.hpp"
 #include "kll_sketch.hpp"
-#include "marginal_rank_pit.hpp"
-#include "memory_control.hpp"
+#include "../special_functions.hpp"
 #if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/build.sh, Makefile)
 #include "ds_margin.hpp"
 #define RECURSIVE_MPL_HAS_DS 1
@@ -21,7 +20,7 @@
 // Updates, gain g = 2/(N_eff + 1):
 //   ConstantGain r <- clip(r + g_m s(r) / I(r)), start-up g_m = g / (1 - (1 - g)^m) (EW weights normalised)
 //   Exact        arg max of sum_k (1 - g)^k log c_r(a_k, b_k): the root in [-1, 1] of -W r^3 + P r^2 + (W - S) r + P
-class RecursiveMPL : public DependenceEstimator, public MemoryControlled {
+class RecursiveMPL : public DependenceEstimator {
 public:
     enum class Margin { Kll, DsKll, ExactNormal };
     enum class Update { ConstantGain, Exact };
@@ -59,7 +58,7 @@ public:
         if (seen < c_.warmup) return;
         u = std::clamp(u, c_.delta, 1.0 - c_.delta);
         v = std::clamp(v, c_.delta, 1.0 - c_.delta);
-        const double z1 = RankPit::probit(u), z2 = RankPit::probit(v);
+        const double z1 = special::probit(u), z2 = special::probit(v);
         if (c_.update == Update::Exact) { step_exact(z1, z2); return; }
         const double r = r_, q = 1.0 - r * r;
         const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);

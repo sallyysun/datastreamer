@@ -7,8 +7,8 @@ adapt, and the live pipeline they run on.
 | Thesis | Code |
 | --- | --- |
 | Ch. 2 data streams | `src/streamgenerator/` (server: DGP, producer, TCP broker), `src/consumer/`, `client/` |
-| Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`recursive_mpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
-| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), VFF and MFF (`evaluation.hpp`, controller in `vff.hpp`) |
+| Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`rmpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
+| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), MFF (`dependence/mff.hpp`), VFF (`dependence/vff.hpp`) |
 | Ch. 6 experiments | `experiments/<section>/`: one folder per section, with code, `run.sh` and `images/` |
 
 ## Live pipeline
@@ -59,4 +59,4 @@ in-process results. In short: `experiments/build.sh` builds the simulation progr
 the simulations first).
 
 Results CSVs are not committed (`experiments/*/results/` is ignored), and neither is `archive/`, which holds the
-development history: superseded estimators, studies, notes and raw outputs (also on branch `bank-vff-study`).
+development history: superseded estimators, studies, notes and raw outputs (also as git bundles in `archive/branches/`, e.g. `bank-vff-study.bundle`).

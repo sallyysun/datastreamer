@@ -5,8 +5,8 @@
 #include <cstddef>
 #include <limits>
 
-#include "../copula_family.hpp"
-#include "../special_functions.hpp"
+#include "../../src/estimators/copula_family.hpp"
+#include "../../src/estimators/special_functions.hpp"
 
 // CopulaFit: online MLE for one copula family (Gaussian / Clayton / Gumbel / Student-t), fitted in an
 // unconstrained coordinate phi by an expected-Fisher step. Used by the 6.4 family comparisons.

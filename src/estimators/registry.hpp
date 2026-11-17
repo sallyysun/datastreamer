@@ -16,7 +16,7 @@
 
 #include "dependence/estimator.hpp"
 #include "dependence/hermiter.hpp"
-#include "dependence/recursive_mpl.hpp"
+#include "dependence/rmpl.hpp"
 #include "dependence/xiao_spearman.hpp"
 
 namespace thesis {

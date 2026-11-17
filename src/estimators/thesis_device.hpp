@@ -35,7 +35,7 @@ public:
     // t = observations already absorbed (the margins' size before this one).
     void update(double x, double y, double u, double v, std::size_t t) {
         mff_.score(arms_, u, v, t);
-        const double zx = RankPit::probit(u), zy = RankPit::probit(v);
+        const double zx = special::probit(u), zy = special::probit(v);
         for (auto& a : arms_) { if (raw_) a->update(x, y); else a->update(zx, zy); }
         for (auto& vf : vffs_) vf.update(x, y, u, v, t + 1, raw_);
     }

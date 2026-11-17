@@ -16,16 +16,15 @@
 
 #include "copula_family.hpp"
 #include "density_metrics.hpp"
+#include "dependence/mff.hpp"
 #include "dependence/vff.hpp"
 #include "registry.hpp"
 
 namespace thesis {
 
-constexpr std::size_t kK = 5;                       // MFF arms: mff_memories()
 constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
 constexpr double kClip = 1e-3;                      // pseudo-observations clipped to [kClip, 1 - kClip]
 constexpr std::uint16_t kKll = 256;                 // capacity of the shared DataSketches KLL margins
-inline const double kMem[kK] = {39, 99, 199, 399, 1999};
 inline const std::vector<double>& vff_rates() { static const std::vector<double> v = {0.02, 0.1}; return v; }
 // Strategy order of every output row: five fixed arms, MFF, VFF at each rate.
 inline const std::vector<std::string>& strategy_names() {
@@ -61,55 +60,6 @@ inline std::vector<Win> windows(const std::string& s) {
 inline bool checkpoint(const std::string& sc, std::size_t t) {
     return t >= kBurn && ((t - kBurn) % 50 == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
 }
-
-// MFF: Hedge with fixed share over the fixed-memory arms, log loss of the Gaussian density at each arm's rho_S,
-// eta = 1, delta = 1e-4; forecast = weighted mean of the arms (density: the weighted mixture).
-struct Mff {
-    double eta = 1.0, delta = 1e-4;
-    std::vector<double> w = std::vector<double>(kK, 1.0 / kK), loss = std::vector<double>(kK), lw = std::vector<double>(kK);
-    double estimate(const std::vector<std::unique_ptr<DependenceEstimator>>& arms) const {
-        double r = 0;
-        for (std::size_t k = 0; k < kK; ++k) r += w[k] * arms[k]->estimate();
-        return std::clamp(r, -1.0, 1.0);
-    }
-    // n_seen: margin observations held before this tick (the bank's mx_.size() before transform)
-    void score(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
-        bool scorable = n_seen >= 30;
-        for (const auto& a : arms) scorable = scorable && a->ready();
-        if (!scorable) return;
-        for (std::size_t k = 0; k < kK; ++k) {
-            const double par = copula::param_from_spearman(copula::Family::Gaussian, arms[k]->estimate());
-            loss[k] = -copula::log_density(copula::Family::Gaussian, u, v, par);
-        }
-        double worst = 0;
-        for (double l : loss) if (std::isfinite(l)) worst = std::max(worst, l);
-        for (double& l : loss) if (!std::isfinite(l)) l = worst;
-        double top = -INFINITY;
-        for (std::size_t k = 0; k < kK; ++k) {
-            lw[k] = (w[k] > 0 ? std::log(w[k]) : -INFINITY) - eta * loss[k];
-            top = std::max(top, lw[k]);
-        }
-        double tot = 0;
-        for (std::size_t k = 0; k < kK; ++k) { w[k] = std::exp(lw[k] - top); tot += w[k]; }
-        for (double& x : w) x = (1 - delta) * x / tot + delta / kK;
-    }
-};
-
-// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once 30 margin observations
-// are held; Counting Matrix / Hermite read the raw observations, RMPL reads probit(U).
-struct Vff {
-    std::unique_ptr<DependenceEstimator> inner;
-    MemoryControlled* mc;
-    VffController ctl;
-    Vff(const std::string& e, double rate) : inner(arm(e, 199, "m")), mc(dynamic_cast<MemoryControlled*>(inner.get())),
-                                             ctl(VffController::Config{.rate = rate}) {}
-    // n_after: margin observations held after absorbing this tick
-    void update(double x, double y, double u, double v, std::size_t n_after, bool raw) {
-        if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
-        if (mc) mc->set_neff(ctl.neff());
-        if (raw) inner->update(x, y); else inner->update(RankPit::probit(u), RankPit::probit(v));
-    }
-};
 
 inline double gauss_logc(double rho, double u, double v) {
     rho = std::clamp(rho, -0.999, 0.999);

@@ -7,8 +7,7 @@
 #include <vector>
 
 #include "estimator.hpp"
-#include "marginal_rank_pit.hpp"
-#include "memory_control.hpp"
+#include "../special_functions.hpp"
 
 // Counting Matrix estimator of Spearman's rho (thesis 4.1): C++ port of Xiao (2019), "Novel Online Algorithms
 // for Nonparametric Correlations with Application to Analyze Sensor Data" (onlineNPCORR, spearmanr_by_matrix),
@@ -18,7 +17,7 @@
 // probit(k/bins) when the inputs are already normal scores); a bins x bins count grid approximates the joint
 // distribution and rho is the rank correlation over the grid. Forgetting: counts *= lambda, the new cell
 // += 1 - lambda, with retention lambda = (N_eff - 1)/(N_eff + 1); lambda = 0 is cumulative.
-class XiaoSpearmanEstimator : public DependenceEstimator, public MemoryControlled {
+class XiaoSpearmanEstimator : public DependenceEstimator {
 public:
     struct Config {
         std::size_t bins = 30;
@@ -94,7 +93,7 @@ private:
         if (!config_.normal_score_inputs) { calibration_.reserve(config_.calibration); return; }
         cuts_x_.resize(config_.bins - 1);
         for (std::size_t k = 1; k < config_.bins; ++k)
-            cuts_x_[k - 1] = RankPit::probit(static_cast<double>(k) / static_cast<double>(config_.bins));
+            cuts_x_[k - 1] = special::probit(static_cast<double>(k) / static_cast<double>(config_.bins));
         cuts_y_ = cuts_x_;
         calibrated_ = true;
     }

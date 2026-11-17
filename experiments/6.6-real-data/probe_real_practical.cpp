@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/dependence/marginal_rank_pit.hpp"
+#include "../../src/estimators/special_functions.hpp"
 #include "../../src/estimators/copula_family.hpp"
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/evaluation.hpp"
@@ -80,14 +80,12 @@ struct Mff {
 
 struct Vff {
     std::unique_ptr<DependenceEstimator> inner;
-    MemoryControlled* mc;
     VffController ctl;
-    explicit Vff(double rate) : inner(thesis::arm(est_kind(), 199, "v")),   // probe_strategies' vff_inner
-        mc(dynamic_cast<MemoryControlled*>(inner.get())), ctl(VffController::Config{.rate = rate}) {}
-    void update(double x, double y, double u, double v, std::size_t n_after) {   // probe_strategies' Vff::update
+    explicit Vff(double rate) : inner(thesis::arm(est_kind(), 199, "v")), ctl(VffController::Config{.rate = rate}) {}
+    void update(double x, double y, double u, double v, std::size_t n_after) {
         if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
-        if (mc) mc->set_neff(ctl.neff());
-        if (raw_inputs()) inner->update(x, y); else inner->update(RankPit::probit(u), RankPit::probit(v));
+        inner->set_neff(ctl.neff());
+        if (raw_inputs()) inner->update(x, y); else inner->update(special::probit(u), special::probit(v));
     }
 };
 
@@ -236,7 +234,7 @@ int main(int argc, char** argv) {
         }
         std::fprintf(o, "\n");
         auto tm = clk::now(); mg.score(arms, u, v, t); mt.score(arms, u, v, t); t_mff += since(tm);
-        const double zx = RankPit::probit(u), zy = RankPit::probit(v);
+        const double zx = special::probit(u), zy = special::probit(v);
         auto ta = clk::now(); for (auto& a : arms) { if (raw_inputs()) a->update(d.x[t], d.y[t]); else a->update(zx, zy); } t_arms += since(ta);
         auto tv = clk::now(); vff.update(d.x[t], d.y[t], u, v, t + 1); t_vff += since(tv);
         if (roll) {

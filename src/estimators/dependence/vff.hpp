@@ -4,6 +4,10 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <string>
+
+#include "../registry.hpp"
+#include "../special_functions.hpp"
 
 
 // Common variable forgetting factor (one rule for Xiao, Hermite and RMPL). A controller adapts the
@@ -54,3 +58,22 @@ private:
     double theta_;
     double m_ = 0.0, w_ = 0.0, dm_ = 0.0, dw_ = 0.0, v_ = 0.0;
 };
+
+namespace thesis {
+
+// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once 30 margin observations
+// are held; Counting Matrix / Hermite read the raw observations, RMPL reads probit(U).
+struct Vff {
+    std::unique_ptr<DependenceEstimator> inner;
+    VffController ctl;
+    Vff(const std::string& e, double rate) : inner(arm(e, 199, "m")),
+                                             ctl(VffController::Config{.rate = rate}) {}
+    // n_after: margin observations held after absorbing this tick
+    void update(double x, double y, double u, double v, std::size_t n_after, bool raw) {
+        if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
+        inner->set_neff(ctl.neff());
+        if (raw) inner->update(x, y); else inner->update(special::probit(u), special::probit(v));
+    }
+};
+
+}  // namespace thesis

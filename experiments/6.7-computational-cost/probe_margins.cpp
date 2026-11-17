@@ -25,8 +25,8 @@
 
 #include "../../src/estimators/dependence/estimator.hpp"
 #include "../../src/estimators/dependence/hermiter.hpp"
-#include "../../src/estimators/dependence/marginal_rank_pit.hpp"
-#include "../../src/estimators/dependence/recursive_mpl.hpp"
+#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/dependence/rmpl.hpp"
 #include "../../src/estimators/dependence/xiao_spearman.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
@@ -35,7 +35,7 @@
 namespace {
 constexpr std::size_t kN = 15000, kBurn = 500, kEvery = 5, kLate = 10000;
 
-double probit(double u) { return RankPit::probit(std::clamp(u, 1e-12, 1.0 - 1e-12)); }
+double probit(double u) { return special::probit(std::clamp(u, 1e-12, 1.0 - 1e-12)); }
 
 std::vector<double> full_emp(const std::vector<double>& x) {
     std::vector<std::size_t> idx(x.size());
