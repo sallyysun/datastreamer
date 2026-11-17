@@ -2,57 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
-#include <vector>
 
-// Streaming rank-PIT for one marginal, followed by a probit so the output lands
-// back on the real line where the Hermite basis expects it (van der Waerden
-// normal scores).
-//
-// Exact rank-PIT needs every past observation. This keeps a bounded sorted
-// window instead, which is what makes it streaming-admissible: O(log W) to rank,
-// O(W) to maintain the sorted order. See section 0.5 of
-// notes/studies/kalman_changepoint_results.md for why ranks and not
-// standardization.
-class RankPit {
-public:
-    explicit RankPit(std::size_t window = 500) : window_(window) {
-        sorted_.reserve(window + 1);
-        fifo_.reserve(window + 1);
-    }
-
-    // Returns the pseudo-observation u in (0,1) for `value`, then absorbs it.
-    double transform(double value) {
-        const auto lo = std::lower_bound(sorted_.begin(), sorted_.end(), value);
-        const double below = static_cast<double>(lo - sorted_.begin());
-        const double n = static_cast<double>(sorted_.size());
-
-        // (r + 1/2) / (n + 1) keeps u strictly inside (0,1) so the probit stays
-        // finite for the smallest and largest value seen.
-        const double u = (n > 0.0) ? (below + 0.5) / (n + 1.0) : 0.5;
-
-        sorted_.insert(lo, value);
-        fifo_.push_back(value);
-        if (fifo_.size() > window_) {
-            const double old = fifo_.front();
-            fifo_.erase(fifo_.begin());
-            const auto it = std::lower_bound(sorted_.begin(), sorted_.end(), old);
-            if (it != sorted_.end() && *it == old) sorted_.erase(it);
-        }
-        return u;
-    }
-
-    void reset() {
-        sorted_.clear();
-        fifo_.clear();
-    }
-
-    std::size_t store_bytes() const {
-        return sizeof(*this) + (sorted_.capacity() + fifo_.capacity()) * sizeof(double);
-    }
-
-    std::size_t size() const { return sorted_.size(); }
-
+// Normal scores z = probit(u) of pseudo-observations.
+struct RankPit {
     // Acklam's rational approximation to the standard normal quantile; absolute
     // error < 1.15e-9, which is far below the sampling noise it is fed.
     static double probit(double p) {
@@ -83,9 +35,4 @@ public:
         return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q /
                (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1.0);
     }
-
-private:
-    std::size_t window_;
-    std::vector<double> sorted_;
-    std::vector<double> fifo_;
 };

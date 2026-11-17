@@ -1,104 +1,62 @@
 # datastreamer
 
-Real-time market-data streaming system with online copula-dependence estimation. A C++20 server
-generates synthetic correlated market events, streams them over WebSockets (TCP), and estimates a
-time-varying dependence parameter online; a React client renders live price + dependence charts.
+Code for the honours thesis on **streaming estimation of time-varying copula dependence**: single-pass,
+O(1)-per-observation, bounded-memory estimators of Spearman's ρ_S, the forgetting strategies that let them
+adapt, and the live pipeline they run on.
 
-## System design
+| Thesis | Code |
+| --- | --- |
+| Ch. 2 data streams | `src/streamgenerator/` (server: DGP, producer, TCP broker), `src/consumer/`, `client/` |
+| Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`recursive_mpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
+| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), VFF and MFF (`evaluation.hpp`, controller in `vff.hpp`) |
+| Ch. 6 experiments | `experiments/<section>/`: one folder per section, with code, `run.sh` and `images/` |
 
-```mermaid
-flowchart TB
-    subgraph DGP["Data generation (producer thread)"]
-        DEP["Dependence regime<br/>(constant / drift / jump /<br/>oscillate / stochastic) → ρ_t"]
-        SRC["SyntheticSource<br/>Gaussian copula at ρ_t<br/>→ MarketEvent (+ true ρ_S)"]
-        PROD["Producer<br/>pull → delay → sink"]
-        DEP --> SRC --> PROD
-    end
+## Live pipeline
 
-    PROD -->|each event| MON["DependenceMonitor<br/>online estimators:<br/>Xiao · Hermite · Gaussian-MLE"]
-    PROD -->|each event| BUS["EventBus<br/>fan-out"]
-
-    MON -->|estimates ρ̂_S| SER["Serializer<br/>MarketEvent + estimates → JSON"]
-    PROD --> SER
-    SER -->|publish 'ticks'| WS(["WebSocket / TCP"])
-
-    BUS -->|per client| CON["Consumer<br/>RingBuffer + lag policy<br/>+ StateManager"]
-
-    WS --> UI["React client<br/>price chart + live ρ chart<br/>(estimate vs true ρ_S)"]
-
-    subgraph OFFLINE["Offline harness (separate binary, reproducible)"]
-        CS["CopulaSource<br/>known ρ_t ground truth"] --> REG["Estimators via registry"]
-        REG --> CSVOUT["experiments/results/*.csv"] --> NB["analysis.ipynb<br/>plots + RMSE"]
-    end
-
-    REG -. same estimator code .- MON
 ```
-
-The server has **two delivery paths** off the producer: the `DependenceMonitor` (server-side online
-estimation, broadcast to all clients) and the per-client `EventBus`→`Consumer` analytics path. The
-offline harness reuses the **same estimator code** against a known ρ_t so results are reproducible
-and scored by RMSE.
-
-## Run the live app
+server (DGP: scenario x copula family)  ──TCP 9003──▶  consumer (ring buffer + thesis VFF / MFF strategies)
+                                         ──WS  9002──▶  client (browser viewer, computes nothing)
+```
 
 ```bash
-./run.sh dev     # build backend + start Vite dev server (hot reload)
-./run.sh prod    # build frontend + backend, serve everything on the config port
+git submodule update --init --recursive        # uWebSockets, datasketches-cpp
+make            # -> ./server    (uWebSockets, openssl, Eigen, nlohmann-json)
+make consumer   # -> ./consumer  (Eigen, nlohmann-json, datasketches)
+./run.sh dev    # server + vite client
 ```
 
-Or manually:
+On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first build uSockets with
+`make -C external/uWebSockets/uSockets WITH_OPENSSL=1`).
 
-```bash
-make server && ./server          # backend + WebSocket on port 9002 (see config.json)
-cd client && npm run dev         # frontend at http://localhost:5173
-```
+- Server: `DEPENDENCE=constant|drift|jump` (default `jump`) selects the thesis scenario (Table 6.2, over
+  5,000 observations), `COPULA=gaussian|t|clayton|gumbel|gauss2t|gauss2clayton|clayton2gumbel` the family,
+  `SYMBOLS=X,Y` the pair.
+- Server experiment controls: `REPLAY=<file.csv>` (stream recorded returns instead of the DGP), `SEED` (DGP seed), `N` (stream N observations, then exit), `RATE` (observations per
+  second, `0` = as fast as delivery allows; default 10), `WAIT_CONSUMERS` (hold the stream until that many consumers
+  subscribe; delivery is then lossless), `PORT` / `BROKER_PORT`. Synthetic ticks carry the ground truth (true ρ_S,
+  each leg's true PIT, the copula parameter and family) for scoring.
+- Consumer: `./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--print 20]` runs the Chapter 6
+  device (`src/estimators/thesis_device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
+  VFF) and prints the true ρ_S with the MFF and VFF estimates. `--score <scenario> --seed <s> --out f.csv [--n N]`
+  scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process probe writes.
 
-`source .venv/bin/activate` for the Python tooling.
+## MFF lab (browser)
 
-Client WebSocket URL (in `client/.env`):
-- `VITE_WS_URL=ws://localhost:9002` for dev
-- `VITE_WS_URL=wss://<your-ngrok-host>/` for prod (`ngrok http 9002`)
+`./run.sh dev` (or `make && make consumer && ./server`, then open http://localhost:9002) opens the **MFF lab**:
+each viewer gets a private stream from a steerable generator and a consumer process running an MFF they build
+(estimator, memories N_eff, working families, η, δ). Jump, drift, switch the copula family or turn on automatic
+events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by family, and the effective memory
+live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
+the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
+is the thesis MFF exactly (`experiments/common/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
 
-### Live dependence regime
+## Experiments
 
-The server drives the synthetic stream with a `Dependence` regime chosen at launch via the
-`DEPENDENCE` env var (default `oscillate`):
+See `experiments/README.md`. Every simulation program has a live mode (`LIVE=1`): its streams come from seeded servers
+over TCP instead of in-process; `experiments/live/run_all_live.sh` runs all of 6.2–6.5 that way and compares with the
+in-process results. In short: `experiments/build.sh` builds the simulation programs and each
+`experiments/<section>/run.sh` rebuilds that section's figures and tables from its `results/` (`SIM=1` reruns
+the simulations first).
 
-```bash
-DEPENDENCE=constant ./server     # fixed rho
-DEPENDENCE=drift    ./server     # linear ramp
-DEPENDENCE=jump     ./server     # abrupt step
-DEPENDENCE=oscillate ./server    # sine (default)
-DEPENDENCE=stochastic ./server   # latent random walk
-```
-
-## Experiments (offline evaluation)
-
-Nonparametric online estimators (Xiao, Hermite) evaluated against a known time-varying
-ground truth. Code and outputs live under `experiments/` (outputs in `experiments/results/`).
-
-```bash
-cd experiments && make                               # separate Makefile; Eigen only, no server deps
-for s in constant drift jump stochastic oscillate; do ./experiment $s; done
-# CSVs -> experiments/results/experiment_<scenario>.csv
-```
-
-Analysis: `experiments/analysis.ipynb` (plots + RMSE tables; reads `experiments/results/`).
-
-Live accuracy probe (connects to the running server, logs estimates vs truth):
-
-```bash
-python experiments/live_probe.py --csv experiments/results/live.csv
-```
-
-Write-ups and design docs are in `notes/`.
-
-## Layout
-
-```
-src/            C++: producer, broker, estimators, device/consumer, standalone consumer
-client/         React + Vite frontend (display)
-experiments/    offline harness (own Makefile), analysis notebook, live probe, results/
-notes/          architecture, roadmap, experiment write-ups
-external/        submodules: uWebSockets, hermiter + onlineNPCORR (reference impls)
-```
+Results CSVs are not committed (`experiments/*/results/` is ignored), and neither is `archive/`, which holds the
+development history: superseded estimators, studies, notes and raw outputs (also on branch `bank-vff-study`).

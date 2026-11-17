@@ -3,8 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <numbers>
-#include <random>
+#include <string>
 
 // A Dependence produces the true copula parameter rho_t for each step,
 // advancing an internal clock on every call to next(). These drive the
@@ -25,25 +26,6 @@ public:
 
 private:
     double rho_;
-};
-
-// rho_t = offset + amplitude * sin(2*pi*t / period). A perpetually moving
-// target, handy for an infinite live stream where a one-off jump would settle
-// and stop being interesting.
-class OscillatingDependence : public Dependence {
-public:
-    OscillatingDependence(double amplitude, double period, double offset = 0.0)
-        : amplitude_(amplitude), period_(period), offset_(offset) {}
-    double next() override {
-        const double rho = offset_ + amplitude_ * std::sin(2.0 * std::numbers::pi * static_cast<double>(t_) / period_);
-        ++t_;
-        return rho;
-    }
-    const char* name() const override { return "oscillate"; }
-
-private:
-    double amplitude_, period_, offset_;
-    std::size_t t_ = 0;
 };
 
 // Linear ramp from r0 to r1 over T steps, then held at r1.
@@ -76,20 +58,31 @@ private:
     std::size_t t_ = 0;
 };
 
-// Stochastic latent dependence: z_t = z_{t-1} + sigma * omega_t, rho_t = tanh(z_t).
-class StochasticDependence : public Dependence {
+// Steered from outside (the browser lab): holds rho_S until told to jump to a new value or drift to one linearly
+// over a number of steps. Values are in Spearman's rho; the knob is d = 2 sin(pi rho_S / 6). Not thread-safe: the
+// owner serialises next() and the commands.
+class ControlledDependence : public Dependence {
 public:
-    StochasticDependence(double sigma, double z0, unsigned seed)
-        : sigma_(sigma), z_(z0), rng_(seed), normal_(0.0, 1.0) {}
+    explicit ControlledDependence(double rho_s) : d_(knob(rho_s)) {}
     double next() override {
-        z_ += sigma_ * normal_(rng_);
-        return std::tanh(z_);
+        if (left_ > 0) { d_ += (target_ - d_) / static_cast<double>(left_); --left_; }
+        return d_;
     }
-    const char* name() const override { return "stochastic"; }
+    const char* name() const override { return "controlled"; }
+    void jump(double rho_s) { d_ = knob(rho_s); left_ = 0; }
+    void drift(double rho_s, std::size_t steps) { target_ = knob(rho_s); left_ = std::max<std::size_t>(steps, 1); }
+    static double knob(double rho_s) { return 2.0 * std::sin(std::numbers::pi * std::clamp(rho_s, -0.95, 0.95) / 6.0); }
 
 private:
-    double sigma_;
-    double z_;
-    std::mt19937 rng_;
-    std::normal_distribution<double> normal_;
+    double d_, target_ = 0.0;
+    std::size_t left_ = 0;
 };
+
+// The thesis scenarios (Table 6.2), over n observations: constant 0.6; drift 0.2 -> 0.8 linearly, reaching 0.8 at
+// the last observation; jump 0.2 -> 0.8 at n / 2. nullptr for an unknown name.
+inline std::unique_ptr<Dependence> make_scenario(const std::string& name, std::size_t n) {
+    if (name == "constant") return std::make_unique<ConstantDependence>(0.6);
+    if (name == "drift") return std::make_unique<DriftDependence>(0.2, 0.8, n - 1);
+    if (name == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, n / 2);
+    return nullptr;
+}

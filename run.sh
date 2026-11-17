@@ -21,7 +21,7 @@ if [ "$MODE" = "dev" ]; then
     # -------------------------
     # backend (C++)
     # -------------------------
-    make clean && make
+    make clean && make && make consumer   # the server spawns ./consumer for each MFF-lab session
     ./server &
     SERVER_PID=$!
 
@@ -67,7 +67,7 @@ elif [ "$MODE" = "prod" ]; then
     # -------------------------
     # build backend
     # -------------------------
-    make clean && make
+    make clean && make && make consumer   # the server spawns ./consumer for each MFF-lab session
     ./server &
     SERVER_PID=$!
 

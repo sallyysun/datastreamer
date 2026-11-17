@@ -15,7 +15,7 @@
 // Copula families for the synthetic DGP -- the generator counterpart to
 // estimators/copula_family.hpp. Every family targets the same Spearman path
 // rho_S = (6/pi) asin(d/2) and differs only in tail shape, so misspecification
-// is isolated from the dependence trajectory. Notes: notes/studies/roadmap.md.
+// is isolated from the dependence trajectory. Notes: archive/notes/studies/roadmap.md.
 namespace dgp {
 
 struct CopulaDraw {
@@ -24,26 +24,7 @@ struct CopulaDraw {
     double rho_s;
 };
 
-inline double param_from_spearman(copula::Family family, double target, double nu = 4.0) {
-    using copula::Family;
-    double lo = 0.0, hi = 0.0;
-    switch (family) {
-        case Family::Clayton:  lo = copula::Clayton::kMinParam;  hi = copula::Clayton::kMaxParam;  break;
-        case Family::Gumbel:   lo = copula::Gumbel::kMinParam;   hi = copula::Gumbel::kMaxParam;   break;
-        case Family::StudentT: lo = copula::StudentT::kMinParam; hi = copula::StudentT::kMaxParam; break;
-        case Family::Gaussian:
-        default:               lo = -0.999; hi = 0.999; break;
-    }
-    const double s_lo = copula::spearman_from_param(family, lo, nu);
-    const double s_hi = copula::spearman_from_param(family, hi, nu);
-    target = std::clamp(target, std::min(s_lo, s_hi), std::max(s_lo, s_hi));
-    for (int it = 0; it < 60; ++it) {
-        const double mid = 0.5 * (lo + hi);
-        if (copula::spearman_from_param(family, mid, nu) < target) lo = mid;
-        else hi = mid;
-    }
-    return 0.5 * (lo + hi);
-}
+using copula::param_from_spearman;
 
 struct Copula {
     virtual ~Copula() = default;
@@ -148,73 +129,11 @@ private:
     std::gamma_distribution<double> chi2_{nu_ / 2.0, 2.0};
 };
 
-// Frechet mixture: C = a M + b W + (1-a-b) Pi, mixing the comonotone, the
-// countermonotone and the independence copula. Spearman's rho is a LINEAR
-// functional of C, so rho_S = a - b exactly -- no quadrature, unlike every other
-// family here.
-//
-// This is the family the Gaussian copula cannot summarise. Its density is a
-// singular ridge on the diagonal sitting on a flat background, and a maximum
-// likelihood fit is driven by the ridge while a rank average is driven by the
-// background. Clayton, Gumbel and t are all smooth and sit close enough to the
-// Gaussian that one rho describes them (finding 5, "a forgiving wrong answer");
-// this one does not. Section 14.15.
-class FrechetCopula : public Copula {
-public:
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double target = detail::target_spearman(d);
-        const double w = std::fabs(target);
-        const double u = unit_(rng);
-        double v;
-        if (unit_(rng) < w) {
-            v = (target > 0.0) ? u : 1.0 - u;   // comonotone / countermonotone
-        } else {
-            v = unit_(rng);                      // independent
-        }
-        return {detail::to_normal_score(u), detail::to_normal_score(v), target};
-    }
-    const char* name() const override { return "frechet"; }
-
-private:
-    std::uniform_real_distribution<double> unit_{0.0, 1.0};
-};
-
-// The same idea without the singularity: mix a STRONG Gaussian against
-// independence rather than a degenerate one. Spearman is still linear in the
-// weight, so rho_S = p * rho_S(0.95) exactly. Separates "the Gaussian MLE cannot
-// handle a singular component" from "the Gaussian MLE cannot handle a mixture".
-class MixtureGaussianCopula : public Copula {
-public:
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double target = detail::target_spearman(d);
-        const double p = std::clamp(target / kComponentSpearman, -1.0, 1.0);
-        const double rho = (p >= 0.0) ? kComponentRho : -kComponentRho;
-        const double z1 = normal_(rng);
-        double z2;
-        if (unit_(rng) < std::fabs(p)) {
-            z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng);
-        } else {
-            z2 = normal_(rng);
-        }
-        return {z1, z2, std::fabs(p) * kComponentSpearman * (p >= 0.0 ? 1.0 : -1.0)};
-    }
-    const char* name() const override { return "mixgauss"; }
-
-private:
-    // rho_S of a Gaussian copula at rho = 0.95, by (6/pi) asin(rho/2).
-    static constexpr double kComponentRho = 0.95;
-    static constexpr double kComponentSpearman = 0.94506;
-    std::normal_distribution<double> normal_{0.0, 1.0};
-    std::uniform_real_distribution<double> unit_{0.0, 1.0};
-};
-
 // Two families, one Spearman path, a switch part-way through. Because every
 // family here already targets the SAME rho_S for a given knob d, holding d
 // constant across the switch changes the copula's SHAPE -- its tail dependence --
 // while leaving rho_S flat. That is distinction 1 made into an experiment: a
 // change no rho-monitoring detector can see, by construction.
-//
-// See section 14.13 of notes/studies/kalman_changepoint_results.md.
 class SwitchingCopula : public Copula {
 public:
     SwitchingCopula(std::unique_ptr<Copula> before, std::unique_ptr<Copula> after,
@@ -241,8 +160,16 @@ inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 
             std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),
             2500, "gauss2t");
     }
-    if (name == "frechet")  return std::make_unique<FrechetCopula>();
-    if (name == "mixgauss") return std::make_unique<MixtureGaussianCopula>();
+    // Clayton -> Gumbel at matched Spearman rho: lower-tail dependence swapped for upper.
+    if (name == "clayton2gumbel") {
+        return std::make_unique<SwitchingCopula>(
+            std::make_unique<ClaytonCopula>(), std::make_unique<GumbelCopula>(), 2500, "clayton2gumbel");
+    }
+    // Gaussian -> Clayton at matched Spearman rho: lower-tail dependence appears.
+    if (name == "gauss2clayton") {
+        return std::make_unique<SwitchingCopula>(
+            std::make_unique<GaussianCopula>(), std::make_unique<ClaytonCopula>(), 2500, "gauss2clayton");
+    }
     if (name == "clayton") return std::make_unique<ClaytonCopula>();
     if (name == "gumbel")  return std::make_unique<GumbelCopula>();
     if (name == "t" || name == "student_t") return std::make_unique<StudentTCopula>(nu);

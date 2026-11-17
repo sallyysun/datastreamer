@@ -6,7 +6,9 @@
 #include <utility>
 
 SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence,
-                                 std::unique_ptr<dgp::Copula> copula)
+                                 std::unique_ptr<dgp::Copula> copula,
+                                 unsigned seed,
+                                 std::string family)
     : price_x_(100.0),
       price_y_(100.0),
       volume_x_(1000.0),
@@ -17,12 +19,21 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence,
       vol_y_(0.01),
       dependence_(std::move(dependence)),
       copula_(std::move(copula)),
-      rng_(std::random_device{}()),
+      rng_(seed),
+      family_(std::move(family)),
       normal_(0.0, 1.0)
 {
 }
 
 TickPair SyntheticSource::next() {
+    // The first tick is the opening price, before any draw: a device derives each return from two consecutive
+    // prices, so observation t (the t-th draw) arrives with tick t + 1 and none is lost.
+    if (!opened_) {
+        opened_ = true;
+        const long long ts0 = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        return TickPair{SymbolTick{"", price_x_, volume_x_, ts0, 0.0}, SymbolTick{"", price_y_, volume_y_, ts0, 0.0}};
+    }
     // Current dependence knob for this step (clamped away from +-1 so the copula
     // constructions stay well defined).
     double d = dependence_->next();
@@ -52,7 +63,12 @@ TickPair SyntheticSource::next() {
 
     // Symbols are left empty here (the DGP is instrument-agnostic); the server
     // names the two legs before publishing.
-    const SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
-    const SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
+    SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
+    SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
+    if (!family_.empty()) {
+        x.true_pit = special::normal_cdf(z1); y.true_pit = special::normal_cdf(z2);
+        x.true_knob = y.true_knob = d;
+        x.true_family = y.true_family = family_;
+    }
     return TickPair{x, y};
 }

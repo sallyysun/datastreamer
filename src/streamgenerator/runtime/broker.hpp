@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cerrno>
+#include <functional>
+
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -73,11 +76,30 @@ public:
         for (auto& [fd, sub] : subs_) {
             if (!sub.matches(topic)) continue;
             if (sub.throttled(now)) continue;   // dropped: too soon since last delivery
-            ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
+            if (lossless_) send_all(fd, framed);
+            else ::send(fd, framed.data(), framed.size(), 0);  // non-blocking: drops if full
             sub.last_sent = now;
         }
     }
 
+    // Consumers may send "PUBLISH <topic> <payload>\n" back (the lab's device state); each is handed to this callback
+    // on the broker thread.
+    void on_publish(std::function<void(const std::string&, const std::string&)> f) { on_publish_ = std::move(f); }
+    // Whether some connection subscribes to exactly this topic.
+    bool subscribed(const std::string& topic) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [fd, sub] : subs_) if (sub.topics.count(topic)) return true;
+        return false;
+    }
+    // Experiments: block until every byte is delivered instead of dropping (a slow consumer slows the producer).
+    void set_lossless(bool on) { lossless_ = on; }
+    // Connections subscribed to at least min_topics topics (a pairing consumer subscribes to both legs).
+    std::size_t ready_count(std::size_t min_topics) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::size_t n = 0;
+        for (const auto& [fd, sub] : subs_) n += sub.topics.size() >= min_topics;
+        return n;
+    }
     std::size_t subscriber_count() {
         std::lock_guard<std::mutex> lock(mutex_);
         return subs_.size();
@@ -94,6 +116,19 @@ public:
     }
 
 private:
+    static void send_all(int fd, const std::string& msg) {
+        std::size_t off = 0;
+        while (off < msg.size()) {
+            const ssize_t k = ::send(fd, msg.data() + off, msg.size() - off, 0);
+            if (k > 0) { off += static_cast<std::size_t>(k); continue; }
+            if (k < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                pollfd p{fd, POLLOUT, 0};
+                if (::poll(&p, 1, 5000) <= 0) return;   // consumer stalled for 5 s: give up on this message
+                continue;
+            }
+            return;   // connection gone
+        }
+    }
     void run() {
         while (running_) {
             std::vector<pollfd> pfds;
@@ -134,6 +169,11 @@ private:
             buf.erase(0, pos + 1);
             while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
 
+            if (line.rfind("PUBLISH ", 0) == 0) {
+                const std::size_t sp = line.find(' ', 8);
+                if (sp != std::string::npos && on_publish_) on_publish_(line.substr(8, sp - 8), line.substr(sp + 1));
+                continue;
+            }
             const std::string kw = "SUBSCRIBE ";
             if (line.rfind(kw, 0) != 0) continue;
 
@@ -186,6 +226,8 @@ private:
     };
 
     int port_;
+    bool lossless_ = false;
+    std::function<void(const std::string&, const std::string&)> on_publish_;
     int listen_fd_ = -1;
     std::atomic<bool> running_{false};
     std::thread thread_;

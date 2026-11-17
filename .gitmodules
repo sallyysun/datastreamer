@@ -1,9 +1,6 @@
 [submodule "external/uWebSockets"]
 	path = external/uWebSockets
 	url = https://github.com/uNetworking/uWebSockets
-[submodule "external/onlineNPCORR"]
-	path = external/onlineNPCORR
-	url = https://github.com/wxiao0421/onlineNPCORR.git
-[submodule "external/hermiter"]
-	path = external/hermiter
-	url = https://github.com/MikeJaredS/hermiter.git
+[submodule "external/datasketches-cpp"]
+	path = external/datasketches-cpp
+	url = https://github.com/apache/datasketches-cpp.git

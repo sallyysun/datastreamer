@@ -1,108 +1,58 @@
-# datastreamer
+# datastreamer (final-thesis)
 
-Honours thesis system: a **streaming** (single-pass, O(1)/tick, bounded-memory) estimator of
-time-varying copula dependence, plus the TCP/WebSocket pipeline it runs live on.
-Central question: *how should an online estimator trade statistical efficiency against
-adaptation to changing dependence?*
+Honours thesis system: a **streaming** (single-pass, O(1)/tick, bounded-memory) estimator of time-varying copula
+dependence, plus the TCP/WebSocket pipeline it runs live on. Central question: *how should an online estimator
+trade statistical efficiency against adaptation to changing dependence?*
+
+This branch holds only what the thesis uses. Everything else (superseded estimators, detectors, studies, notes,
+raw results) is in the git-ignored `archive/` and on branch `bank-vff-study`.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `src/streamgenerator/` | **server** — synthetic DGP + producer + raw-TCP `Broker`. Publishes events; does **not** estimate. |
-| `src/consumer/` | **consumer** — TCP client, ring buffer, device state. Runs the estimators. |
-| `src/estimators/` | The estimators + `registry.hpp`. The thesis's actual subject. |
+| `src/streamgenerator/` | **server**: synthetic DGP (`datasource/`: copula families, `make_scenario`), producer, raw-TCP `Broker`. Publishes; does **not** estimate. |
+| `src/consumer/` | **consumer**: TCP client, ring buffer, device state. Runs the thesis strategies. |
+| `src/estimators/` | Ch. 4 estimators (`registry.hpp`: `thesis::arm`), Ch. 5 strategies MFF/VFF and Ch. 6 scoring (`evaluation.hpp`), the Ch. 6 device (`thesis_device.hpp`). |
 | `src/protocol/` | `SymbolTick`, serializer, topic matching. |
-| `client/` | React/Vite browser viewer. **Strict viewer** — renders what it receives, computes nothing. |
-| `experiments/` | Offline harness (own Makefile, deliberately not built by the root one) + `plot.py`, `live_probe.py`, `analysis.ipynb`, `results/`. |
-| `notes/` | See below. |
-| `external/` | Reference implementations: `hermiter` (R), `onlineNPCORR` (Python), `uWebSockets`. |
+| `client/` | React/Vite browser viewer: the MFF lab (`Lab.tsx`: per-viewer steerable stream + viewer-built MFF, run by a spawned `./consumer --live`) and the market view. **Strict viewer**: renders what it receives, computes nothing. |
+| `experiments/` | One folder per Chapter 6 section (+ `ch3-background/`), each with code, `run.sh`, `images/`. See `experiments/README.md`. |
+| `external/` | `uWebSockets`, `datasketches-cpp` (submodules). |
 
 ## Build & run
 
 ```bash
-make            # -> ./server   (needs uWebSockets, openssl, eigen, nlohmann-json via brew)
-make consumer   # -> ./consumer (eigen + nlohmann only)
-./run.sh dev    # server + vite client together
+make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr            # -> ./server (Linux paths)
+make consumer CXX=g++ EIGEN=/usr JSON=/usr                # -> ./consumer
+experiments/build.sh                                      # simulation programs -> experiments/*/build/
+experiments/6.3-adaptive-forgetting/run.sh                # figures from results/;  SIM=1 reruns simulations
 ```
 
-Server listens on **9002** (HTTP/WebSocket, browser) and **9003** (raw TCP broker, C++ consumers).
-Live DGP regime is chosen by env var: `DEPENDENCE=constant|drift|jump|stochastic|oscillate`
-(default `oscillate`); symbol pair via `SYMBOLS=X,Y` (default `AAPL,MSFT`).
-
-Consumer flags: `--host --port --symbols --policy all|snapshot|latest --print --rate`.
-Leave `--rate 0` for estimation — throttling can desync the two legs of the pair.
-
-Offline harness runs from **inside** `experiments/`:
-
-```bash
-cd experiments && make && ./experiment jump          # single seed, per-tick CSV
-make multiseed && ./multiseed jump 20                # 20 seeds, mean±SE
-./run_multiseed_grid.sh 20 42                        # every scenario × every family (~50 min)
-```
-
-Scenarios: `constant drift jump stochastic oscillate`. DGP copula family via
-`COPULA=gaussian|clayton|gumbel|t` (default `gaussian`) — non-Gaussian families get a filename
-suffix, so `results/experiment_<scenario>[_<family>].csv` and likewise `multiseed_…`.
-
-**No number is a thesis result until it comes from `./multiseed`, not `./experiment`.** Both read
-`all_estimator_keys()` from `registry.hpp`, so registering an estimator there is enough to get it
-measured — a key that is registered but not in that list is silently never run, which is how
-`xiao_win` went unmeasured until 2026-09.
+Server: `DEPENDENCE=constant|drift|jump` (default `jump`), `COPULA=...`, `SYMBOLS=X,Y`; ports 9002 (WS) / 9003 (TCP);
+experiments: `SEED`, `N`, `RATE=0`, `WAIT_CONSUMERS=1` (lossless), `PORT`/`BROKER_PORT`. Consumer `--score` writes the
+probe's rows; `experiments/live/run_live.sh` drives seeded server+consumer pairs.
 
 ## The estimator contract
 
-`DependenceEstimator` (`src/estimators/dependence/estimator.hpp`) is five methods:
-`update(x,y)`, `estimate()`, `reset()`, `store_bytes()`, `name()`.
+`DependenceEstimator` (`src/estimators/dependence/estimator.hpp`): `update(x,y)`, `estimate()`, `reset()`,
+`store_bytes()`, `name()`.
 
-- **`estimate()` always returns Spearman's ρ**, so parametric and nonparametric estimators are
-  comparable in one space. Never return a native parameter.
-- **`reset()` is the change-detection hook** — a detector wrapper calls it to restart.
-- **`store_bytes()` is a thesis metric**, not diagnostics. Streaming-admissibility is a claim we
-  measure, so keep it honest.
-- New estimators are registered by string key in `src/estimators/registry.hpp` and added to
-  `all_estimator_keys()` in the same file — both harnesses read that one list.
+- **`estimate()` always returns Spearman's ρ**, so all estimators are comparable in one space.
+- **`store_bytes()` is a thesis metric** (§6.7), not diagnostics. Keep it honest.
+- MFF scores arms by the Gaussian log density at each arm's ρ_S, evaluated at the shared (U, V).
 
-⚠️ **The forgetting parameter is a mirror-image knob across estimators** — for Xiao (and the
-parametric copula MLEs, which follow Xiao's convention), larger λ = longer memory; for Hermite,
-smaller λ = longer memory. Read the comment block at the top of `registry.hpp` before touching any
-λ. Getting this backwards silently inverts an experiment.
+⚠️ **The forgetting knob is a mirror image across estimators.** All are set from one memory N_eff in
+`registry.hpp`: Counting Matrix retention λ = (N−1)/(N+1) (larger = longer memory), Hermite weight 2/(N+1) and RMPL
+gain 2/(N+1) (smaller = longer memory). Getting this backwards silently inverts an experiment.
 
-⚠️ `registry.hpp` configs must stay **identical** to the live consumer's (`src/consumer/`), or
-offline and online RMSE stop being comparable.
+⚠️ The probe (`experiments/common/probe_strategies.cpp`) and the live consumer share one device and one scorer
+(`src/estimators/thesis_device.hpp`, `evaluation.hpp`, configured by `registry.hpp`). Change them there, never in a
+probe or in the consumer; `common/test/device_vs_probe.cpp` must still reproduce the probe's rows.
 
 ## Conventions
 
-- Harness is **single-seed (42)**. No number is a thesis result until multi-seed with error bars —
-  see `notes/todo.md`.
-- Offline and live `oscillate` share period 400 deliberately, so their RMSE is directly comparable.
-- Marginals are currently handled by standardization (exact only for Gaussian); rank-PIT is open.
-- The browser must stay a strict viewer — if a calculation is creeping into `client/`, that's a bug.
-
-## Where the thinking lives
-
-Read the note, don't re-derive it.
-
-- `notes/studies/roadmap.md` — thesis structure, the efficiency↔adaptation framing, the "ultimate
-  streaming estimator" options, what makes a *copula* changepoint different (five distinctions,
-  referenced by number elsewhere).
-- `notes/studies/change_detection.md` — the detector design space (3 axes), the SSM view, build
-  order. **Two identities worth knowing before touching an estimator:** the fixed-λ estimators are
-  the steady-state limit of a Kalman filter (λ = 1−K), and CUSUM/SR/BOCPD/HMM are one recursion
-  over a latent chain. Published as an artifact.
-- `notes/studies/thesis_audit.md` — **start here**: what is implemented and run on which branch,
-  methodology reconstructed from code, gap analysis for the memory thesis (2026-10-10).
-- `notes/studies/oracle_memory.md` — the thesis deliverable: an **online** evidence→memory rule for
-  tail dependence. Known-changepoint soft restart ($\gamma^*=1/(1+Z^2)$) is the oracle it
-  approximates, not the endpoint.
-- `notes/studies/application_2.md` — covariance / hedging / vine application track.
-- `notes/todo.md` — live backlog with ✅/⬜/➖ status. Check before proposing work.
-- `notes/architecture.md`, `notes/code_changes/` — system design and dated change logs.
-
-## Working style
-
-- This is research code with a thesis attached: correctness of the *statistics* matters more than
-  code elegance, and a claim in a note is not a result until the harness produces it.
-- Keep source nearly comment-free: a short file header pointing at the note that explains it, plus
-  comments only for a non-obvious *why* (guards, clamps, units, traps). Derivations and rationale go
-  in `notes/`, not in the `.hpp`.
+- No number is a thesis result unless it comes from a 60-seed run (100 test seeds in §6.7) with error bars.
+- `std::*_distribution` draws differ between libc++ (macOS) and libstdc++ (Linux); the thesis numbers are Linux.
+- Do not commit `results/` CSVs; `images/` holds exactly the thesis figures for that section.
+- Keep source nearly comment-free: a short header plus comments only for a non-obvious *why*.
+- Before changing a probe, check old and new binaries give byte-identical CSVs on a short run.
