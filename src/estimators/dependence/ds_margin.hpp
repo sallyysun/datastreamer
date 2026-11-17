@@ -5,10 +5,9 @@
 #include <memory>
 
 #include <kll_sketch.hpp>
-#include <req_sketch.hpp>
 
-// One marginal rank summary backed by Apache DataSketches (external/datasketches-cpp): KLL, or REQ
-// in high-rank-accuracy mode. Same interface as KllSketch. See archive/notes/studies/budget_mpl.md §10.
+// One marginal rank summary backed by Apache DataSketches' KLL (external/datasketches-cpp). Same interface as
+// KllSketch. See archive/notes/studies/budget_mpl.md §10.
 namespace ds_margin {
 
 // Counts the heap the sketch actually holds, so store_bytes() is allocation, not serialised size.
@@ -60,14 +59,10 @@ private:
     static Sketch make(std::uint16_t k, const CountingAlloc<float>& a) {
         return Sketch(k, std::less<float>(), a);
     }
-    static Sketch make(std::uint16_t k, const CountingAlloc<float>& a, bool hra) {
-        return Sketch(k, hra, std::less<float>(), a);
-    }
     std::shared_ptr<Counter> counter_;
     Sketch sk_;
 };
 
 using Kll = Margin<datasketches::kll_sketch<float, std::less<float>, CountingAlloc<float>>>;
-using Req = Margin<datasketches::req_sketch<float, std::less<float>, CountingAlloc<float>>>;
 
 }  // namespace ds_margin

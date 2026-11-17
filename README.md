@@ -8,7 +8,7 @@ adapt, and the live pipeline they run on.
 | --- | --- |
 | Ch. 2 data streams | `src/streamgenerator/` (server: DGP, producer, TCP broker), `src/consumer/`, `client/` |
 | Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`recursive_mpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
-| Ch. 5 forgetting | fixed N_eff, VFF (`vff.hpp`), MFF (`forgetting_bank.hpp`); configured in `src/estimators/registry.hpp` |
+| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), VFF and MFF (`evaluation.hpp`, controller in `vff.hpp`) |
 | Ch. 6 experiments | `experiments/<section>/`: one folder per section, with code, `run.sh` and `images/` |
 
 ## Live pipeline

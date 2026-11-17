@@ -30,9 +30,12 @@ Conventions:
 - Simulations: 60 seeds (42–101), T = 5,000, evaluation from observation 500, change at 2,500, scenarios from
   `make_scenario` in `src/streamgenerator/datasource/dependence.hpp` (constant 0.6, drift 0.2 → 0.8, jump
   0.2 → 0.8). 6.7 uses n = 15,000, validation seeds 1000–1039, test seeds 42–141.
-- The estimator and strategy configurations come from `src/estimators/registry.hpp` (`thesis::arm`, `thesis::vff`,
-  `thesis::mff`). The probes apply the same MFF/VFF rules to shared KLL pseudo-observations; `VALIDATE=1` checks
-  them against the framework classes (max difference 0).
+- The estimators come from `src/estimators/registry.hpp` (`thesis::arm`); MFF, VFF and the scoring from
+  `src/estimators/evaluation.hpp`, applied to shared KLL pseudo-observations. The live consumer runs the same code.
+- §6.7 storage is `store_bytes()`: the object plus its heap. Since the 2026-11-17 cut of unused estimator options it
+  counts only what the thesis configuration holds (Hermite 344 B, Counting Matrix 488 B, RMPL 456/648 B less than
+  the version the thesis draft measured); accuracy is unchanged. The pre-cut inputs are in
+  `archive/experiments/results-6.7-before-cut/`.
 - `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
   Linux and macOS. The thesis numbers come from Linux/libstdc++.
 - `live/`: the same device and scoring as the probe (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed

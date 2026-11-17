@@ -13,7 +13,7 @@ raw results) is in the git-ignored `archive/` and on branch `bank-vff-study`.
 | --- | --- |
 | `src/streamgenerator/` | **server**: synthetic DGP (`datasource/`: copula families, `make_scenario`), producer, raw-TCP `Broker`. Publishes; does **not** estimate. |
 | `src/consumer/` | **consumer**: TCP client, ring buffer, device state. Runs the thesis strategies. |
-| `src/estimators/` | Ch. 4 estimators + Ch. 5 strategies; `registry.hpp` configures them (`thesis::arm / vff / mff`). |
+| `src/estimators/` | Ch. 4 estimators (`registry.hpp`: `thesis::arm`), Ch. 5 strategies MFF/VFF and Ch. 6 scoring (`evaluation.hpp`), the Ch. 6 device (`thesis_device.hpp`). |
 | `src/protocol/` | `SymbolTick`, serializer, topic matching. |
 | `client/` | React/Vite browser viewer. **Strict viewer**: renders what it receives, computes nothing. |
 | `experiments/` | One folder per Chapter 6 section (+ `ch3-background/`), each with code, `run.sh`, `images/`. See `experiments/README.md`. |
@@ -39,7 +39,7 @@ probe's rows; `experiments/live/run_live.sh` drives seeded server+consumer pairs
 
 - **`estimate()` always returns Spearman's ρ**, so all estimators are comparable in one space.
 - **`store_bytes()` is a thesis metric** (§6.7), not diagnostics. Keep it honest.
-- `PredictiveDensity` (`log_predictive(u, v)`) is optional; MFF scores arms by log loss of the shared (U, V).
+- MFF scores arms by the Gaussian log density at each arm's ρ_S, evaluated at the shared (U, V).
 
 ⚠️ **The forgetting knob is a mirror image across estimators.** All are set from one memory N_eff in
 `registry.hpp`: Counting Matrix retention λ = (N−1)/(N+1) (larger = longer memory), Hermite weight 2/(N+1) and RMPL

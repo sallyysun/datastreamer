@@ -1,9 +1,6 @@
-// Matched-memory-budget comparison (marginal ablation mpl_ew: EW empirical CDF, N_eff 500, replaces the
-// old 500-window, ew_marginals.md): Xiao (B bins) vs Hermite (order N) vs recursive
-// Gaussian MPL on two KLL sketches (capacity k), plus the MPL marginal ablation.
-// See archive/notes/studies/budget_mpl.md.
-//
-// mpl_dskll is the same MPL on Apache DataSketches KLL (external/datasketches-cpp).
+// Section 6.7 matched-memory-budget comparison: Counting Matrix (B bins) vs Hermite Series (order N) vs RMPL on
+// its own KLL margins (mpl_kll: hand-written KLL, mpl_dskll: Apache DataSketches KLL, capacity k), plus mpl_exact
+// (true margins, the reference). Storage = store_bytes() at its peak; accuracy = rho_S RMSE over the test seeds.
 // Usage: ./probe_budget sweep <n_test> [n_val] [family]  -> results/budget_sweep[_family].csv
 //        ./probe_budget time                     -> results/budget_timing.csv
 
@@ -81,7 +78,7 @@ std::vector<int> ds_kll_grid() {
 }
 
 struct Cfg {
-    std::string est;    // xiao | hermite | mpl_kll | mpl_exact | mpl_ew | mpl_fit_kll
+    std::string est;    // xiao | hermite | mpl_kll | mpl_dskll | mpl_exact
     int approx;         // B, N, k or W
     double gain;        // per-observation update weight, all estimators
 };
@@ -94,8 +91,6 @@ std::vector<Cfg> build_cfgs() {
         if (est_on("mpl_kll")) for (int k : ds_kll_grid()) v.push_back({"mpl_kll", k, g});   // BUDGET_KLL applies to both KLL implementations
         if (est_on("mpl_dskll")) for (int k : ds_kll_grid()) v.push_back({"mpl_dskll", k, g});
         if (est_on("mpl_exact")) v.push_back({"mpl_exact", 0, g});
-        if (est_on("mpl_ew")) v.push_back({"mpl_ew", 500, g});
-        if (est_on("mpl_fit_kll")) v.push_back({"mpl_fit_kll", 256, g});
     }
     return v;
 }
@@ -116,11 +111,9 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     RecursiveMPL::Config m{};
     m.gain = c.gain > 0.0 ? c.gain : 1e-12;              // normalised start-up: gain/(1-(1-gain)^m) -> 1/m
     m.seed = seed;
-    if (c.est == "mpl_kll" || c.est == "mpl_fit_kll" || c.est == "mpl_dskll") m.kll_k = static_cast<std::size_t>(c.approx);
+    if (c.est == "mpl_kll" || c.est == "mpl_dskll") m.kll_k = static_cast<std::size_t>(c.approx);
     if (c.est == "mpl_dskll") m.margin = RecursiveMPL::Margin::DsKll;
     if (c.est == "mpl_exact") m.margin = RecursiveMPL::Margin::ExactNormal;
-    if (c.est == "mpl_ew") { m.margin = RecursiveMPL::Margin::Ew; m.marginal_neff = 500.0; }
-    if (c.est == "mpl_fit_kll") m.update = RecursiveMPL::Update::CopulaFit;
     return std::make_unique<RecursiveMPL>(m, "mpl");
 }
 

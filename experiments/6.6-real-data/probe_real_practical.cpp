@@ -1,7 +1,7 @@
 // Real-data rerun of the 32-pair MFF comparison on the Chapter 6.3 construction (probe_strategies.cpp): one cumulative
 // DataSketches KLL k = 256 pseudo-observation sequence per leg (clipped to [1e-3, 1 - 1e-3]) feeding the five RMPL arms
-// (gain 2/(N+1), N = 39 ... 1999) and two MFF banks: ForgettingBank's Loss::Log rule (eta 1, delta 1e-4) scored by the
-// Gaussian copula (MFF-G, the thesis log bank) or the t4 copula (MFF-t, ForgettingBank::Config.family = StudentT).
+// (gain 2/(N+1), N = 39 ... 1999) and two MFF banks: the log-loss / fixed-share rule (eta 1, delta 1e-4) scored by
+// the Gaussian copula (MFF-G, the thesis MFF) or the t4 copula (MFF-t).
 // Input: EWMA-vol-standardised daily returns, one CSV per pair (date,x,y). Output per day: (U, V), the seven rho_S
 // forecasts held before the day, and each forecast's Gaussian and t4 copula log density at (U, V).
 // Practical-application extension: adds VFF (probe_strategies.cpp Vff: RMPL, gain 2/(N+1) set from VffController,
@@ -10,7 +10,7 @@
 // before the day.
 // EST=rmpl|xiao|hermite (default rmpl): the arm and VFF estimator, configured as in probe_strategies.cpp; counting
 // matrix and Hermite arms read the standardised returns (their own margins), RMPL reads probit of the KLL pseudo-obs.
-// Usage: build/probe_real_practical in.csv out.csv     VALIDATE=1 build/probe_real_practical in.csv     ROLL=1: + rolling windows
+// Usage: build/probe_real_practical in.csv out.csv     ROLL=1: + rolling windows
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -25,6 +25,7 @@
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
 #include "../../src/estimators/dependence/marginal_rank_pit.hpp"
+#include "../../src/estimators/copula_family.hpp"
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/registry.hpp"
 
@@ -46,7 +47,7 @@ double logc(copula::Family F, double u, double v, double rho) {
     return copula::log_density(F, u, v, copula::param_from_spearman(F, rho, kNu), kNu);
 }
 
-// ForgettingBank::update with Loss::Log and Config.family = F, the margins supplied from outside (probe_strategies' Mff
+// MFF with log loss of working family F, the margins supplied from outside (probe_strategies' Mff
 // with the working family as a parameter).
 struct Mff {
     copula::Family F;
@@ -159,47 +160,11 @@ Data read(const char* path) {
     return d;
 }
 
-// Replica vs the ForgettingBank class on the class's own EW margins, both working families.
-int validate(const Data& d) {
-    for (copula::Family F : {copula::Family::Gaussian, copula::Family::StudentT}) {
-        ForgettingBank::Config cfg{.loss = ForgettingBank::Loss::Log, .eta = 1.0, .delta = 1e-4};
-        cfg.arms_raw = raw_inputs();
-        cfg.family = F; cfg.nu = kNu;
-        ForgettingBank bank(make_arms(), cfg, "v");
-        auto arms = make_arms(); Mff mff{F}; EwMarginal mx{default_marginal_neff()}, my{default_marginal_neff()};
-        double worst = 0;
-        for (std::size_t t = 0; t < d.x.size(); ++t) {
-            worst = std::max(worst, std::fabs(bank.estimate() - mff.estimate(arms)));
-            const std::size_t seen = mx.size();
-            const double u = mx.transform(d.x[t]), v = my.transform(d.y[t]);
-            mff.score(arms, u, v, seen);
-            for (auto& a : arms) { if (raw_inputs()) a->update(d.x[t], d.y[t]); else a->update(RankPit::probit(u), RankPit::probit(v)); }
-            bank.update(d.x[t], d.y[t]);
-        }
-        std::printf("VALIDATE %s: max |replica - ForgettingBank| over %zu days = %.3g\n",
-                    F == copula::Family::Gaussian ? "Gaussian" : "t4", d.x.size(), worst);
-    }
-    {   // VFF replica vs the CommonVff class (RMPL inner on normal scores) on the class's own EW margins
-        Vff rep(0.02), proto(0.02); EwMarginal mx{default_marginal_neff()}, my{default_marginal_neff()};
-        CommonVff cls(std::move(proto.inner), VffController::Config{.rate = 0.02}, raw_inputs(), "c");
-        double worst = 0, wn = 0;
-        for (std::size_t t = 0; t < d.x.size(); ++t) {
-            worst = std::max(worst, std::fabs(cls.estimate() - rep.inner->estimate()));
-            const double u = mx.transform(d.x[t]), v = my.transform(d.y[t]);
-            rep.update(d.x[t], d.y[t], u, v, mx.size());
-            cls.update(d.x[t], d.y[t]);
-            wn = std::max(wn, std::fabs(cls.neff() - rep.ctl.neff()));
-        }
-        std::printf("VALIDATE VFF: max |replica - CommonVff| rho %.3g, N_eff %.3g over %zu days\n", worst, wn, d.x.size());
-    }
-    return 0;
-}
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc < 2) { std::fprintf(stderr, "usage: probe_real_pairs in.csv [out.csv]\n"); return 1; }
     const Data d = read(argv[1]);
-    if (std::getenv("VALIDATE")) return validate(d);
     ds_margin::seed(1);
     ds_margin::Kll kx(256), ky(256);
     auto arms = make_arms();

@@ -5,10 +5,6 @@
 #include <cstddef>
 #include <memory>
 
-#include "estimator.hpp"
-#include "ew_marginal.hpp"
-#include "marginal_rank_pit.hpp"
-#include "memory_control.hpp"
 
 // Common variable forgetting factor (one rule for Xiao, Hermite and RMPL). A controller adapts the
 // memory of the ideal estimator of thesis 5.4.4, the normalised EW mean m_n of
@@ -17,7 +13,7 @@
 // forgetting factor), with the derivative of m with respect to lambda carried recursively. The step is
 // taken in theta = log N_eff, scaled by a running RMS of the gradient, and N_eff is clamped to the
 // bank's span. Each wrapped estimator's memory is set to the controller's N_eff before it updates.
-// Design and validation: archive/notes/studies/ew_marginals.md §12.
+// Used by the VFF strategy (evaluation.hpp). Design and validation: archive/notes/studies/ew_marginals.md §12.
 class VffController {
 public:
     struct Config {
@@ -57,39 +53,4 @@ private:
     Config c_;
     double theta_;
     double m_ = 0.0, w_ = 0.0, dm_ = 0.0, dw_ = 0.0, v_ = 0.0;
-};
-
-// A bank-protocol estimator with the common VFF: the shared EW margins give (U_n, V_n) before the update,
-// the controller adapts, the estimator's memory is set, then the estimator updates on raw (X, Y) (Xiao,
-// Hermite) or on the normal scores (RMPL), exactly as a bank arm would.
-class CommonVff : public DependenceEstimator {
-public:
-    CommonVff(std::unique_ptr<DependenceEstimator> inner, VffController::Config c, bool raw_inputs, const char* name)
-        : inner_(std::move(inner)), mc_(dynamic_cast<MemoryControlled*>(inner_.get())), ctl_(c),
-          raw_(raw_inputs), name_(name) {}
-
-    void update(double x, double y) override {
-        const double u = mx_.transform(x), v = my_.transform(y);
-        if (mx_.size() > 30) ctl_.observe(12.0 * (u - 0.5) * (v - 0.5));
-        if (mc_) mc_->set_neff(ctl_.neff());
-        if (raw_) inner_->update(x, y);
-        else inner_->update(RankPit::probit(u), RankPit::probit(v));
-    }
-
-    double estimate() const override { return inner_->estimate(); }
-    bool ready() const override { return inner_->ready(); }
-    void reset() override { inner_->reset(); ctl_.reset(); mx_.reset(); my_.reset(); }
-    std::size_t store_bytes() const override {
-        return sizeof(*this) + inner_->store_bytes() + mx_.heap_bytes() + my_.heap_bytes();
-    }
-    const char* name() const override { return name_; }
-    double neff() const { return ctl_.neff(); }
-
-private:
-    std::unique_ptr<DependenceEstimator> inner_;
-    MemoryControlled* mc_;
-    VffController ctl_;
-    EwMarginal mx_{default_marginal_neff()}, my_{default_marginal_neff()};
-    bool raw_;
-    const char* name_;
 };

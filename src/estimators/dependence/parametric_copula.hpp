@@ -7,12 +7,9 @@
 
 #include "../copula_family.hpp"
 #include "../special_functions.hpp"
-#include "estimator.hpp"
-#include "marginal_rank_pit.hpp"
-#include "predictive_density.hpp"
 
-// Online MLE for the Clayton / Gumbel / Student-t copulas, fitted in an
-// unconstrained coordinate phi by an empirical-Fisher natural-gradient step.
+// CopulaFit: online MLE for one copula family (Gaussian / Clayton / Gumbel / Student-t), fitted in an
+// unconstrained coordinate phi by an expected-Fisher step. Used by the 6.4 family comparisons.
 // Derivation: archive/notes/studies/roadmap.md.
 namespace copula {
 
@@ -158,118 +155,3 @@ private:
 };
 
 }  // namespace copula
-
-class ParametricCopulaMLE : public DependenceEstimator, public PredictiveDensity {
-public:
-    struct Config {
-        copula::Family family = copula::Family::Clayton;
-        double nu = 4.0;
-        double lambda = 0.0;
-        double vff_rate = 0.0;
-        bool expected_info = false;   // expected Fisher info, thesis section 3.5.4
-        double pr_rate = 0.0;         // Polyak-Ruppert averaging rate; 0 disables
-        bool damped = false;          // smooth step saturation instead of a clamp
-        // Rank-PIT marginals instead of a Gaussian CDF of the standardized value.
-        // pseudo() is exact only for Gaussian margins; ranks are exact for any
-        // continuous margin. Section 9.
-        std::size_t rank_pit_window = 0;   // 0 keeps pseudo()
-        std::size_t burn_in = 50;
-        // Inputs are already normal scores z = probit(u) of shared pseudo-observations (the bank
-        // protocol): u = Phi(z), no standardisation.
-        bool normal_score_inputs = false;
-    };
-
-    ParametricCopulaMLE(Config config, const char* name)
-        : config_(config), name_(name), fit_(config.family, config.nu, config.lambda, config.vff_rate,
-             config.expected_info, config.pr_rate, config.damped) {}
-
-    void update(double x, double y) override {
-        ++n_;
-        update_marginals(x, y);
-        if (n_ < 2 && !config_.normal_score_inputs) return;
-        double u, v;
-        if (config_.normal_score_inputs) {
-            u = special::normal_cdf(x);
-            v = special::normal_cdf(y);
-        } else if (config_.rank_pit_window > 0) {
-            u = pit_x_.transform(x);
-            v = pit_y_.transform(y);
-            if (pit_x_.size() < 30) return;   // no usable rank scale yet
-        } else {
-            u = pseudo(x, mean_x_, var_x_);
-            v = pseudo(y, mean_y_, var_y_);
-        }
-        fit_.update_uv(u, v);
-    }
-
-    double estimate() const override {
-        if (n_ < config_.burn_in + 1) return 0.0;
-        return fit_.spearman();
-    }
-    bool ready() const override { return n_ >= config_.burn_in + 1 && n_ >= 2; }
-
-    void reset() override {
-        n_ = 0;
-        fit_.reset();
-        mean_x_ = mean_y_ = 0.0;
-        m2_x_ = m2_y_ = 0.0;
-        var_x_ = var_y_ = 1.0;
-    }
-
-    // Fitted copula density at the component's own pseudo-observations p = Phi((z - mean)/sd) of the
-    // inputs z = probit(u), times the Jacobian dp/du, so it is a density of (u, v).
-    double log_predictive(double u, double v) const override {
-        constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
-        if (config_.rank_pit_window > 0) return kNaN;
-        if (!(u > 0.0 && u < 1.0 && v > 0.0 && v < 1.0)) return kNaN;
-        if (n_ < config_.burn_in + 1) return 0.0;
-        const auto side = [](double w, double mean, double var, double& p) {
-            const double z = RankPit::probit(w), sd = std::sqrt(std::max(var, 1e-12)), s = (z - mean) / sd;
-            p = std::clamp(special::normal_cdf(s), kEps, 1.0 - kEps);
-            return 0.5 * (z * z - s * s) - std::log(sd);   // log dp/du = log phi(s) - log sd - log phi(z)
-        };
-        double pu = 0.0, pv = 0.0;
-        const double jac = side(u, mean_x_, var_x_, pu) + side(v, mean_y_, var_y_, pv);
-        return fit_.logpdf_uv(pu, pv) + jac;
-    }
-
-    std::size_t store_bytes() const override {
-        return sizeof(*this) + pit_x_.store_bytes() + pit_y_.store_bytes() - 2 * sizeof(RankPit);
-    }
-    const char* name() const override { return name_; }
-
-private:
-    static constexpr double kEps = 1e-9;
-
-    static double pseudo(double value, double mean, double var) {
-        const double z = (value - mean) / std::sqrt(std::max(var, 1e-12));
-        return std::clamp(special::normal_cdf(z), kEps, 1.0 - kEps);
-    }
-
-    void update_marginals(double x, double y) {
-        const double n = static_cast<double>(n_);
-        const double dx = x - mean_x_;
-        const double dy = y - mean_y_;
-        mean_x_ += dx / n;
-        mean_y_ += dy / n;
-        m2_x_ += dx * (x - mean_x_);
-        m2_y_ += dy * (y - mean_y_);
-        if (n_ > 1) {
-            var_x_ = m2_x_ / (n - 1.0);
-            var_y_ = m2_y_ / (n - 1.0);
-        }
-    }
-
-    Config config_;
-    // Declared after config_: a member initializer reading config_ from above it
-    // would run before config_ exists.
-    RankPit pit_x_{config_.rank_pit_window ? config_.rank_pit_window : 1};
-    RankPit pit_y_{config_.rank_pit_window ? config_.rank_pit_window : 1};
-    const char* name_;
-    copula::CopulaFit fit_;
-    std::size_t n_ = 0;
-
-    double mean_x_ = 0.0, mean_y_ = 0.0;
-    double m2_x_ = 0.0, m2_y_ = 0.0;
-    double var_x_ = 1.0, var_y_ = 1.0;
-};

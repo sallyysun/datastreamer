@@ -2,10 +2,10 @@
 // (family, scenario, seed 42-101), one cumulative DataSketches KLL k = 256 pseudo-observation sequence per stream
 // (clipped to [1e-3, 1 - 1e-3]) that feeds every margin-dependent part, for every strategy:
 //   fixed  the five arms N_eff 39 ... 1999 (identical to probe_fixed_ess's main arms);
-//   MFF    ForgettingBank's log-loss / fixed-share rule (eta = 1, delta = 1e-4) over those same five arms, scored on the
-//          KLL pseudo-observations (replica of ForgettingBank::update; VALIDATE checks it against the class);
-//   VFF    CommonVff's rule (VffController, rates 0.02 and 0.1) with the KLL p_n = 12(U - 1/2)(V - 1/2)
-//          (replica of CommonVff::update; VALIDATE checks it).
+//   MFF    the log-loss / fixed-share rule (eta = 1, delta = 1e-4) over those same five arms, scored on the
+//          KLL pseudo-observations (thesis::Mff, src/estimators/evaluation.hpp);
+//   VFF    the common VFF rule (VffController, rates 0.02 and 0.1) with the KLL p_n = 12(U - 1/2)(V - 1/2)
+//          (thesis::Vff).
 // Counting matrix and Hermite arms read the raw data (their own margins); RMPL arms read z = probit(U_KLL).
 // Metrics on the forecast held before each tick: rho_S RMSE; excess log loss log c_true(U,V) - log c_G(rho_hat)(U,V) at
 // the true PIT; squared Hellinger H^2(c_true, c_G(rho_hat)) every 50 ticks from 500 (and every 10 in [2500, 2600) on the
@@ -15,7 +15,7 @@
 // Usage: COPULA=<family> ./probe_strategies [seeds=60]
 //   -> results/strategies_seeds[_fam].csv  copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000
 //      results/strategies_jumppath[_fam].csv copula,estimator,strategy,t,mse
-//   VALIDATE=1: replica MFF / VFF vs ForgettingBank / CommonVff on EW margins (seed 42), and the H^2 table vs direct.
+//   VALIDATE=1: the H^2 table and mixture densities against direct computation.
 //   VFF_RATES=0.005,0.01,... TAG=<tag>: VFF at those rates; outputs results/strategies_{seeds,jumppath}_<tag>[_fam].csv and
 //            results/strategies_extremes_<tag>[_fam].csv (per scenario x estimator x strategy, whole window, all seeds x
 //            ticks: excess mean / median / max, worst-1% share of the summed excess, seeds and seed-ticks with |rho_hat| > 0.98).
@@ -35,9 +35,8 @@
 #include <vector>
 
 #include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/dependence/ew_marginal.hpp"
 #include "../../src/estimators/dependence/marginal_rank_pit.hpp"
-#include "../../src/estimators/dependence/vff.hpp"
+#include "../../src/estimators/dependence/parametric_copula.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
@@ -57,7 +56,6 @@ std::vector<std::string> kStrat{"fixed_39", "fixed_99", "fixed_199", "fixed_399"
 std::vector<double> kRates{0.02, 0.1};
 
 std::unique_ptr<DependenceEstimator> arm(const std::string& e, double n) { return thesis::arm(e, n, "m"); }
-std::unique_ptr<DependenceEstimator> vff_inner(const std::string& e) { return thesis::arm(e, 199, "m"); }
 
 std::unique_ptr<Dependence> make_dep(const std::string& s) { return make_scenario(s, kN); }
 
@@ -100,39 +98,6 @@ int main(int argc, char** argv) {
     H2Table h2{.F = family_of(cop)};
 
     if (std::getenv("VALIDATE")) {
-        // Replicas against the registry classes, both on the EW margins the classes compute internally.
-        for (const std::string sc : {"jump", "drift"}) {
-            for (const char* e : kEst) {
-                const std::string es(e);
-                auto bank = thesis::mff(es);
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm(es, n));
-                Mff mff;
-                VffController::Config vc{.rate = 0.1};
-                const bool raw = es != "rmpl";
-                CommonVff cls(vff_inner(es), vc, raw, "vff");
-                Vff rep(es, 0.1);
-                EwMarginal mx(500), my(500), vx(500), vy(500);
-                double db = 0, dv = 0;
-                auto dep2 = make_dep(sc); auto cop2 = dgp::make_copula(cop);
-                CopulaSource s2(*dep2, *cop2, 42);
-                for (std::size_t t = 0; t < kN; ++t) {
-                    const auto smp = s2.next();
-                    db = std::max(db, std::fabs(bank->estimate() - mff.estimate(arms)));
-                    dv = std::max(dv, std::fabs(cls.estimate() - rep.inner->estimate()));
-                    const std::size_t seen = mx.size();
-                    const double u = mx.transform(smp.x), v = my.transform(smp.y);
-                    mff.score(arms, u, v, seen);
-                    for (auto& a : arms) { if (raw) a->update(smp.x, smp.y); else a->update(RankPit::probit(u), RankPit::probit(v)); }
-                    bank->update(smp.x, smp.y);
-                    const double uu = vx.transform(smp.x), vv = vy.transform(smp.y);
-                    rep.update(smp.x, smp.y, uu, vv, vx.size(), raw);
-                    cls.update(smp.x, smp.y);
-                }
-                std::printf("VALIDATE %s %s %s: max |replica - ForgettingBank| %.3g, max |replica - CommonVff| %.3g\n",
-                            cop.c_str(), sc.c_str(), e, db, dv);
-            }
-        }
         const double par = copula::param_from_spearman(h2.F, 0.6 * 0.97);
         for (double r : {0.123, 0.4567, 0.58, 0.7891, 0.9})
             std::printf("VALIDATE H2 %s rho_hat %.4f: table %.6e direct %.6e\n", cop.c_str(), r, h2(par, r), h2.direct(par, r));
@@ -777,7 +742,7 @@ int main(int argc, char** argv) {
                                 r = std::clamp(r, -1.0, 1.0);
                                 row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t],
                                                                        copula::param_from_spearman(copula::Family::Gaussian, r));
-                                // Hedge (eta = 1) then fixed share: ForgettingBank::update / Mff::score
+                                // Hedge (eta = 1) then fixed share, as Mff::score
                                 double top = -INFINITY, tot = 0;
                                 for (std::size_t k = 0; k < kK; ++k) { lw[k] = (w[di][k] > 0 ? std::log(w[di][k]) : -INFINITY) - l[k]; top = std::max(top, lw[k]); }
                                 for (std::size_t k = 0; k < kK; ++k) { w[di][k] = std::exp(lw[k] - top); tot += w[di][k]; }
@@ -857,7 +822,7 @@ int main(int argc, char** argv) {
     }
 
     if (std::getenv("SCORES")) {
-        // MFF scoring rule x learning rate: ForgettingBank's squared loss (p = 12(U-1/2)(V-1/2) against each arm's
+        // MFF scoring rule x learning rate: the squared loss (p = 12(U-1/2)(V-1/2) against each arm's
         // rho) and log loss (Gaussian copula at each arm's rho), both scored on the KLL (U, V) before the arms see
         // the tick, delta = 1e-4, over the same five arms per stream; plus the fixed arms. SEED_BASE (default 42).
         const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : 42u;
@@ -915,7 +880,7 @@ int main(int argc, char** argv) {
                             }
                             if (sc == "jump") { jse[ei * M + i][t] += d * d; jex[ei * M + i][t] += ex[i][t]; }
                         }
-                        if (t >= 30) {   // ForgettingBank warm-up (Mff::score: n_seen >= 30 and every arm ready)
+                        if (t >= 30) {   // MFF warm-up (Mff::score: n_seen >= 30 and every arm ready)
                             bool ready = true;
                             for (const auto& a : arms) ready = ready && a->ready();
                             if (ready) {

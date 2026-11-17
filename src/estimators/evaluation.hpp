@@ -1,9 +1,9 @@
 #pragma once
 
 // The Chapter 6 evaluation protocol, shared by the in-process probes (experiments/) and the live consumer
-// (src/consumer/): MFF and VFF driven by externally supplied shared pseudo-observations (U, V) (the rules of
-// ForgettingBank::update with Loss::Log and of CommonVff::update; probe VALIDATE checks both), the evaluation windows,
-// and the density metrics (excess log loss, squared Hellinger H^2 against the Gaussian working density).
+// (src/consumer/): the forgetting strategies MFF and VFF (Chapter 5) driven by the shared pseudo-observations (U, V),
+// the evaluation windows, and the density metrics (excess log loss, squared Hellinger H^2 against the Gaussian working
+// density).
 
 #include <algorithm>
 #include <cmath>
@@ -14,6 +14,7 @@
 
 #include "copula_family.hpp"
 #include "density_metrics.hpp"
+#include "dependence/vff.hpp"
 #include "registry.hpp"
 
 namespace thesis {
@@ -50,7 +51,8 @@ inline bool checkpoint(const std::string& sc, std::size_t t) {
     return t >= kBurn && ((t - kBurn) % 50 == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
 }
 
-// ForgettingBank::update with Loss::Log, the margins supplied from outside.
+// MFF: Hedge with fixed share over the fixed-memory arms, log loss of the Gaussian density at each arm's rho_S,
+// eta = 1, delta = 1e-4; forecast = weighted mean of the arms (density: the weighted mixture).
 struct Mff {
     double eta = 1.0, delta = 1e-4;
     std::vector<double> w = std::vector<double>(kK, 1.0 / kK), loss = std::vector<double>(kK), lw = std::vector<double>(kK);
@@ -82,14 +84,15 @@ struct Mff {
     }
 };
 
-// CommonVff::update, the margins supplied from outside.
+// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once 30 margin observations
+// are held; Counting Matrix / Hermite read the raw observations, RMPL reads probit(U).
 struct Vff {
     std::unique_ptr<DependenceEstimator> inner;
     MemoryControlled* mc;
     VffController ctl;
     Vff(const std::string& e, double rate) : inner(arm(e, 199, "m")), mc(dynamic_cast<MemoryControlled*>(inner.get())),
                                              ctl(VffController::Config{.rate = rate}) {}
-    // n_after: margin observations held after absorbing this tick (CommonVff's mx_.size() after transform)
+    // n_after: margin observations held after absorbing this tick
     void update(double x, double y, double u, double v, std::size_t n_after, bool raw) {
         if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
         if (mc) mc->set_neff(ctl.neff());
