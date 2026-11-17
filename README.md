@@ -31,7 +31,7 @@ On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first
 - Server: `DEPENDENCE=constant|drift|jump` (default `jump`) selects the thesis scenario (Table 6.2, over
   5,000 observations), `COPULA=gaussian|t|clayton|gumbel|gauss2t|gauss2clayton|clayton2gumbel` the family,
   `SYMBOLS=X,Y` the pair.
-- Server experiment controls: `SEED` (DGP seed), `N` (stream N observations, then exit), `RATE` (observations per
+- Server experiment controls: `REPLAY=<file.csv>` (stream recorded returns instead of the DGP), `SEED` (DGP seed), `N` (stream N observations, then exit), `RATE` (observations per
   second, `0` = as fast as delivery allows; default 10), `WAIT_CONSUMERS` (hold the stream until that many consumers
   subscribe; delivery is then lossless), `PORT` / `BROKER_PORT`. Synthetic ticks carry the ground truth (true ρ_S,
   each leg's true PIT, the copula parameter and family) for scoring.
@@ -42,8 +42,9 @@ On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first
 
 ## Experiments
 
-See `experiments/README.md`. `experiments/live/run_live.sh` runs the §6.3–6.4 strategy comparison over the live
-pipeline (one seeded server and one scoring consumer per run). In short: `experiments/build.sh` builds the simulation programs and each
+See `experiments/README.md`. Every simulation program has a live mode (`LIVE=1`): its streams come from seeded servers
+over TCP instead of in-process; `experiments/live/run_all_live.sh` runs all of 6.2–6.5 that way and compares with the
+in-process results. In short: `experiments/build.sh` builds the simulation programs and each
 `experiments/<section>/run.sh` rebuilds that section's figures and tables from its `results/` (`SIM=1` reruns
 the simulations first).
 

@@ -28,6 +28,7 @@
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
 #include "../common/copula_source.hpp"
+#include "../common/live_source.hpp"
 
 namespace {
 constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
@@ -75,17 +76,22 @@ std::vector<Win> windows(const std::string& s) {
 struct Stream { std::vector<double> x, y, rho, zx, zy; };
 
 Stream make_stream(const std::string& cop, const std::string& sc, unsigned seed) {
-    auto dep = make_dep(sc);
-    auto c = dgp::make_copula(cop);
-    CopulaSource src(*dep, *c, seed);
+    LiveStream L;
+    std::unique_ptr<Dependence> dep;
+    std::unique_ptr<dgp::Copula> c;
+    std::unique_ptr<CopulaSource> src;
+    if (live_mode()) L = live_stream(cop, sc, seed, kN);
+    else { dep = make_dep(sc); c = dgp::make_copula(cop); src = std::make_unique<CopulaSource>(*dep, *c, seed); }
     Stream s;
-    ds_margin::seed(1);                       // as RecursiveMPL::make_ds (seed 1), so VALIDATE can match it
+    ds_margin::seed(1);                       // as RecursiveMPL's DsKll margin (seed 1), so VALIDATE can match it
     ds_margin::Kll kx(kK), ky(kK);
     for (std::size_t t = 0; t < kN; ++t) {
-        const auto smp = src.next();
-        const double u = std::clamp(kx.cdf(smp.x), kDelta, 1 - kDelta), v = std::clamp(ky.cdf(smp.y), kDelta, 1 - kDelta);
-        kx.insert(smp.x); ky.insert(smp.y);   // pseudo-observation from the sketch BEFORE this pair
-        s.x.push_back(smp.x); s.y.push_back(smp.y); s.rho.push_back(smp.rho_s);
+        double x, y, rho_s;
+        if (src) { const auto smp = src->next(); x = smp.x; y = smp.y; rho_s = smp.rho_s; }
+        else { x = L.x[t]; y = L.y[t]; rho_s = L.rho_s[t]; }
+        const double u = std::clamp(kx.cdf(x), kDelta, 1 - kDelta), v = std::clamp(ky.cdf(y), kDelta, 1 - kDelta);
+        kx.insert(x); ky.insert(y);   // pseudo-observation from the sketch BEFORE this pair
+        s.x.push_back(x); s.y.push_back(y); s.rho.push_back(rho_s);
         s.zx.push_back(RankPit::probit(u)); s.zy.push_back(RankPit::probit(v));
     }
     return s;

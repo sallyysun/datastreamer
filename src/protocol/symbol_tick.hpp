@@ -23,10 +23,11 @@ struct SymbolTick {
     // Only meaningful for the synthetic single-pair source (0 for real feeds);
     // carried on each leg so a consumer can validate against ground truth.
     double true_rho_s = 0.0;
-    // Ground truth for scoring a synthetic run (Chapter 6): this leg's true PIT u = Phi(z), the copula parameter and
-    // family at this step. Empty family = no truth (real feeds, or a family switch).
+    // Ground truth for scoring a synthetic run (Chapter 6): this leg's true PIT u = Phi(z), the dependence knob d of
+    // this step (rho_S = (6/pi) asin(d/2)) and the copula family (gaussian|t|clayton|gumbel|gauss2t|...). Empty family =
+    // no truth (real feeds).
     double true_pit = 0.0;
-    double true_param = 0.0;
+    double true_knob = 0.0;
     std::string true_family;
 };
 

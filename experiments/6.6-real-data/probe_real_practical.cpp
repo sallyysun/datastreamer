@@ -10,7 +10,7 @@
 // before the day.
 // EST=rmpl|xiao|hermite (default rmpl): the arm and VFF estimator, configured as in probe_strategies.cpp; counting
 // matrix and Hermite arms read the standardised returns (their own margins), RMPL reads probit of the KLL pseudo-obs.
-// Usage: build/probe_real_practical in.csv out.csv     ROLL=1: + rolling windows
+// Usage: build/probe_real_practical in.csv out.csv     ROLL=1: + rolling windows   LIVE=1: inputs over TCP (REPLAY)
 #include <chrono>
 #include <cmath>
 #include <deque>
@@ -28,6 +28,7 @@
 #include "../../src/estimators/copula_family.hpp"
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/registry.hpp"
+#include "../common/live_source.hpp"
 
 namespace {
 constexpr std::size_t kK = 5;
@@ -164,7 +165,11 @@ Data read(const char* path) {
 
 int main(int argc, char** argv) {
     if (argc < 2) { std::fprintf(stderr, "usage: probe_real_pairs in.csv [out.csv]\n"); return 1; }
-    const Data d = read(argv[1]);
+    Data d = read(argv[1]);
+    if (live_mode()) {   // the same returns over the live pipeline: the server replays the file, as 0.01 x
+        const LiveStream L = live_replay(argv[1], d.x.size());
+        d.x = L.x; d.y = L.y;
+    }
     ds_margin::seed(1);
     ds_margin::Kll kx(256), ky(256);
     auto arms = make_arms();

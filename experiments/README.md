@@ -12,7 +12,7 @@ analysis and plotting scripts, `run.sh`, and `images/` containing exactly the fi
 | `6.4-copula-density/` | §6.4 + app. | `common/probe_strategies.cpp` (`SCORESFAM`, `REGRET`, `REGRETFAM`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
 | `6.5-family-switching/` | §6.5 | `common/probe_strategies.cpp` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
 | `6.6-real-data/` | §6.6 + app. | `probe_real_practical.cpp` | final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage |
-| `live/` | §6.3–6.4 over TCP | `../server` + `../consumer` | `run_live.sh` (results/live_seeds[_fam].csv), `compare_live.py` (vs the probe) |
+| `live/` | 6.2–6.6 over TCP | the probes with `LIVE=1`; `../server` + `../consumer` | `run_all_live.sh` + `jobs.txt` (every 6.2–6.5 simulation), `compare_all_live.py`; `run_live.sh` (the consumer binary scoring §6.3–6.4) |
 | `6.7-computational-cost/` | §6.7 + app. | `probe_budget.cpp`, `probe_margins.cpp` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
 
 ```bash
@@ -38,6 +38,13 @@ Conventions:
   `archive/experiments/results-6.7-before-cut/`.
 - `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
   Linux and macOS. The thesis numbers come from Linux/libstdc++.
+- Live mode: with `LIVE=1` a probe takes each stream from a seeded server over TCP (`common/live_source.hpp`: the
+  server is started per stream on free ports, observations are rebuilt from prices exactly as the consumer does).
+  6.6: `LIVE=1 build/probe_real_practical in.csv out.csv` has the server replay the file (`REPLAY=`).
+  Full 6.2–6.5 run over TCP (2026-11-17, 44 jobs, 60 seeds): 31 of 106 result files byte-identical to the in-process
+  runs, the rest within ~1e-3 relative (KLL near-ties on log returns); 17 of 26 figures byte-identical, the other 9
+  visually identical (at most 0.017% of pixels; `famswitch_initial_id` only by its known colour change); every thesis
+  table identical except the third decimal in 4 of 840 lines of the scores-family summary.
 - `live/`: the same device and scoring as the probe (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed
   over TCP. The consumer sees log returns ln(p_t/p_{t-1}) = 1e-4 + 0.01 z rather than the draws z; ranks are
   unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):

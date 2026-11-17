@@ -48,10 +48,10 @@ public:
             const double ry = std::log(event.y.price / prev_price_y_);
             return_x_.add(rx);
             return_y_.add(ry);
-            if (!scenario_.empty() && !event.x.true_family.empty()) {
+            if (scorer_ || (!scenario_.empty() && thesis::scorable(event.x.true_family))) {
                 if (!scorer_) scorer_ = std::make_unique<thesis::Scorer>(event.x.true_family, scenario_);
                 scorer_->observe(dev_, dev_.count(), event.x.true_rho_s, event.x.true_pit, event.y.true_pit,
-                                 event.x.true_param);
+                                 thesis::true_param(event.x.true_family, event.x.true_knob));
             }
             dev_.update(rx, ry);
         }

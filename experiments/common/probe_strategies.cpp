@@ -12,7 +12,7 @@
 // jump path, counted only in rec_0_100), read from a per-truth table over rho_hat (VALIDATE checks it). c_G(rho) is the
 // Gaussian copula at Spearman rho (RMPL's own density; a plug-in working model for the counting matrix and Hermite).
 //
-// Usage: COPULA=<family> ./probe_strategies [seeds=60]
+// Usage: COPULA=<family> ./probe_strategies [seeds=60]   (LIVE=1: streams over TCP from seeded servers, common/live_source.hpp)
 //   -> results/strategies_seeds[_fam].csv  copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000
 //      results/strategies_jumppath[_fam].csv copula,estimator,strategy,t,mse
 //   VALIDATE=1: the H^2 table and mixture densities against direct computation.
@@ -42,6 +42,7 @@
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
 #include "copula_source.hpp"
+#include "live_source.hpp"
 
 namespace {
 using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;
@@ -61,20 +62,30 @@ std::unique_ptr<Dependence> make_dep(const std::string& s) { return make_scenari
 
 struct Stream { std::vector<double> x, y, rho, par, u, v, pu, pv; };
 Stream make_stream(const std::string& cop, const std::string& sc, unsigned seed) {
-    auto dep = make_dep(sc);
-    auto c = dgp::make_copula(cop);
-    CopulaSource src(*dep, *c, seed);
     const copula::Family F = family_of(cop);
+    LiveStream L;
+    std::unique_ptr<Dependence> dep;
+    std::unique_ptr<dgp::Copula> c;
+    std::unique_ptr<CopulaSource> src;
+    if (live_mode()) L = live_stream(cop, sc, seed, kN);
+    else { dep = make_dep(sc); c = dgp::make_copula(cop); src = std::make_unique<CopulaSource>(*dep, *c, seed); }
     Stream s;
     ds_margin::seed(1);
     ds_margin::Kll kx(256), ky(256);
     for (std::size_t t = 0; t < kN; ++t) {
-        const auto smp = src.next();
-        s.u.push_back(std::clamp(kx.cdf(smp.x), kDelta, 1 - kDelta)); s.v.push_back(std::clamp(ky.cdf(smp.y), kDelta, 1 - kDelta));
-        kx.insert(smp.x); ky.insert(smp.y);
-        s.x.push_back(smp.x); s.y.push_back(smp.y); s.rho.push_back(smp.rho_s);
-        s.par.push_back(copula::param_from_spearman(F, dgp::detail::target_spearman(smp.rho)));
-        s.pu.push_back(special::normal_cdf(smp.x)); s.pv.push_back(special::normal_cdf(smp.y));
+        double x, y, rho_s, d, pu, pv;
+        if (src) {
+            const auto smp = src->next();
+            x = smp.x; y = smp.y; rho_s = smp.rho_s; d = smp.rho;
+            pu = special::normal_cdf(smp.x); pv = special::normal_cdf(smp.y);
+        } else {
+            x = L.x[t]; y = L.y[t]; rho_s = L.rho_s[t]; d = L.d[t]; pu = L.pu[t]; pv = L.pv[t];
+        }
+        s.u.push_back(std::clamp(kx.cdf(x), kDelta, 1 - kDelta)); s.v.push_back(std::clamp(ky.cdf(y), kDelta, 1 - kDelta));
+        kx.insert(x); ky.insert(y);
+        s.x.push_back(x); s.y.push_back(y); s.rho.push_back(rho_s);
+        s.par.push_back(copula::param_from_spearman(F, dgp::detail::target_spearman(d)));
+        s.pu.push_back(pu); s.pv.push_back(pv);
     }
     return s;
 }

@@ -5,8 +5,12 @@ set -euo pipefail
 cd "$(dirname "$0")"
 P=../common/build/probe_strategies
 if [ "${SIM:-0}" = 1 ]; then
-    FAMSWITCH=1 $P 60                                                    # famsw_{seeds,ident,path}_<regime>
-    for e in rmpl xiao hermite; do FAMSWITCH=1 FS_H2=1 FS_EST=$e $P 60; done   # famsw_seeds_h2_<est>_<regime>
+    for g in gaussian t clayton gumbel gauss2t gauss2clayton clayton2gumbel; do
+        FAMSWITCH=1 FS_GENS=$g FS_TAG=$g $P 60                             # famsw_{seeds,ident,path}_<generator>
+    done
+    for g in gauss2t gauss2clayton clayton2gumbel; do for e in rmpl xiao hermite; do
+        FAMSWITCH=1 FS_H2=1 FS_EST=$e FS_GENS=$g FS_TAG=h2_${e}_$g $P 60   # famsw_seeds_h2_<est>_<switch>
+    done; done
 fi
 python3 famsw_rmpl.py               # famsw_rmpl_dl, ch6_famswitch_rmpl_weights
 python3 famsw_accuracy.py           # ch6_famswitch_accuracy

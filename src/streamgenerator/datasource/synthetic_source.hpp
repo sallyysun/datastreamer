@@ -46,6 +46,6 @@ private:
 
     std::mt19937 rng_;
     bool opened_ = false;
-    std::string family_;   // gaussian|clayton|gumbel|t: ground truth is attached to each tick; empty: none
+    std::string family_;   // the COPULA name: ground truth is attached to each tick; empty: none
     std::normal_distribution<double> normal_;
 };

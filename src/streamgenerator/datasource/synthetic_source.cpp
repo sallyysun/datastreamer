@@ -66,13 +66,8 @@ TickPair SyntheticSource::next() {
     SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
     SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
     if (!family_.empty()) {
-        const copula::Family F = family_ == "clayton" ? copula::Family::Clayton
-                               : family_ == "gumbel"  ? copula::Family::Gumbel
-                               : family_ == "t"       ? copula::Family::StudentT
-                                                      : copula::Family::Gaussian;
-        const double par = copula::param_from_spearman(F, dgp::detail::target_spearman(d));
         x.true_pit = special::normal_cdf(z1); y.true_pit = special::normal_cdf(z2);
-        x.true_param = y.true_param = par;
+        x.true_knob = y.true_knob = d;
         x.true_family = y.true_family = family_;
     }
     return TickPair{x, y};

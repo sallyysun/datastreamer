@@ -13,6 +13,7 @@
 
 #include <vector>
 
+#include "datasource/replay_source.hpp"
 #include "datasource/synthetic_source.hpp"
 #include "runtime/producer.hpp"
 #include "runtime/broker.hpp"
@@ -41,7 +42,8 @@ static Config load_config() {
     return c;
 }
 
-// Experiment controls (all optional): SEED (DGP seed; default random), N (stop after N observations and exit; 0 =
+// Experiment controls (all optional): REPLAY=<file.csv> (stream recorded returns date,x,y instead of the DGP; N defaults
+// to the file's length), SEED (DGP seed; default random), N (stop after N observations and exit; 0 =
 // endless), RATE (observations per second; 0 = as fast as delivery allows; default 10), WAIT_CONSUMERS (hold the first
 // observation until this many consumers have subscribed to both legs; delivery is then lossless), PORT / BROKER_PORT.
 static long env_long(const char* k, long d) { const char* e = std::getenv(k); return e && *e ? std::atol(e) : d; }
@@ -109,7 +111,6 @@ int main() {
     const unsigned seed = std::getenv("SEED") ? unsigned(env_long("SEED", 0)) : std::random_device{}();
     const char* cop_env = std::getenv("COPULA");
     const std::string cop = cop_env ? cop_env : "gaussian";
-    const bool truth = cop == "gaussian" || cop == "clayton" || cop == "gumbel" || cop == "t";
 
     uWS::App app;
     Serializer serializer;
@@ -124,7 +125,16 @@ int main() {
               << " / " << equity_topic(sym_y) << ")\n";
     std::cout << "seed " << seed << (n_obs ? " | n " + std::to_string(n_obs) : std::string()) << " | rate "
               << (rate > 0 ? std::to_string(rate) : std::string("max")) << "\n";
-    auto source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula), seed, truth ? cop : "");
+    std::shared_ptr<DataSource> source;
+    long n_run = n_obs;
+    if (const char* rp = std::getenv("REPLAY")) {
+        auto replay = std::make_shared<ReplaySource>(rp);
+        if (n_run <= 0) n_run = long(replay->size());
+        std::cout << "replaying " << rp << " (" << replay->size() << " observations)\n";
+        source = replay;
+    } else {
+        source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula), seed, cop);
+    }
 
     // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
@@ -209,8 +219,8 @@ int main() {
                           << " tcp_consumers=" << broker.subscriber_count() << "\n";
             }
         };
-        if (n_obs > 0) {
-            producer.run(sink, int(n_obs) + 1);   // + the opening tick
+        if (n_run > 0) {
+            producer.run(sink, int(n_run) + 1);   // + the opening tick
             std::cout << "done: " << n - 1 << " observations" << std::endl;
             broker.stop();       // closes the consumers' sockets after the queued bytes: they see end of stream
             std::_Exit(0);
