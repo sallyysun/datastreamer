@@ -15,3 +15,6 @@ experiments/*/results_*/
 experiments/live/*.log
 experiments/live/logs/
 experiments/live/6.*/
+
+# Claude Code project instructions (kept locally, not in the repository)
+CLAUDE.md
