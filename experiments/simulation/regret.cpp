@@ -115,7 +115,7 @@ int run_regretfam(const Run& run) {
                         bool clamp = false;
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double rho = arms.estimate(k);
-                            l[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], inv(rho));
+                            l[k] = -copula::log_density(WF[wi], s.estimated_pit_x[t], s.estimated_pit_y[t], inv(rho));
                             clamp = clamp || inv.clamped(rho);
                         }
                         nclamp += clamp;
@@ -130,7 +130,7 @@ int run_regretfam(const Run& run) {
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t);
                     }
-                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
+                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);
@@ -185,7 +185,7 @@ int run_regret(const Run& run) {
                     if (t >= 30 && arms.ready()) {
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
-                            l[k] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t], par);
+                            l[k] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t], par);
                         }
                         thesis::guard_mff_losses(l);
                         std::array<double, 4> row{};
@@ -196,13 +196,13 @@ int run_regret(const Run& run) {
                             for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
                             row[2 * di] = lo - std::log(mix);
                             r = std::clamp(r, -1.0, 1.0);
-                            row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t],
+                            row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t],
                                                                    copula::param_from_spearman(copula::Family::Gaussian, r));
                             thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                     }
-                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
+                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);

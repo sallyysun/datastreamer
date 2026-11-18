@@ -19,10 +19,10 @@ inline bool study_verbose() {
 }
 
 struct StudySeries {
-    std::vector<double> x, y, rho, target, u, v, pu, pv;
+    std::vector<double> x, y, true_spearman, target_spearman, estimated_pit_x, estimated_pit_y, true_pit_x, true_pit_y;
 };
 
-// Record one seeded series; u, v are KLL pseudo-observations computed from the preceding pairs.
+// Record one seeded series; the estimated PITs are KLL pseudo-observations computed from the preceding pairs.
 inline StudySeries load_study_series(const std::string& family, const std::string& scenario, unsigned seed,
                                      std::size_t count) {
     LiveStream live;
@@ -38,7 +38,7 @@ inline StudySeries load_study_series(const std::string& family, const std::strin
     }
 
     StudySeries series;
-    for (auto* column : {&series.x, &series.y, &series.rho, &series.target, &series.u, &series.v, &series.pu, &series.pv})
+    for (auto* column : {&series.x, &series.y, &series.true_spearman, &series.target_spearman, &series.estimated_pit_x, &series.estimated_pit_y, &series.true_pit_x, &series.true_pit_y})
         column->reserve(count);
     datasketches_kll::seed(1);
     datasketches_kll::PairedKll margins(thesis::kKll, thesis::kClip);
@@ -48,23 +48,23 @@ inline StudySeries load_study_series(const std::string& family, const std::strin
             const auto sample = source->next();
             x = sample.x;
             y = sample.y;
-            series.rho.push_back(sample.rho_s);
-            series.target.push_back(sample.target);
-            series.pu.push_back(special::normal_cdf(sample.x));
-            series.pv.push_back(special::normal_cdf(sample.y));
+            series.true_spearman.push_back(sample.true_spearman);
+            series.target_spearman.push_back(sample.target_spearman);
+            series.true_pit_x.push_back(special::normal_cdf(sample.x));
+            series.true_pit_y.push_back(special::normal_cdf(sample.y));
         } else {
             x = live.x[t];
             y = live.y[t];
-            series.rho.push_back(live.rho_s[t]);
-            series.target.push_back(live.target[t]);
-            series.pu.push_back(live.pu[t]);
-            series.pv.push_back(live.pv[t]);
+            series.true_spearman.push_back(live.true_spearman[t]);
+            series.target_spearman.push_back(live.target_spearman[t]);
+            series.true_pit_x.push_back(live.true_pit_x[t]);
+            series.true_pit_y.push_back(live.true_pit_y[t]);
         }
         const auto [u, v] = margins.update(x, y);
         series.x.push_back(x);
         series.y.push_back(y);
-        series.u.push_back(u);
-        series.v.push_back(v);
+        series.estimated_pit_x.push_back(u);
+        series.estimated_pit_y.push_back(v);
     }
     return series;
 }

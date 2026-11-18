@@ -24,7 +24,7 @@ struct Run {
     thesis::H2Table& h2;
 };
 
-struct Stream : StudySeries { std::vector<double> par; };
+struct Stream : StudySeries { std::vector<double> generating_parameter; };
 
 inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed);
@@ -46,7 +46,7 @@ struct EstimatorTrace {
 
 struct SeedResults {
     unsigned seed;
-    std::vector<double> rho;
+    std::vector<double> true_spearman;
     std::vector<EstimatorTrace> estimators;
 };
 

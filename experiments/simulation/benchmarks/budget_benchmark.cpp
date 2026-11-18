@@ -127,7 +127,7 @@ Data simulate(const std::string& family, const std::string& scenario, unsigned s
     d.x.resize(n); d.y.resize(n); d.truth.resize(n);
     for (std::size_t t = 0; t < n; ++t) {
         const auto s = src.next();
-        d.x[t] = s.x; d.y[t] = s.y; d.truth[t] = s.rho_s;
+        d.x[t] = s.x; d.y[t] = s.y; d.truth[t] = s.true_spearman;
     }
     return d;
 }

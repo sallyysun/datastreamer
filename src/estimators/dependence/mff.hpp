@@ -65,7 +65,7 @@ struct Mff {
     bool ready(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, std::size_t n_seen) const {
         return n_seen >= 30 && std::all_of(arms.begin(), arms.end(), [](const auto& arm) { return arm->ready(); });
     }
-    void score(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
+    void score_and_update_weights(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
         if (!ready(arms, n_seen)) return;
         for (std::size_t k = 0; k < kK; ++k) {
             const double par = copula::param_from_spearman(family, arms[k]->estimate());

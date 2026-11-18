@@ -60,7 +60,7 @@ public:
     bool mff_ready(std::size_t t) const { return mff_.ready(arms_.estimators(), t); }
     // t = observations already absorbed (the margins' size before this one).
     void update(double x, double y, double u, double v, std::size_t t) {
-        mff_.score(arms_.estimators(), u, v, t);
+        mff_.score_and_update_weights(arms_.estimators(), u, v, t);
         arms_.update(x, y, u, v);
         for (auto& vf : vffs_) vf.update(x, y, u, v, t + 1, arms_.raw());
     }

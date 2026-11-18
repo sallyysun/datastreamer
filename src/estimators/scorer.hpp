@@ -19,10 +19,12 @@ class Scorer {
 public:
     Scorer(const std::string& family, const std::string& scenario)
         : fam_(family), sc_(scenario), F_(family_of(family)), h2_{.F = family_of(family)} {}
-    // Call before dev.update for the observation with truth (rho_s, pit_x, pit_y, par).
-    void observe(const Device& dev, std::size_t t, double rho_s, double pu, double pv, double par) {
+    // Call before dev.update for the observation with its generating truth.
+    void observe(const Device& dev, std::size_t t, double true_spearman, double true_pit_x, double true_pit_y,
+                 double generating_parameter) {
         if (rows_.empty()) rows_.resize(dev.sets().size() * dev.sets()[0].size());
-        const ScoringObservation truth{rho_s, pu, pv, par, copula::log_density(F_, pu, pv, par), checkpoint(sc_, t)};
+        const ScoringObservation truth{true_spearman, true_pit_x, true_pit_y, generating_parameter,
+                                       copula::log_density(F_, true_pit_x, true_pit_y, generating_parameter), checkpoint(sc_, t)};
         std::vector<double> f;
         std::size_t r = 0;
         for (const auto& s : dev.sets()) {

@@ -30,12 +30,12 @@ public:
         price_x_ *= std::exp(drift_x_ + vol_x_ * sample.x);
         price_y_ *= std::exp(drift_y_ + vol_y_ * sample.y);
         const long long ts = now_ms();
-        SymbolTick x{"", price_x_, volume_x_, ts, sample.rho_s};   // the server assigns the symbols
-        SymbolTick y{"", price_y_, volume_y_, ts, sample.rho_s};
+        SymbolTick x{"", price_x_, volume_x_, ts, sample.true_spearman};   // the server assigns the symbols
+        SymbolTick y{"", price_y_, volume_y_, ts, sample.true_spearman};
         if (!family_.empty()) {
             x.true_pit = special::normal_cdf(sample.x);
             y.true_pit = special::normal_cdf(sample.y);
-            x.true_target = y.true_target = sample.target;
+            x.true_target = y.true_target = sample.target_spearman;
             x.true_family = y.true_family = family_;
         }
         return TickPair{x, y};

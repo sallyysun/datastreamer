@@ -83,16 +83,16 @@ int run_weights(const Run& run) {
                 for (int di = 0; di < 2; ++di) m[di].delta = deltas[di];
                 std::vector<std::vector<double>> se(2, std::vector<double>(kN));
                 for (std::size_t t = 0; t < kN; ++t) {
-                    rt[t] = s.rho[t];
+                    rt[t] = s.true_spearman[t];
                     for (int di = 0; di < 2; ++di) {
-                        const double f = m[di].estimate(arms.estimators()), d = f - s.rho[t];
+                        const double f = m[di].estimate(arms.estimators()), d = f - s.true_spearman[t];
                         se[di][t] = d * d;
                         const std::size_t b = (std::size_t(ei) * 2 + di) * kN + t;
                         es[b] += d * d; fsum[b] += f;
                         for (std::size_t k = 0; k < kK; ++k) ws[b * kK + k] += m[di].w[k];
                     }
-                    for (int di = 0; di < 2; ++di) m[di].score(arms.estimators(), s.u[t], s.v[t], t);
-                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
+                    for (int di = 0; di < 2; ++di) m[di].score_and_update_weights(arms.estimators(), s.estimated_pit_x[t], s.estimated_pit_y[t], t);
+                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
                 }
                 for (int di = 0; di < 2; ++di)
                     for (const auto& w : wins) {
@@ -210,14 +210,14 @@ void StrategyResults::add(int sd, const SeedResults& result) {
         for (std::size_t t = 0; t < kN; ++t) {
             if (fdump_)
                 for (std::size_t i = 0; i < S; ++i)
-                    std::fprintf(fdump_, "%s,%s,%zu,%.10g,%.10g\n", e.c_str(), kStrat[i].c_str(), t, trace[i].forecast[t], result.rho[t]);
+                    std::fprintf(fdump_, "%s,%s,%zu,%.10g,%.10g\n", e.c_str(), kStrat[i].c_str(), t, trace[i].forecast[t], result.true_spearman[t]);
             for (std::size_t i = 0; i < S; ++i) {
                 const double f = trace[i].forecast[t];
                 jsum_[ei][i][t] += trace[i].squared_error[t];
                 if (paths_) {
                     exs_[at(ei, i, sd, t)] = float(1000 * trace[i].excess[t]);
                     fcs_[at(ei, i, sd, t)] = float(f);
-                    rho_true_[t] = result.rho[t];
+                    rho_true_[t] = result.true_spearman[t];
                     if (checkpoint(sc, t)) h2s_[(ei * S + i) * kN + t] += 1000 * trace[i].h2[t];
                     if (std::fabs(f) > 0.98) ++nex_[(ei * S + i) * kN + t];
                 }

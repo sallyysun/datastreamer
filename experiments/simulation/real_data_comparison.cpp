@@ -258,8 +258,8 @@ int main(int argc, char** argv) {
         if (rolling) rolling->write_scores(o, u, v);
         std::fprintf(o, "\n");
         const auto tm = Clock::now();
-        mg.score(arms, u, v, t);
-        mt.score(arms, u, v, t);
+        mg.score_and_update_weights(arms, u, v, t);
+        mt.score_and_update_weights(arms, u, v, t);
         t_mff += elapsed_seconds(tm);
 
         const double zx = special::probit(u), zy = special::probit(v);

@@ -81,7 +81,7 @@ int run_scoresfam(const Run& run) {
             const unsigned seed = base + sd;
             const Stream s = make_stream(cop, sc, seed);
             std::vector<double> lc(kN);
-            for (std::size_t t = 0; t < kN; ++t) lc[t] = copula::log_density(h2.F, s.pu[t], s.pv[t], s.par[t]);
+            for (std::size_t t = 0; t < kN; ++t) lc[t] = copula::log_density(h2.F, s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t]);
             // inversion estimators: arm forecasts once
             std::vector<std::vector<std::vector<double>>> FC(3, std::vector<std::vector<double>>(kK, std::vector<double>(kN)));
             std::vector<std::vector<char>> RD(3, std::vector<char>(kN));
@@ -90,7 +90,7 @@ int run_scoresfam(const Run& run) {
                 for (std::size_t t = 0; t < kN; ++t) {
                     for (std::size_t k = 0; k < kK; ++k) FC[ei][k][t] = arms.estimate(k);
                     RD[ei][t] = arms.ready();
-                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
+                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
                 }
             }
             for (int wi = 0; wi < 4; ++wi) {
@@ -120,7 +120,7 @@ int run_scoresfam(const Run& run) {
                     for (std::size_t t = 0; t < kN; ++t) {
                         for (std::size_t k = 0; k < kK; ++k) {
                             rk[k] = forecasts[k][t];
-                            ld[k] = copula::log_density(WF[wi], s.pu[t], s.pv[t], evaluation_parameters[k][t]);
+                            ld[k] = copula::log_density(WF[wi], s.true_pit_x[t], s.true_pit_y[t], evaluation_parameters[k][t]);
                             if (!std::isfinite(ld[k])) { ++enf; ld[k] = -INFINITY; }
                         }
                         const bool cp = !noh2 && checkpoint(sc, t);
@@ -130,15 +130,15 @@ int run_scoresfam(const Run& run) {
                             double m = 0;
                             for (std::size_t k = 0; k < kK; ++k) if (q.w[k] > 0) m += std::exp(std::log(q.w[k]) + ld[k] - top);
                             r = std::clamp(r, -1.0, 1.0);
-                            q.se[t] = (r - s.rho[t]) * (r - s.rho[t]);
+                            q.se[t] = (r - s.true_spearman[t]) * (r - s.true_spearman[t]);
                             q.ex[t] = lc[t] - (top + std::log(m));
-                            if (cp) q.hh[t] = hellinger.single_working_family(wi, s.par[t], rk.data(), q.w.data(), kK);
+                            if (cp) q.hh[t] = hellinger.single_working_family(wi, s.generating_parameter[t], rk.data(), q.w.data(), kK);
                         }
                         if (t >= 30 && ready[t]) {
-                            const double p = 12.0 * (s.u[t] - 0.5) * (s.v[t] - 0.5);
+                            const double p = 12.0 * (s.estimated_pit_x[t] - 0.5) * (s.estimated_pit_y[t] - 0.5);
                             for (std::size_t k = 0; k < kK; ++k) {
                                 lsq[k] = (p - rk[k]) * (p - rk[k]);
-                                llog[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], update_parameters[k][t]);
+                                llog[k] = -copula::log_density(WF[wi], s.estimated_pit_x[t], s.estimated_pit_y[t], update_parameters[k][t]);
                             }
                             snf += thesis::guard_mff_losses(llog);
                             for (auto& q : in) {
@@ -230,12 +230,12 @@ int run_famswitch(const Run& run) {
                 const bool ready = t >= 30 && arms.ready();
                 const int gt = t < kChange ? G0[g] : G1[g];
                 const double part = copula::param_from_spearman(WF[gt], thesis::kConstantRhoS);
-                const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
+                const double lc = copula::log_density(WF[gt], s.true_pit_x[t], s.true_pit_y[t], part);
                 for (int wi = 0; wi < 4; ++wi)
                     for (std::size_t k = 0; k < kK; ++k) {
                         th[wi][k] = theta_of(wi, f[k]);
                         te[wi][k] = wi == 0 ? copula::param_from_spearman(copula::Family::Gaussian, std::clamp(f[k], -0.999, 0.999)) : th[wi][k];
-                        ld[wi][k] = copula::log_density(WF[wi], s.pu[t], s.pv[t], te[wi][k]);
+                        ld[wi][k] = copula::log_density(WF[wi], s.true_pit_x[t], s.true_pit_y[t], te[wi][k]);
                     }
                 // forecasts held before tick t
                 auto mixlog = [&](const double* w, int nw, bool fam) {
@@ -249,7 +249,7 @@ int run_famswitch(const Run& run) {
                 for (int i = 0; i < 20; ++i) rf += wf[i] * f[i % kK];
                 for (std::size_t k = 0; k < kK; ++k) rg += wg[k] * f[k];
                 rf = std::clamp(rf, -1.0, 1.0); rg = std::clamp(rg, -1.0, 1.0);
-                sef[t] = (rf - s.rho[t]) * (rf - s.rho[t]); seg[t] = (rg - s.rho[t]) * (rg - s.rho[t]);
+                sef[t] = (rf - s.true_spearman[t]) * (rf - s.true_spearman[t]); seg[t] = (rg - s.true_spearman[t]) * (rg - s.true_spearman[t]);
                 exf[t] = lc - mixlog(wf.data(), 20, true); exg[t] = lc - mixlog(wg.data(), kK, false);
                 if (fh2 && checkpoint(sw ? "jump" : "constant", t)) {
                     int wis[20]; double rhs[20];
@@ -261,7 +261,7 @@ int run_famswitch(const Run& run) {
                 if (ready) {
                     for (int wi = 0; wi < 4; ++wi) {
                         for (std::size_t k = 0; k < kK; ++k) {
-                            family_losses[wi * kK + k] = -copula::log_density(WF[wi], s.u[t], s.v[t], th[wi][k]);
+                            family_losses[wi * kK + k] = -copula::log_density(WF[wi], s.estimated_pit_x[t], s.estimated_pit_y[t], th[wi][k]);
                         }
                     }
                     std::copy_n(family_losses.begin(), kK, gaussian_losses.begin());
@@ -270,7 +270,7 @@ int run_famswitch(const Run& run) {
                     thesis::apply_fixed_share(wf, family_losses, log_weights, 1.0, 1e-4);
                     thesis::apply_fixed_share(wg, gaussian_losses, log_weights, 1.0, 1e-4);
                 }
-                arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
+                arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
             }
             // windows
             std::vector<Win> wins{{"whole", kBurn, kN}};

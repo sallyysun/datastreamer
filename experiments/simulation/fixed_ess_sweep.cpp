@@ -48,9 +48,9 @@ struct Stream : StudySeries { std::vector<double> zx, zy; };
 
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
     Stream stream{load_study_series(family, scenario, seed, kN), {}, {}};
-    for (std::size_t t = 0; t < stream.u.size(); ++t) {
-        stream.zx.push_back(special::probit(stream.u[t]));
-        stream.zy.push_back(special::probit(stream.v[t]));
+    for (std::size_t t = 0; t < stream.estimated_pit_x.size(); ++t) {
+        stream.zx.push_back(special::probit(stream.estimated_pit_x[t]));
+        stream.zy.push_back(special::probit(stream.estimated_pit_y[t]));
     }
     return stream;
 }
@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
                 auto est = build(arms[k]);
                 const bool rmpl = arms[k].est == "rmpl";
                 for (std::size_t t = 0; t < kN; ++t) {
-                    e[t] = est->estimate() - s.rho[t];   // forecast held before tick t
+                    e[t] = est->estimate() - s.true_spearman[t];   // forecast held before tick t
                     if (rmpl) est->update(s.zx[t], s.zy[t]); else est->update(s.x[t], s.y[t]);
                     s1[k][t] += e[t]; s2[k][t] += e[t] * e[t];
                 }

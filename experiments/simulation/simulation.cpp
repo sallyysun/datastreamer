@@ -15,8 +15,8 @@ namespace strategy_experiments {
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
     Stream stream{load_study_series(family, scenario, seed, thesis::kN), {}};
     const auto generating_family = thesis::family_of(family);
-    stream.par.reserve(stream.target.size());
-    for (double target : stream.target) stream.par.push_back(copula::param_from_spearman(generating_family, target));
+    stream.generating_parameter.reserve(stream.target_spearman.size());
+    for (double target : stream.target_spearman) stream.generating_parameter.push_back(copula::param_from_spearman(generating_family, target));
     return stream;
 }
 
@@ -46,9 +46,9 @@ SeedResults Simulation::run() const {
     const Stream s = make_stream(run_.cop, scenario_, seed_);
     const copula::Family family = thesis::family_of(run_.cop);
     std::vector<double> log_density(kN);
-    for (std::size_t t = 0; t < kN; ++t) log_density[t] = copula::log_density(family, s.pu[t], s.pv[t], s.par[t]);
+    for (std::size_t t = 0; t < kN; ++t) log_density[t] = copula::log_density(family, s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t]);
 
-    SeedResults results{seed_, s.rho, {}};
+    SeedResults results{seed_, s.true_spearman, {}};
     for (const char* estimator : kEst) {
         thesis::EstimatorStrategies strategies(estimator, rates_);
         const std::size_t count = strategies.size();
@@ -65,8 +65,8 @@ SeedResults Simulation::run() const {
         for (std::size_t t = 0; t < kN; ++t) {
             strategies.forecasts(f);
             if (mixture_ && strategies.mff_ready(t))
-                trace.mixture_log_loss -= thesis::H2Table::mix_logc(f.data(), weights.data(), thesis::kK, s.u[t], s.v[t]);
-            const thesis::ScoringObservation truth{s.rho[t], s.pu[t], s.pv[t], s.par[t], log_density[t],
+                trace.mixture_log_loss -= thesis::H2Table::mix_logc(f.data(), weights.data(), thesis::kK, s.estimated_pit_x[t], s.estimated_pit_y[t]);
+            const thesis::ScoringObservation truth{s.true_spearman[t], s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t], log_density[t],
                                                    thesis::checkpoint(scenario_, t)};
             for (std::size_t i = 0; i < count; ++i) {
                 const auto score = thesis::score_forecast(run_.h2, truth, f, i, mixture_weights);
@@ -76,7 +76,7 @@ SeedResults Simulation::run() const {
                 strategy.excess[t] = score.excess;
                 strategy.h2[t] = score.h2;
             }
-            strategies.update(s.x[t], s.y[t], s.u[t], s.v[t], t);
+            strategies.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t], t);
         }
         results.estimators.push_back(std::move(trace));
     }

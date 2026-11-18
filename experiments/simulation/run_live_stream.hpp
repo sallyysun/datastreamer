@@ -22,7 +22,7 @@
 #include "../../src/consumer/broker_client.hpp"
 #include "../../src/consumer/paired_returns.hpp"
 
-struct LiveStream { std::vector<double> x, y, rho_s, pu, pv, target; };
+struct LiveStream { std::vector<double> x, y, true_spearman, true_pit_x, true_pit_y, target_spearman; };
 
 inline bool live_mode() { return std::getenv("LIVE") != nullptr; }
 
@@ -80,8 +80,8 @@ inline LiveStream live_run(const std::vector<std::pair<std::string, std::string>
                 }
                 s.x.push_back(x);
                 s.y.push_back(y);
-                s.rho_s.push_back(e.x.true_rho_s); s.pu.push_back(e.x.true_pit); s.pv.push_back(e.y.true_pit);
-                s.target.push_back(e.x.true_target);
+                s.true_spearman.push_back(e.x.true_rho_s); s.true_pit_x.push_back(e.x.true_pit); s.true_pit_y.push_back(e.y.true_pit);
+                s.target_spearman.push_back(e.x.true_target);
             });
             if (wrong_family) break;
         }

@@ -17,11 +17,11 @@
 // Sample paired normal scores under the chosen copula family.
 namespace dgp {
 
-// target: the scenario's Spearman rho at this step; rho_s: the Spearman rho the sampled parameter achieves.
+// target_spearman: the scenario's Spearman rho at this step; true_spearman: the Spearman rho the sampled parameter achieves.
 struct CopulaDraw {
     double x, y;
-    double target;
-    double rho_s;
+    double target_spearman;
+    double true_spearman;
 };
 
 struct Copula {

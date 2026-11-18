@@ -179,7 +179,7 @@ struct H2Table {
 };
 
 struct ScoringObservation {
-    double rho, u, v, parameter, log_density;
+    double true_spearman, true_pit_x, true_pit_y, generating_parameter, true_log_density;
     bool hellinger_checkpoint;
 };
 
@@ -188,15 +188,15 @@ struct ForecastScore { double squared_error, excess, h2; };
 inline ForecastScore score_forecast(H2Table& h2, const ScoringObservation& truth, std::span<const double> forecasts,
                                     std::size_t strategy, std::span<const double> mixture_weights = {}) {
     const double rho = forecasts[strategy];
-    const double error = rho - truth.rho;
+    const double error = rho - truth.true_spearman;
     if (strategy == kK && !mixture_weights.empty()) {
         const auto* weights = mixture_weights.data();
         return {error * error,
-                truth.log_density - H2Table::mix_logc(forecasts.data(), weights, kK, truth.u, truth.v),
-                truth.hellinger_checkpoint ? h2.mix(truth.parameter, forecasts.data(), weights, kK) : NAN};
+                truth.true_log_density - H2Table::mix_logc(forecasts.data(), weights, kK, truth.true_pit_x, truth.true_pit_y),
+                truth.hellinger_checkpoint ? h2.mix(truth.generating_parameter, forecasts.data(), weights, kK) : NAN};
     }
-    return {error * error, truth.log_density - gauss_logc(rho, truth.u, truth.v),
-            truth.hellinger_checkpoint ? h2(truth.parameter, rho) : NAN};
+    return {error * error, truth.true_log_density - gauss_logc(rho, truth.true_pit_x, truth.true_pit_y),
+            truth.hellinger_checkpoint ? h2(truth.generating_parameter, rho) : NAN};
 }
 
 // rho_S -> family parameter, tabulated on 40001 points between the family's parameter bounds (exact for the Gaussian):

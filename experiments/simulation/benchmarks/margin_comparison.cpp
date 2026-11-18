@@ -117,7 +117,7 @@ int main() {
             auto cop = dgp::make_copula("gaussian");
             CopulaSource src(dep, *cop, seed);
             std::vector<double> x(kN), y(kN), tr(kN);
-            for (std::size_t t = 0; t < kN; ++t) { const auto s = src.next(); x[t] = s.x; y[t] = s.y; tr[t] = s.rho_s; }
+            for (std::size_t t = 0; t < kN; ++t) { const auto s = src.next(); x[t] = s.x; y[t] = s.y; tr[t] = s.true_spearman; }
             const std::vector<double> fx = full_emp(x), fy = full_emp(y), sx = seq_emp(x), sy = seq_emp(y), mx = seq_emp(x, true), my = seq_emp(y, true);
             for (std::size_t v = 0; v < V.size(); ++v) {
                 auto e = V[v].make(seed);
