@@ -22,13 +22,13 @@
 #include <string>
 #include <vector>
 
-#include "../estimators/dependence/ds_margin.hpp"
-#include "../estimators/special_functions.hpp"
-#include "../estimators/evaluation.hpp"
-#include "../estimators/registry.hpp"
-#include "../streamgenerator/datasource/copula.hpp"
-#include "../streamgenerator/datasource/dependence.hpp"
-#include "../streamgenerator/datasource/copula_source.hpp"
+#include "../../src/estimators/dependence/ds_margin.hpp"
+#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/evaluation.hpp"
+#include "../../src/estimators/registry.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
+#include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../src/streamgenerator/datasource/copula_source.hpp"
 #include "live_source.hpp"
 
 namespace {

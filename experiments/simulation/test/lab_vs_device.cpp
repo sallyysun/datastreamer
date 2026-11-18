@@ -3,11 +3,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include "../../consumer/live_lab.hpp"
-#include "../../estimators/thesis_device.hpp"
-#include "../../streamgenerator/datasource/copula.hpp"
-#include "../../streamgenerator/datasource/dependence.hpp"
-#include "../../streamgenerator/datasource/copula_source.hpp"
+#include "../../../src/consumer/live_lab.hpp"
+#include "../../../src/estimators/thesis_device.hpp"
+#include "../../../src/streamgenerator/datasource/copula.hpp"
+#include "../../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../../src/streamgenerator/datasource/copula_source.hpp"
 
 int main(int argc, char** argv) {
     const std::string cop = argv[1], sc = argv[2];

@@ -16,13 +16,13 @@
 #include <thread>
 #include <vector>
 
-#include "../estimators/dependence/estimator.hpp"
-#include "../estimators/dependence/hermiter.hpp"
-#include "../estimators/dependence/rmpl.hpp"
-#include "../estimators/dependence/xiao_spearman.hpp"
-#include "../streamgenerator/datasource/copula.hpp"
-#include "../streamgenerator/datasource/dependence.hpp"
-#include "../streamgenerator/datasource/copula_source.hpp"
+#include "../../src/estimators/dependence/estimator.hpp"
+#include "../../src/estimators/dependence/hermiter.hpp"
+#include "../../src/estimators/dependence/rmpl.hpp"
+#include "../../src/estimators/dependence/xiao_spearman.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
+#include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../src/streamgenerator/datasource/copula_source.hpp"
 
 namespace {
 

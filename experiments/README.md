@@ -20,9 +20,9 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 families)
 ```
 
-The C++ lives in `src/`: `scenarios` is `src/streamgenerator/datasource/scenarios.cpp` (the fixed / VFF / MFF simulation
-used by 6.3–6.5, one `run_*` function per mode); the other programs, `live_source.hpp` (a probe's streams over TCP from
-seeded servers) and the consistency tests are in `src/simulation/`. `build.sh` puts each binary in its section's
+The C++ probes, live stream adapter (`live_source.hpp`) and consistency checks live in `experiments/simulation/`.
+The `scenarios.cpp` runner handles the fixed / VFF / MFF simulations for 6.3–6.5, with one `run_*` function per mode.
+`build.sh` puts each binary in its section's
 `build/`. Shared scripts in `common/`: `config.py` (seeds, scenarios,
 families, memories, labels and colours used by every script) and `plot_style.py` (the figure style). 6.6 shares
 `real_common.py`, ch3 `ch3_style.py`. Every script is a short docstring, functions and a `main()`.
@@ -42,7 +42,7 @@ Conventions:
   `archive/experiments/results-6.7-before-cut/`.
 - `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
   Linux and macOS. The thesis numbers come from Linux/libstdc++.
-- Live mode: with `LIVE=1` a probe takes each stream from a seeded server over TCP (`src/simulation/live_source.hpp`: the
+- Live mode: with `LIVE=1` a probe takes each stream from a seeded server over TCP (`experiments/simulation/live_source.hpp`: the
   server is started per stream on free ports, observations are rebuilt from prices exactly as the consumer does).
   6.6: `LIVE=1 build/probe_real_practical in.csv out.csv` has the server replay the file (`REPLAY=`).
   Full 6.2–6.5 run over TCP (2026-11-17, 44 jobs, 60 seeds): 31 of 106 result files byte-identical to the in-process
@@ -53,5 +53,5 @@ Conventions:
   over TCP. The consumer sees log returns ln(p_t/p_{t-1}) = 1e-4 + 0.01 z rather than the draws z; ranks are
   unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):
   707 streams byte-identical to the probe; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means
-  by at most 1e-5 relative. `src/simulation/test/device_vs_probe.cpp` reproduces both (draws and returns) in-process.
+  by at most 1e-5 relative. `experiments/simulation/test/device_vs_probe.cpp` reproduces both (draws and returns) in-process.
 - 6.6 needs the real-data inputs, which are not in the repository (see `6.6-real-data/run.sh`).

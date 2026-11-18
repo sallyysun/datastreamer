@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the Chapter 6 simulation programs (src/simulation/, src/streamgenerator/datasource/scenarios.cpp) into each
+# Builds the Chapter 6 simulation programs (experiments/simulation/) into each
 # section's build/ folder, and the two consistency tests into common/build/. Needs g++ (or clang++), Eigen,
 # nlohmann-json (the live mode's tick parser) and the external/datasketches-cpp submodule. EIGEN=/usr JSON=/usr on Linux,
 # /opt/homebrew/opt/eigen and /opt/homebrew/opt/nlohmann-json on macOS.
@@ -15,10 +15,10 @@ build() {   # source, output
     $CXX "$1" src/protocol/serializer.cpp $FLAGS -o "$2"
     echo "built $2"
 }
-build src/simulation/probe_fixed_ess.cpp             experiments/6.2-fixed-forgetting/build/probe_fixed_ess
-build src/streamgenerator/datasource/scenarios.cpp  experiments/common/build/scenarios
-build src/simulation/probe_real_practical.cpp        experiments/6.6-real-data/build/probe_real_practical
-build src/simulation/probe_budget.cpp                experiments/6.7-computational-cost/build/probe_budget
-build src/simulation/probe_margins.cpp               experiments/6.7-computational-cost/build/probe_margins
-build src/simulation/test/device_vs_probe.cpp        experiments/common/build/device_vs_probe
-build src/simulation/test/lab_vs_device.cpp          experiments/common/build/lab_vs_device
+build experiments/simulation/probe_fixed_ess.cpp             experiments/6.2-fixed-forgetting/build/probe_fixed_ess
+build experiments/simulation/scenarios.cpp  experiments/common/build/scenarios
+build experiments/simulation/probe_real_practical.cpp        experiments/6.6-real-data/build/probe_real_practical
+build experiments/simulation/probe_budget.cpp                experiments/6.7-computational-cost/build/probe_budget
+build experiments/simulation/probe_margins.cpp               experiments/6.7-computational-cost/build/probe_margins
+build experiments/simulation/test/device_vs_probe.cpp        experiments/common/build/device_vs_probe
+build experiments/simulation/test/lab_vs_device.cpp          experiments/common/build/lab_vs_device

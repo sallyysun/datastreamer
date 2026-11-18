@@ -2,7 +2,7 @@
 
 // The Chapter 6 device: one stream's shared pseudo-observations (cumulative DataSketches KLL k = 256 per margin,
 // clipped to [kClip, 1 - kClip]) feeding, for each estimator, the five fixed arms, MFF over them and VFF at each rate,
-// exactly as the in-process probe (src/streamgenerator/datasource/scenarios.cpp). Counting Matrix and Hermite arms read the
+// exactly as the in-process probe (experiments/simulation/scenarios.cpp). Counting Matrix and Hermite arms read the
 // raw observations (their own margins); RMPL reads probit(U). Forecasts are those held before each observation.
 // Scorer turns forecasts + ground truth into the probe's per-seed rows (MFF density = mixture, as TAG=mix).
 

@@ -18,14 +18,14 @@
 #include <string>
 #include <vector>
 
-#include "../../estimators/dependence/ds_margin.hpp"
-#include "../../estimators/special_functions.hpp"
-#include "../../estimators/evaluation.hpp"
-#include "../../estimators/registry.hpp"
-#include "copula.hpp"
-#include "dependence.hpp"
-#include "copula_source.hpp"
-#include "../../simulation/live_source.hpp"
+#include "../../src/estimators/dependence/ds_margin.hpp"
+#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/evaluation.hpp"
+#include "../../src/estimators/registry.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
+#include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../src/streamgenerator/datasource/copula_source.hpp"
+#include "live_source.hpp"
 
 namespace {
 using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;

@@ -23,12 +23,12 @@
 #include <string>
 #include <vector>
 
-#include "../estimators/dependence/ds_margin.hpp"
-#include "../estimators/special_functions.hpp"
-#include "../estimators/copula_family.hpp"
-#include "../estimators/dependence/vff.hpp"
-#include "../estimators/evaluation.hpp"
-#include "../estimators/registry.hpp"
+#include "../../src/estimators/dependence/ds_margin.hpp"
+#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/copula_family.hpp"
+#include "../../src/estimators/dependence/vff.hpp"
+#include "../../src/estimators/evaluation.hpp"
+#include "../../src/estimators/registry.hpp"
 #include "live_source.hpp"
 
 namespace {

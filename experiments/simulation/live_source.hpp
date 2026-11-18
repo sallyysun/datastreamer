@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "../consumer/broker_client.hpp"
+#include "../../src/consumer/broker_client.hpp"
 
 struct LiveStream { std::vector<double> x, y, rho_s, pu, pv, d; };
 

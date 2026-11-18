@@ -9,7 +9,7 @@ adapt, and the live pipeline they run on.
 | Ch. 2 data streams | `src/streamgenerator/` (server: DGP, producer, TCP broker), `src/consumer/`, `client/` |
 | Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`rmpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
 | Ch. 5 forgetting | fixed N_eff (`registry.hpp`), MFF (`dependence/mff.hpp`), VFF (`dependence/vff.hpp`) |
-| Ch. 6 experiments | simulation programs in `src/simulation/` and `src/streamgenerator/datasource/scenarios.cpp`; `experiments/<section>/`: the scripts, `run.sh` and `images/` |
+| Ch. 6 experiments | simulation programs in `experiments/simulation/`; `experiments/<section>/`: the scripts, `run.sh` and `images/` |
 
 ## Live pipeline
 
@@ -48,7 +48,7 @@ each viewer gets a private stream from a steerable generator and a consumer proc
 events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by family, and the effective memory
 live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
 the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
-is the thesis MFF exactly (`src/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
+is the thesis MFF exactly (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
 
 ## Experiments
 
