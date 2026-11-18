@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../../src/estimators/evaluation.hpp"
+#include "strategy_results.hpp"
 #include "strategy_runs.hpp"
 #include "study_stream.hpp"
 
@@ -79,9 +80,10 @@ int run_scoresfam(const Run& run) {
         const auto wins = windows(sc);
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = base + sd;
-            const Stream s = make_stream(cop, sc, seed);
+            const StudySeries s = load_study_series(cop, sc, seed, kN);
+            const auto generating_parameter = generating_parameters(cop, s);
             std::vector<double> lc(kN);
-            for (std::size_t t = 0; t < kN; ++t) lc[t] = copula::log_density(h2.F, s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t]);
+            for (std::size_t t = 0; t < kN; ++t) lc[t] = copula::log_density(h2.F, s.true_pit_x[t], s.true_pit_y[t], generating_parameter[t]);
             // inversion estimators: arm forecasts once
             std::vector<std::vector<std::vector<double>>> FC(3, std::vector<std::vector<double>>(kK, std::vector<double>(kN)));
             std::vector<std::vector<char>> RD(3, std::vector<char>(kN));
@@ -132,7 +134,7 @@ int run_scoresfam(const Run& run) {
                             r = std::clamp(r, -1.0, 1.0);
                             q.se[t] = (r - s.true_spearman[t]) * (r - s.true_spearman[t]);
                             q.ex[t] = lc[t] - (top + std::log(m));
-                            if (cp) q.hh[t] = hellinger.single_working_family(wi, s.generating_parameter[t], rk.data(), q.w.data(), kK);
+                            if (cp) q.hh[t] = hellinger.single_working_family(wi, generating_parameter[t], rk.data(), q.w.data(), kK);
                         }
                         if (t >= 30 && ready[t]) {
                             const double p = 12.0 * (s.estimated_pit_x[t] - 0.5) * (s.estimated_pit_y[t] - 0.5);
@@ -216,7 +218,7 @@ int run_famswitch(const Run& run) {
         std::vector<double> ps(4 * kN, 0.0), pq(4 * kN, 0.0);
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = base + sd;
-            const Stream s = make_stream(GN[g], "constant", seed);
+            const StudySeries s = load_study_series(GN[g], "constant", seed, kN);
             FixedMemoryArms arms(fest);
             // instance 0: family (20 models, index wi * 5 + k); instance 1: Gaussian-only (5 models)
             std::vector<double> wf(20, 1.0 / 20), wg(kK, 1.0 / kK);

@@ -1,6 +1,4 @@
-"""Section 6.2 recovery after the abrupt jump: for each fixed N_eff, the number of post-jump observations until the
-mean estimate stays within 10% of the jump size for 20 consecutive forecasts. Writes results/jump_recovery.csv and
-results/jump_recovery_2026-11-12.txt."""
+"""Measure how quickly fixed-memory forecasts recover after the jump."""
 import sys
 import numpy as np
 import pandas as pd
@@ -26,14 +24,15 @@ def recovery(b):
     return None
 
 
-def measure():
+def measure(include_checks):
     rows, checks = [], []
     for f, s in FAMS:
         jb = pd.read_csv(R + f"fixed_ess_jumpbias{s}.csv", dtype={"neff": str})
-        jp = pd.read_csv(R + f"fixed_ess_jumppath{s}.csv", dtype={"neff": str})
-        m = jb.merge(jp, on=["copula", "estimator", "neff", "t"], suffixes=("", "_old"))
-        checks.append(f"check {f}: per-tick MSE vs fixed_ess_jumppath: {len(m)} rows, max relative difference "
-                      f"{(abs(m.mse - m.mse_old) / m.mse_old).max():.1e}")
+        if include_checks:
+            jump_path = pd.read_csv(R + f"fixed_ess_jumppath{s}.csv", dtype={"neff": str})
+            matched = jb.merge(jump_path, on=["copula", "estimator", "neff", "t"], suffixes=("", "_path"))
+            max_difference = (abs(matched.mse - matched.mse_path) / matched.mse_path).max()
+            checks.append(f"{f} {max_difference:.1e} ({len(matched)} rows)")
         for e, _ in EST:
             for k, lab in MEM:
                 arm = jb[(jb.estimator == e) & (jb.neff == k)]
@@ -46,28 +45,27 @@ def measure():
 
 
 def report(df, checks):
-    out = [f"90% recovery after the jump: rho_S {PRE:.4f} -> {POST:.4f} (gap {GAP:.4f}); threshold B(k) <= {THR} held for {RUN}",
-           "consecutive forecasts; k = post-jump observations absorbed before the forecast; 60 seeds; Linux/libstdc++.",
-           "Cells show recovery time in observations, B(100) in brackets, and mean B over the last 500 observations."]
-    out += checks + [""]
+    lines = [f"Recovery after ρₛ {PRE:.4f} → {POST:.4f} (relative bias ≤ {THR:g} for {RUN} forecasts)",
+             "Cells show observations to recovery [relative bias at 100] and mean relative bias over the last 500.",
+             f"Max relative MSE difference vs jump path · {', '.join(checks)}",
+             "", f"{'N_eff':14s} " + "  ".join(f"{name:>26s}" for _, name in EST)]
     for f, _ in FAMS:
-        out.append(C.FAMILY_TEXT[f])
-        out.append(f"{'N_eff':14s} " + "  ".join(f"{name:>26s}" for _, name in EST))
+        lines.append(C.FAMILY_TEXT[f])
         for _, lab in MEM:
             cells = []
             for e, _ in EST:
                 r = df[(df.copula == f) & (df.estimator == e) & (df.neff == lab)].iloc[0]
                 rec = "not recovered" if pd.isna(r.recovery) else f"{int(r.recovery)}"
                 cells.append(f"{rec:>13s} [{r.b_at_100:.2f}] tail {r.tail_B:.3f}")
-            out.append(f"{lab:14s} " + "  ".join(f"{c:>26s}" for c in cells))
-        out.append("")
-    return out
+            lines.append(f"{lab:14s} " + "  ".join(f"{c:>26s}" for c in cells))
+    return lines
 
 
 def main():
-    df, checks = measure()
+    include_report = reports_enabled()
+    df, checks = measure(include_report)
     df.to_csv(R + "jump_recovery.csv", index=False)
-    if reports_enabled():
+    if include_report:
         write_report(R + "jump_recovery_2026-11-12.txt", report(df, checks))
 
 

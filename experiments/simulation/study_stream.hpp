@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "study_config.hpp"
+#include "../../src/copula_family.hpp"
 #include "../../src/estimators/dependence/datasketches_kll.hpp"
 #include "../../src/special_functions.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
@@ -67,4 +68,13 @@ inline StudySeries load_study_series(const std::string& family, const std::strin
         series.estimated_pit_y.push_back(v);
     }
     return series;
+}
+
+// The generating copula's parameter at each tick, from the scenario's target Spearman correlation.
+inline std::vector<double> generating_parameters(const std::string& family, const StudySeries& series) {
+    const auto generating_family = copula::family_of(family);
+    std::vector<double> parameters;
+    parameters.reserve(series.target_spearman.size());
+    for (double target : series.target_spearman) parameters.push_back(copula::param_from_spearman(generating_family, target));
+    return parameters;
 }

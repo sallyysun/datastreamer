@@ -41,7 +41,7 @@ The standard strategy run, family scoring, family switching, and regret modes li
 For each seed, **run the producer, run the consumer logic, score the forecasts, and collate the results**. In process, “run” means calling the producer and consumer code in `src/` directly. With `LIVE=1`, the loader starts the server and reads the series over TCP.
 
 1. **Producer.** Load one seeded series per scenario and seed with `load_study_series()`. `CopulaSource` generates the observations through `src/`. In live mode, the loader reads the same kind of observations from the TCP adapter after reconstructing returns from price ticks.
-2. **Consumer.** Replay each pair into the estimator strategies in `src/`. The series carries one shared pair of KLL pseudo-observations per stream. The standard run uses the existing `EstimatorStrategies` on those prepared inputs. The family and regret modes keep the shared fixed-memory bank with their own weighting or oracle logic.
+2. **Consumer.** Replay each pair into the estimator strategies in `src/`. The series carries one shared pair of KLL pseudo-observations per stream. The standard run uses the existing `ForgettingStrategies` on those prepared inputs. The family and regret modes keep the shared fixed-memory bank with their own weighting or oracle logic.
 3. **Score.** Evaluate the forecast held before the pair was absorbed. The scoring functions in `src/` use the generated truth for accuracy and copula density comparisons. The estimator still returns Spearman correlation. The scorer converts it to a copula parameter for the chosen working family.
 4. **Collate.** Keep scenario and seed selection, accumulated statistics, CSV output, and optional diagnostics in the experiments. Python reads the same CSVs.
 
@@ -80,7 +80,7 @@ classDiagram
     class SeedResults
     class StrategyResults
     class StudySeries
-    class EstimatorStrategies
+    class ForgettingStrategies
     class H2Table
 
     Experiment *-- StrategyResults : owns for the study
@@ -88,7 +88,7 @@ classDiagram
     Run --> H2Table : shared cache owned by main()
     Experiment ..> Simulation : creates one per scenario and seed
     Simulation ..> StudySeries : loads with load_study_series()
-    Simulation ..> EstimatorStrategies : reads forecasts and updates
+    Simulation ..> ForgettingStrategies : reads forecasts and updates
     Simulation ..> H2Table : uses during scoring
     Simulation ..> SeedResults : returns
     StrategyResults ..> SeedResults : collates
@@ -108,7 +108,7 @@ flowchart LR
 
 ## Proposed grouped file structure
 
-Keep the sources for the strategy executable directly under `experiments/simulation/`. They already share an entry point and build target. `fixed_ess_sweep.cpp` also stays at the top level as the §6.2 runner. The `benchmarks/` folder groups the §6.7 cost programs, and `test/` groups the comparisons. Keep `Experiment` and `StrategyResults` private to `experiment.cpp`. Put the `Simulation` declaration and the `SeedResults` value it returns in the existing shared header.
+Keep the sources for the strategy executable directly under `experiments/simulation/`. They already share an entry point and build target. `fixed_ess_sweep.cpp` also stays at the top level as the §6.2 runner. The `benchmarks/` folder groups the §6.7 cost programs, and `test/` groups the comparisons. `Experiment` stays private to `experiment.cpp`. `Simulation` and its per-seed result types have their own header. `StrategyResults` has its own pair of files and takes the strategy labels from `main()`. The replay series has one type, `StudySeries`; callers that score against the generating parameter compute it with `generating_parameters()`.
 
 ```text
 src/
@@ -121,9 +121,10 @@ src/
 experiments/simulation/
   study_stream.hpp              load_study_series() for in-process draws and TCP input
   run_live_stream.hpp           Server start and return reconstruction over TCP
-  experiment.cpp                main(), mode dispatch, Experiment, and StrategyResults
-  simulation.cpp                Simulation and the single-seed forecast loop
-  strategy_runs.hpp             Run options, Simulation, SeedResults, and mode declarations
+  experiment.cpp                main(), mode dispatch, and Experiment
+  simulation.hpp/.cpp           Simulation, SeedResults, and the single-seed forecast loop
+  strategy_results.hpp/.cpp     StrategyResults, window summaries, and the strategies_* CSVs
+  strategy_runs.hpp             Run options and mode declarations
   family.cpp                    Family scoring and switching
   regret.cpp                    Regret modes and their oracle
   fixed_ess_sweep.cpp           §6.2 fixed-memory accuracy and recovery
@@ -136,13 +137,14 @@ experiments/simulation/
     lab_vs_device.cpp           Browser lab and device comparison
 ```
 
-The proposed structure has 13 simulation files, down from the current 15. The split replaces `strategy_experiments.cpp` with two source files that link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
+The proposed structure has 16 simulation files, up from the current 15. The split replaces `strategy_experiments.cpp` with `experiment.cpp`, `simulation.cpp`, and `strategy_results.cpp`, which link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
 
 Within the strategy executable, the file boundaries are for navigation and linking.
 
 - **`experiment.cpp`** reads options and dispatches modes. For the standard comparison, `Experiment::run()` loops over scenarios and seeds, calls `Simulation::run()`, and writes the aggregated results.
 - **`simulation.cpp`** runs one scenario and seed. It loads the series, replays it through the estimator strategies and scorer in `src/`, and returns `SeedResults`.
-- **`strategy_runs.hpp`** gives the source files their shared declarations. `Experiment` and its CSV writer stay private to `experiment.cpp`.
+- **`strategy_results.cpp`** collates `SeedResults` across seeds and writes the `strategies_*` CSVs. Its window summary is shared with the family modes.
+- **`strategy_runs.hpp`** holds the run options and the mode entry points. `Experiment` stays private to `experiment.cpp`.
 - **`family.cpp`** keeps the two family comparisons together. One compares scoring rules across working copulas. The other measures adaptation when the generating family changes. Both modes need family-specific weighting and density scoring. Their entry functions stay separate, and both link into the same executable as the standard loop.
 - **`regret.cpp`** owns both regret modes and their shared oracle. It compares forecast losses with the best fixed and switching sequences.
 
@@ -153,6 +155,43 @@ An *ablation* is a controlled comparison that removes or changes a component to 
 1. Add `load_study_series()` to the study adapter. Move the strategy runner's and the fixed-ESS sweep's loaders onto it, keeping the single KLL reseed and shared pseudo-observations.
 2. Share the fixed-memory bank and scoring in `src/`. Preserve warm-up, KLL seeding, forecast timing, and numerical methods. If the standard run moves onto `Device` later, make the `src/` change first: configurable VFF rates and access to the mixture diagnostic's inputs.
 3. Group the experiment files and split the standard comparison into `experiment.cpp` and `simulation.cpp`. Check that every existing mode reaches the same output.
+
+## Mode functions
+
+The file layout is settled. Most of the remaining length sits in a few mode functions, each a single 60–145 line body that reads the environment, opens its CSVs, runs a table self-check, loops over scenarios and seeds, runs the per-tick loop, and prints. `Simulation` and `StrategyResults` already do this for the standard run.
+
+| Function | Lines |
+|---|---|
+| `run_famswitch` (`family.cpp`) | 145 |
+| `run_scoresfam` (`family.cpp`) | 138 |
+| `main` (`fixed_ess_sweep.cpp`) | 93 |
+| `run_regret` (`regret.cpp`) | 88 |
+| `main` (`real_data_comparison.cpp`) | 83 |
+| `run_regretfam` (`regret.cpp`) | 64 |
+| `run_weights` (`experiment.cpp`) | 58 |
+
+Most of that length restates MFF. `Mff` is fixed at the five study arms, so modes that needed a 20-arm family mixture or another learning rate rebuilt it from the weight-update helpers.
+
+| Repeated piece | Copies |
+|---|---|
+| MFF mixture log density (log-sum-exp over weighted arm densities) | 5 |
+| MFF point forecast (weighted mean, clamped) | 3, besides `Mff::estimate` |
+| Per-arm working-copula loss | 4, besides `Mff::score_and_update_weights` |
+| Readiness rule `t >= 30 && arms.ready()` | 4, besides `Mff::ready` |
+| The four working families, their names and inverse tables | 3 |
+| Comma-separated environment lists | 4 |
+| Mean and standard deviation across seeds | 2 |
+| Output open and the "run from the experiment folder" check | 7 |
+
+`run_weights` mostly duplicates the standard run. Its δ = 1e-4 rows replay the same arms and the same `Mff` that `ForgettingStrategies` holds, in the same scoring order, so their weights, squared errors and mean forecasts are already computed there. Only the δ = 0 Hedge comparison is new. `SeedResults` can carry the MFF weight path, and the weight outputs can come from the standard run, with δ = 0 as an extra strategy enabled only under `WEIGHTS=1`.
+
+### Order
+
+1. Let `Mff` take any number of arms, a learning rate and a share rate. Give it `forecast()`, `mixture_log_density()`, `mixture_loss()` and `update()`, and name the 30-tick warm-up. The family, regret and real-data modes then hold `Mff` values instead of raw weight vectors. Keep each mode's existing log-sum-exp form and loss guard, so outputs stay identical.
+2. Move the table self-checks in `run_scoresfam` and `run_famswitch` into `VALIDATE=1`.
+3. Add a working-family table (family, name, inverse), one list parser, one results-file opener, and one across-seed mean and standard deviation.
+4. Move `FamilyInverse` and `FamilyHellinger` from `src/estimators/evaluation.hpp` back to the experiments. Only `family.cpp` uses them, and the live consumer compiles that header.
+5. Produce the weight paths from the standard run as above, and move `run_validate` out of `experiment.cpp`.
 
 ## Verification
 

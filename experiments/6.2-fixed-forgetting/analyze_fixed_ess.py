@@ -1,6 +1,4 @@
-"""Section 6.2 fixed forgetting: RMSE of each fixed N_eff per scenario window, and the drift-optimal N_eff against
-the approximation N* = (2 v / d^2)^(1/3). Writes results/fixed_ess_2026-11-12.txt and results/fixed_ess_optimum.csv
-(V_NMAX=350: v from N_eff <= 350 only, written as *_v350*)."""
+"""Summarize fixed-memory RMSE and compare the drift optimum with its approximation."""
 import os
 import sys
 import numpy as np
@@ -14,7 +12,6 @@ import config as C  # noqa: E402
 R = "results/"
 FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
 EST = ["xiao", "hermite", "rmpl"]
-WINDOWS = [("constant", ["whole"]), ("drift", ["whole"]), ("jump", ["pre", "rec_0_100", "rec_100_500", "post", "whole"])]
 VMAX = float(os.environ.get("V_NMAX", "2000"))
 
 
@@ -29,37 +26,31 @@ def load(name):
     return d
 
 
-def window_tables(seeds):
-    main = seeds[seeds.grid == "main"]
-    out = ["Chapter 6.2 fixed forgetting. 60 seeds (42-101), matched paths, forecast held before each tick, Linux/libstdc++.",
-           "RMPL margins: cumulative DataSketches KLL k = 256, one pseudo-observation sequence per stream shared by every arm.",
-           "RMSE x 10^-2, mean (SE). 'paired' = no forgetting - N_eff 1999, mean ± 2 SE; W/L/T at 2 SE.",
-           "", f"{'family':9s} {'estimator':16s} " + " ".join(f"{m:>11s}" for m in C.MEMORY_KEYS)
-           + f" {'best':>6s} {'paired nocum-1999':>20s}"]
-    for sc, wins in WINDOWS:
-        for w in wins:
-            out += ["", f"{sc} / {w}"]
-            for f, _ in FAMS:
-                for e in EST:
-                    p = main[(main.scenario == sc) & (main.window == w) & (main.copula == f) & (main.estimator == e)]
-                    p = p.pivot(index="seed", columns="k", values="rmse") * 100
-                    scores = p[C.MEMORY_KEYS]
-                    mu, se = scores.mean(), standard_error(scores)
-                    d = p["nocum"] - p["1999"]
-                    dm, ds = d.mean(), standard_error(d)
-                    v = win_loss_tie(dm, ds)
-                    out.append(f"{C.FAMILY_TEXT[f]:9s} {C.EST_LABEL[e]:16s} "
-                               + " ".join(f"{mu[m]:6.2f}({se[m]:.2f})" for m in C.MEMORY_KEYS)
-                               + f" {mu.idxmin():>6s} {dm:+8.2f} ± {2*ds:.2f} {v}")
-    return out
+def rmse_summary(seeds):
+    whole = seeds[(seeds.grid == "main") & (seeds.window == "whole")]
+    lines = ["Whole-window RMSE × 10⁻², mean (SE). Paired nocum − 1999 uses ±2 SE.",
+             f"{'family':9s} {'estimator':16s} " + " ".join(f"{m:>11s}" for m in C.MEMORY_KEYS)
+             + f" {'best':>6s} {'paired nocum-1999':>20s}"]
+    for scenario in ("constant", "drift", "jump"):
+        lines.extend(["", scenario])
+        for family, _ in FAMS:
+            for estimator in EST:
+                rows = whole[(whole.scenario == scenario) & (whole.copula == family) & (whole.estimator == estimator)]
+                scores = rows.pivot(index="seed", columns="k", values="rmse")[C.MEMORY_KEYS] * 100
+                mean, se = scores.mean(), standard_error(scores)
+                paired = scores["nocum"] - scores["1999"]
+                paired_mean, paired_se = paired.mean(), standard_error(paired)
+                verdict = win_loss_tie(paired_mean, paired_se)
+                lines.append(f"{C.FAMILY_TEXT[family]:9s} {C.EST_LABEL[estimator]:16s} "
+                             + " ".join(f"{mean[m]:6.2f}({se[m]:.2f})" for m in C.MEMORY_KEYS)
+                             + f" {mean.idxmin():>6s} {paired_mean:+8.2f} ± {2 * paired_se:.2f} {verdict}")
+    return lines
 
 
 def drift_optimum(dec, D):
     """Log-quadratic optimum through the grid minimum and its neighbours, and the (2v/d^2)^(1/3) approximation."""
-    out = ["", "Optimal drift memory vs (2v/d^2)^(1/3)",
-           f"d_rms = {D:.5e}. v from sweep-grid memories 50 <= N <= {VMAX:g} (median of var * N). optimum: log-quadratic through the",
-           "grid minimum and its two neighbours; 'bracket' = those neighbours; 5-pt = the same through five points (sensitivity).",
-           f"{'family':9s} {'estimator':16s} {'grid min':>8s} {'bracket':>11s} {'optimum':>8s} {'5-pt':>6s} {'approx':>8s} {'diff %':>7s} {'v':>6s} {'MSE min':>8s}"]
+    lines = ["", f"Drift optimum vs (2v/d²)^(1/3) (d={D:.5e}, v from 50 ≤ N ≤ {VMAX:g})",
+             f"{'family':9s} {'estimator':16s} {'grid min':>8s} {'bracket':>11s} {'optimum':>8s} {'5-pt':>6s} {'approx':>8s} {'diff %':>7s} {'v':>6s} {'MSE×1e3':>8s}"]
     rows = []
     dd = dec[(dec.scenario == "drift") & (dec.window == "whole") & (dec.k != "nocum")].copy()
     dd["N"] = dd.neff.astype(float)
@@ -77,10 +68,10 @@ def drift_optimum(dec, D):
             v = np.median(sw["var"].values * sw.N.values)
             npred = max(1.0, (2 * v / D ** 2) ** (1 / 3))
             rows.append(dict(copula=f, estimator=e, optimum=nm, approx=npred, diff_pct=100 * (npred - nm) / nm, v=v, ok=ok))
-            out.append(f"{C.FAMILY_TEXT[f]:9s} {C.EST_LABEL[e]:16s} {N[i]:8.0f} {N[i-1]:5.0f}-{N[i+1]:<5.0f} {nm:8.1f} {n5:6.0f} "
-                       f"{npred:8.1f} {100*(npred-nm)/nm:+7.2f} {v:6.3f} {1e3*M[i]:8.3f}  "
-                       f"{'interior, convex, inside fine grid' if ok else 'CHECK GRID'}")
-    return out, pd.DataFrame(rows)
+            lines.append(f"{C.FAMILY_TEXT[f]:9s} {C.EST_LABEL[e]:16s} {N[i]:8.0f} {N[i-1]:5.0f}-{N[i+1]:<5.0f} {nm:8.1f} {n5:6.0f} "
+                         f"{npred:8.1f} {100*(npred-nm)/nm:+7.2f} {v:6.3f} {1e3*M[i]:8.3f}"
+                         f"{'' if ok else '  CHECK GRID'}")
+    return lines, pd.DataFrame(rows)
 
 
 def main():
@@ -88,7 +79,7 @@ def main():
     full = VMAX == 2000
     opt.to_csv(R + ("fixed_ess_optimum.csv" if full else f"fixed_ess_optimum_v{int(VMAX)}.csv"), index=False)
     if reports_enabled():
-        lines = window_tables(load("fixed_ess_seeds")) + opt_lines
+        lines = rmse_summary(load("fixed_ess_seeds")) + opt_lines
         write_report(R + ("fixed_ess_2026-11-12.txt" if full else f"fixed_ess_v{int(VMAX)}_2026-11-14.txt"), lines)
 
 

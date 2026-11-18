@@ -12,6 +12,7 @@
 
 #include "../../src/estimators/evaluation.hpp"
 #include "strategy_runs.hpp"
+#include "study_stream.hpp"
 
 inline constexpr int kSwitchBudgets = 3;
 
@@ -100,7 +101,7 @@ int run_regretfam(const Run& run) {
     for (const std::string sc : {"constant", "drift", "jump"}) {
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = thesis::kFirstSeed + sd;
-            const Stream s = make_stream(cop, sc, seed);
+            const StudySeries s = load_study_series(cop, sc, seed, kN);
             for (int wi = 0; wi < 4; ++wi) {
                 const auto& inv = inverses[wi];
                 FixedMemoryArms arms("rmpl");
@@ -171,7 +172,7 @@ int run_regret(const Run& run) {
         std::vector<char> scored(kN, 0);
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = thesis::kFirstSeed + sd;
-            const Stream s = make_stream(cop, sc, seed);
+            const StudySeries s = load_study_series(cop, sc, seed, kN);
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
                 FixedMemoryArms arms(e);

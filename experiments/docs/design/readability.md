@@ -1,17 +1,17 @@
 # Code readability review
 
-**Status:** on `final-edits`, done: the replay and scoring value renames, `Mff::score_and_update_weights()`, the `StrategyResults` cleanup, the unreported mixcheck open, and the live scorer's short-window mean. The remaining renames are deferred.
+**Status:** on `final-edits`, done: the replay and scoring value renames, `Mff::score_and_update_weights()`, the `StrategyResults` cleanup, the unreported mixcheck open, the live scorer's short-window mean, and `ForgettingStrategies`. The remaining renames are deferred.
 
 `Simulation::run()` now gives the standard comparison a clear entry point. The replay loader and fixed-memory arms also have shared owners. The next gains are inside the existing files. The reader still has to decode which values are observations, which values train the estimator, and which values exist only for evaluation. Large routines get harder to read when the same short names also carry indexing and reporting details. [Simulation design](simulation.md) · [Standard simulation](../../simulation/simulation.cpp#L44)
 
 This review covers the C++ producer, consumer, estimators and simulation runners, with examples from the Python analysis and plots. The changes below are proposals based on reading the current code.
 
-## CopulaEstimator and ForgettingEstimator
+## DependenceEstimator and ForgettingStrategies
 
-- `CopulaEstimator` replaces the `DependenceEstimator` interface. RMPL, Counting Matrix, and Hermite implement it. Its `estimate()` method returns Spearman correlation. Scoring converts that correlation to the parameter of the chosen working copula.
-- `ForgettingEstimator` replaces `EstimatorStrategies`. It owns the fixed-memory instances of one `CopulaEstimator` algorithm, the MFF combination of those instances, and the VFF instances that adapt their memory. A `Device` holds one `ForgettingEstimator` per algorithm and supplies their shared marginal inputs.
+- `DependenceEstimator` stays the common interface. RMPL, Counting Matrix, and Hermite implement it. Its `estimate()` method returns Spearman correlation. Scoring converts that correlation to the parameter of the chosen working copula.
+- `ForgettingStrategies` replaces `EstimatorStrategies`. It owns the fixed-memory instances of one `DependenceEstimator` algorithm, the MFF combination of those instances, and the VFF instances that adapt their memory. A `Device` holds one `ForgettingStrategies` per algorithm and supplies their shared marginal inputs. The name says *strategies*, not *estimator*, because the class returns one forecast per strategy and does not implement `DependenceEstimator`. It also matches the `strategy` output column.
 
-For example, `rmpl_fixed_199` is the forecast from RMPL with an effective memory of 199, and `rmpl_mff` is the forecast from weighting several fixed-memory RMPL instances. Both come from the RMPL `ForgettingEstimator`. Keep these output labels for the existing reports. [Estimator interface](../../../src/estimators/dependence/estimator.hpp) · [Device](../../../src/estimators/device.hpp#L44)
+For example, the output row with estimator `rmpl` and strategy `fixed_199` is the forecast from RMPL with an effective memory of 199. The row with strategy `mff` weights several fixed-memory RMPL instances. Both come from the RMPL `ForgettingStrategies`. Keep the existing estimator and strategy labels for the reports. [Estimator interface](../../../src/estimators/dependence/estimator.hpp) · [Device](../../../src/estimators/device.hpp#L44)
 
 ## Start with the values that cross files
 

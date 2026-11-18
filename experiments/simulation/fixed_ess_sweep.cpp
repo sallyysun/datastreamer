@@ -44,15 +44,11 @@ std::unique_ptr<DependenceEstimator> build(const Arm& a) {
     return thesis::arm(a.est, a.neff == kNoForget ? 0.0 : a.neff);
 }
 
-struct Stream : StudySeries { std::vector<double> zx, zy; };
-
-Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
-    Stream stream{load_study_series(family, scenario, seed, kN), {}, {}};
-    for (std::size_t t = 0; t < stream.estimated_pit_x.size(); ++t) {
-        stream.zx.push_back(special::probit(stream.estimated_pit_x[t]));
-        stream.zy.push_back(special::probit(stream.estimated_pit_y[t]));
-    }
-    return stream;
+std::vector<double> normal_scores(const std::vector<double>& pit) {
+    std::vector<double> scores;
+    scores.reserve(pit.size());
+    for (double p : pit) scores.push_back(special::probit(p));
+    return scores;
 }
 
 std::string label(double n) { return n == kNoForget ? "nocum" : std::to_string(n); }
@@ -65,16 +61,17 @@ int main(int argc, char** argv) {
     const std::string sfx = cop == "gaussian" ? "" : "_" + cop;
 
     if (std::getenv("VALIDATE")) {
-        const Stream s = make_stream(cop, "drift", thesis::kFirstSeed);
+        const StudySeries s = load_study_series(cop, "drift", thesis::kFirstSeed, kN);
+        const auto zx = normal_scores(s.estimated_pit_x), zy = normal_scores(s.estimated_pit_y);
         for (double n : {39.0, 399.0, kNoForget}) {
             auto fed = build({"rmpl", "main", n});
             RecursiveMPL::Config m = thesis::rmpl(n == kNoForget ? 1e-12 : 2 / (n + 1));
             m.margin = RecursiveMPL::Margin::DsKll; m.kll_k = thesis::kKll;
-            RecursiveMPL own(m, "own");          // constructor reseeds the coin with seed 1, as make_stream does
+            RecursiveMPL own(m, "own");          // constructor reseeds the coin with seed 1, as load_study_series does
             double worst = 0;
             for (std::size_t t = 0; t < kN; ++t) {
                 worst = std::max(worst, std::fabs(fed->estimate() - own.estimate()));
-                fed->update(s.zx[t], s.zy[t]); own.update(s.x[t], s.y[t]);
+                fed->update(zx[t], zy[t]); own.update(s.x[t], s.y[t]);
             }
             std::printf("VALIDATE %s N=%s: max |cached-feed - own DsKll| over %zu ticks = %.3g\n",
                         cop.c_str(), label(n).c_str(), kN, worst);
@@ -102,14 +99,15 @@ int main(int argc, char** argv) {
         std::vector<std::vector<double>> s1(arms.size(), std::vector<double>(kN)), s2 = s1;   // sums over seeds
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = thesis::kFirstSeed + sd;
-            const Stream s = make_stream(cop, sc, seed);
+            const StudySeries s = load_study_series(cop, sc, seed, kN);
+            const auto zx = normal_scores(s.estimated_pit_x), zy = normal_scores(s.estimated_pit_y);
             std::vector<double> e(kN);
             for (std::size_t k = 0; k < arms.size(); ++k) {
                 auto est = build(arms[k]);
                 const bool rmpl = arms[k].est == "rmpl";
                 for (std::size_t t = 0; t < kN; ++t) {
                     e[t] = est->estimate() - s.true_spearman[t];   // forecast held before tick t
-                    if (rmpl) est->update(s.zx[t], s.zy[t]); else est->update(s.x[t], s.y[t]);
+                    if (rmpl) est->update(zx[t], zy[t]); else est->update(s.x[t], s.y[t]);
                     s1[k][t] += e[t]; s2[k][t] += e[t] * e[t];
                 }
                 for (const auto& w : wins) {

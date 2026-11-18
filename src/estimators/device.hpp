@@ -42,9 +42,9 @@ private:
 };
 
 // One estimator's strategies: the fixed-memory arms, MFF over them, and VFF at each rate.
-class EstimatorStrategies {
+class ForgettingStrategies {
 public:
-    explicit EstimatorStrategies(const std::string& est, const std::vector<double>& rates = vff_rates())
+    explicit ForgettingStrategies(const std::string& est, const std::vector<double>& rates = vff_rates())
         : est_(est), arms_(est) {
         vffs_.reserve(rates.size());
         for (double r : rates) vffs_.emplace_back(est, r);
@@ -77,7 +77,7 @@ class Device {
 public:
     Device() : sets_(make_sets()), seeded_(reseed()), margins_(kKll, kClip) {}
     // Forecasts held before the next observation: sets()[e].forecasts().
-    const std::vector<EstimatorStrategies>& sets() const { return sets_; }
+    const std::vector<ForgettingStrategies>& sets() const { return sets_; }
     // Absorb one observation; returns the shared pseudo-observations (U, V) it was scored at.
     std::pair<double, double> update(double x, double y) {
         const auto [u, v] = margins_.update(x, y);
@@ -88,14 +88,14 @@ public:
     std::size_t count() const { return t_; }
 
 private:
-    static std::vector<EstimatorStrategies> make_sets() {
-        std::vector<EstimatorStrategies> v;
+    static std::vector<ForgettingStrategies> make_sets() {
+        std::vector<ForgettingStrategies> v;
         for (const auto& e : estimators()) v.emplace_back(e);
         return v;
     }
     // Seed KLL compaction to match the in-process stream.
     static bool reseed() { datasketches_kll::seed(1); return true; }
-    std::vector<EstimatorStrategies> sets_;
+    std::vector<ForgettingStrategies> sets_;
     bool seeded_;
     datasketches_kll::PairedKll margins_;
     std::size_t t_ = 0;

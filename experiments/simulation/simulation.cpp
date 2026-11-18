@@ -1,41 +1,15 @@
 #include <cmath>
 #include <span>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "../../src/estimators/device.hpp"
 #include "../../src/estimators/evaluation.hpp"
-#include "strategy_runs.hpp"
+#include "simulation.hpp"
 #include "study_stream.hpp"
 
 namespace strategy_experiments {
-
-Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
-    Stream stream{load_study_series(family, scenario, seed, thesis::kN), {}};
-    const auto generating_family = thesis::family_of(family);
-    stream.generating_parameter.reserve(stream.target_spearman.size());
-    for (double target : stream.target_spearman) stream.generating_parameter.push_back(copula::param_from_spearman(generating_family, target));
-    return stream;
-}
-
-WindowScores summarize_window(const thesis::Win& window, const std::vector<double>& squared_error,
-                              const std::vector<double>& excess, const std::vector<double>& hellinger) {
-    const bool dense = std::string_view(window.name) == "rec_0_100";
-    double se_sum = 0, excess_sum = 0, h2_sum = 0;
-    std::size_t h2_count = 0;
-    for (std::size_t t = window.a; t < window.b; ++t) {
-        se_sum += squared_error[t];
-        excess_sum += excess[t];
-        if (!std::isnan(hellinger[t]) && (dense || (t - thesis::kBurn) % 50 == 0)) {
-            h2_sum += hellinger[t];
-            ++h2_count;
-        }
-    }
-    const double n = double(window.b - window.a);
-    return {std::sqrt(se_sum / n), 1000 * excess_sum / n, h2_count ? 1000 * h2_sum / h2_count : NAN};
-}
 
 Simulation::Simulation(const Run& run, std::string scenario, unsigned seed, const std::vector<double>& rates,
                        bool mixture)
@@ -43,14 +17,15 @@ Simulation::Simulation(const Run& run, std::string scenario, unsigned seed, cons
 
 SeedResults Simulation::run() const {
     using thesis::kN;
-    const Stream s = make_stream(run_.cop, scenario_, seed_);
+    const StudySeries s = load_study_series(run_.cop, scenario_, seed_, kN);
+    const auto generating_parameter = generating_parameters(run_.cop, s);
     const copula::Family family = thesis::family_of(run_.cop);
     std::vector<double> log_density(kN);
-    for (std::size_t t = 0; t < kN; ++t) log_density[t] = copula::log_density(family, s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t]);
+    for (std::size_t t = 0; t < kN; ++t) log_density[t] = copula::log_density(family, s.true_pit_x[t], s.true_pit_y[t], generating_parameter[t]);
 
     SeedResults results{seed_, s.true_spearman, {}};
     for (const char* estimator : kEst) {
-        thesis::EstimatorStrategies strategies(estimator, rates_);
+        thesis::ForgettingStrategies strategies(estimator, rates_);
         const std::size_t count = strategies.size();
         const auto& weights = strategies.mff_weights();
         const auto mixture_weights = mixture_ ? std::span<const double>(weights) : std::span<const double>{};
@@ -66,7 +41,7 @@ SeedResults Simulation::run() const {
             strategies.forecasts(f);
             if (mixture_ && strategies.mff_ready(t))
                 trace.mixture_log_loss -= thesis::H2Table::mix_logc(f.data(), weights.data(), thesis::kK, s.estimated_pit_x[t], s.estimated_pit_y[t]);
-            const thesis::ScoringObservation truth{s.true_spearman[t], s.true_pit_x[t], s.true_pit_y[t], s.generating_parameter[t], log_density[t],
+            const thesis::ScoringObservation truth{s.true_spearman[t], s.true_pit_x[t], s.true_pit_y[t], generating_parameter[t], log_density[t],
                                                    thesis::checkpoint(scenario_, t)};
             for (std::size_t i = 0; i < count; ++i) {
                 const auto score = thesis::score_forecast(run_.h2, truth, f, i, mixture_weights);
