@@ -21,9 +21,9 @@ The standard strategy run, family scoring, family switching, and regret modes li
 | File | Responsibility | Direct users or outputs |
 |---|---|---|
 | `strategy_experiments.cpp` | Dispatch modes and run the standard strategy comparison, weight paths, and validation | §6.3–6.5 section scripts, live jobs, and the checksum check |
-| `family_scores.cpp` | Compare squared and log loss across working families and learning rates | `SCORESFAM`, §6.4 analysis and heatmaps |
-| `family_switching.cpp` | Measure identification, adaptation, and predictive accuracy when the generating family stays fixed or switches | `FAMSWITCH`, §6.5 analysis and figures |
-| `strategy_regret.cpp` | Compare predictive loss with the best fixed and switching sequences | `REGRET` and `REGRETFAM`, §6.4 regret analysis |
+| `family_scores.cpp` | Compare squared and log loss across working families and learning rates | `score-family`, §6.4 analysis and heatmaps |
+| `family_switching.cpp` | Measure identification, adaptation, and predictive accuracy when the generating family stays fixed or switches | `family-switching`, §6.5 analysis and figures |
+| `strategy_regret.cpp` | Compare predictive loss with the best fixed and switching sequences | `regret` and `regret-family`, §6.4 regret analysis |
 | `fixed_ess_sweep.cpp` | Sweep fixed memories and measure error, bias, variance, and jump recovery | §6.2 figures and tables, live jobs, and the checksum check |
 | `real_data_comparison.cpp` | Score forecasts and rolling benchmarks on observed returns | §6.6 analysis and figures, and the checksum check |
 | `budget_benchmark.cpp` | Measure accuracy, retained state, and timing across settings | §6.7 budget tables and figures, and the checksum check |
@@ -53,7 +53,7 @@ The budget and margin benchmarks run each estimator start to finish and still re
 
 ## Experiment and Simulation
 
-An `Experiment` covers the full study. A `Simulation` covers one scenario and one seed. The forecast comparison and `WEIGHTS=1` share these classes. The family and regret modes have their own entry functions, fixed-memory bank, and weighting or oracle logic.
+An `Experiment` covers the full study. A `Simulation` covers one scenario and one seed. The forecast comparison and the `weights` mode share these classes. The family and regret modes have their own entry functions, fixed-memory bank, and weighting or oracle logic.
 
 | Class | Owns | Main method |
 |---|---|---|
@@ -137,7 +137,7 @@ experiments/
     simulation.hpp/.cpp         Simulation, SeedResults, and the single-seed forecast loop
     simulation_reports.hpp/.cpp ForecastComparisonReport, MffWeightPathReport, and window summaries
     strategy_runs.hpp           Run options, mode declarations, and small runner helpers
-    validate.cpp                VALIDATE=1 table and density checks
+    validate.cpp                `validate`: table and density checks
     working_families.hpp        Working families, rho_S tables, and family Hellinger
     family.cpp                  Family scoring and switching
     regret.cpp                  Regret modes and their oracle
@@ -192,14 +192,14 @@ Much of that length repeated MFF. At that point, `Mff` supported only the five s
 | Mean and standard deviation across seeds | 2 |
 | Output open and the "run from the experiment folder" check | 7 |
 
-`run_weights` mostly duplicates the standard run. Its δ = 1e-4 rows replay the same arms and the same `Mff` that `ForgettingStrategies` holds, in the same scoring order, so their weights, squared errors and mean forecasts are already computed there. Only the δ = 0 Hedge comparison is new. `SeedResults` can carry the MFF weight path, and the weight outputs can come from the standard run, with δ = 0 as an extra strategy enabled only under `WEIGHTS=1`.
+`run_weights` mostly duplicates the standard run. Its δ = 1e-4 rows replay the same arms and the same `Mff` that `ForgettingStrategies` holds, in the same scoring order, so their weights, squared errors and mean forecasts are already computed there. Only the δ = 0 Hedge comparison is new. `SeedResults` can carry the MFF weight path, and the weight outputs can come from the standard run, with δ = 0 as an extra strategy enabled only under the `weights` mode.
 
 ### Order
 
-These steps landed on `final-edits` and were merged into `reruns`. The stored validation reference includes the family table checks emitted by `VALIDATE=1`.
+These steps landed on `final-edits` and were merged into `reruns`. The stored validation reference includes the family table checks emitted by `validate`.
 
 1. Let `Mff` take any number of arms, a learning rate and a share rate. Give it `forecast()`, `mixture_log_density()`, `mixture_loss()` and `update()`, and name the 30-tick warm-up. The family, regret and real-data modes then hold `Mff` values instead of raw weight vectors. Keep each mode's existing log-sum-exp form and loss guard, so outputs stay identical.
-2. Move the table self-checks in `run_scoresfam` and `run_famswitch` into `VALIDATE=1`.
+2. Move the table self-checks in `run_scoresfam` and `run_famswitch` into `validate`.
 3. Add a working-family table (family, name, inverse), one list parser, one results-file opener, and one across-seed mean and standard deviation.
 4. Move `FamilyInverse` and `FamilyHellinger` into `working_families.hpp`, where family, regret, and validation modes access their shared tables and scoring helpers.
 5. Produce the weight paths from the standard run as above, and move `run_validate` out of `experiment.cpp`.
@@ -235,5 +235,5 @@ Each path has its own pass condition.
 | Linux, in process | [`check.sh`](../../check.sh) | Every output hash matches `check_reference.txt` exactly |
 | Margin comparison | Before-and-after run with the same seeds | Identical outputs. `check.sh` does not run this benchmark |
 | Live (`LIVE=1`) | Rerun with the same seeds | Matches the previous live run. The [documented differences](../../README.md#L45) between live and in-process runs are not by themselves grounds for a change |
-| In-process draws versus returns | [`test/device_vs_probe.cpp`](../../simulation/test/device_vs_probe.cpp) | Reproduces the `MIXDENS=1` rows |
+| In-process draws versus returns | [`test/device_vs_probe.cpp`](../../simulation/test/device_vs_probe.cpp) | Reproduces the `mixture` rows |
 | Standalone TCP consumer | [`live/run_live.sh`](../../live/run_live.sh) | Matches its previous results |

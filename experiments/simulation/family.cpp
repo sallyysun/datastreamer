@@ -256,7 +256,7 @@ int run_family_score_comparison(const Run& run) {
         etas.clear();
         for (const auto& eta : csv_list(es)) etas.push_back(std::atof(eta.c_str()));
     }
-    if (!run.tag) { std::fprintf(stderr, "SCORESFAM needs TAG\n"); return 1; }
+    if (!run.tag) { std::fprintf(stderr, "score-family needs TAG\n"); return 1; }
     const WorkingFamilies families;
     FamilyHellinger hellinger(run.h2, families.inverse, with_h2);
     std::FILE* seeds_file = open_result("scoresfam_seeds" + run.sfx);

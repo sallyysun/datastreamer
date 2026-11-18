@@ -1,45 +1,45 @@
-# section | environment | program | optional seed count   — every simulation behind a thesis figure or table (as the run.sh SIM blocks)
+# section | environment | program [mode] | optional seed count   — every simulation behind a thesis figure or table (as the run.sh SIM blocks)
 6.2-fixed-forgetting | COPULA=gaussian | ../../6.2-fixed-forgetting/build/fixed_ess_sweep
 6.2-fixed-forgetting | COPULA=clayton | ../../6.2-fixed-forgetting/build/fixed_ess_sweep
 6.2-fixed-forgetting | COPULA=gumbel | ../../6.2-fixed-forgetting/build/fixed_ess_sweep
 6.2-fixed-forgetting | COPULA=t | ../../6.2-fixed-forgetting/build/fixed_ess_sweep
-6.3-adaptive-forgetting | COPULA=gaussian | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=clayton | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=gumbel | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=t | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=gaussian TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=clayton TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=gumbel TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | COPULA=t TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | PATHS=1 | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | PATHS=1 TAG=est | ../../common/build/strategy_experiments
-6.3-adaptive-forgetting | WEIGHTS=1 | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gaussian SCORESFAM=1 TAG=sfeval | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=clayton SCORESFAM=1 TAG=sfeval | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gumbel SCORESFAM=1 TAG=sfeval | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=t SCORESFAM=1 TAG=sfeval | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gaussian REGRETFAM=1 | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=clayton REGRETFAM=1 | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gumbel REGRETFAM=1 | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=t REGRETFAM=1 | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gaussian MIXDENS=1 TAG=mix | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=clayton MIXDENS=1 TAG=mix | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=gumbel MIXDENS=1 TAG=mix | ../../common/build/strategy_experiments
-6.4-copula-density | COPULA=t MIXDENS=1 TAG=mix | ../../common/build/strategy_experiments
-6.4-copula-density | REGRET=1 | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=gaussian FS_TAG=gaussian | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=t FS_TAG=t | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=clayton FS_TAG=clayton | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=gumbel FS_TAG=gumbel | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=gauss2t FS_TAG=gauss2t | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=gauss2clayton FS_TAG=gauss2clayton | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_GENS=clayton2gumbel FS_TAG=clayton2gumbel | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=rmpl FS_GENS=gauss2t FS_TAG=h2_rmpl_gauss2t | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=xiao FS_GENS=gauss2t FS_TAG=h2_xiao_gauss2t | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=hermite FS_GENS=gauss2t FS_TAG=h2_hermite_gauss2t | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=rmpl FS_GENS=gauss2clayton FS_TAG=h2_rmpl_gauss2clayton | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=xiao FS_GENS=gauss2clayton FS_TAG=h2_xiao_gauss2clayton | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=hermite FS_GENS=gauss2clayton FS_TAG=h2_hermite_gauss2clayton | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=rmpl FS_GENS=clayton2gumbel FS_TAG=h2_rmpl_clayton2gumbel | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=xiao FS_GENS=clayton2gumbel FS_TAG=h2_xiao_clayton2gumbel | ../../common/build/strategy_experiments
-6.5-family-switching | FAMSWITCH=1 FS_H2=1 FS_EST=hermite FS_GENS=clayton2gumbel FS_TAG=h2_hermite_clayton2gumbel | ../../common/build/strategy_experiments
+6.3-adaptive-forgetting | COPULA=gaussian | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=clayton | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=gumbel | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=t | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=gaussian TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=clayton TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=gumbel TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | COPULA=t TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | PATHS=1 | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting | PATHS=1 TAG=est | ../../common/build/strategy_experiments strategies
+6.3-adaptive-forgetting |  | ../../common/build/strategy_experiments weights
+6.4-copula-density | COPULA=gaussian TAG=sfeval | ../../common/build/strategy_experiments score-family
+6.4-copula-density | COPULA=clayton TAG=sfeval | ../../common/build/strategy_experiments score-family
+6.4-copula-density | COPULA=gumbel TAG=sfeval | ../../common/build/strategy_experiments score-family
+6.4-copula-density | COPULA=t TAG=sfeval | ../../common/build/strategy_experiments score-family
+6.4-copula-density | COPULA=gaussian | ../../common/build/strategy_experiments regret-family
+6.4-copula-density | COPULA=clayton | ../../common/build/strategy_experiments regret-family
+6.4-copula-density | COPULA=gumbel | ../../common/build/strategy_experiments regret-family
+6.4-copula-density | COPULA=t | ../../common/build/strategy_experiments regret-family
+6.4-copula-density | COPULA=gaussian TAG=mix | ../../common/build/strategy_experiments mixture
+6.4-copula-density | COPULA=clayton TAG=mix | ../../common/build/strategy_experiments mixture
+6.4-copula-density | COPULA=gumbel TAG=mix | ../../common/build/strategy_experiments mixture
+6.4-copula-density | COPULA=t TAG=mix | ../../common/build/strategy_experiments mixture
+6.4-copula-density |  | ../../common/build/strategy_experiments regret
+6.5-family-switching | FS_GENS=gaussian FS_TAG=gaussian | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=t FS_TAG=t | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=clayton FS_TAG=clayton | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=gumbel FS_TAG=gumbel | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=gauss2t FS_TAG=gauss2t | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=gauss2clayton FS_TAG=gauss2clayton | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_GENS=clayton2gumbel FS_TAG=clayton2gumbel | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=rmpl FS_GENS=gauss2t FS_TAG=h2_rmpl_gauss2t | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=xiao FS_GENS=gauss2t FS_TAG=h2_xiao_gauss2t | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=hermite FS_GENS=gauss2t FS_TAG=h2_hermite_gauss2t | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=rmpl FS_GENS=gauss2clayton FS_TAG=h2_rmpl_gauss2clayton | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=xiao FS_GENS=gauss2clayton FS_TAG=h2_xiao_gauss2clayton | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=hermite FS_GENS=gauss2clayton FS_TAG=h2_hermite_gauss2clayton | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=rmpl FS_GENS=clayton2gumbel FS_TAG=h2_rmpl_clayton2gumbel | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=xiao FS_GENS=clayton2gumbel FS_TAG=h2_xiao_clayton2gumbel | ../../common/build/strategy_experiments family-switching
+6.5-family-switching | FS_H2=1 FS_EST=hermite FS_GENS=clayton2gumbel FS_TAG=h2_hermite_clayton2gumbel | ../../common/build/strategy_experiments family-switching

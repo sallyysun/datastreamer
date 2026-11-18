@@ -18,18 +18,18 @@ cd "$D"
 exec 3>&1 > "$D/run.log" 2>&1
 trap 'exec 1>&3 2>&3; echo "a run failed; last lines of its output:"; tail -20 "$D/run.log"' ERR
 S=$E/common/build/strategy_experiments
-$S 2
-COPULA=clayton $S 2
-MIXDENS=1 TAG=mix $S 2
-WEIGHTS=1 $S 2
-REGRET=1 $S 2
-COPULA=t REGRETFAM=1 $S 2
-FAMSWITCH=1 FS_H2=1 FS_GENS=gauss2t $S 2
-FAMSWITCH=1 FS_H2=1 FS_EST=hermite FS_GENS=clayton2gumbel $S 2
-COPULA=gumbel SCORESFAM=1 TAG=sfeval $S 2
-PATHS=1 $S 2
-TAG=vffsens VFF_RATES=0.005,0.2 $S 2
-VALIDATE=1 $S 1 > results/validate_strategies.txt
+$S strategies 2
+COPULA=clayton $S strategies 2
+TAG=mix $S mixture 2
+$S weights 2
+$S regret 2
+COPULA=t $S regret-family 2
+FS_H2=1 FS_GENS=gauss2t $S family-switching 2
+FS_H2=1 FS_EST=hermite FS_GENS=clayton2gumbel $S family-switching 2
+COPULA=gumbel TAG=sfeval $S score-family 2
+PATHS=1 $S strategies 2
+TAG=vffsens VFF_RATES=0.005,0.2 $S strategies 2
+$S validate 1 > results/validate_strategies.txt
 F=$E/6.2-fixed-forgetting/build/fixed_ess_sweep
 $F 2
 COPULA=gumbel $F 2

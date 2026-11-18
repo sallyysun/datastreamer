@@ -6,12 +6,12 @@ cd "$(dirname "$0")"
 P=../common/build/strategy_experiments
 if [ "${SIM:-0}" = 1 ]; then
     for f in gaussian clayton gumbel t; do
-        COPULA=$f $P                                                         # strategies_seeds, strategies_jumppath
-        COPULA=$f TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 $P # VFF rate sensitivity (appendix)
+        COPULA=$f $P strategies                                                          # strategies_seeds, strategies_jumppath
+        COPULA=$f TAG=vffsens VFF_RATES=0.005,0.01,0.02,0.05,0.075,0.1,0.2 $P strategies # VFF rate sensitivity (appendix)
     done
-    PATHS=1 TAG=est $P     # strategies_paths_est (trajectories)
-    PATHS=1 $P             # strategies_paths
-    WEIGHTS=1 $P           # strategies_weights (MFF weight paths, delta = 1e-4 and 0)
+    PATHS=1 TAG=est $P strategies                                                        # strategies_paths_est (trajectories)
+    PATHS=1 $P strategies                                                                # strategies_paths
+    $P weights                                                                           # strategies_weights (MFF weight paths, delta = 1e-4 and 0)
 fi
 python3 analyse.py   # summaries
 python3 plots.py     # figures

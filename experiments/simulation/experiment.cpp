@@ -1,6 +1,6 @@
 // Compare fixed, MFF and VFF strategies on matched streams, scoring forecasts before each update.
-// Usage: COPULA=<family> strategy_experiments [seeds=60]; LIVE=1 uses the TCP stream.
-// See the section run.sh scripts for study flags and output files.
+// Usage: strategy_experiments <mode> [seeds=60] (modes in kUsage below); LIVE=1 uses the TCP stream.
+// See the section run.sh scripts for the output files.
 
 #include <algorithm>
 #include <cmath>
@@ -40,17 +40,17 @@ std::vector<double> kRates = thesis::vff_rates();
 class Experiment {
 public:
     explicit Experiment(const Run& run) : run_(run) {}
-    int run();
+    int run(bool mixture);
     int run_weight_paths();
 
 private:
     const Run& run_;
 };
 
-int Experiment::run() {
-    StrategyOptions options{std::getenv("MIXDENS") != nullptr, false, std::getenv("DUMP_SEED"),
+int Experiment::run(bool mixture) {
+    StrategyOptions options{mixture, false, std::getenv("DUMP_SEED"),
                             std::getenv("DUMP_SCEN") ? std::getenv("DUMP_SCEN") : "jump"};
-    if (options.mixdens && !run_.tag) { std::fprintf(stderr, "MIXDENS needs TAG\n"); return 1; }
+    if (options.mixdens && !run_.tag) { std::fprintf(stderr, "mixture needs TAG\n"); return 1; }
     options.paths = std::getenv("PATHS") != nullptr || options.dump_seed;   // per-tick paths / dump only; the other outputs are left alone
     ForecastComparisonReport results(run_, options, kStrat);
     if (!results.ok()) return strategy_experiments::missing_results_folder();
@@ -84,8 +84,27 @@ int Experiment::run_weight_paths() {
 
 }  // namespace
 
+constexpr const char* kUsage =
+    "usage: strategy_experiments <mode> [seeds=60]\n"
+    "  strategies        fixed, MFF and VFF forecasts (strategies_seeds); PATHS=1 adds per-tick paths\n"
+    "  mixture           the same, MFF density scored as the weighted mixture (needs TAG)\n"
+    "  weights           MFF weight paths (strategies_weights)\n"
+    "  regret            MFF regret against the best fixed and switching sequences\n"
+    "  regret-family     regret across working families\n"
+    "  score-family      squared vs log loss across working families (needs TAG)\n"
+    "  family-switching  family-augmented MFF (FS_GENS, FS_H2, FS_EST, FS_TAG)\n"
+    "  validate          table and density self-checks\n"
+    "options (environment): COPULA, TAG, VFF_RATES, SEED_BASE, DUMP_SEED/DUMP_SCEN, LIVE=1\n";
+
+int usage() { std::fputs(kUsage, stderr); return 2; }
+
 int main(int argc, char** argv) {
-    const int seeds = argc > 1 ? std::atoi(argv[1]) : thesis::kSeedCount;
+    for (const char* old : {"VALIDATE", "FAMSWITCH", "SCORESFAM", "REGRETFAM", "REGRET", "WEIGHTS", "MIXDENS"})
+        if (std::getenv(old)) { std::fprintf(stderr, "%s=1 is now a mode argument\n", old); return usage(); }
+    if (argc < 2 || argc > 3) return usage();
+    const std::string mode = argv[1];
+    const int seeds = argc > 2 ? std::atoi(argv[2]) : thesis::kSeedCount;
+    if (seeds < 1) return usage();
     const char* env = std::getenv("COPULA");
     const std::string cop = env ? env : "gaussian";
     const char* tag = std::getenv("TAG");
@@ -99,11 +118,14 @@ int main(int argc, char** argv) {
     }
     H2Table h2{.F = family_of(cop)};
     const Run run{seeds, cop, sfx, tag, h2};
-    if (std::getenv("VALIDATE")) return strategy_experiments::run_validate(run);
-    if (std::getenv("FAMSWITCH")) return strategy_experiments::run_family_switching_study(run);
-    if (std::getenv("SCORESFAM")) return strategy_experiments::run_family_score_comparison(run);
-    if (std::getenv("REGRETFAM")) return strategy_experiments::run_regretfam(run);
-    if (std::getenv("REGRET")) return strategy_experiments::run_regret(run);
-    if (std::getenv("WEIGHTS")) return Experiment(run).run_weight_paths();
-    return Experiment(run).run();
+    if (mode == "strategies") return Experiment(run).run(false);
+    if (mode == "mixture") return Experiment(run).run(true);
+    if (mode == "weights") return Experiment(run).run_weight_paths();
+    if (mode == "regret") return strategy_experiments::run_regret(run);
+    if (mode == "regret-family") return strategy_experiments::run_regretfam(run);
+    if (mode == "score-family") return strategy_experiments::run_family_score_comparison(run);
+    if (mode == "family-switching") return strategy_experiments::run_family_switching_study(run);
+    if (mode == "validate") return strategy_experiments::run_validate(run);
+    std::fprintf(stderr, "unknown mode '%s'\n", mode.c_str());
+    return usage();
 }
