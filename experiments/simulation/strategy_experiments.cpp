@@ -22,18 +22,10 @@
 namespace strategy_experiments {
 
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
-    Stream stream;
+    Stream stream{load_study_series(family, scenario, seed, thesis::kN), {}};
     const auto generating_family = thesis::family_of(family);
-    for_each_study_observation(family, scenario, seed, thesis::kN, [&](const StudyObservation& sample) {
-        stream.x.push_back(sample.x);
-        stream.y.push_back(sample.y);
-        stream.rho.push_back(sample.rho_s);
-        stream.par.push_back(copula::param_from_spearman(generating_family, sample.target));
-        stream.u.push_back(sample.u);
-        stream.v.push_back(sample.v);
-        stream.pu.push_back(sample.true_u);
-        stream.pv.push_back(sample.true_v);
-    });
+    stream.par.reserve(stream.target.size());
+    for (double target : stream.target) stream.par.push_back(copula::param_from_spearman(generating_family, target));
     return stream;
 }
 

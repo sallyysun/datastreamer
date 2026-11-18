@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "study_config.hpp"
 #include "../../src/estimators/dependence/datasketches_kll.hpp"
@@ -17,16 +18,13 @@ inline bool study_verbose() {
     return value && std::string_view(value) == "1";
 }
 
-struct StudyObservation {
-    double x, y, rho_s, target;
-    double true_u, true_v;
-    double u, v;
+struct StudySeries {
+    std::vector<double> x, y, rho, target, u, v, pu, pv;
 };
 
-// Feed matched observations with pseudo-observations computed from prior pairs.
-template <typename Observe>
-void for_each_study_observation(const std::string& family, const std::string& scenario,
-                                unsigned seed, std::size_t count, Observe observe) {
+// Record one seeded series; u, v are KLL pseudo-observations computed from the preceding pairs.
+inline StudySeries load_study_series(const std::string& family, const std::string& scenario, unsigned seed,
+                                     std::size_t count) {
     LiveStream live;
     std::unique_ptr<Dependence> dependence;
     std::unique_ptr<dgp::Copula> copula;
@@ -39,29 +37,34 @@ void for_each_study_observation(const std::string& family, const std::string& sc
         source = std::make_unique<CopulaSource>(*dependence, *copula, seed);
     }
 
+    StudySeries series;
+    for (auto* column : {&series.x, &series.y, &series.rho, &series.target, &series.u, &series.v, &series.pu, &series.pv})
+        column->reserve(count);
     datasketches_kll::seed(1);
     datasketches_kll::PairedKll margins(thesis::kKll, thesis::kClip);
     for (std::size_t t = 0; t < count; ++t) {
-        StudyObservation observation{};
+        double x, y;
         if (source) {
             const auto sample = source->next();
-            observation.x = sample.x;
-            observation.y = sample.y;
-            observation.rho_s = sample.rho_s;
-            observation.target = sample.target;
-            observation.true_u = special::normal_cdf(sample.x);
-            observation.true_v = special::normal_cdf(sample.y);
+            x = sample.x;
+            y = sample.y;
+            series.rho.push_back(sample.rho_s);
+            series.target.push_back(sample.target);
+            series.pu.push_back(special::normal_cdf(sample.x));
+            series.pv.push_back(special::normal_cdf(sample.y));
         } else {
-            observation.x = live.x[t];
-            observation.y = live.y[t];
-            observation.rho_s = live.rho_s[t];
-            observation.target = live.target[t];
-            observation.true_u = live.pu[t];
-            observation.true_v = live.pv[t];
+            x = live.x[t];
+            y = live.y[t];
+            series.rho.push_back(live.rho_s[t]);
+            series.target.push_back(live.target[t]);
+            series.pu.push_back(live.pu[t]);
+            series.pv.push_back(live.pv[t]);
         }
-        const auto [u, v] = margins.update(observation.x, observation.y);
-        observation.u = u;
-        observation.v = v;
-        observe(observation);
+        const auto [u, v] = margins.update(x, y);
+        series.x.push_back(x);
+        series.y.push_back(y);
+        series.u.push_back(u);
+        series.v.push_back(v);
     }
+    return series;
 }

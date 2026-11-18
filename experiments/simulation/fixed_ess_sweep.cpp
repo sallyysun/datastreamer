@@ -44,17 +44,14 @@ std::unique_ptr<DependenceEstimator> build(const Arm& a) {
     return thesis::arm(a.est, a.neff == kNoForget ? 0.0 : a.neff);
 }
 
-struct Stream { std::vector<double> x, y, rho, zx, zy; };
+struct Stream : StudySeries { std::vector<double> zx, zy; };
 
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
-    Stream stream;
-    for_each_study_observation(family, scenario, seed, kN, [&](const StudyObservation& sample) {
-        stream.x.push_back(sample.x);
-        stream.y.push_back(sample.y);
-        stream.rho.push_back(sample.rho_s);
-        stream.zx.push_back(special::probit(sample.u));
-        stream.zy.push_back(special::probit(sample.v));
-    });
+    Stream stream{load_study_series(family, scenario, seed, kN), {}, {}};
+    for (std::size_t t = 0; t < stream.u.size(); ++t) {
+        stream.zx.push_back(special::probit(stream.u[t]));
+        stream.zy.push_back(special::probit(stream.v[t]));
+    }
     return stream;
 }
 

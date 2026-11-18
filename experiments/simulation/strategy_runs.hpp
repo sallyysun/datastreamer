@@ -8,6 +8,7 @@
 
 #include "../../src/copula_family.hpp"
 #include "../../src/estimators/dependence/estimator.hpp"
+#include "study_stream.hpp"
 
 namespace thesis {
 struct H2Table;
@@ -23,7 +24,7 @@ struct Run {
     thesis::H2Table& h2;
 };
 
-struct Stream { std::vector<double> x, y, rho, par, u, v, pu, pv; };
+struct Stream : StudySeries { std::vector<double> par; };
 
 inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed);
