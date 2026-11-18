@@ -23,27 +23,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../protocol/topic.hpp"
+#include "../../protocol.hpp"
 
-// Minimal TCP publish/subscribe broker -- a "mini Kafka" broker. Consumers
-// connect over TCP and send a line "SUBSCRIBE <topic> [max_hz]\n"; thereafter
-// they receive newline-delimited JSON events published to a matching topic.
-//
-// Topics are hierarchical, dot-separated (e.g. "trades.SYNX_SYNY"). A
-// subscription matches by prefix on dot boundaries: subscribing to "trades"
-// receives every "trades.<pair>", while "trades.SYNX_SYNY" selects just that
-// pair. The literal "all" matches everything.
-//
-// The optional [max_hz] throttles a connection to at most that many messages
-// per second (0 / omitted = unthrottled); excess messages are dropped, which is
-// consistent with the best-effort model below.
-//
-// Best-effort, NO retention or offsets by design: client sockets are
-// non-blocking, so a consumer that cannot keep up simply drops events. Each
-// consumer's own device buffer is its only memory -- matching the thesis's
-// "buffer-type device". publish() is called from the producer thread; the
-// accept/read loop runs on its own thread; a single mutex guards the
-// subscription table.
+// TCP clients send SUBSCRIBE <topic> [max_hz] and receive newline-delimited JSON.
+// Delivery is best-effort by default, with no retained history.
+// The broker thread accepts and reads clients. A mutex guards subscriptions during publish.
 class Broker {
 public:
     explicit Broker(int port) : port_(port) {}
@@ -66,8 +50,6 @@ public:
         return true;
     }
 
-    // Deliver msg to every consumer whose subscription matches `topic`, honouring
-    // each connection's optional rate limit.
     void publish(const std::string& topic, const std::string& msg) {
         std::string framed = msg;
         framed.push_back('\n');
@@ -82,8 +64,7 @@ public:
         }
     }
 
-    // Consumers may send "PUBLISH <topic> <payload>\n" back (the lab's device state); each is handed to this callback
-    // on the broker thread.
+    // Dispatch PUBLISH <topic> <payload> on the broker thread.
     void on_publish(std::function<void(const std::string&, const std::string&)> f) { on_publish_ = std::move(f); }
     // Whether some connection subscribes to exactly this topic.
     bool subscribed(const std::string& topic) {
@@ -91,9 +72,9 @@ public:
         for (const auto& [fd, sub] : subs_) if (sub.topics.count(topic)) return true;
         return false;
     }
-    // Experiments: block until every byte is delivered instead of dropping (a slow consumer slows the producer).
+    // Wait for writable sockets, giving up after a five-second stall.
     void set_lossless(bool on) { lossless_ = on; }
-    // Connections subscribed to at least min_topics topics (a pairing consumer subscribes to both legs).
+    // Count connections with at least min_topics subscriptions.
     std::size_t ready_count(std::size_t min_topics) {
         std::lock_guard<std::mutex> lock(mutex_);
         std::size_t n = 0;
@@ -203,16 +184,12 @@ private:
         inbuf_.erase(fd);
     }
 
-    // Per-connection subscription: the set of topics it wants, plus an optional
-    // rate limit (min gap between deliveries; zero = unthrottled).
     struct Sub {
         using clock = std::chrono::steady_clock;
         std::unordered_set<std::string> topics;
         std::chrono::duration<double, std::milli> min_interval{0.0};
         clock::time_point last_sent{};
 
-        // Matches if any subscribed topic matches the published one (shared
-        // dot-prefix rule, see protocol/topic.hpp).
         bool matches(const std::string& pub) const {
             for (const auto& s : topics) {
                 if (topic_matches(s, pub)) return true;

@@ -7,7 +7,6 @@
 #include <numbers>
 
 #include "estimator.hpp"
-#include "memory_control.hpp"
 
 // Online Hermite-series estimator of Spearman's rho (thesis 4.2): C++ port of Stephanou & Varughese (2021),
 // "Sequential estimation of Spearman rank correlation using Hermite series estimators" (R package hermiter).
@@ -18,7 +17,7 @@
 // or Welford when cumulative); normal_score_inputs = true takes z = probit(u) as already standardised.
 // Weight on the m-th absorbed observation: lambda / W_m, W_m = (1 - lambda) W_{m-1} + lambda (the thesis 5.1.2
 // EW weights normalised to sum to one); lambda = 0 is the running mean 1/m. lambda = 2/(N_eff + 1).
-class HermiteEstimator : public DependenceEstimator, public MemoryControlled {
+class HermiteEstimator : public DependenceEstimator {
 public:
     struct Config {
         int order = 20;

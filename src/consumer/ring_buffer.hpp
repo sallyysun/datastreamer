@@ -4,7 +4,7 @@
 #include <mutex>
 #include <vector>
 
-#include "../protocol/symbol_tick.hpp"
+#include "../protocol.hpp"
 
 class RingBuffer {
 public:

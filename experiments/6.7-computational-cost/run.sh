@@ -7,22 +7,15 @@ KLL=8,16,32,64,128,256,512,1024,2048,4096,8192,16384
 if [ "${SIM:-0}" = 1 ]; then
     for f in gaussian clayton gumbel t; do for s in constant drift jump; do
         BUDGET_N=15000 BUDGET_SCENARIOS=$s BUDGET_EST=xiao,hermite,mpl_dskll,mpl_exact BUDGET_KLL=$KLL \
-            TAG=n15k_$s build/probe_budget sweep 100 40 $f
+            TAG=n15k_$s build/budget_benchmark sweep 100 40 $f
         BUDGET_N=15000 BUDGET_SCENARIOS=$s BUDGET_EST=mpl_kll BUDGET_KLL=$KLL \
-            TAG=n15k_ownkll_$s build/probe_budget sweep 100 40 $f      # own KLL vs DataSketches
+            TAG=n15k_ownkll_$s build/budget_benchmark sweep 100 40 $f      # own KLL vs DataSketches
     done; done
     for r in 1 2 3 4 5; do
-        BUDGET_N=15000 BUDGET_EST=xiao,hermite,mpl_dskll BUDGET_KLL=$KLL TAG=n15k_rep$r build/probe_budget time
-        BUDGET_N=15000 BUDGET_EST=mpl_kll BUDGET_KLL=$KLL TAG=n15k_kll_rep$r build/probe_budget time
+        BUDGET_N=15000 BUDGET_EST=xiao,hermite,mpl_dskll BUDGET_KLL=$KLL TAG=n15k_rep$r build/budget_benchmark time
+        BUDGET_N=15000 BUDGET_EST=mpl_kll BUDGET_KLL=$KLL TAG=n15k_kll_rep$r build/budget_benchmark time
     done
-    build/probe_margins                                                  # margins_seeds (marginal-estimation diagnostic)
+    build/margin_comparison                                               # margins_seeds (marginal-estimation diagnostic)
 fi
-python3 prepare_data.py                 # budget_{sweep,seeds}_n15k, budget_time_table_n15k
-python3 select_configs.py               # budget_selected, budget_gain
-python3 make_budget_config_tables.py    # tab:ch6-budget-configs, tab:budget-configurations-full
-python3 analyze_margins.py
-python3 plot_budget_storage.py          # ch6_budget_storage_n15k
-python3 plot_budget_kll_n15k.py         # ch6_budget_kll_comparison
-python3 plot_processing_time.py         # ch6_budget_processing_time
-python3 plot_memory_curves.py           # ch6_budget_memory_curves_n15k
-python3 plot_budget_gain_scenarios.py   # ch6_budget_accuracy_gain_scenarios
+python3 analyse.py   # tables
+python3 plots.py     # figures

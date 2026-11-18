@@ -19,4 +19,6 @@ public:
     // False while estimate() is a placeholder (no observation absorbed yet, a calibration sample still
     // filling, an output hold). Banks do not score an arm until it is ready.
     virtual bool ready() const { return true; }
+    // Exponential-forgetting memory in effective sample size (the VFF sets it each step); no-op if fixed.
+    virtual void set_neff(double) {}
 };

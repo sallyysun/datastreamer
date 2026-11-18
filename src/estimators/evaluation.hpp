@@ -1,49 +1,96 @@
 #pragma once
 
-// The Chapter 6 evaluation protocol, shared by the in-process probes (experiments/) and the live consumer
-// (src/consumer/): the forgetting strategies MFF and VFF (Chapter 5) driven by the shared pseudo-observations (U, V),
-// the evaluation windows, and the density metrics (excess log loss, squared Hellinger H^2 against the Gaussian working
-// density).
+// Chapter 6 strategies, scoring windows and density metrics shared by experiments and the consumer.
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <functional>
 #include <map>
-#include <numbers>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
-#include "copula_family.hpp"
-#include "density_metrics.hpp"
+#include "study_config.hpp"
+#include "../copula_family.hpp"
+#include "dependence/mff.hpp"
 #include "dependence/vff.hpp"
 #include "registry.hpp"
 
+// Squared Hellinger distance between a true and a forecast copula density (Chapter 6 evaluation only). Integrals over
+// [0,1]^2 are taken in normal-score space, u = Phi(x), v = Phi(y), by the tensor trapezoid rule on [-L, L]^2.
+namespace dmetric {
+
+using Dens = std::function<double(double, double)>;   // a density on (0,1)^2, evaluated at (u, v)
+
+inline double Phi(double z) { return 0.5 * std::erfc(-z / std::sqrt(2.0)); }
+inline double phi(double z) { return std::exp(-0.5 * z * z) / std::sqrt(2.0 * M_PI); }
+// Nodes z_i on [a, b], u_i = Phi(z_i), weights w_i = h * trapezoid * phi(z_i) (so sum_i w_i g(u_i) ~ int g du).
+struct Grid {
+    std::vector<double> z, u, w;
+    Grid(int n, double a, double b) : z(n), u(n), w(n) {
+        const double h = (b - a) / (n - 1);
+        for (int i = 0; i < n; ++i) {
+            z[i] = a + h * i;
+            u[i] = Phi(z[i]);
+            w[i] = h * (i == 0 || i == n - 1 ? 0.5 : 1.0) * phi(z[i]);
+        }
+    }
+    static Grid full(int n, double L) { return Grid(n, -L, L); }
+    int size() const { return int(z.size()); }
+};
+
+// Tabulates a density once on a grid, so several metrics reuse the same evaluations.
+struct Table {
+    std::vector<double> v;
+    int n;
+    Table(const Grid& g, const Dens& c) : v(std::size_t(g.size()) * g.size()), n(g.size()) {
+        for (int i = 0; i < n; ++i)
+            for (int j = 0; j < n; ++j) v[std::size_t(i) * n + j] = c(g.u[i], g.u[j]);
+    }
+    double operator()(int i, int j) const { return v[std::size_t(i) * n + j]; }
+};
+
+template <class F> double integrate(const Grid& g, F f) {   // f(i, j) -> integrand at node (i, j), du dv measure
+    double s = 0.0;
+    for (int i = 0; i < g.size(); ++i)
+        for (int j = 0; j < g.size(); ++j) s += f(i, j) * g.w[i] * g.w[j];
+    return s;
+}
+
+// Squared Hellinger distance H^2 = 1 - int sqrt(c chat): bounded in [0, 1], invariant to monotone margins.
+inline double hellinger2(const Grid& g, const Table& c, const Table& ch) {
+    return 1.0 - integrate(g, [&](int i, int j) { return std::sqrt(std::max(c(i, j), 0.0) * std::max(ch(i, j), 0.0)); });
+}
+
+}  // namespace dmetric
+
 namespace thesis {
 
-constexpr std::size_t kK = 5;                       // MFF arms: mff_memories()
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
-constexpr double kClip = 1e-3;                      // pseudo-observations clipped to [kClip, 1 - kClip]
-inline const double kMem[kK] = {39, 99, 199, 399, 1999};
-inline const std::vector<double>& vff_rates() { static const std::vector<double> v = {0.02, 0.1}; return v; }
+inline const std::vector<double>& vff_rates() {
+    static const std::vector<double> rates{kVffSlow, kVffFast};
+    return rates;
+}
 // Strategy order of every output row: five fixed arms, MFF, VFF at each rate.
 inline const std::vector<std::string>& strategy_names() {
-    static const std::vector<std::string> v = {"fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999", "mff", "vff_slow", "vff_fast"};
-    return v;
+    static const auto names = [] {
+        std::vector<std::string> result;
+        for (double memory : kMem) result.push_back("fixed_" + std::to_string(static_cast<int>(memory)));
+        result.insert(result.end(), {"mff", "vff_slow", "vff_fast"});
+        return result;
+    }();
+    return names;
 }
 
-inline copula::Family family_of(const std::string& f) {
-    if (f == "clayton") return copula::Family::Clayton;
-    if (f == "gumbel") return copula::Family::Gumbel;
-    if (f == "t") return copula::Family::StudentT;
-    return copula::Family::Gaussian;
+using copula::family_of;
+
+inline bool scorable(const std::string& family) {
+    return copula::family_from_name(family).has_value();
 }
 
-// The true copula parameter at dependence knob d (rho_S = (6/pi) asin(d/2), clamped as the generator does), as the
-// probes compute it; scored families only.
-inline bool scorable(const std::string& f) { return f == "gaussian" || f == "t" || f == "clayton" || f == "gumbel"; }
-inline double true_param(const std::string& family, double d) {
-    const double rho = std::clamp(d, -0.999, 0.999);
-    return copula::param_from_spearman(family_of(family), 6.0 / std::numbers::pi * std::asin(rho / 2.0));
+inline double true_param(const std::string& family, double target) {
+    return copula::param_from_spearman(family_of(family), target);
 }
 
 struct Win { const char* name; std::size_t a, b; };
@@ -55,59 +102,12 @@ inline std::vector<Win> windows(const std::string& s) {
     }
     return w;
 }
-// H^2 checkpoints: every 50 from kBurn, and every 10 in the 100 observations after the jump.
+// H^2 checkpoints: every kCheckEvery from kBurn, and every 10 in the 100 observations after the jump (those dense ones
+// count only in the rec_0_100 window).
+inline constexpr std::size_t kCheckEvery = 50;
 inline bool checkpoint(const std::string& sc, std::size_t t) {
-    return t >= kBurn && ((t - kBurn) % 50 == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
+    return t >= kBurn && ((t - kBurn) % kCheckEvery == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
 }
-
-// MFF: Hedge with fixed share over the fixed-memory arms, log loss of the Gaussian density at each arm's rho_S,
-// eta = 1, delta = 1e-4; forecast = weighted mean of the arms (density: the weighted mixture).
-struct Mff {
-    double eta = 1.0, delta = 1e-4;
-    std::vector<double> w = std::vector<double>(kK, 1.0 / kK), loss = std::vector<double>(kK), lw = std::vector<double>(kK);
-    double estimate(const std::vector<std::unique_ptr<DependenceEstimator>>& arms) const {
-        double r = 0;
-        for (std::size_t k = 0; k < kK; ++k) r += w[k] * arms[k]->estimate();
-        return std::clamp(r, -1.0, 1.0);
-    }
-    // n_seen: margin observations held before this tick (the bank's mx_.size() before transform)
-    void score(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
-        bool scorable = n_seen >= 30;
-        for (const auto& a : arms) scorable = scorable && a->ready();
-        if (!scorable) return;
-        for (std::size_t k = 0; k < kK; ++k) {
-            const double par = copula::param_from_spearman(copula::Family::Gaussian, arms[k]->estimate());
-            loss[k] = -copula::log_density(copula::Family::Gaussian, u, v, par);
-        }
-        double worst = 0;
-        for (double l : loss) if (std::isfinite(l)) worst = std::max(worst, l);
-        for (double& l : loss) if (!std::isfinite(l)) l = worst;
-        double top = -INFINITY;
-        for (std::size_t k = 0; k < kK; ++k) {
-            lw[k] = (w[k] > 0 ? std::log(w[k]) : -INFINITY) - eta * loss[k];
-            top = std::max(top, lw[k]);
-        }
-        double tot = 0;
-        for (std::size_t k = 0; k < kK; ++k) { w[k] = std::exp(lw[k] - top); tot += w[k]; }
-        for (double& x : w) x = (1 - delta) * x / tot + delta / kK;
-    }
-};
-
-// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once 30 margin observations
-// are held; Counting Matrix / Hermite read the raw observations, RMPL reads probit(U).
-struct Vff {
-    std::unique_ptr<DependenceEstimator> inner;
-    MemoryControlled* mc;
-    VffController ctl;
-    Vff(const std::string& e, double rate) : inner(arm(e, 199, "m")), mc(dynamic_cast<MemoryControlled*>(inner.get())),
-                                             ctl(VffController::Config{.rate = rate}) {}
-    // n_after: margin observations held after absorbing this tick
-    void update(double x, double y, double u, double v, std::size_t n_after, bool raw) {
-        if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
-        if (mc) mc->set_neff(ctl.neff());
-        if (raw) inner->update(x, y); else inner->update(RankPit::probit(u), RankPit::probit(v));
-    }
-};
 
 inline double gauss_logc(double rho, double u, double v) {
     rho = std::clamp(rho, -0.999, 0.999);
@@ -177,5 +177,26 @@ struct H2Table {
         return it->second[i] + (x - i) * (it->second[i + 1] - it->second[i]);
     }
 };
+
+struct ScoringObservation {
+    double true_spearman, true_pit_x, true_pit_y, generating_parameter, true_log_density;
+    bool hellinger_checkpoint;
+};
+
+struct ForecastScore { double squared_error, excess, h2; };
+
+inline ForecastScore score_forecast(H2Table& h2, const ScoringObservation& truth, std::span<const double> forecasts,
+                                    std::size_t strategy, std::span<const double> mixture_weights = {}) {
+    const double rho = forecasts[strategy];
+    const double error = rho - truth.true_spearman;
+    if (strategy == kK && !mixture_weights.empty()) {
+        const auto* weights = mixture_weights.data();
+        return {error * error,
+                truth.true_log_density - H2Table::mix_logc(forecasts.data(), weights, kK, truth.true_pit_x, truth.true_pit_y),
+                truth.hellinger_checkpoint ? h2.mix(truth.generating_parameter, forecasts.data(), weights, kK) : NAN};
+    }
+    return {error * error, truth.true_log_density - gauss_logc(rho, truth.true_pit_x, truth.true_pit_y),
+            truth.hellinger_checkpoint ? h2(truth.generating_parameter, rho) : NAN};
+}
 
 }  // namespace thesis

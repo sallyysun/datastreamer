@@ -1,4 +1,7 @@
 CXX ?= clang++
+PYTHON ?= python3
+STUDY_HEADER = experiments/common/build/study_config.hpp
+STUDY_INC = -I$(dir $(STUDY_HEADER))
 
 UWS = external/uWebSockets
 USOCKETS = $(UWS)/uSockets/uSockets.a
@@ -9,11 +12,7 @@ JSON ?= /opt/homebrew/opt/nlohmann-json
 DS = external/datasketches-cpp
 DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
 
-SERVER_SRC = \
-src/streamgenerator/main.cpp \
-src/streamgenerator/datasource/synthetic_source.cpp \
-src/streamgenerator/runtime/producer.cpp \
-src/protocol/serializer.cpp
+SERVER_SRC = src/streamgenerator/main.cpp
 
 SERVER_OUT = server
 
@@ -23,7 +22,7 @@ INCLUDES = \
 -I$(OPENSSL)/include \
 -I$(EIGEN)/include/eigen3 \
 -I$(JSON)/include \
-$(DS_INC)
+$(DS_INC) $(STUDY_INC)
 
 LIBS = \
 -L$(OPENSSL)/lib \
@@ -33,7 +32,10 @@ $(USOCKETS) \
 
 all: server
 
-server:
+$(STUDY_HEADER): study_config.json experiments/common/write_study_config.py
+	@$(PYTHON) experiments/common/write_study_config.py $< $@
+
+server: $(STUDY_HEADER)
 	$(CXX) $(SERVER_SRC) -std=c++20 \
 	$(INCLUDES) \
 	$(LIBS) \
@@ -44,9 +46,9 @@ server:
 # datasketches submodule (RMPL's KLL margin); no uWebSockets.
 CONSUMER_OUT = consumer
 
-consumer:
-	$(CXX) src/consumer/main.cpp src/protocol/serializer.cpp -std=c++20 -O2 \
-	-I$(EIGEN)/include/eigen3 -I$(JSON)/include $(DS_INC) -pthread \
+consumer: $(STUDY_HEADER)
+	$(CXX) src/consumer/main.cpp -std=c++20 -O2 \
+	-I$(EIGEN)/include/eigen3 -I$(JSON)/include $(DS_INC) $(STUDY_INC) -pthread \
 	-o $(CONSUMER_OUT)
 
 # The Chapter 6 experiments are built from their own folders (experiments/README.md).

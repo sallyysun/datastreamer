@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../protocol/symbol_tick.hpp"
+#include "../../protocol.hpp"
 
 class DataSource {
 public:

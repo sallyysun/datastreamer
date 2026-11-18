@@ -1,8 +1,7 @@
 #pragma once
 
-// TCP client of the broker: connects, subscribes to the two legs' topics ("trades.equity.<X>", "trades.equity.<Y>"),
-// reads newline-delimited JSON ticks and pairs the two legs FIFO into TickPairs (producers publish both legs per step,
-// in order, so front-to-front pairing is exact). Used by the consumer and by the experiments' live mode.
+// Read newline-delimited TCP ticks and pair the subscribed symbols in arrival order.
+// FIFO pairing assumes both legs arrive for every observation.
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -13,8 +12,7 @@
 #include <deque>
 #include <string>
 
-#include "../protocol/serializer.hpp"
-#include "../protocol/symbol_tick.hpp"
+#include "../protocol.hpp"
 
 class BrokerClient {
 public:
@@ -32,7 +30,7 @@ public:
             return false;
         }
         for (const std::string& s : {sym_x, sym_y}) {
-            std::string sub = "SUBSCRIBE trades.equity." + s;
+            std::string sub = "SUBSCRIBE " + equity_topic(s);
             if (rate > 0.0) sub += " " + std::to_string(rate);
             sub += "\n";
             ::send(fd_, sub.data(), sub.size(), 0);
@@ -40,7 +38,7 @@ public:
         return true;
     }
 
-    // The next paired observation; false at end of stream.
+    // Return false when the socket closes or a receive fails.
     bool next(TickPair& out) {
         while (qx_.empty() || qy_.empty()) {
             const std::size_t pos = buf_.find('\n');

@@ -3,4 +3,4 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 python3 plot_ch3_parametric.py          # ch3_parametric
-python3 plot_ch3_empirical_nobeta.py    # ch3_empirical
+python3 plot_ch3_empirical.py           # ch3_empirical

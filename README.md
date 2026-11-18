@@ -7,9 +7,9 @@ adapt, and the live pipeline they run on.
 | Thesis | Code |
 | --- | --- |
 | Ch. 2 data streams | `src/streamgenerator/` (server: DGP, producer, TCP broker), `src/consumer/`, `client/` |
-| Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`recursive_mpl.hpp`), Counting Matrix (`xiao_spearman.hpp`), Hermite Series (`hermiter.hpp`) |
-| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), VFF and MFF (`evaluation.hpp`, controller in `vff.hpp`) |
-| Ch. 6 experiments | `experiments/<section>/`: one folder per section, with code, `run.sh` and `images/` |
+| Ch. 4 estimators | `src/estimators/dependence/`: RMPL (`rmpl.hpp`), Counting Matrix (`count_matrix.hpp`), Hermite Series (`hermiter.hpp`) |
+| Ch. 5 forgetting | fixed N_eff (`registry.hpp`), MFF (`dependence/mff.hpp`), VFF (`dependence/vff.hpp`) |
+| Ch. 6 experiments | simulation programs in `experiments/simulation/`; `experiments/<section>/`: the scripts, `run.sh` and `images/` |
 
 ## Live pipeline
 
@@ -28,6 +28,8 @@ make consumer   # -> ./consumer  (Eigen, nlohmann-json, datasketches)
 On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first build uSockets with
 `make -C external/uWebSockets/uSockets WITH_OPENSSL=1`).
 
+The build uses Python 3 to generate C++ defaults from `study_config.json`. The experiment scripts read the same file.
+
 - Server: `DEPENDENCE=constant|drift|jump` (default `jump`) selects the thesis scenario (Table 6.2, over
   5,000 observations), `COPULA=gaussian|t|clayton|gumbel|gauss2t|gauss2clayton|clayton2gumbel` the family,
   `SYMBOLS=X,Y` the pair.
@@ -36,9 +38,9 @@ On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first
   subscribe; delivery is then lossless), `PORT` / `BROKER_PORT`. Synthetic ticks carry the ground truth (true ρ_S,
   each leg's true PIT, the copula parameter and family) for scoring.
 - Consumer: `./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--print 20]` runs the Chapter 6
-  device (`src/estimators/thesis_device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
+  device (`src/estimators/device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
   VFF) and prints the true ρ_S with the MFF and VFF estimates. `--score <scenario> --seed <s> --out f.csv [--n N]`
-  scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process probe writes.
+  scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process runner writes.
 
 ## MFF lab (browser)
 
@@ -48,7 +50,7 @@ each viewer gets a private stream from a steerable generator and a consumer proc
 events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by family, and the effective memory
 live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
 the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
-is the thesis MFF exactly (`experiments/common/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
+is the thesis MFF exactly (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
 
 ## Experiments
 
@@ -59,4 +61,4 @@ in-process results. In short: `experiments/build.sh` builds the simulation progr
 the simulations first).
 
 Results CSVs are not committed (`experiments/*/results/` is ignored), and neither is `archive/`, which holds the
-development history: superseded estimators, studies, notes and raw outputs (also on branch `bank-vff-study`).
+development history: superseded estimators, studies, notes and raw outputs (also as git bundles in `archive/branches/`, e.g. `bank-vff-study.bundle`).

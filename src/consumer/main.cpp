@@ -1,20 +1,7 @@
-// Standalone consumer: subscribes to two per-symbol equity topics on the broker, pairs the legs into bivariate
-// observations and runs its own device (ring buffer + state: moments and the Chapter 6 strategies). Each consumer is
-// an independent process; its buffer is its only memory, so a slow consumer falls behind (or skips, by policy).
-//
-// Usage:
-//   ./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--policy all|snapshot|latest] [--print 20]
-//              [--rate 0] [--score <scenario> --seed <s> --out <file.csv>] [--n <observations>]
-// --score: score every strategy against the ground truth on the ticks and append the probe's strategies_seeds rows
-// (copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000) to --out when the stream ends.
-// Leave --rate 0 for estimation: throttling can desync the two legs.
-// --live <id>: the browser lab's device (live_lab.hpp) instead: an MFF built from --estimator rmpl|xiao|hermite,
-// --memories 39,99,... and --families gaussian,t,... (--eta, --delta), publishing its state as "device.<id>" every
-// --publish-every observations. The server starts one per lab session.
+// See README.md for consumer usage. Keep --rate at 0 for estimation to avoid desynchronizing the tick pair.
 
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
 #include <cstring>
 #include <sstream>
 #include <vector>
@@ -24,6 +11,7 @@
 #include "broker_client.hpp"
 #include "consumer.hpp"
 #include "live_lab.hpp"
+#include "paired_returns.hpp"
 
 namespace {
 
@@ -46,10 +34,9 @@ std::vector<std::string> split(const std::string& s) {
     return v;
 }
 
-// The browser lab's device loop: returns from consecutive prices, the lab MFF, state back through the broker.
 int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     std::vector<double> mem;
-    for (const auto& m : split(arg(argc, argv, "--memories", "39,99,199,399,1999"))) mem.push_back(std::atof(m.c_str()));
+    for (const auto& m : split(arg(argc, argv, "--memories", thesis::kMemoryCsv))) mem.push_back(std::atof(m.c_str()));
     const auto fams = split(arg(argc, argv, "--families", "gaussian"));
     LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
                 std::atof(arg(argc, argv, "--delta", "1e-4")));
@@ -57,15 +44,13 @@ int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     const std::string topic = std::string("device.") + id;
     client.publish(topic, lab.config_json().dump());
     TickPair e;
-    double px = 0, py = 0;
-    bool opened = false;
+    PairedReturns returns;
     std::size_t n = 0;
     while (client.next(e)) {
-        if (opened) {
-            lab.update(std::log(e.x.price / px), std::log(e.y.price / py));
+        returns.on_tick(e, [&](double x, double y) {
+            lab.update(x, y);
             if (++n % every == 0) client.publish(topic, lab.state_json(e.x.true_rho_s, e.x.true_family).dump());
-        }
-        px = e.x.price; py = e.y.price; opened = true;
+        });
     }
     return 0;
 }

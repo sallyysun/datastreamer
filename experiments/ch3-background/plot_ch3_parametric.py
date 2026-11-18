@@ -1,19 +1,11 @@
-"""Chapter 3: the five parametric families of Table tab:copula-families at one Kendall tau.
-
-fig_ch3_parametric: top row, n samples on the copula scale (U, V); bottom row, density
-contours on normal scores, same levels in every panel, so equal tau with different
-tails is visible directly. Self-checks: each density integrates to 1 on the grid and
-each sample's tau matches the target.
-
-Run from this folder:
-    python3 plot_ch3_parametric.py          # -> results/ch3/fig_ch3_parametric.{pdf,png}
-    cp results/ch3/fig_ch3_parametric.pdf ../thesis/figures/
-"""
+"""Chapter 3: the five parametric families of tab:copula-families at one Kendall tau: samples on the copula scale (top)
+and density contours on normal scores at common levels (bottom). Self-checks: each density integrates to 1 on the grid
+and each sample's tau matches the target. Writes images/ch3_parametric.png."""
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import integrate, optimize, stats
 
-from plot_ch3 import INK, INK_2, MARK, note, save, scatter, tail_coefficients
+from ch3_style import INK, INK_2, MARK, note, save, scatter, tail_coefficients
 
 TAU = 0.5
 NU = 4.0
@@ -160,4 +152,3 @@ def fig_parametric():
 
 if __name__ == "__main__":
     fig_parametric()
-    print("wrote results/ch3/fig_ch3_parametric.{pdf,png}")
