@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import write_report  # noqa: E402
+from report_output import reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error as se  # noqa: E402
 from summary_stats import win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
@@ -167,13 +167,13 @@ def main():
     d = load("seeds")
     S = summary(d)
     S.to_csv(R + f"vffsens_summary{T}.csv", index=False)
-    lines = sensitivity(S)
     best, B = best_alpha(S)
     B.to_csv(R + f"vffsens_best_alpha{T}.csv", index=False)
     X = load("extremes")
     X.to_csv(R + f"vffsens_extremes{T}.csv", index=False)
-    lines += best + comparisons(d, B) + robustness(d) + extremes(X)
-    write_report(R + ("vffsens_2026-11-12.txt" if not T else f"vffsens{T}_2026-11-14.txt"), lines)
+    if reports_enabled():
+        lines = sensitivity(S) + best + comparisons(d, B) + robustness(d) + extremes(X)
+        write_report(R + ("vffsens_2026-11-12.txt" if not T else f"vffsens{T}_2026-11-14.txt"), lines)
 
 
 if __name__ == "__main__":

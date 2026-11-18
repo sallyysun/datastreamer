@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -174,5 +175,26 @@ struct H2Table {
         return it->second[i] + (x - i) * (it->second[i + 1] - it->second[i]);
     }
 };
+
+struct ScoringObservation {
+    double rho, u, v, parameter, log_density;
+    bool hellinger_checkpoint;
+};
+
+struct ForecastScore { double squared_error, excess, h2; };
+
+inline ForecastScore score_forecast(H2Table& h2, const ScoringObservation& truth, std::span<const double> forecasts,
+                                    std::size_t strategy, std::span<const double> mixture_weights = {}) {
+    const double rho = forecasts[strategy];
+    const double error = rho - truth.rho;
+    if (strategy == kK && !mixture_weights.empty()) {
+        const auto* weights = mixture_weights.data();
+        return {error * error,
+                truth.log_density - H2Table::mix_logc(forecasts.data(), weights, kK, truth.u, truth.v),
+                truth.hellinger_checkpoint ? h2.mix(truth.parameter, forecasts.data(), weights, kK) : NAN};
+    }
+    return {error * error, truth.log_density - gauss_logc(rho, truth.u, truth.v),
+            truth.hellinger_checkpoint ? h2(truth.parameter, rho) : NAN};
+}
 
 }  // namespace thesis

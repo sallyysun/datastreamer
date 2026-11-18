@@ -9,6 +9,10 @@ def verbose_print(*values):
         print(*values)
 
 
+def reports_enabled():
+    return os.environ.get("REPORTS") == "1"
+
+
 def write_report(path, lines):
     Path(path).write_text("\n".join(lines) + "\n")
     verbose_print(path)

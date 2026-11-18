@@ -5,14 +5,11 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "../../src/estimators/evaluation.hpp"
-#include "../../src/special_functions.hpp"
+#include "family_hellinger.hpp"
 #include "strategy_runs.hpp"
 #include "study_stream.hpp"
 
@@ -24,7 +21,6 @@ using thesis::checkpoint;
 using thesis::kBurn;
 using thesis::kChange;
 using thesis::kK;
-using thesis::kMem;
 using thesis::kN;
 
 // Compare family-aware and Gaussian-only MFF at matched dependence. Families switch at tick 2500.
@@ -42,60 +38,10 @@ int run_famswitch(const Run& run) {
     std::FILE* fi = std::fopen(("results/famsw_ident" + fx + ".csv").c_str(), "w");
     std::FILE* fp = std::fopen(("results/famsw_path" + fx + ".csv").c_str(), "w");
     if (!fo || !fi || !fp) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    // FS_H2=1: also squared Hellinger H^2(c_true, mixture) at the Chapter 6 checkpoints (every 50 from tick 500; every
-    // 10 in [2500, 2600) on switch paths, counted only in rec_0_100), on the 81 x 81 grid of the 6.3 evaluation:
-    // Gaussian components in closed form (as H2Table::mix), t4 / Clayton / Gumbel components tabulated on a rho_S grid
-    // (step 0.0025) and interpolated (checked against exact integration at start). Truth table per (family, parameter).
+    // FS_H2 enables squared Hellinger at the Chapter 6 checkpoints.
     const bool fh2 = std::getenv("FS_H2") != nullptr;
     std::fprintf(fo, fh2 ? "gen,seed,method,window,rmse,excess_x1000,h2_x1000\n" : "gen,seed,method,window,rmse,excess_x1000\n");
-    const int ng = h2.g.size(); const int nr = 799; const double rlo = -0.995, rst = 0.0025;
-    std::vector<std::vector<float>> ctab(4);
-    std::map<std::pair<int, double>, std::vector<double>> truthc;
-    if (fh2)
-        for (int wi = 1; wi < 4; ++wi) {
-            ctab[wi].resize(std::size_t(nr) * ng * ng);
-            for (int a = 0; a < nr; ++a) {
-                const double thv = theta_of(wi, rlo + rst * a);
-                for (int i = 0; i < ng; ++i)
-                    for (int j = 0; j < ng; ++j) {
-                        const double l = copula::log_density(WF[wi], h2.g.u[i], h2.g.u[j], thv);
-                        ctab[wi][(std::size_t(a) * ng + i) * ng + j] = float(std::isfinite(l) ? std::exp(l) : 0.0);
-                    }
-            }
-        }
-    // H^2 of the truth (family gt, parameter par) against sum_m w_m c_{wi_m}(rho_m)
-    auto h2mix = [&](int gt, double par, const int* wis, const double* rhos, const double* ws, int nm) {
-        auto key = std::make_pair(gt, par);
-        auto it = truthc.find(key);
-        if (it == truthc.end()) {
-            const dmetric::Table tt(h2.g, [&](double a, double b) { const double l = copula::log_density(WF[gt], a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
-            it = truthc.emplace(key, tt.v).first;
-        }
-        std::vector<double> r(nm), c0(nm), c1(nm), fr(nm); std::vector<std::size_t> i0(nm);
-        for (int m = 0; m < nm; ++m) {
-            if (wis[m] == 0) {
-                r[m] = copula::param_from_spearman(copula::Family::Gaussian, std::clamp(rhos[m], -0.999, 0.999));
-                c0[m] = 1 / std::sqrt(1 - r[m] * r[m]); c1[m] = 1 / (2 * (1 - r[m] * r[m]));
-            } else {
-                const double x = (std::clamp(rhos[m], rlo, rlo + rst * (nr - 1)) - rlo) / rst;
-                i0[m] = std::min(std::size_t(nr - 2), std::size_t(x)); fr[m] = x - i0[m];
-            }
-        }
-        double sacc = 0;
-        for (int i = 0; i < ng; ++i)
-            for (int j = 0; j < ng; ++j) {
-                const double x = h2.g.z[i], y = h2.g.z[j];
-                const std::size_t o = std::size_t(i) * ng + j;
-                double mm = 0;
-                for (int m = 0; m < nm; ++m) {
-                    if (ws[m] <= 0) continue;
-                    if (wis[m] == 0) mm += ws[m] * c0[m] * std::exp(-(r[m] * r[m] * (x * x + y * y) - 2 * r[m] * x * y) * c1[m]);
-                    else { const float* T0 = &ctab[wis[m]][i0[m] * ng * ng]; mm += ws[m] * ((1 - fr[m]) * T0[o] + fr[m] * T0[o + ng * ng]); }
-                }
-                sacc += std::sqrt(std::max(it->second[o], 0.0) * mm) * h2.g.w[i] * h2.g.w[j];
-            }
-        return 1.0 - sacc;
-    };
+    FamilyHellinger hellinger(h2, inv, fh2);
     if (fh2) {   // tabulated components vs exact dmetric integration, one mixture per non-Gaussian family
         double worst = 0;
         for (int wi = 1; wi < 4; ++wi) {
@@ -103,7 +49,8 @@ int run_famswitch(const Run& run) {
             const double par = copula::param_from_spearman(WF[wi], thesis::kConstantRhoS);
             const dmetric::Table tt(h2.g, [&](double a, double b) { const double l = copula::log_density(WF[wi], a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
             const dmetric::Table mt(h2.g, [&](double a, double b) { double m = 0; for (int k = 0; k < 3; ++k) { const double th = wis[k] == 0 ? copula::param_from_spearman(copula::Family::Gaussian, rhs[k]) : copula::param_from_spearman(WF[wis[k]], rhs[k]); const double l = copula::log_density(WF[wis[k]], a, b, th); m += wss[k] * (std::isfinite(l) ? std::exp(l) : 0.0); } return m; });
-            const double ex = dmetric::hellinger2(h2.g, tt, mt), tb = h2mix(wi, par, wis, rhs, wss, 3);
+            const double ex = dmetric::hellinger2(h2.g, tt, mt);
+            const double tb = hellinger.mixed_families(WF[wi], par, wis, rhs, wss, 3);
             worst = std::max(worst, std::fabs(tb - ex) / ex);
         }
         if (study_verbose())
@@ -131,8 +78,7 @@ int run_famswitch(const Run& run) {
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = base + sd;
             const Stream s = make_stream(GN[g], "constant", seed);
-            std::vector<std::unique_ptr<DependenceEstimator>> arms;
-            for (double n : kMem) arms.push_back(arm(fest, n));
+            FixedMemoryArms arms(fest);
             // instance 0: family (20 models, index wi * 5 + k); instance 1: Gaussian-only (5 models)
             std::vector<double> wf(20, 1.0 / 20), wg(kK, 1.0 / kK);
             std::vector<double> sef(kN), seg(kN), exf(kN), exg(kN), hhf(kN, NAN), hhg(kN, NAN);
@@ -141,8 +87,8 @@ int run_famswitch(const Run& run) {
             double th[4][kK], te[4][kK], ld[4][kK], f[kK];
             std::vector<double> family_losses(wf.size()), gaussian_losses(wg.size()), log_weights(wf.size());
             for (std::size_t t = 0; t < kN; ++t) {
-                bool ready = t >= 30;
-                for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
+                arms.forecasts(f);
+                const bool ready = t >= 30 && arms.ready();
                 const int gt = t < kChange ? G0[g] : G1[g];
                 const double part = copula::param_from_spearman(WF[gt], thesis::kConstantRhoS);
                 const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
@@ -169,8 +115,8 @@ int run_famswitch(const Run& run) {
                 if (fh2 && checkpoint(sw ? "jump" : "constant", t)) {
                     int wis[20]; double rhs[20];
                     for (int i = 0; i < 20; ++i) { wis[i] = i / int(kK); rhs[i] = f[i % kK]; }
-                    hhf[t] = h2mix(gt, part, wis, rhs, wf.data(), 20);
-                    hhg[t] = h2mix(gt, part, wis, rhs, wg.data(), int(kK));   // first five entries: the Gaussian models
+                    hhf[t] = hellinger.mixed_families(WF[gt], part, wis, rhs, wf.data(), wf.size());
+                    hhg[t] = hellinger.mixed_families(WF[gt], part, wis, rhs, wg.data(), wg.size());
                 }
                 for (int wi = 0; wi < 4; ++wi) { double a = 0; for (std::size_t k = 0; k < kK; ++k) a += wf[wi * kK + k]; fw[t][wi] = a; }
                 if (ready) {
@@ -185,8 +131,7 @@ int run_famswitch(const Run& run) {
                     thesis::apply_fixed_share(wf, family_losses, log_weights, 1.0, 1e-4);
                     thesis::apply_fixed_share(wg, gaussian_losses, log_weights, 1.0, 1e-4);
                 }
-                const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                for (auto& a : arms) { if (fest == "rmpl") a->update(zx, zy); else a->update(s.x[t], s.y[t]); }   // as in 6.3
+                arms.update(s, t);
             }
             // windows
             std::vector<Win> wins{{"whole", kBurn, kN}};
@@ -194,16 +139,9 @@ int run_famswitch(const Run& run) {
                       wins.push_back({"late", kChange + 100, kN}); wins.push_back({"post", kChange, kN}); }
             for (const auto& w : wins)
                 for (int m = 0; m < 2; ++m) {
-                    double a = 0, b = 0, hsum = 0; int nh = 0;
-                    const bool dense = std::string(w.name) == "rec_0_100";
-                    for (std::size_t t = w.a; t < w.b; ++t) {
-                        a += m ? seg[t] : sef[t]; b += m ? exg[t] : exf[t];
-                        const double hv = m ? hhg[t] : hhf[t];
-                        if (!std::isnan(hv) && (dense || (t - kBurn) % 50 == 0)) { hsum += hv; ++nh; }
-                    }
-                    const double n = double(w.b - w.a);
-                    if (fh2) std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, std::sqrt(a / n), 1000 * b / n, nh ? 1000 * hsum / nh : NAN);
-                    else std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, std::sqrt(a / n), 1000 * b / n);
+                    const auto [rmse, excess, h2_score] = summarize_window(w, m ? seg : sef, m ? exg : exf, m ? hhg : hhf);
+                    if (fh2) std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, rmse, excess, h2_score);
+                    else std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, rmse, excess);
                 }
             // identification: constant = true family from t = 0; switch = new family from 2500 (times relative)
             const int tgt = G1[g];

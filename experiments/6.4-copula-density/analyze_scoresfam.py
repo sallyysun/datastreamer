@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import format_estimate, write_report  # noqa: E402
+from report_output import format_estimate, reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error  # noqa: E402
 import config as C  # noqa: E402
 
@@ -156,6 +156,8 @@ def main():
     d = load("seeds_sfeval")
     cells = paired_cells(d)
     cells.to_csv(R + "scoresfam_cells.csv", index=False)
+    if not reports_enabled():
+        return
     lines = ["MFF scoring function across copula families. Delta = squared - log (paired, 60 seeds, mean ± 2 SE; * beyond 2 SE;",
              "positive = log loss better). Whole run unless stated. Linux/libstdc++. inv = parameter inversion of rho_S into W."]
     lines += gaussian_table(cells)

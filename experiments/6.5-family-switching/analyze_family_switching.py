@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 import config as C  # noqa: E402
-from report_output import format_estimate, write_report  # noqa: E402
+from report_output import format_estimate, reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error  # noqa: E402
 
 RESULTS = Path("results")
@@ -179,15 +179,17 @@ def accuracy_report(D):
 
 def write_rmpl():
     rows = []
-    lines = RMPL_HEADER + identification() + density(rows) + rmse()
+    density_lines = density(rows)
     pd.DataFrame(rows).to_csv(RESULTS / "famsw_rmpl_dl.csv", index=False)
-    write_report(RESULTS / "famsw_rmpl_summary_2026-11-15.md", lines)
+    if reports_enabled():
+        write_report(RESULTS / "famsw_rmpl_summary_2026-11-15.md", RMPL_HEADER + identification() + density_lines + rmse())
 
 
 def write_accuracy():
     results = accuracy()
     results.to_csv(RESULTS / "famsw_accuracy.csv", index=False)
-    write_report(RESULTS / "famsw_accuracy_2026-11-15.md", accuracy_report(results))
+    if reports_enabled():
+        write_report(RESULTS / "famsw_accuracy_2026-11-15.md", accuracy_report(results))
 
 
 def main():

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import write_report  # noqa: E402
+from report_output import reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error, win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
 
@@ -84,12 +84,12 @@ def drift_optimum(dec, D):
 
 
 def main():
-    lines = window_tables(load("fixed_ess_seeds"))
     opt_lines, opt = drift_optimum(load("fixed_ess_decomp"), drift_rate())
-    lines += opt_lines
     full = VMAX == 2000
     opt.to_csv(R + ("fixed_ess_optimum.csv" if full else f"fixed_ess_optimum_v{int(VMAX)}.csv"), index=False)
-    write_report(R + ("fixed_ess_2026-11-12.txt" if full else f"fixed_ess_v{int(VMAX)}_2026-11-14.txt"), lines)
+    if reports_enabled():
+        lines = window_tables(load("fixed_ess_seeds")) + opt_lines
+        write_report(R + ("fixed_ess_2026-11-12.txt" if full else f"fixed_ess_v{int(VMAX)}_2026-11-14.txt"), lines)
 
 
 if __name__ == "__main__":

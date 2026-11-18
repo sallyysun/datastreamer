@@ -16,10 +16,11 @@ namespace thesis {
 // One estimator's strategies: the fixed-memory arms, MFF over them, and VFF at each rate.
 class EstimatorStrategies {
 public:
-    explicit EstimatorStrategies(const std::string& est) : est_(est), raw_(est != "rmpl") {
+    explicit EstimatorStrategies(const std::string& est, const std::vector<double>& rates = vff_rates())
+        : est_(est), raw_(est != "rmpl") {
         for (double n : kMem) arms_.push_back(arm(est, n, "m"));
-        vffs_.reserve(vff_rates().size());
-        for (double r : vff_rates()) vffs_.emplace_back(est, r);
+        vffs_.reserve(rates.size());
+        for (double r : rates) vffs_.emplace_back(est, r);
     }
     std::size_t size() const { return kK + 1 + vffs_.size(); }
     void forecasts(std::vector<double>& f) const {
@@ -29,6 +30,7 @@ public:
         for (std::size_t j = 0; j < vffs_.size(); ++j) f[kK + 1 + j] = vffs_[j].inner->estimate();
     }
     const std::vector<double>& mff_weights() const { return mff_.w; }
+    bool mff_ready(std::size_t t) const { return mff_.ready(arms_, t); }
     // t = observations already absorbed (the margins' size before this one).
     void update(double x, double y, double u, double v, std::size_t t) {
         mff_.score(arms_, u, v, t);

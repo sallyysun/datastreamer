@@ -62,10 +62,11 @@ struct Mff {
         return std::clamp(r, -1.0, 1.0);
     }
     // n_seen counts prior observations.
+    bool ready(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, std::size_t n_seen) const {
+        return n_seen >= 30 && std::all_of(arms.begin(), arms.end(), [](const auto& arm) { return arm->ready(); });
+    }
     void score(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
-        bool scorable = n_seen >= 30;
-        for (const auto& a : arms) scorable = scorable && a->ready();
-        if (!scorable) return;
+        if (!ready(arms, n_seen)) return;
         for (std::size_t k = 0; k < kK; ++k) {
             const double par = copula::param_from_spearman(family, arms[k]->estimate());
             loss[k] = -copula::log_density(family, u, v, par);

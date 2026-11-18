@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -28,6 +29,11 @@
 namespace {
 using thesis::kK; using thesis::kMem;
 constexpr double kNu = 4.0;
+using Clock = std::chrono::steady_clock;
+
+double elapsed_seconds(Clock::time_point start) {
+    return std::chrono::duration<double>(Clock::now() - start).count();
+}
 
 std::string est_kind() { const char* e = std::getenv("EST"); return e ? e : "rmpl"; }
 std::vector<std::unique_ptr<DependenceEstimator>> make_arms(const std::string& estimator) {
@@ -98,6 +104,88 @@ struct RollingMpl {   // exact MPL over the last W normal-score pairs; O(1) per 
     }
 };
 
+class RollingBenchmarks {
+public:
+    RollingBenchmarks() {
+        std::copy_n(kMem, kK, windows_.begin());
+        longest_window_ = *std::max_element(windows_.begin(), windows_.end());
+        for (std::size_t i = 0; i < kK; ++i) {
+            rolling_mpl_.push_back(RollingMpl{windows_[i]});
+            RecursiveMPL::Config config{};
+            config.margin = RecursiveMPL::Margin::ExactNormal;
+            config.update = RecursiveMPL::Update::Exact;
+            config.gain = 2.0 / (kMem[i] + 1.0);
+            exponential_mpl_.push_back(std::make_unique<RecursiveMPL>(config, "e"));
+        }
+    }
+
+    void write_header(FILE* out) const {
+        for (auto width : windows_)
+            std::fprintf(out, ",rho_roll_%zu,lg_roll_%zu,lt_roll_%zu", width, width, width);
+        for (std::size_t i = 0; i < kK; ++i) {
+            const auto width = windows_[i];
+            const double memory = kMem[i];
+            std::fprintf(out, ",rho_mplroll_%zu,lg_mplroll_%zu,lt_mplroll_%zu,rho_mplexp_%g,lg_mplexp_%g,lt_mplexp_%g",
+                         width, width, width, memory, memory, memory);
+        }
+    }
+
+    void write_scores(FILE* out, double u, double v) {
+        auto write_score = [&](double rho) {
+            std::fprintf(out, ",%.8f,%.8f,%.8f", rho, logc(copula::Family::Gaussian, u, v, rho),
+                         logc(copula::Family::StudentT, u, v, rho));
+        };
+        for (std::size_t i = 0; i < kK; ++i) {
+            const auto start = Clock::now();
+            const auto first = history_.end() - std::min(windows_[i], history_.size());
+            const std::deque<std::pair<double, double>> window(first, history_.end());
+            const double rho = spearman_window(window);
+            spearman_seconds_[i] += elapsed_seconds(start);
+            write_score(rho);
+        }
+        for (std::size_t i = 0; i < kK; ++i) {
+            write_score(rolling_mpl_[i].estimate());
+            write_score(exponential_mpl_[i]->estimate());
+        }
+    }
+
+    // The current day enters each benchmark after its forecast has been scored.
+    void update(double x, double y, double zx, double zy, std::size_t t) {
+        history_.emplace_back(x, y);
+        if (history_.size() > longest_window_) history_.pop_front();
+        if (t >= 30) {
+            const auto start = Clock::now();
+            for (auto& model : rolling_mpl_) model.update(zx, zy);
+            rolling_mpl_seconds_ += elapsed_seconds(start);
+        }
+        const auto start = Clock::now();
+        for (auto& model : exponential_mpl_) model->update(zx, zy);
+        exponential_mpl_seconds_ += elapsed_seconds(start);
+    }
+
+    void print_timing(const char* path, std::size_t days, const std::string& estimator,
+                      double kll_seconds, double arms_seconds, double mff_seconds, double vff_seconds) const {
+        const double us = 1e6 / double(days);
+        std::fprintf(stderr, "TIME %s days %zu | us/day: KLL margins %.3f | %zu %s arms %.3f | MFF scoring (2 banks) %.3f | VFF %.3f"
+                     " | rolling MPL x%zu %.3f | exp exact MPL x%zu %.3f | rolling Spearman W=",
+                     path, days, kll_seconds * us, windows_.size(), estimator.c_str(), arms_seconds * us,
+                     mff_seconds * us, vff_seconds * us, rolling_mpl_.size(), rolling_mpl_seconds_ * us,
+                     exponential_mpl_.size(), exponential_mpl_seconds_ * us);
+        for (std::size_t i = 0; i < kK; ++i)
+            std::fprintf(stderr, "%s%zu %.2f", i == 0 ? "" : " ", windows_[i], spearman_seconds_[i] * us);
+        std::fprintf(stderr, "\n");
+    }
+
+private:
+    std::array<std::size_t, kK> windows_;
+    std::size_t longest_window_;
+    std::deque<std::pair<double, double>> history_;
+    std::vector<RollingMpl> rolling_mpl_;
+    std::vector<std::unique_ptr<RecursiveMPL>> exponential_mpl_;
+    std::array<double, kK> spearman_seconds_{};
+    double rolling_mpl_seconds_ = 0, exponential_mpl_seconds_ = 0;
+};
+
 struct Data { std::vector<std::string> date; std::vector<double> x, y; };
 Data read(const char* path) {
     Data d; std::ifstream f(path); std::string line; std::getline(f, line);
@@ -129,6 +217,10 @@ int main(int argc, char** argv) {
     thesis::Mff mg{copula::Family::Gaussian}, mt{copula::Family::StudentT};
     thesis::Vff vff(estimator, thesis::vff_rates().front());
     FILE* o = std::fopen(argv[2], "w");
+    if (!o) {
+        std::perror(argv[2]);
+        return 1;
+    }
     std::fprintf(o, "date,u,v");
     const auto& strategy_names = thesis::strategy_names();
     std::vector<std::string> forecast_names(strategy_names.begin(), strategy_names.begin() + kK);
@@ -138,28 +230,17 @@ int main(int argc, char** argv) {
     for (std::size_t k = 0; k < kK; ++k) std::fprintf(o, ",wg_%g", kMem[k]);
     for (std::size_t k = 0; k < kK; ++k) std::fprintf(o, ",wt_%g", kMem[k]);
     std::fprintf(o, ",rho_vff,lg_vff,lt_vff,neff_vff,lg_mffmix_g,lt_mffmix_t,neff_mff_g,neff_mff_t");
-    const bool roll = std::getenv("ROLL") != nullptr;
-    std::array<std::size_t, kK> rolling_windows;
-    std::copy_n(kMem, kK, rolling_windows.begin());
-    const auto longest_window = *std::max_element(rolling_windows.begin(), rolling_windows.end());
-    std::deque<std::pair<double, double>> hist;
-    if (roll) for (std::size_t W : rolling_windows) std::fprintf(o, ",rho_roll_%zu,lg_roll_%zu,lt_roll_%zu", W, W, W);
-    // matched benchmarks on the RMPL normal scores: rolling-window exact MPL and exponentially weighted exact MPL
-    std::vector<RollingMpl> rmpl_roll; std::vector<std::unique_ptr<RecursiveMPL>> rmpl_exp;
-    if (roll) for (std::size_t i = 0; i < kK; ++i) {
-        rmpl_roll.push_back(RollingMpl{rolling_windows[i]});
-        RecursiveMPL::Config m{}; m.margin = RecursiveMPL::Margin::ExactNormal; m.update = RecursiveMPL::Update::Exact; m.gain = 2.0 / (kMem[i] + 1.0);
-        rmpl_exp.push_back(std::make_unique<RecursiveMPL>(m, "e"));
-        std::fprintf(o, ",rho_mplroll_%zu,lg_mplroll_%zu,lt_mplroll_%zu,rho_mplexp_%g,lg_mplexp_%g,lt_mplexp_%g", rolling_windows[i], rolling_windows[i], rolling_windows[i], kMem[i], kMem[i], kMem[i]);
+    std::optional<RollingBenchmarks> rolling;
+    if (std::getenv("ROLL")) {
+        rolling.emplace();
+        rolling->write_header(o);
     }
-    using clk = std::chrono::steady_clock;
-    auto since = [](clk::time_point t0) { return std::chrono::duration<double>(clk::now() - t0).count(); };
-    double t_kll = 0, t_arms = 0, t_mff = 0, t_vff = 0, t_mplroll = 0, t_mplexp = 0; std::vector<double> t_roll(kK, 0.0);
+    double t_kll = 0, t_arms = 0, t_mff = 0, t_vff = 0;
     std::fprintf(o, "\n");
     for (std::size_t t = 0; t < d.x.size(); ++t) {
-        auto tk = clk::now();
+        const auto tk = Clock::now();
         const auto [u, v] = margins.update(d.x[t], d.y[t]);
-        t_kll += since(tk);
+        t_kll += elapsed_seconds(tk);
         double f[kK + 2];
         for (std::size_t k = 0; k < kK; ++k) f[k] = arms[k]->estimate();
         f[kK] = mg.estimate(arms);
@@ -174,59 +255,30 @@ int main(int argc, char** argv) {
         std::fprintf(o, ",%.8f,%.8f,%.8f,%.4f,%.8f,%.8f,%.3f,%.3f", fv, logc(copula::Family::Gaussian, u, v, fv),
                      logc(copula::Family::StudentT, u, v, fv), vff.ctl.neff(), mixture(copula::Family::Gaussian, mg.w, arms, u, v),
                      mixture(copula::Family::StudentT, mt.w, arms, u, v), ng, nt);
-        if (roll) {
-            for (std::size_t wi = 0; wi < kK; ++wi) {
-                const std::size_t W = rolling_windows[wi];
-                const auto t0 = std::chrono::steady_clock::now();
-                std::deque<std::pair<double, double>> win(hist.end() - std::min(W, hist.size()), hist.end());
-                const double r = spearman_window(win);
-                const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(); t_roll[wi] += dt;
-                std::fprintf(o, ",%.8f,%.8f,%.8f", r, logc(copula::Family::Gaussian, u, v, r), logc(copula::Family::StudentT, u, v, r));
-            }
-            for (std::size_t i = 0; i < kK; ++i) {
-                const double rr = rmpl_roll[i].estimate(), re = rmpl_exp[i]->estimate();
-                std::fprintf(o, ",%.8f,%.8f,%.8f,%.8f,%.8f,%.8f", rr, logc(copula::Family::Gaussian, u, v, rr), logc(copula::Family::StudentT, u, v, rr),
-                             re, logc(copula::Family::Gaussian, u, v, re), logc(copula::Family::StudentT, u, v, re));
-            }
-            hist.emplace_back(d.x[t], d.y[t]);   // the day enters the window only after it has been scored
-            if (hist.size() > longest_window) hist.pop_front();
-        }
+        if (rolling) rolling->write_scores(o, u, v);
         std::fprintf(o, "\n");
-        auto tm = clk::now();
+        const auto tm = Clock::now();
         mg.score(arms, u, v, t);
         mt.score(arms, u, v, t);
-        t_mff += since(tm);
+        t_mff += elapsed_seconds(tm);
 
         const double zx = special::probit(u), zy = special::probit(v);
-        auto ta = clk::now();
+        const auto ta = Clock::now();
         for (auto& arm : arms) {
             if (use_raw_inputs) arm->update(d.x[t], d.y[t]);
             else arm->update(zx, zy);
         }
-        t_arms += since(ta);
+        t_arms += elapsed_seconds(ta);
 
-        auto tv = clk::now();
+        const auto tv = Clock::now();
         vff.update(d.x[t], d.y[t], u, v, t + 1, use_raw_inputs);
-        t_vff += since(tv);
+        t_vff += elapsed_seconds(tv);
 
-        if (roll) {
-            if (t >= 30) {
-                auto tr = clk::now();
-                for (auto& model : rmpl_roll) model.update(zx, zy);
-                t_mplroll += since(tr);
-            }
-            auto te = clk::now();
-            for (auto& model : rmpl_exp) model->update(zx, zy);
-            t_mplexp += since(te);
-        }
+        if (rolling) rolling->update(d.x[t], d.y[t], zx, zy, t);
     }
     std::fclose(o);
     const char* verbose = std::getenv("VERBOSE");
-    if (roll && verbose && std::string_view(verbose) == "1") {
-        const double n = double(d.x.size()), us = 1e6 / n;
-        std::fprintf(stderr, "TIME %s days %zu | us/day: KLL margins %.3f | 5 %s arms %.3f | MFF scoring (2 banks) %.3f | VFF %.3f | rolling MPL x5 %.3f | exp exact MPL x5 %.3f | rolling Spearman W=39 %.2f 99 %.2f 199 %.2f 399 %.2f 1999 %.2f\n",
-                     argv[1], d.x.size(), t_kll * us, estimator.c_str(), t_arms * us, t_mff * us, t_vff * us, t_mplroll * us, t_mplexp * us,
-                     t_roll[0] * us, t_roll[1] * us, t_roll[2] * us, t_roll[3] * us, t_roll[4] * us);
-    }
+    if (rolling && verbose && std::string_view(verbose) == "1")
+        rolling->print_timing(argv[1], d.x.size(), estimator, t_kll, t_arms, t_mff, t_vff);
     return 0;
 }

@@ -20,7 +20,9 @@ fi
 python3 prepare_data.py                 # budget_{sweep,seeds}_n15k, budget_time_table_n15k
 python3 select_configs.py               # budget_selected, budget_gain
 python3 make_budget_config_tables.py    # tab:ch6-budget-configs, tab:budget-configurations-full
-python3 analyze_margins.py
+if [ "${REPORTS:-0}" = 1 ]; then
+    python3 analyze_margins.py
+fi
 python3 plot_budget_storage.py          # ch6_budget_storage_n15k
 python3 plot_budget_kll_n15k.py         # ch6_budget_kll_comparison
 python3 plot_processing_time.py         # ch6_budget_processing_time

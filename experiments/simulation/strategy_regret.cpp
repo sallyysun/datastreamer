@@ -4,12 +4,10 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "../../src/estimators/evaluation.hpp"
-#include "../../src/special_functions.hpp"
 #include "regret_oracle.hpp"
 #include "strategy_runs.hpp"
 
@@ -37,8 +35,7 @@ int run_regretfam(const Run& run) {
             const Stream s = make_stream(cop, sc, seed);
             for (int wi = 0; wi < 4; ++wi) {
                 const auto& inv = inverses[wi];
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm("rmpl", n));
+                FixedMemoryArms arms("rmpl");
                 std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
                 std::vector<std::vector<double>> L;
                 std::vector<std::array<double, 2>> mf;
@@ -46,12 +43,10 @@ int run_regretfam(const Run& run) {
                 std::vector<double> l(kK), lw(kK);
                 long nonfin = 0, nclamp = 0;
                 for (std::size_t t = 0; t < kN; ++t) {
-                    bool ready = t >= 30;
-                    for (const auto& a : arms) ready = ready && a->ready();
-                    if (ready) {
+                    if (t >= 30 && arms.ready()) {
                         bool clamp = false;
                         for (std::size_t k = 0; k < kK; ++k) {
-                            const double rho = arms[k]->estimate();
+                            const double rho = arms.estimate(k);
                             l[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], inv(rho));
                             clamp = clamp || inv.clamped(rho);
                         }
@@ -67,8 +62,7 @@ int run_regretfam(const Run& run) {
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t);
                     }
-                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                    for (auto& a : arms) a->update(zx, zy);
+                    arms.update(s, t);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);
@@ -112,19 +106,15 @@ int run_regret(const Run& run) {
             const Stream s = make_stream(cop, sc, seed);
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
-                const bool raw = e != "rmpl";
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm(e, n));
+                FixedMemoryArms arms(e);
                 std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
                 std::vector<std::vector<double>> L;          // [scored tick][k] guarded arm loss
                 std::vector<std::array<double, 4>> mf;       // mix / point loss for delta 0, 1e-4
                 std::vector<std::size_t> tt;
                 std::vector<double> f(kK), l(kK), lw(kK);
                 for (std::size_t t = 0; t < kN; ++t) {
-                    for (std::size_t k = 0; k < kK; ++k) f[k] = arms[k]->estimate();
-                    bool ready = t >= 30;
-                    for (const auto& a : arms) ready = ready && a->ready();
-                    if (ready) {
+                    arms.forecasts(f.data());
+                    if (t >= 30 && arms.ready()) {
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
                             l[k] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t], par);
@@ -144,8 +134,7 @@ int run_regret(const Run& run) {
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                     }
-                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                    for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
+                    arms.update(s, t);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);

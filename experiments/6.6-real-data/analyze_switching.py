@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from real_common import FIX, eval_days, outputs, read, result, write_report
+from report_output import reports_enabled
 
 MS = [0, 1, 2, 5]
 EST = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
@@ -107,8 +108,8 @@ def main():
     Rg, Pt = regrets(sys.argv[1])
     Rg.to_csv(result("switching_per_pair.csv"), index=False)
     Pt.to_csv(result("switching_paths.csv"), index=False)
-    out = report(Rg, Pt)
-    write_report(result("switching_results.txt"), out)
+    if reports_enabled():
+        write_report(result("switching_results.txt"), report(Rg, Pt))
 
 
 if __name__ == "__main__":

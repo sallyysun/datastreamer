@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import write_report  # noqa: E402
+from report_output import reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error as se  # noqa: E402
 from summary_stats import win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
@@ -41,34 +41,38 @@ def header():
     return out + ["Differences are paired (same streams): mean ± 2 SE."]
 
 
-def tables(d):
+def tables(d, include_report):
     out, rows = [], []
     columns = (f"{'family':9s} {'estimator':16s} {'Fixed (N)':>14s} {'VFF slow':>12s} "
                f"{'VFF fast':>12s} {'MFF':>12s} {'MFF-Fixed':>14s} {'MFF-VFFslow':>14s}")
     for m, mlab, scale in MET:
-        out += ["", mlab, columns]
+        if include_report:
+            out += ["", mlab, columns]
         for sc, wins in C.WINDOWS.items():
             for w in wins:
-                out += ["", f"{sc} / {w}"]
+                if include_report:
+                    out += ["", f"{sc} / {w}"]
                 for e in C.ESTIMATORS:
                     el, per = C.EST_LABEL[e], []
                     for f, _ in FAMS:
                         t, best = cell(d, f, sc, e, w, m, scale)
                         per.append(t)
                         mu, s = t.mean(), t.apply(se)
-                        d1, d2 = t.mff - t.fixed, t.mff - t.vff_slow
-                        out.append(f"{C.FAMILY_TEXT[f]:9s} {el:16s} {mu.fixed:7.2f}({best[6:]:>4s}) {mu.vff_slow:7.2f}({s.vff_slow:.2f}) "
-                                   f"{mu.vff_fast:7.2f}({s.vff_fast:.2f}) {mu.mff:7.2f}({s.mff:.2f}) "
-                                   f"{d1.mean():+7.2f}±{2*se(d1):.2f} {d2.mean():+7.2f}±{2*se(d2):.2f}")
+                        if include_report:
+                            d1, d2 = t.mff - t.fixed, t.mff - t.vff_slow
+                            out.append(f"{C.FAMILY_TEXT[f]:9s} {el:16s} {mu.fixed:7.2f}({best[6:]:>4s}) {mu.vff_slow:7.2f}({s.vff_slow:.2f}) "
+                                       f"{mu.vff_fast:7.2f}({s.vff_fast:.2f}) {mu.mff:7.2f}({s.mff:.2f}) "
+                                       f"{d1.mean():+7.2f}±{2*se(d1):.2f} {d2.mean():+7.2f}±{2*se(d2):.2f}")
                         rows += [dict(metric=m, scenario=sc, window=w, estimator=e, copula=f, strategy=k,
                                       mean=mu[k], se=s[k], best_fixed=best) for k in STRATS]
                     avg = sum(per) / len(per)   # per seed, the mean over the four (independent) families
                     mu, s = avg.mean(), avg.apply(se)
-                    d1, d2, d3 = avg.mff - avg.fixed, avg.mff - avg.vff_slow, avg.mff - avg.vff_fast
-                    out.append(f"{'mean of 4':9s} {el:16s} {mu.fixed:7.2f}{'':6s} {mu.vff_slow:7.2f}({s.vff_slow:.2f}) "
-                               f"{mu.vff_fast:7.2f}({s.vff_fast:.2f}) {mu.mff:7.2f}({s.mff:.2f}) "
-                               f"{d1.mean():+7.2f}±{2*se(d1):.2f} {d2.mean():+7.2f}±{2*se(d2):.2f}   "
-                               f"(MFF-VFFfast {d3.mean():+.2f}±{2*se(d3):.2f})")
+                    if include_report:
+                        d1, d2, d3 = avg.mff - avg.fixed, avg.mff - avg.vff_slow, avg.mff - avg.vff_fast
+                        out.append(f"{'mean of 4':9s} {el:16s} {mu.fixed:7.2f}{'':6s} {mu.vff_slow:7.2f}({s.vff_slow:.2f}) "
+                                   f"{mu.vff_fast:7.2f}({s.vff_fast:.2f}) {mu.mff:7.2f}({s.mff:.2f}) "
+                                   f"{d1.mean():+7.2f}±{2*se(d1):.2f} {d2.mean():+7.2f}±{2*se(d2):.2f}   "
+                                   f"(MFF-VFFfast {d3.mean():+.2f}±{2*se(d3):.2f})")
                     rows += [dict(metric=m, scenario=sc, window=w, estimator=e, copula="mean4", strategy=k,
                                   mean=mu[k], se=s[k], best_fixed="") for k in STRATS]
     return out, pd.DataFrame(rows)
@@ -92,10 +96,12 @@ def agreement(d):
 
 def main():
     d = pd.concat([pd.read_csv(R + f"strategies_seeds{T}{s}.csv") for _, s in FAMS])
-    body, summary = tables(d)
+    include_report = reports_enabled()
+    body, summary = tables(d, include_report)
     summary.to_csv(R + f"strategies_summary{T}.csv", index=False)
-    lines = header() + body + agreement(d)
-    write_report(R + ("strategies_2026-11-12.txt" if not T else f"strategies{T}_2026-11-14.txt"), lines)
+    if include_report:
+        lines = header() + body + agreement(d)
+        write_report(R + ("strategies_2026-11-12.txt" if not T else f"strategies{T}_2026-11-14.txt"), lines)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 """Plot all fixed and adaptive strategies for one experiment section."""
-import os
+import argparse
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -104,9 +105,20 @@ def metric_fig(section_dir, metric):
         plt.close(fig)
 
 
-def plot_all_fixed(section_dir):
-    metric = os.environ.get("METRIC", "rmse")
+def plot_all_fixed(section_dir, metric):
     if metric == "density":
         density_fig(section_dir)
     else:
         metric_fig(section_dir, metric)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("section_dir", type=Path)
+    parser.add_argument("metric", choices=("rmse", "density", "h2", "excess"))
+    args = parser.parse_args()
+    plot_all_fixed(args.section_dir, args.metric)
+
+
+if __name__ == "__main__":
+    main()

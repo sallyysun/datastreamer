@@ -9,7 +9,9 @@
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -22,55 +24,54 @@
 
 namespace {
 
-// BUDGET_N overrides the stream length (harness only; default 5000). Drift spans the whole stream; the jump is at kN / 2.
-const std::size_t kN = std::getenv("BUDGET_N") ? std::strtoul(std::getenv("BUDGET_N"), nullptr, 10) : 5000;
-const std::size_t kJump = kN / 2;
 constexpr std::size_t kBurn = 500;
 constexpr std::size_t kEvery = 5;          // score every 5th tick
 constexpr std::size_t kPost = 1000;        // post-change window
 constexpr unsigned kTestSeed = 42;
 constexpr unsigned kValSeed = 1000;
 
-// BUDGET_GAINS=g1,g2,... replaces the grid (harness only); g = 0 is each estimator's cumulative (no-forgetting)
-// mode: Xiao lambda = 0, Hermite weight 1/m, MPL gain 1/m through the normalised start-up. budget_mpl.md §25.
-std::vector<double> gain_grid() {
-    const char* e = std::getenv("BUDGET_GAINS");
-    if (!e) return {0.005, 0.01, 0.02, 0.05, 0.10};
-    std::vector<double> g;
-    std::string str(e);
-    for (std::size_t a = 0, b; a <= str.size(); a = b + 1) {
-        b = str.find(',', a);
-        if (b == std::string::npos) b = str.size();
-        if (b > a) g.push_back(std::atof(str.substr(a, b - a).c_str()));
+std::vector<std::string> csv_values(std::string_view csv) {
+    std::vector<std::string> values;
+    for (std::size_t first = 0; first < csv.size();) {
+        const auto comma = csv.find(',', first);
+        const auto end = comma == std::string_view::npos ? csv.size() : comma;
+        if (end > first) values.emplace_back(csv.substr(first, end - first));
+        first = end + 1;
     }
-    return g;
+    return values;
 }
-const std::vector<double> kGains = gain_grid();
 
-// Harness only (Section 6.2 extension, 2026-11-15): BUDGET_EST=a,b restricts the estimators; BUDGET_KLL=k1,k2 replaces the
-// capacity grid of both KLL implementations (mpl_kll, mpl_dskll); BUDGET_TIME_GAIN sets the gain timed by `time` (default 0.02).
-std::vector<std::string> csv_env(const char* name) {
-    std::vector<std::string> v;
-    const char* e = std::getenv(name);
-    if (!e) return v;
-    std::string str(e);
-    for (std::size_t a = 0, b; a <= str.size(); a = b + 1) {
-        b = str.find(',', a);
-        if (b == std::string::npos) b = str.size();
-        if (b > a) v.push_back(str.substr(a, b - a));
+struct BudgetOptions {
+    std::size_t observations = 5000;
+    unsigned workers = std::max(1u, std::thread::hardware_concurrency());
+    std::vector<double> gains{0.005, 0.01, 0.02, 0.05, 0.10};
+    std::vector<int> kll_sizes{8, 16, 32, 64, 128, 256, 512, 1024};
+    std::vector<std::string> estimators;
+    std::optional<std::vector<std::string>> scenarios;
+    double timing_gain = 0.02;
+    std::string tag_suffix;
+};
+
+BudgetOptions read_budget_options() {
+    BudgetOptions options;
+    if (const char* n = std::getenv("BUDGET_N")) options.observations = std::strtoul(n, nullptr, 10);
+    if (const char* workers = std::getenv("BUDGET_THREADS")) options.workers = std::max(1, std::atoi(workers));
+    if (const char* gain = std::getenv("BUDGET_TIME_GAIN")) options.timing_gain = std::atof(gain);
+    if (const char* tag = std::getenv("TAG")) options.tag_suffix = std::string("_") + tag;
+    if (const char* estimators = std::getenv("BUDGET_EST")) options.estimators = csv_values(estimators);
+    if (const char* scenarios = std::getenv("BUDGET_SCENARIOS")) options.scenarios = csv_values(scenarios);
+    if (const char* gains = std::getenv("BUDGET_GAINS")) {
+        options.gains.clear();
+        for (const auto& value : csv_values(gains)) options.gains.push_back(std::atof(value.c_str()));
     }
-    return v;
-}
-bool est_on(const std::string& est) {
-    const auto v = csv_env("BUDGET_EST");
-    return v.empty() || std::find(v.begin(), v.end(), est) != v.end();
-}
-std::vector<int> ds_kll_grid() {
-    const auto v = csv_env("BUDGET_KLL");
-    if (v.empty()) return {8, 16, 32, 64, 128, 256, 512, 1024};
-    std::vector<int> k;
-    for (const auto& x : v) k.push_back(std::atoi(x.c_str()));
-    return k;
+    if (const char* sizes = std::getenv("BUDGET_KLL")) {
+        const auto values = csv_values(sizes);
+        if (!values.empty()) {
+            options.kll_sizes.clear();
+            for (const auto& value : values) options.kll_sizes.push_back(std::atoi(value.c_str()));
+        }
+    }
+    return options;
 }
 
 struct Cfg {
@@ -79,13 +80,16 @@ struct Cfg {
     double gain;        // per-observation update weight, all estimators
 };
 
-std::vector<Cfg> build_cfgs() {
+std::vector<Cfg> build_cfgs(const BudgetOptions& options) {
+    auto est_on = [&](std::string_view name) {
+        return options.estimators.empty() || std::find(options.estimators.begin(), options.estimators.end(), name) != options.estimators.end();
+    };
     std::vector<Cfg> v;
-    for (double g : kGains) {
+    for (double g : options.gains) {
         if (est_on("xiao")) for (int b : {10, 20, 30, 45, 65, 90, 130, 180}) v.push_back({"xiao", b, g});
         if (est_on("hermite")) for (int n : {5, 10, 15, 20, 30, 43, 60, 89, 128}) v.push_back({"hermite", n, g});
-        if (est_on("mpl_kll")) for (int k : ds_kll_grid()) v.push_back({"mpl_kll", k, g});   // BUDGET_KLL applies to both KLL implementations
-        if (est_on("mpl_dskll")) for (int k : ds_kll_grid()) v.push_back({"mpl_dskll", k, g});
+        if (est_on("mpl_kll")) for (int k : options.kll_sizes) v.push_back({"mpl_kll", k, g});
+        if (est_on("mpl_dskll")) for (int k : options.kll_sizes) v.push_back({"mpl_dskll", k, g});
         if (est_on("mpl_exact")) v.push_back({"mpl_exact", 0, g});
     }
     return v;
@@ -113,17 +117,15 @@ std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     return std::make_unique<RecursiveMPL>(m, "mpl");
 }
 
-std::unique_ptr<Dependence> make_dependence(const std::string& s) { return make_scenario(s, kN); }
-
 struct Data { std::vector<double> x, y, truth; };
 
-Data simulate(const std::string& family, const std::string& scenario, unsigned seed) {
-    auto dep = make_dependence(scenario);
+Data simulate(const std::string& family, const std::string& scenario, unsigned seed, std::size_t n) {
+    auto dep = make_scenario(scenario, n);
     auto cop = dgp::make_copula(family);
     CopulaSource src(*dep, *cop, seed);
     Data d;
-    d.x.resize(kN); d.y.resize(kN); d.truth.resize(kN);
-    for (std::size_t t = 0; t < kN; ++t) {
+    d.x.resize(n); d.y.resize(n); d.truth.resize(n);
+    for (std::size_t t = 0; t < n; ++t) {
         const auto s = src.next();
         d.x[t] = s.x; d.y[t] = s.y; d.truth[t] = s.rho_s;
     }
@@ -134,8 +136,6 @@ std::size_t scored_index_at_or_after(std::size_t t) {
     return t <= kBurn ? 0 : 1 + (t - kBurn - 1) / kEvery;
 }
 
-const std::size_t kPts = scored_index_at_or_after(kN);
-
 struct Acc {
     std::vector<double> rmse, post;   // per seed
     std::vector<double> path;         // summed estimate at scored ticks
@@ -143,48 +143,50 @@ struct Acc {
 };
 
 void run_split(const std::string& family, const std::string& scenario, unsigned base,
-               std::size_t n_seeds, const std::vector<Cfg>& cfgs, std::vector<Acc>& acc,
+               std::size_t n_seeds, const BudgetOptions& options, const std::vector<Cfg>& cfgs, std::vector<Acc>& acc,
                std::vector<double>& truth_path) {
+    const auto n = options.observations;
+    const auto jump = n / 2;
+    const auto points = scored_index_at_or_after(n);
     acc.assign(cfgs.size(), Acc{});
-    for (auto& a : acc) { a.rmse.assign(n_seeds, 0.0); a.post.assign(n_seeds, 0.0); a.path.assign(kPts, 0.0); }
-    truth_path.assign(kPts, 0.0);
+    for (auto& a : acc) { a.rmse.assign(n_seeds, 0.0); a.post.assign(n_seeds, 0.0); a.path.assign(points, 0.0); }
+    truth_path.assign(points, 0.0);
     std::mutex mu;
     // BUDGET_THREADS caps the worker threads (harness only; on a batch cluster set it to the allocated cores).
-    const unsigned hw = std::getenv("BUDGET_THREADS") ? std::max(1, std::atoi(std::getenv("BUDGET_THREADS")))
-                                                        : std::max(1u, std::thread::hardware_concurrency());
+    const unsigned hw = options.workers;
     std::vector<std::thread> pool;
     for (unsigned w = 0; w < hw; ++w) {
         pool.emplace_back([&, w] {
-            std::vector<std::vector<double>> path(cfgs.size(), std::vector<double>(kPts, 0.0));
+            std::vector<std::vector<double>> path(cfgs.size(), std::vector<double>(points, 0.0));
             std::vector<std::size_t> peak(cfgs.size(), 0);
-            std::vector<double> tp(kPts, 0.0);
+            std::vector<double> tp(points, 0.0);
             for (std::size_t s = w; s < n_seeds; s += hw) {
                 const unsigned seed = base + static_cast<unsigned>(s);
-                const Data d = simulate(family, scenario, seed);
+                const Data d = simulate(family, scenario, seed, n);
                 for (std::size_t c = 0; c < cfgs.size(); ++c) {
                     auto e = build(cfgs[c], seed);
                     double se = 0.0, sp = 0.0;
                     std::size_t ne = 0, np = 0;
-                    for (std::size_t t = 0; t < kN; ++t) {
+                    for (std::size_t t = 0; t < n; ++t) {
                         e->update(d.x[t], d.y[t]);
                         peak[c] = std::max(peak[c], e->store_bytes());   // every tick, start-up included
                         if (t < kBurn || (t - kBurn) % kEvery != 0) continue;
                         const double r = e->estimate(), err = r - d.truth[t];
                         se += err * err; ++ne;
-                        if (t >= kJump && t < kJump + kPost) { sp += err * err; ++np; }
+                        if (t >= jump && t < jump + kPost) { sp += err * err; ++np; }
                         path[c][(t - kBurn) / kEvery] += r;
                     }
                     acc[c].rmse[s] = std::sqrt(se / ne);
                     acc[c].post[s] = std::sqrt(sp / np);
                 }
-                for (std::size_t i = 0; i < kPts; ++i) tp[i] += d.truth[kBurn + i * kEvery];
+                for (std::size_t i = 0; i < points; ++i) tp[i] += d.truth[kBurn + i * kEvery];
             }
             std::lock_guard<std::mutex> lk(mu);
             for (std::size_t c = 0; c < cfgs.size(); ++c) {
-                for (std::size_t i = 0; i < kPts; ++i) acc[c].path[i] += path[c][i];
+                for (std::size_t i = 0; i < points; ++i) acc[c].path[i] += path[c][i];
                 acc[c].peak = std::max(acc[c].peak, peak[c]);
             }
-            for (std::size_t i = 0; i < kPts; ++i) truth_path[i] += tp[i];
+            for (std::size_t i = 0; i < points; ++i) truth_path[i] += tp[i];
         });
     }
     for (auto& t : pool) t.join();
@@ -203,13 +205,14 @@ double se(const std::vector<double>& v) {
 
 // Ticks after the jump until the mean path covers 90% of its OWN pre->settled change, so a
 // biased (misspecified) estimator is not scored as never recovering.
-double recovery_delay(const std::vector<double>& path) {
+double recovery_delay(const std::vector<double>& path, std::size_t observations) {
     constexpr std::size_t window = 1000;
-    const std::size_t jump = scored_index_at_or_after(kJump);
+    const auto jump_tick = observations / 2;
+    const std::size_t jump = scored_index_at_or_after(jump_tick);
     if (jump == 0 || jump >= path.size()) return -1.0;
 
-    const std::size_t pre_start = scored_index_at_or_after(kJump > window ? kJump - window : 0);
-    const std::size_t post_start = scored_index_at_or_after(std::max(kJump, kN > window ? kN - window : 0));
+    const std::size_t pre_start = scored_index_at_or_after(jump_tick > window ? jump_tick - window : 0);
+    const std::size_t post_start = scored_index_at_or_after(std::max(jump_tick, observations > window ? observations - window : 0));
     auto avg = [&](std::size_t first, std::size_t last) {
         double sum = 0.0;
         for (std::size_t i = first; i < last; ++i) sum += path[i];
@@ -220,15 +223,15 @@ double recovery_delay(const std::vector<double>& path) {
     for (std::size_t i = jump; i < path.size(); ++i) {
         const double r = path[i];
         if ((post > pre && r >= target) || (post <= pre && r <= target))
-            return double(kBurn + i * kEvery - kJump);
+            return double(kBurn + i * kEvery - jump_tick);
     }
     return -1.0;
 }
 
-void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>& families) {
-    const auto cfgs = build_cfgs();
+void sweep(const BudgetOptions& options, const std::vector<Cfg>& cfgs, std::size_t n_test, std::size_t n_val,
+           const std::vector<std::string>& families) {
     const std::string sfx = families.size() == 1 ? "_" + families[0] : "";
-    const std::string tg = (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string());
+    const auto& tg = options.tag_suffix;
     std::ofstream out("results/budget_sweep" + tg + sfx + ".csv");
     std::ofstream sout("results/budget_seeds" + tg + sfx + ".csv");   // per-seed test RMSE, for paired comparisons
     sout << "family,scenario,estimator,approx,gain,seed,rmse,post_rmse\n";
@@ -238,26 +241,26 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
     pout << "family,scenario,estimator,approx,gain,t,est,truth\n";
     for (const std::string& fam : families) {
         for (const std::string sc : {"constant", "drift", "jump"}) {
-            if (const char* only = std::getenv("BUDGET_SCENARIOS"))   // a subset of the same scenarios
-                if (("," + std::string(only) + ",").find("," + sc + ",") == std::string::npos) continue;
+            if (options.scenarios &&
+                std::find(options.scenarios->begin(), options.scenarios->end(), sc) == options.scenarios->end()) continue;
             for (int split = 0; split < 2; ++split) {
                 const unsigned base = split ? kTestSeed : kValSeed;
                 const std::size_t ns = split ? n_test : n_val;
                 std::vector<Acc> acc;
                 std::vector<double> truth;
-                run_split(fam, sc, base, ns, cfgs, acc, truth);
+                run_split(fam, sc, base, ns, options, cfgs, acc, truth);
                 for (std::size_t c = 0; c < cfgs.size(); ++c) {
                     const auto& a = acc[c];
                     out << fam << ',' << sc << ',' << (split ? "test" : "val") << ',' << cfgs[c].est << ','
                         << cfgs[c].approx << ',' << cfgs[c].gain << ',' << a.peak << ',' << mean(a.rmse) << ','
                         << se(a.rmse) << ',' << mean(a.post) << ',' << se(a.post) << ','
-                        << (sc == "jump" ? recovery_delay(a.path) : -1.0) << '\n';
+                        << (sc == "jump" ? recovery_delay(a.path, options.observations) : -1.0) << '\n';
                     if (split)
                         for (std::size_t s = 0; s < ns; ++s)
                             sout << fam << ',' << sc << ',' << cfgs[c].est << ',' << cfgs[c].approx << ',' << cfgs[c].gain
                                  << ',' << base + s << ',' << a.rmse[s] << ',' << a.post[s] << '\n';
                     if (split && sc == "jump")
-                        for (std::size_t i = 0; i < kPts; i += 2)
+                        for (std::size_t i = 0; i < a.path.size(); i += 2)
                             pout << fam << ',' << sc << ',' << cfgs[c].est << ',' << cfgs[c].approx << ','
                                  << cfgs[c].gain << ',' << kBurn + i * kEvery << ',' << a.path[i] << ','
                                  << truth[i] << '\n';
@@ -269,20 +272,19 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
 
 // Single thread, Gaussian drift, gain 0.02: wall time of update() + estimate() per tick, which
 // is the whole online pipeline per observation. Data are generated before the clock starts.
-void timing() {
-    std::vector<Cfg> cfgs;
-    const double tg = std::getenv("BUDGET_TIME_GAIN") ? std::atof(std::getenv("BUDGET_TIME_GAIN")) : 0.02;
-    for (Cfg c : build_cfgs()) if (c.gain == kGains.front()) { c.gain = tg; cfgs.push_back(c); }
-    std::ofstream out("results/budget_timing" + (std::getenv("TAG") ? std::string("_") + std::getenv("TAG") : std::string()) + ".csv");
+void timing(const BudgetOptions& options, const std::vector<Cfg>& cfgs) {
+    std::ofstream out("results/budget_timing" + options.tag_suffix + ".csv");
     out << "estimator,approx,peak_bytes,mean_ns,p95_ns,update_mean_ns\n";
-    for (const Cfg& c : cfgs) {
+    for (Cfg c : cfgs) {
+        if (c.gain != options.gains.front()) continue;
+        c.gain = options.timing_gain;
         std::vector<double> tick, upd;
         std::size_t peak = 0;
         for (unsigned s = 0; s < 5; ++s) {
-            const Data d = simulate("gaussian", "drift", kTestSeed + s);
+            const Data d = simulate("gaussian", "drift", kTestSeed + s, options.observations);
             auto e = build(c, kTestSeed + s);
             volatile double sink = 0.0;
-            for (std::size_t t = 0; t < kN; ++t) {
+            for (std::size_t t = 0; t < options.observations; ++t) {
                 const auto a = std::chrono::steady_clock::now();
                 e->update(d.x[t], d.y[t]);
                 const auto b = std::chrono::steady_clock::now();
@@ -309,11 +311,13 @@ int main(int argc, char** argv) {
     // copula_family.hpp builds the Student-t rho_S table lazily behind plain statics, which is
     // a data race under threads (it corrupted every t cell once). Build it here, single-threaded.
     (void)copula::spearman_from_param(copula::Family::StudentT, 0.5, 4.0);
+    const auto options = read_budget_options();
+    const auto cfgs = build_cfgs(options);
     const std::string mode = argc > 1 ? argv[1] : "sweep";
-    if (mode == "time") { timing(); return 0; }
+    if (mode == "time") { timing(options, cfgs); return 0; }
     const std::size_t n_test = argc > 2 ? std::strtoul(argv[2], nullptr, 10) : 20;
     const std::size_t n_val = argc > 3 ? std::strtoul(argv[3], nullptr, 10) : 20;
     std::vector<std::string> fams{"gaussian", "clayton", "gumbel", "t"};
     if (argc > 4) fams = {argv[4]};   // one family only; output files get a _<family> suffix
-    sweep(n_test, n_val, fams);
+    sweep(options, cfgs, n_test, n_val, fams);
 }

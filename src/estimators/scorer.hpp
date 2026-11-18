@@ -22,24 +22,13 @@ public:
     // Call before dev.update for the observation with truth (rho_s, pit_x, pit_y, par).
     void observe(const Device& dev, std::size_t t, double rho_s, double pu, double pv, double par) {
         if (rows_.empty()) rows_.resize(dev.sets().size() * dev.sets()[0].size());
-        const double lc = copula::log_density(F_, pu, pv, par);
-        const bool cp = checkpoint(sc_, t);
+        const ScoringObservation truth{rho_s, pu, pv, par, copula::log_density(F_, pu, pv, par), checkpoint(sc_, t)};
         std::vector<double> f;
         std::size_t r = 0;
         for (const auto& s : dev.sets()) {
             s.forecasts(f);
-            for (std::size_t i = 0; i < f.size(); ++i, ++r) {
-                const double d = f[i] - rho_s;
-                double ex, hh = NAN;
-                if (i == kK) {
-                    ex = lc - H2Table::mix_logc(f.data(), s.mff_weights().data(), kK, pu, pv);
-                    if (cp) hh = h2_.mix(par, f.data(), s.mff_weights().data(), kK);
-                } else {
-                    ex = lc - gauss_logc(f[i], pu, pv);
-                    if (cp) hh = h2_(par, f[i]);
-                }
-                rows_[r].push_back({d * d, ex, hh});
-            }
+            for (std::size_t i = 0; i < f.size(); ++i, ++r)
+                rows_[r].push_back(score_forecast(h2_, truth, f, i, s.mff_weights()));
         }
     }
     // The runner's strategies_seeds rows: copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000
@@ -53,7 +42,7 @@ public:
                     const auto& rs = rows_[r0 + i];
                     double a = 0, b = 0, h = 0; int nh = 0;
                     for (std::size_t t = w.a; t < w.b && t < rs.size(); ++t) {
-                        a += rs[t].se; b += rs[t].ex;
+                        a += rs[t].squared_error; b += rs[t].excess;
                         if (!std::isnan(rs[t].h2) && (dense || (t - kBurn) % 50 == 0)) { h += rs[t].h2; ++nh; }
                     }
                     const double n = double(w.b - w.a);
@@ -66,11 +55,10 @@ public:
     }
 
 private:
-    struct Tick { double se, ex, h2; };
     std::string fam_, sc_;
     copula::Family F_;
     H2Table h2_;
-    std::vector<std::vector<Tick>> rows_;
+    std::vector<std::vector<ForecastScore>> rows_;
 };
 
 }  // namespace thesis

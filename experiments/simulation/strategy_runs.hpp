@@ -7,11 +7,11 @@
 #include <vector>
 
 #include "../../src/copula_family.hpp"
-
-class DependenceEstimator;
+#include "../../src/estimators/dependence/estimator.hpp"
 
 namespace thesis {
 struct H2Table;
+struct Win;
 }
 
 namespace strategy_experiments {
@@ -26,8 +26,30 @@ struct Run {
 struct Stream { std::vector<double> x, y, rho, par, u, v, pu, pv; };
 
 inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
-std::unique_ptr<DependenceEstimator> arm(const std::string& estimator, double memory);
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed);
+
+class FixedMemoryArms {
+public:
+    explicit FixedMemoryArms(const std::string& estimator);
+
+    double estimate(std::size_t arm) const { return arms_[arm]->estimate(); }
+    void forecasts(double* out) const;
+    bool ready() const;
+    void update(const Stream& stream, std::size_t t);
+
+    const auto& estimators() const { return arms_; }
+
+private:
+    bool raw_;
+    std::vector<std::unique_ptr<DependenceEstimator>> arms_;
+};
+
+struct WindowScores {
+    double rmse, excess_x1000, h2_x1000;
+};
+
+WindowScores summarize_window(const thesis::Win& window, const std::vector<double>& squared_error,
+                              const std::vector<double>& excess, const std::vector<double>& hellinger);
 
 int run_famswitch(const Run& run);
 int run_scoresfam(const Run& run);

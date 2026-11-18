@@ -13,7 +13,9 @@ if [ "${SIM:-0}" = 1 ]; then
     REGRET=1 $P                                 # regret_seeds, regret_paths
 fi
 python3 analyze_scoresfam.py                       # scoresfam_cells
-python3 analyze_regret.py all
+if [ "${REPORTS:-0}" = 1 ]; then
+    python3 analyze_regret.py all
+fi
 python3 plot_scoresfam.py rmpl xiao hermite        # ch6_scoresfam_heatmap_*
-METRIC=density python3 plot_strategy_allfixed.py   # ch6_strategy_density_bars_allfixed
+python3 ../common/strategy_allfixed.py . density  # ch6_strategy_density_bars_allfixed
 python3 plot_mff_regret_summary.py                 # ch6_mff_regret_summary, ch6_mff_regret_jump

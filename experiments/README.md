@@ -22,8 +22,8 @@ SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 
 ```
 
 The C++ runners, live stream adapter (`run_live_stream.hpp`) and consistency checks live in `experiments/simulation/`.
-`build.sh` puts the binaries in section or shared `build/` directories. Set `VERBOSE=1` to list saved report paths and show
-optional timing and plot diagnostics.
+`build.sh` puts the binaries in section or shared `build/` directories. Set `REPORTS=1` when running a section script to write
+the text and Markdown analysis reports. Set `VERBOSE=1` to list saved report paths and show optional timing and plot diagnostics.
 Edit `../study_config.json` for shared study defaults and rebuild the C++ programs to apply them. The reports use five
 fixed-memory arms. Python labels and styles live in `common/config.py` and `common/plot_style.py`.
 

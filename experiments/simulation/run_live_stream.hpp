@@ -8,11 +8,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -49,6 +51,7 @@ inline LiveStream live_run(const std::vector<std::pair<std::string, std::string>
         const int bport = live_detail::free_port(), wport = live_detail::free_port();
         if (bport < 0 || wport < 0 || bport == wport) continue;
         const pid_t pid = ::fork();
+        if (pid < 0) throw std::system_error(errno, std::generic_category(), "fork live server");
         if (pid == 0) {
             for (const auto& [k, v] : env) ::setenv(k.c_str(), v.c_str(), 1);
             ::setenv("N", std::to_string(n).c_str(), 1);

@@ -6,6 +6,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, outputs, read, result, write_report
+from report_output import reports_enabled
 
 LAG, BLOCK, BOOT = 21, 21, 2000
 GROUPS = ("full", "change", "other")
@@ -179,14 +180,15 @@ def main():
     days = Days({p: read(f) for p, f in outputs(S, "practical_roll2").items()})
     D99 = days.change(99)
     CHG, PRESENT = classify(D99)
-    out = indexing_check(S, days, D99, CHG, PRESENT)
     data = losses(S, days)
     masks = (PRESENT, CHG, (~CHG) & PRESENT)
     rows = []
-    for part in (comparisons(data, masks, rows), concentration(data, masks), reallocation(data), sensitivity(data, days, D99, CHG, PRESENT)):
-        out += part
+    comparison_lines = comparisons(data, masks, rows)
     pd.DataFrame(rows).to_csv(result("hedge_change_results.csv"), index=False)
-    write_report(result("hedge_change_results.txt"), out)
+    if reports_enabled():
+        lines = indexing_check(S, days, D99, CHG, PRESENT) + comparison_lines
+        lines += concentration(data, masks) + reallocation(data) + sensitivity(data, days, D99, CHG, PRESENT)
+        write_report(result("hedge_change_results.txt"), lines)
 
 
 if __name__ == "__main__":

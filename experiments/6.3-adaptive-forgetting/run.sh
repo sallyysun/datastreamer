@@ -15,7 +15,7 @@ if [ "${SIM:-0}" = 1 ]; then
 fi
 python3 analyze_strategies.py
 python3 analyze_vffsens.py
-METRIC=rmse python3 plot_strategy_allfixed.py   # ch6_strategy_rmse_bars_allfixed
+python3 ../common/strategy_allfixed.py . rmse  # ch6_strategy_rmse_bars_allfixed
 python3 plot_strategies.py                      # ch6_rmse_trajectories, ch6_jump_trajectories
 python3 plot_mff_weights.py                     # ch6_mff_weights_*, ch6_mff_fixedshare_jump_*
 python3 plot_vffsens.py                         # ch6_vffsens_rmse, ch6_vffsens_h2
