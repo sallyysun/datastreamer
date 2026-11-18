@@ -57,20 +57,21 @@ The standard comparison has two lifetimes. An `Experiment` covers the full study
 
 | Class | Owns | Main method |
 |---|---|---|
-| `Experiment` | The study plan, result accumulators, and CSV outputs. It can keep density caches across seeds. | `run()` loops over scenarios and seeds, creates a fresh `Simulation` for each, and collates the results. |
+| `Experiment` | The run options for the standard mode, and a `StrategyResults` for the length of the study. | `run()` checks the options, opens the outputs, loops over scenarios and seeds, creates a fresh `Simulation` for each, and passes each result on. |
+| `StrategyResults` | The CSV outputs and the per-scenario sums across seeds. | `add()` collates one seed's results and writes its per-seed rows. `end_scenario()` writes the summaries across seeds. |
 | `Simulation` | The configuration and lifetime of one seeded run. The producer owns its random state, the loaded series owns the shared margins, and each estimator's strategies own their estimates and weights. | `run()` loads one series, replays it into each estimator's strategies, and scores each held forecast against truth before the update. It returns the results for that seed. |
 
-`main()` constructs an `Experiment` for the standard mode. Each `Simulation` scores all configured estimators on the same replayed series. The scorer can use density tables supplied by the experiment, while per-seed metrics start fresh. `SeedResults` is an ordinary result value that carries the metrics needed for the requested outputs. The simulation returns it to the experiment for aggregation and CSV output.
+`main()` constructs an `Experiment` for the standard mode. Each `Simulation` scores all configured estimators on the same replayed series. `main()` owns the `H2Table` and shares it through `Run`, because the family, regret, and validation modes use the same cache. Per-seed metrics start fresh. `SeedResults` is an ordinary result value that carries the metrics needed for the requested outputs. The simulation returns it to the experiment for aggregation and CSV output.
 
 ### UML class diagram
 
 ```mermaid
 classDiagram
     class Experiment {
-        -RunOptions options
-        -StrategyResults results
+        -Run run
         +run() int
     }
+    class Run
     class Simulation {
         -string scenario
         -unsigned seed
@@ -82,8 +83,9 @@ classDiagram
     class EstimatorStrategies
     class H2Table
 
-    Experiment *-- StrategyResults : accumulates and writes
-    Experiment *-- H2Table : caches densities across seeds
+    Experiment *-- StrategyResults : owns for the study
+    Experiment --> Run : reads options
+    Run --> H2Table : shared cache owned by main()
     Experiment ..> Simulation : creates one per scenario and seed
     Simulation ..> StudySeries : loads with load_study_series()
     Simulation ..> EstimatorStrategies : reads forecasts and updates
@@ -92,7 +94,7 @@ classDiagram
     StrategyResults ..> SeedResults : collates
 ```
 
-Scoring calls the shared functions in `src/estimators/` with the experiment's `H2Table`. The loader fills the series from `CopulaSource` in process, or from reconstructed TCP returns in live mode.
+Scoring calls the shared functions in `src/estimators/` with the shared `H2Table`. The loader fills the series from `CopulaSource` in process, or from reconstructed TCP returns in live mode.
 
 ### Call order
 
@@ -119,7 +121,7 @@ src/
 experiments/simulation/
   study_stream.hpp              load_study_series() for in-process draws and TCP input
   run_live_stream.hpp           Server start and return reconstruction over TCP
-  experiment.cpp                main(), mode dispatch, Experiment, and CSV aggregation
+  experiment.cpp                main(), mode dispatch, Experiment, and StrategyResults
   simulation.cpp                Simulation and the single-seed forecast loop
   strategy_runs.hpp             Run options, Simulation, SeedResults, and mode declarations
   family.cpp                    Family scoring and switching
