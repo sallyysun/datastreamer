@@ -131,7 +131,7 @@ int run_famswitch(const Run& run) {
                     thesis::apply_fixed_share(wf, family_losses, log_weights, 1.0, 1e-4);
                     thesis::apply_fixed_share(wg, gaussian_losses, log_weights, 1.0, 1e-4);
                 }
-                arms.update(s, t);
+                arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
             }
             // windows
             std::vector<Win> wins{{"whole", kBurn, kN}};

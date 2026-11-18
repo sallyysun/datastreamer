@@ -89,7 +89,7 @@ int run_scoresfam(const Run& run) {
                 for (std::size_t t = 0; t < kN; ++t) {
                     for (std::size_t k = 0; k < kK; ++k) FC[ei][k][t] = arms.estimate(k);
                     RD[ei][t] = arms.ready();
-                    arms.update(s, t);
+                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
                 }
             }
             for (int wi = 0; wi < 4; ++wi) {

@@ -3,7 +3,9 @@
 // The streaming device: every Chapter 6 strategy for each estimator on one stream, with shared KLL margins.
 // Counting Matrix and Hermite use raw inputs; RMPL uses probit(U). Needs no ground truth (scorer.hpp scores it).
 
+#include <algorithm>
 #include <cmath>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -13,37 +15,60 @@
 
 namespace thesis {
 
+// One estimator's fixed-memory arms. Counting Matrix and Hermite take raw inputs; RMPL takes probit(U).
+class FixedMemoryArms {
+public:
+    explicit FixedMemoryArms(const std::string& est) : raw_(est != "rmpl") {
+        arms_.reserve(kK);
+        for (double n : kMem) arms_.push_back(arm(est, n, "m"));
+    }
+    double estimate(std::size_t k) const { return arms_[k]->estimate(); }
+    void forecasts(double* out) const {
+        for (std::size_t k = 0; k < arms_.size(); ++k) out[k] = estimate(k);
+    }
+    bool ready() const {
+        return std::all_of(arms_.begin(), arms_.end(), [](const auto& a) { return a->ready(); });
+    }
+    bool raw() const { return raw_; }
+    void update(double x, double y, double u, double v) {
+        if (!raw_) { x = special::probit(u); y = special::probit(v); }
+        for (auto& a : arms_) a->update(x, y);
+    }
+    const std::vector<std::unique_ptr<DependenceEstimator>>& estimators() const { return arms_; }
+
+private:
+    bool raw_;
+    std::vector<std::unique_ptr<DependenceEstimator>> arms_;
+};
+
 // One estimator's strategies: the fixed-memory arms, MFF over them, and VFF at each rate.
 class EstimatorStrategies {
 public:
     explicit EstimatorStrategies(const std::string& est, const std::vector<double>& rates = vff_rates())
-        : est_(est), raw_(est != "rmpl") {
-        for (double n : kMem) arms_.push_back(arm(est, n, "m"));
+        : est_(est), arms_(est) {
         vffs_.reserve(rates.size());
         for (double r : rates) vffs_.emplace_back(est, r);
     }
     std::size_t size() const { return kK + 1 + vffs_.size(); }
     void forecasts(std::vector<double>& f) const {
         f.resize(size());
-        for (std::size_t k = 0; k < kK; ++k) f[k] = arms_[k]->estimate();
-        f[kK] = mff_.estimate(arms_);
+        arms_.forecasts(f.data());
+        f[kK] = mff_.estimate(arms_.estimators());
         for (std::size_t j = 0; j < vffs_.size(); ++j) f[kK + 1 + j] = vffs_[j].inner->estimate();
     }
     const std::vector<double>& mff_weights() const { return mff_.w; }
-    bool mff_ready(std::size_t t) const { return mff_.ready(arms_, t); }
+    bool mff_ready(std::size_t t) const { return mff_.ready(arms_.estimators(), t); }
     // t = observations already absorbed (the margins' size before this one).
     void update(double x, double y, double u, double v, std::size_t t) {
-        mff_.score(arms_, u, v, t);
-        const double zx = special::probit(u), zy = special::probit(v);
-        for (auto& a : arms_) { if (raw_) a->update(x, y); else a->update(zx, zy); }
-        for (auto& vf : vffs_) vf.update(x, y, u, v, t + 1, raw_);
+        mff_.score(arms_.estimators(), u, v, t);
+        arms_.update(x, y, u, v);
+        for (auto& vf : vffs_) vf.update(x, y, u, v, t + 1, arms_.raw());
     }
     const std::string& name() const { return est_; }
 
 private:
     std::string est_;
-    bool raw_;
-    std::vector<std::unique_ptr<DependenceEstimator>> arms_;
+    FixedMemoryArms arms_;
     Mff mff_;
     std::vector<Vff> vffs_;
 };

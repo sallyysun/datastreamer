@@ -29,25 +29,6 @@ Stream make_stream(const std::string& family, const std::string& scenario, unsig
     return stream;
 }
 
-FixedMemoryArms::FixedMemoryArms(const std::string& estimator) : raw_(estimator != "rmpl") {
-    arms_.reserve(thesis::kK);
-    for (double memory : thesis::kMem) arms_.push_back(thesis::arm(estimator, memory, "m"));
-}
-
-void FixedMemoryArms::forecasts(double* out) const {
-    for (std::size_t k = 0; k < arms_.size(); ++k) out[k] = estimate(k);
-}
-
-bool FixedMemoryArms::ready() const {
-    return std::all_of(arms_.begin(), arms_.end(), [](const auto& arm) { return arm->ready(); });
-}
-
-void FixedMemoryArms::update(const Stream& stream, std::size_t t) {
-    const double x = raw_ ? stream.x[t] : special::probit(stream.u[t]);
-    const double y = raw_ ? stream.y[t] : special::probit(stream.v[t]);
-    for (auto& arm : arms_) arm->update(x, y);
-}
-
 WindowScores summarize_window(const thesis::Win& window, const std::vector<double>& squared_error,
                               const std::vector<double>& excess, const std::vector<double>& hellinger) {
     const bool dense = std::string_view(window.name) == "rec_0_100";
@@ -138,7 +119,7 @@ int run_weights(const Run& run) {
                         for (std::size_t k = 0; k < kK; ++k) ws[b * kK + k] += m[di].w[k];
                     }
                     for (int di = 0; di < 2; ++di) m[di].score(arms.estimators(), s.u[t], s.v[t], t);
-                    arms.update(s, t);
+                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
                 }
                 for (int di = 0; di < 2; ++di)
                     for (const auto& w : wins) {

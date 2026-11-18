@@ -62,7 +62,7 @@ int run_regretfam(const Run& run) {
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t);
                     }
-                    arms.update(s, t);
+                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);
@@ -134,7 +134,7 @@ int run_regret(const Run& run) {
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                     }
-                    arms.update(s, t);
+                    arms.update(s.x[t], s.y[t], s.u[t], s.v[t]);
                 }
                 const std::size_t T = L.size();
                 const auto oracle = regret_oracle(L);

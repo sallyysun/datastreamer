@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "../../src/copula_family.hpp"
-#include "../../src/estimators/dependence/estimator.hpp"
+#include "../../src/estimators/device.hpp"
 #include "study_stream.hpp"
 
 namespace thesis {
@@ -29,21 +29,7 @@ struct Stream : StudySeries { std::vector<double> par; };
 inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed);
 
-class FixedMemoryArms {
-public:
-    explicit FixedMemoryArms(const std::string& estimator);
-
-    double estimate(std::size_t arm) const { return arms_[arm]->estimate(); }
-    void forecasts(double* out) const;
-    bool ready() const;
-    void update(const Stream& stream, std::size_t t);
-
-    const auto& estimators() const { return arms_; }
-
-private:
-    bool raw_;
-    std::vector<std::unique_ptr<DependenceEstimator>> arms_;
-};
+using thesis::FixedMemoryArms;
 
 struct WindowScores {
     double rmse, excess_x1000, h2_x1000;
