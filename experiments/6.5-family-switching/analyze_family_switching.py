@@ -17,16 +17,24 @@ SWITCHES = [(g, f"{C.FAMILY_TEXT[a]} → {C.FAMILY_TEXT[b]}") for g, a, b in C.S
 ESTIMATORS = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 ACCURACY_METRICS = [("excess_x1000", "Excess log loss"), ("h2_x1000", "Squared Hellinger")]
 BOOTSTRAP_DRAWS, BOOTSTRAP_SEED = 10000, 20261115
+EARLY_END = C.CHANGE + 100
+SETTLED_START = C.CHANGE + 500
+EVALUATION_TICKS = f"{C.BURN}–{C.T - 1}"
+EARLY_TICKS = f"{C.CHANGE}–{EARLY_END - 1}"
+LATE_TICKS = f"{EARLY_END}–{C.T - 1}"
+POST_TICKS = f"{C.CHANGE}–{C.T - 1}"
+PRE_TICKS = f"{C.BURN}–{C.CHANGE - 1}"
+SETTLED_TICKS = f"{SETTLED_START}–{C.T - 1}"
 
 RMPL_HEADER = ["# Section 6.5 (RMPL / KLL configuration) — family-augmented vs Gaussian-only MFF\n",
-          "Configuration: RMPL arms N_eff ∈ {39, 99, 199, 399, 1999} on shared cumulative KLL (k = 256) pseudo-observations; "
-          "family-augmented MFF = 20 models (Gaussian, t4, Clayton, Gumbel × 5 memories; each RMPL ρ_S mapped to the family "
-          "parameter by inversion, as in the Section 6.4 scoring-function experiment); Gaussian-only MFF = the 5 Gaussian models; "
-          "both log loss, η = 1, δ = 10⁻⁴, mixture density forecast, warm-up as Chapter 6. 60 replications (seeds 42–101), "
-          "T = 5000, ρ_S = 0.6 constant, switch at observation 2500, evaluation from observation 500.\n",
-          "Verification: on the Gaussian constant path, Gaussian-only MFF reproduces the existing Section 6.3 mixture-density MFF "
-          "and Section 6.4 log-loss MFF (RMPL) exactly (ρ_S RMSE and excess log loss, all 60 seeds, max difference 0).\n"]
-
+          f"RMPL memories {', '.join(map(str, C.MEMORIES))} use shared cumulative KLL "
+          f"(k = {C.STUDY['kll_capacity']}). Family-augmented MFF combines {len(CONSTANT_FAMILIES) * len(C.MEMORIES)} models "
+          f"by mapping each RMPL ρ_S to the working family's parameter. Gaussian-only MFF uses {len(C.MEMORIES)} models. "
+          "Both use mixture forecasts, log loss, η = 1 and δ = 10⁻⁴. "
+          f"Study defaults are {len(C.SEEDS)} replications from seed {C.SEEDS.start}, T = {C.T}, "
+          f"ρ_S = {C.CONSTANT_RHO_S:g}, switch at {C.CHANGE}, and evaluation from {C.BURN}.\n",
+          "In the reference study, Gaussian-only MFF on the constant Gaussian path exactly matched the Section 6.3 mixture-density "
+          "and Section 6.4 log-loss RMPL results for ρ_S RMSE and excess log loss.\n"]
 
 
 def read_family_results(kind, regime):
@@ -47,7 +55,7 @@ def q(x):
 def crossing(d):
     t50 = np.where(d.t50 >= 0, d.t50, np.inf)
     t90 = np.where(d.t90 >= 0, d.t90, np.inf)
-    return f"{q(t50)} | {q(t90)} | {(d.t50 >= 0).sum()}/60 / {(d.t90 >= 0).sum()}/60"
+    return f"{q(t50)} | {q(t90)} | {(d.t50 >= 0).sum()}/{len(d)} / {(d.t90 >= 0).sum()}/{len(d)}"
 
 
 def paired(dd):
@@ -56,27 +64,30 @@ def paired(dd):
 
 def identification():
     M = ["## Initial identification (constant family, uniform start)\n",
-         "| Generating family | 50% weight, median [IQR] | 90% weight, median [IQR] | reached 50% / 90% | another family ≥ 50% after identification | share of later obs. with true family ≥ 50% (median, min) | mean true-family weight, obs. 500–4999 |",
+         "| Generating family | 50% weight, median [IQR] | 90% weight, median [IQR] | reached 50% / 90% | another family ≥ 50% after identification | "
+         f"share of later obs. with true family ≥ 50% (median, min) | mean true-family weight, obs. {EVALUATION_TICKS} |",
          "|---|---|---|---|---|---|---|"]
     for g, gl in CONSTANT_FAMILIES:
         d, p = read_family_results("ident", g), read_family_results("path", g)
-        w = p[(p.family == g) & (p.t >= 500)]["mean"].mean()
-        M.append(f"| {gl} | {crossing(d)} | {int(d.incorrect_majority.sum())}/60 | "
+        w = p[(p.family == g) & (p.t >= C.BURN)]["mean"].mean()
+        M.append(f"| {gl} | {crossing(d)} | {int(d.incorrect_majority.sum())}/{len(d)} | "
                  f"{d.share_ge50_after.median():.3f} ({d.share_ge50_after.min():.3f}) | {w:.3f} |")
     M += ["\n## Switch adaptation\n",
-          "| Switch | new family 50%, median [IQR] (obs. after switch) | 90%, median [IQR] | reached 50% / 90% | new-family weight before switch | new-family weight, obs. 3000–4999 | another family ≥ 50% after identification |",
+          "| Switch | new family 50%, median [IQR] (obs. after switch) | 90%, median [IQR] | reached 50% / 90% | new-family weight before switch | "
+          f"new-family weight, obs. {SETTLED_TICKS} | another family ≥ 50% after identification |",
           "|---|---|---|---|---|---|---|"]
     for g, gl in SWITCHES:
         d, p = read_family_results("ident", g), read_family_results("path", g)
-        w = p[(p.family == d.target.iloc[0]) & (p.t >= 3000)]["mean"].mean()
-        M.append(f"| {gl} | {crossing(d)} | {d.pre_weight_target.mean():.4f} | {w:.3f} | {int(d.incorrect_majority.sum())}/60 |")
+        w = p[(p.family == d.target.iloc[0]) & (p.t >= SETTLED_START)]["mean"].mean()
+        M.append(f"| {gl} | {crossing(d)} | {d.pre_weight_target.mean():.4f} | {w:.3f} | {int(d.incorrect_majority.sum())}/{len(d)} |")
     return M
 
 
 def density(rows):
     M = ["\n## Predictive density accuracy\n",
-         "ΔL is Gaussian-only minus family-augmented loss (×10⁻³ nats/obs, mean ± 2 SE over 60 pairs).\n",
-         "| Scenario | first 100 after switch (2500–2599) | remaining 2400 (2600–4999) | full post-switch (2500–4999) | pre-switch (500–2499) | L Gaussian-only / family (post) |",
+         "ΔL is Gaussian-only minus family-augmented loss (×10⁻³ nats/obs, paired mean ± 2 SE).\n",
+         f"| Scenario | early recovery ({EARLY_TICKS}) | later recovery ({LATE_TICKS}) | full post-switch ({POST_TICKS}) | "
+         f"pre-switch ({PRE_TICKS}) | L Gaussian-only / family (post) |",
          "|---|---|---|---|---|---|"]
     for g, gl in SWITCHES:
         x = paired_methods(read_family_results("seeds", g), "excess_x1000", ["method", "window"])
@@ -86,7 +97,7 @@ def density(rows):
             rows.append(dict(regime=g, window=w, dL=m, dL_2se=se2, n=len(x)))
             cells.append(format_estimate(m, se2, "+.1f", ".1f"))
         M.append(f"| {gl} | " + " | ".join(cells) + f" | {x[('gaussian_mff', 'post')].mean():.2f} / {x[('family_mff', 'post')].mean():.2f} |")
-    M += ["\nConstant families (observations 500–4999): ΔL (negative = cost of family augmentation)\n",
+    M += [f"\nConstant families (observations {EVALUATION_TICKS}): ΔL (negative = cost of family augmentation)\n",
           "| Generating family | ΔL, mean ± 2 SE | L Gaussian-only / family |", "|---|---|---|"]
     for g, gl in CONSTANT_FAMILIES:
         s = read_family_results("seeds", g)
@@ -135,7 +146,7 @@ def row(D, e, g, w, m):
 
 def accuracy_report(D):
     M = ["# Section 6.5 predictive accuracy across estimators (family-augmented vs Gaussian-only MFF)\n",
-         "Full post-switch window (observations 2500–4999), 60 paired replications. Absolute values ×10⁻³ (nats/obs for excess log loss). "
+         f"Full post-switch window (observations {POST_TICKS}). Absolute values ×10⁻³ (nats/obs for excess log loss). "
          "Percentage reduction = 100 (L_G − L_F)/L_G with ± 2 SE from a paired-seed bootstrap of the ratio of means (95% percentile interval in brackets).\n",
          "| Metric | Switch | Estimator | Gaussian-only | Family-augmented | Absolute reduction ± 2 SE | % reduction ± 2 SE [95% CI] |",
          "|---|---|---|---|---|---|---|"]
@@ -151,12 +162,12 @@ def accuracy_report(D):
              f"{post[post.metric == 'h2_x1000'].min_gauss.min():.2f} ×10⁻³ (H²); all positive and far from zero.")
     M += ["\n## RMPL recovery windows\n",
           "Absolute reduction (×10⁻³, mean ± 2 SE). Positive values favour family augmentation.\n",
-          "| Switch | Metric | first 100 (2500–2599) | remaining 2400 (2600–4999) | full post-switch |", "|---|---|---|---|---|"]
+          f"| Switch | Metric | early ({EARLY_TICKS}) | later ({LATE_TICKS}) | full post-switch |", "|---|---|---|---|---|"]
     for g, gl in SWITCHES:
         for m, ml in ACCURACY_METRICS:
             c = [row(D, "rmpl", g, w, m) for w in ("rec_0_100", "late", "post")]
             M.append(f"| {gl} | {ml} | " + " | ".join(format_estimate(r.dL, r.dL_2se) for r in c) + " |")
-    M.append("\nH² uses checkpoints: every 10 observations in 2500–2599 (rec_0_100) and every 50 elsewhere; excess log loss uses every observation.")
+    M.append(f"\nH² uses checkpoints every 10 observations in {EARLY_TICKS} and every 50 elsewhere. Excess log loss uses every observation.")
     M += ["\n## Estimator agreement after the switch\n",
           "| Metric | Switch | spread (pp) | largest 2 SE (pp) |", "|---|---|---|---|"]
     for m, ml in ACCURACY_METRICS:

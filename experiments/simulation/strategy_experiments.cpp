@@ -2,40 +2,28 @@
 // Usage: COPULA=<family> strategy_experiments [seeds=60]; LIVE=1 uses the TCP stream.
 // See the section run.sh scripts for study flags and output files.
 
-#include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "../../src/estimators/dependence/datasketches_kll.hpp"
 #include "../../src/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "regret_oracle.hpp"
+#include "strategy_runs.hpp"
 #include "study_stream.hpp"
 
-namespace {
-using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;
-using thesis::Win; using thesis::windows; using thesis::checkpoint;
-using thesis::kN; using thesis::kBurn; using thesis::kChange; using thesis::kK; using thesis::kMem;
-const char* kEst[3] = {"xiao", "hermite", "rmpl"};
-// Strategies: five fixed arms, MFF, then one VFF per rate. Default rates 0.02 / 0.1 named vff_slow / vff_fast (the
-// original outputs); VFF_RATES=a,b,... names them vff_<a>, ... (sensitivity runs; write under TAG=...).
-std::vector<std::string> kStrat = thesis::strategy_names();
-std::vector<double> kRates = thesis::vff_rates();
+namespace strategy_experiments {
 
 std::unique_ptr<DependenceEstimator> arm(const std::string& e, double n) { return thesis::arm(e, n, "m"); }
 
-struct Stream { std::vector<double> x, y, rho, par, u, v, pu, pv; };
-
 Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
     Stream stream;
-    const auto generating_family = family_of(family);
-    for_each_study_observation(family, scenario, seed, kN, [&](const StudyObservation& sample) {
+    const auto generating_family = thesis::family_of(family);
+    for_each_study_observation(family, scenario, seed, thesis::kN, [&](const StudyObservation& sample) {
         stream.x.push_back(sample.x);
         stream.y.push_back(sample.y);
         stream.rho.push_back(sample.rho_s);
@@ -48,30 +36,22 @@ Stream make_stream(const std::string& family, const std::string& scenario, unsig
     return stream;
 }
 
-// rho_S -> family parameter, tabulated on 40001 points between the family's parameter bounds (exact for the Gaussian):
-// how each RMPL arm's rho_S becomes a working-family density in 6.4-6.5.
-struct FamilyInverse {
-    copula::Family F;
-    double lo = 0, hi = 0;
-    std::vector<double> th;
-    explicit FamilyInverse(copula::Family f) : F(f) {
-        if (F == copula::Family::Gaussian) return;
-        const double plo = F == copula::Family::Clayton ? copula::Clayton::kMinParam : F == copula::Family::Gumbel ? copula::Gumbel::kMinParam : copula::StudentT::kMinParam;
-        const double phi = F == copula::Family::Clayton ? copula::Clayton::kMaxParam : F == copula::Family::Gumbel ? copula::Gumbel::kMaxParam : copula::StudentT::kMaxParam;
-        lo = copula::spearman_from_param(F, plo);
-        hi = copula::spearman_from_param(F, phi);
-        for (int i = 0; i < 40001; ++i) th.push_back(copula::param_from_spearman(F, lo + (hi - lo) * i / 40000.0));
-    }
-    bool clamped(double rho) const { return F != copula::Family::Gaussian && (rho <= lo || rho >= hi); }
-    double operator()(double rho) const {
-        if (F == copula::Family::Gaussian) return copula::param_from_spearman(F, rho);
-        const double x = (std::clamp(rho, lo, hi) - lo) / (hi - lo) * (th.size() - 1.0);
-        const std::size_t i = std::min(th.size() - 2, std::size_t(x));
-        return th[i] + (x - i) * (th[i + 1] - th[i]);
-    }
-};
+}  // namespace strategy_experiments
 
-struct Run { int seeds; std::string cop, sfx; const char* tag; H2Table& h2; };
+namespace {
+using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;
+using thesis::Win; using thesis::windows; using thesis::checkpoint;
+using thesis::kN; using thesis::kBurn; using thesis::kChange; using thesis::kK; using thesis::kMem;
+using strategy_experiments::Run;
+using strategy_experiments::Stream;
+using strategy_experiments::arm;
+using strategy_experiments::kEst;
+using strategy_experiments::make_stream;
+
+// Strategies: five fixed arms, MFF, then one VFF per rate. Default rates 0.02 / 0.1 named vff_slow / vff_fast (the
+// original outputs); VFF_RATES=a,b,... names them vff_<a>, ... (sensitivity runs; write under TAG=...).
+std::vector<std::string> kStrat = thesis::strategy_names();
+std::vector<double> kRates = thesis::vff_rates();
 
 int run_validate(const Run& run) {
     const std::string& cop = run.cop;
@@ -89,577 +69,6 @@ int run_validate(const Run& run) {
         double m = 0; for (int k = 0; k < 5; ++k) m += ws[k] * std::exp(gauss_logc(rs[k], 0.3, 0.8));
         std::printf("VALIDATE mix_logc: %.10f vs %.10f\n", lm, std::log(m));
     }
-    return 0;
-}
-
-// Compare family-aware and Gaussian-only MFF at matched dependence. Families switch at tick 2500.
-int run_famswitch(const Run& run) {
-    const int seeds = run.seeds;
-    H2Table& h2 = run.h2;
-    const char* GN[7] = {"gaussian", "t", "clayton", "gumbel", "gauss2t", "gauss2clayton", "clayton2gumbel"};
-    const int G0[7] = {0, 1, 2, 3, 0, 0, 2}, G1[7] = {0, 1, 2, 3, 1, 2, 3};
-    const copula::Family WF[4] = {copula::Family::Gaussian, copula::Family::StudentT, copula::Family::Clayton, copula::Family::Gumbel};
-    const char* WN[4] = {"gaussian", "t", "clayton", "gumbel"};
-    const FamilyInverse inv[4] = {FamilyInverse(WF[0]), FamilyInverse(WF[1]), FamilyInverse(WF[2]), FamilyInverse(WF[3])};
-    auto theta_of = [&](int wi, double rho) { return inv[wi](rho); };
-    const std::string fx = std::getenv("FS_TAG") ? std::string("_") + std::getenv("FS_TAG") : std::string();
-    std::FILE* fo = std::fopen(("results/famsw_seeds" + fx + ".csv").c_str(), "w");
-    std::FILE* fi = std::fopen(("results/famsw_ident" + fx + ".csv").c_str(), "w");
-    std::FILE* fp = std::fopen(("results/famsw_path" + fx + ".csv").c_str(), "w");
-    if (!fo || !fi || !fp) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    // FS_H2=1: also squared Hellinger H^2(c_true, mixture) at the Chapter 6 checkpoints (every 50 from tick 500; every
-    // 10 in [2500, 2600) on switch paths, counted only in rec_0_100), on the 81 x 81 grid of the 6.3 evaluation:
-    // Gaussian components in closed form (as H2Table::mix), t4 / Clayton / Gumbel components tabulated on a rho_S grid
-    // (step 0.0025) and interpolated (checked against exact integration at start). Truth table per (family, parameter).
-    const bool fh2 = std::getenv("FS_H2") != nullptr;
-    std::fprintf(fo, fh2 ? "gen,seed,method,window,rmse,excess_x1000,h2_x1000\n" : "gen,seed,method,window,rmse,excess_x1000\n");
-    const int ng = h2.g.size(); const int nr = 799; const double rlo = -0.995, rst = 0.0025;
-    std::vector<std::vector<float>> ctab(4);
-    std::map<std::pair<int, double>, std::vector<double>> truthc;
-    if (fh2)
-        for (int wi = 1; wi < 4; ++wi) {
-            ctab[wi].resize(std::size_t(nr) * ng * ng);
-            for (int a = 0; a < nr; ++a) {
-                const double thv = theta_of(wi, rlo + rst * a);
-                for (int i = 0; i < ng; ++i)
-                    for (int j = 0; j < ng; ++j) {
-                        const double l = copula::log_density(WF[wi], h2.g.u[i], h2.g.u[j], thv);
-                        ctab[wi][(std::size_t(a) * ng + i) * ng + j] = float(std::isfinite(l) ? std::exp(l) : 0.0);
-                    }
-            }
-        }
-    // H^2 of the truth (family gt, parameter par) against sum_m w_m c_{wi_m}(rho_m)
-    auto h2mix = [&](int gt, double par, const int* wis, const double* rhos, const double* ws, int nm) {
-        auto key = std::make_pair(gt, par);
-        auto it = truthc.find(key);
-        if (it == truthc.end()) {
-            const dmetric::Table tt(h2.g, [&](double a, double b) { const double l = copula::log_density(WF[gt], a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
-            it = truthc.emplace(key, tt.v).first;
-        }
-        std::vector<double> r(nm), c0(nm), c1(nm), fr(nm); std::vector<std::size_t> i0(nm);
-        for (int m = 0; m < nm; ++m) {
-            if (wis[m] == 0) {
-                r[m] = copula::param_from_spearman(copula::Family::Gaussian, std::clamp(rhos[m], -0.999, 0.999));
-                c0[m] = 1 / std::sqrt(1 - r[m] * r[m]); c1[m] = 1 / (2 * (1 - r[m] * r[m]));
-            } else {
-                const double x = (std::clamp(rhos[m], rlo, rlo + rst * (nr - 1)) - rlo) / rst;
-                i0[m] = std::min(std::size_t(nr - 2), std::size_t(x)); fr[m] = x - i0[m];
-            }
-        }
-        double sacc = 0;
-        for (int i = 0; i < ng; ++i)
-            for (int j = 0; j < ng; ++j) {
-                const double x = h2.g.z[i], y = h2.g.z[j];
-                const std::size_t o = std::size_t(i) * ng + j;
-                double mm = 0;
-                for (int m = 0; m < nm; ++m) {
-                    if (ws[m] <= 0) continue;
-                    if (wis[m] == 0) mm += ws[m] * c0[m] * std::exp(-(r[m] * r[m] * (x * x + y * y) - 2 * r[m] * x * y) * c1[m]);
-                    else { const float* T0 = &ctab[wis[m]][i0[m] * ng * ng]; mm += ws[m] * ((1 - fr[m]) * T0[o] + fr[m] * T0[o + ng * ng]); }
-                }
-                sacc += std::sqrt(std::max(it->second[o], 0.0) * mm) * h2.g.w[i] * h2.g.w[j];
-            }
-        return 1.0 - sacc;
-    };
-    if (fh2) {   // tabulated components vs exact dmetric integration, one mixture per non-Gaussian family
-        double worst = 0;
-        for (int wi = 1; wi < 4; ++wi) {
-            const int wis[3] = {wi, wi, 0}; const double rhs[3] = {0.31, 0.6123, 0.55}, wss[3] = {0.3, 0.5, 0.2};
-            const double par = copula::param_from_spearman(WF[wi], thesis::kConstantRhoS);
-            const dmetric::Table tt(h2.g, [&](double a, double b) { const double l = copula::log_density(WF[wi], a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
-            const dmetric::Table mt(h2.g, [&](double a, double b) { double m = 0; for (int k = 0; k < 3; ++k) { const double th = wis[k] == 0 ? copula::param_from_spearman(copula::Family::Gaussian, rhs[k]) : copula::param_from_spearman(WF[wis[k]], rhs[k]); const double l = copula::log_density(WF[wis[k]], a, b, th); m += wss[k] * (std::isfinite(l) ? std::exp(l) : 0.0); } return m; });
-            const double ex = dmetric::hellinger2(h2.g, tt, mt), tb = h2mix(wi, par, wis, rhs, wss, 3);
-            worst = std::max(worst, std::fabs(tb - ex) / ex);
-        }
-        if (study_verbose())
-            std::printf("Family-switch mixture H2 max relative error %.2e\n", worst);
-    }
-    std::fprintf(fi, "gen,seed,kind,target,t50,t90,share_ge50_after,incorrect_majority,first_incorrect,pre_weight_target,n_guard\n");
-    std::fprintf(fp, "gen,t,family,mean,sd\n");
-    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
-    // FS_EST = rmpl (default) | xiao | hermite: the five arms of that estimator (counting matrix / Hermite read the raw
-    // data with their own margins, as in Sections 6.3-6.4; RMPL reads probit of the KLL pseudo-observations).
-    const std::string fest = std::getenv("FS_EST") ? std::getenv("FS_EST") : "rmpl";
-    std::vector<int> gens;
-    if (const char* gs = std::getenv("FS_GENS")) {   // comma-separated subset of GN
-        std::string s(gs); std::size_t p = 0;
-        while (p <= s.size()) {
-            std::size_t q = s.find(',', p); if (q == std::string::npos) q = s.size();
-            const std::string tok = s.substr(p, q - p);
-            for (int g = 0; g < 7; ++g) if (tok == GN[g]) gens.push_back(g);
-            p = q + 1;
-        }
-    } else for (int g = 0; g < 7; ++g) gens.push_back(g);
-    for (int g : gens) {
-        const bool sw = G0[g] != G1[g];
-        std::vector<double> ps(4 * kN, 0.0), pq(4 * kN, 0.0);
-        for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = base + sd;
-            const Stream s = make_stream(GN[g], "constant", seed);
-            std::vector<std::unique_ptr<DependenceEstimator>> arms;
-            for (double n : kMem) arms.push_back(arm(fest, n));
-            // instance 0: family (20 models, index wi * 5 + k); instance 1: Gaussian-only (5 models)
-            std::vector<double> wf(20, 1.0 / 20), wg(kK, 1.0 / kK);
-            std::vector<double> sef(kN), seg(kN), exf(kN), exg(kN), hhf(kN, NAN), hhg(kN, NAN);
-            std::vector<std::array<double, 4>> fw(kN);
-            long nguard = 0;
-            double th[4][kK], te[4][kK], ld[4][kK], f[kK];
-            std::vector<double> family_losses(wf.size()), gaussian_losses(wg.size()), log_weights(wf.size());
-            for (std::size_t t = 0; t < kN; ++t) {
-                bool ready = t >= 30;
-                for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
-                const int gt = t < kChange ? G0[g] : G1[g];
-                const double part = copula::param_from_spearman(WF[gt], thesis::kConstantRhoS);
-                const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
-                for (int wi = 0; wi < 4; ++wi)
-                    for (std::size_t k = 0; k < kK; ++k) {
-                        th[wi][k] = theta_of(wi, f[k]);
-                        te[wi][k] = wi == 0 ? copula::param_from_spearman(copula::Family::Gaussian, std::clamp(f[k], -0.999, 0.999)) : th[wi][k];
-                        ld[wi][k] = copula::log_density(WF[wi], s.pu[t], s.pv[t], te[wi][k]);
-                    }
-                // forecasts held before tick t
-                auto mixlog = [&](const double* w, int nw, bool fam) {
-                    double top = -INFINITY;
-                    for (int i = 0; i < nw; ++i) if (w[i] > 0) top = std::max(top, std::log(w[i]) + (fam ? ld[i / kK][i % kK] : ld[0][i]));
-                    double m = 0;
-                    for (int i = 0; i < nw; ++i) if (w[i] > 0) m += std::exp(std::log(w[i]) + (fam ? ld[i / kK][i % kK] : ld[0][i]) - top);
-                    return top + std::log(m);
-                };
-                double rf = 0, rg = 0;
-                for (int i = 0; i < 20; ++i) rf += wf[i] * f[i % kK];
-                for (std::size_t k = 0; k < kK; ++k) rg += wg[k] * f[k];
-                rf = std::clamp(rf, -1.0, 1.0); rg = std::clamp(rg, -1.0, 1.0);
-                sef[t] = (rf - s.rho[t]) * (rf - s.rho[t]); seg[t] = (rg - s.rho[t]) * (rg - s.rho[t]);
-                exf[t] = lc - mixlog(wf.data(), 20, true); exg[t] = lc - mixlog(wg.data(), kK, false);
-                if (fh2 && checkpoint(sw ? "jump" : "constant", t)) {
-                    int wis[20]; double rhs[20];
-                    for (int i = 0; i < 20; ++i) { wis[i] = i / int(kK); rhs[i] = f[i % kK]; }
-                    hhf[t] = h2mix(gt, part, wis, rhs, wf.data(), 20);
-                    hhg[t] = h2mix(gt, part, wis, rhs, wg.data(), int(kK));   // first five entries: the Gaussian models
-                }
-                for (int wi = 0; wi < 4; ++wi) { double a = 0; for (std::size_t k = 0; k < kK; ++k) a += wf[wi * kK + k]; fw[t][wi] = a; }
-                if (ready) {
-                    for (int wi = 0; wi < 4; ++wi) {
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            family_losses[wi * kK + k] = -copula::log_density(WF[wi], s.u[t], s.v[t], th[wi][k]);
-                        }
-                    }
-                    std::copy_n(family_losses.begin(), kK, gaussian_losses.begin());
-                    nguard += thesis::guard_mff_losses(family_losses);
-                    nguard += thesis::guard_mff_losses(gaussian_losses);
-                    thesis::apply_fixed_share(wf, family_losses, log_weights, 1.0, 1e-4);
-                    thesis::apply_fixed_share(wg, gaussian_losses, log_weights, 1.0, 1e-4);
-                }
-                const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                for (auto& a : arms) { if (fest == "rmpl") a->update(zx, zy); else a->update(s.x[t], s.y[t]); }   // as in 6.3
-            }
-            // windows
-            std::vector<Win> wins{{"whole", kBurn, kN}};
-            if (sw) { wins.push_back({"pre", kBurn, kChange}); wins.push_back({"rec_0_100", kChange, kChange + 100});
-                      wins.push_back({"late", kChange + 100, kN}); wins.push_back({"post", kChange, kN}); }
-            for (const auto& w : wins)
-                for (int m = 0; m < 2; ++m) {
-                    double a = 0, b = 0, hsum = 0; int nh = 0;
-                    const bool dense = std::string(w.name) == "rec_0_100";
-                    for (std::size_t t = w.a; t < w.b; ++t) {
-                        a += m ? seg[t] : sef[t]; b += m ? exg[t] : exf[t];
-                        const double hv = m ? hhg[t] : hhf[t];
-                        if (!std::isnan(hv) && (dense || (t - kBurn) % 50 == 0)) { hsum += hv; ++nh; }
-                    }
-                    const double n = double(w.b - w.a);
-                    if (fh2) std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, std::sqrt(a / n), 1000 * b / n, nh ? 1000 * hsum / nh : NAN);
-                    else std::fprintf(fo, "%s,%u,%s,%s,%.8f,%.6f\n", GN[g], seed, m ? "gaussian_mff" : "family_mff", w.name, std::sqrt(a / n), 1000 * b / n);
-                }
-            // identification: constant = true family from t = 0; switch = new family from 2500 (times relative)
-            const int tgt = G1[g];
-            const std::size_t t0 = sw ? kChange : 0;
-            long t50 = -1, t90 = -1, firstinc = -1; long after = 0, ge = 0; bool inc = false;
-            for (std::size_t t = t0; t < kN; ++t) {
-                const double wt = fw[t][tgt];
-                if (t50 < 0 && wt >= 0.5) t50 = long(t - t0);
-                if (t90 < 0 && wt >= 0.9) t90 = long(t - t0);
-                if (t50 >= 0 && long(t - t0) >= t50) {
-                    ++after; if (wt >= 0.5) ++ge;
-                    for (int wi = 0; wi < 4; ++wi) if (wi != tgt && fw[t][wi] >= 0.5 && !inc) { inc = true; firstinc = long(t - t0); }
-                }
-            }
-            std::fprintf(fi, "%s,%u,%s,%s,%ld,%ld,%.6f,%d,%ld,%.6f,%ld\n", GN[g], seed, sw ? "switch" : "initial", WN[tgt], t50, t90,
-                         after ? double(ge) / after : NAN, int(inc), firstinc, sw ? fw[kChange - 1][tgt] : fw[0][tgt], nguard);
-            for (std::size_t t = 0; t < kN; ++t) for (int wi = 0; wi < 4; ++wi) { ps[wi * kN + t] += fw[t][wi]; pq[wi * kN + t] += fw[t][wi] * fw[t][wi]; }
-        }
-        for (std::size_t t = 0; t < kN; t += 10)
-            for (int wi = 0; wi < 4; ++wi) {
-                const double mu = ps[wi * kN + t] / seeds, var = std::max(0.0, pq[wi * kN + t] / seeds - mu * mu) * seeds / (seeds - 1.0);
-                std::fprintf(fp, "%s,%zu,%s,%.6f,%.6f\n", GN[g], t, WN[wi], mu, std::sqrt(var));
-            }
-    }
-    std::fclose(fo); std::fclose(fi); std::fclose(fp);
-    return 0;
-}
-
-// Compare squared and log loss across working copulas, using the same KLL inputs and arms.
-int run_scoresfam(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    const char* tag = run.tag;
-    H2Table& h2 = run.h2;
-    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
-    const bool noh2 = std::getenv("NOH2") != nullptr;
-    std::vector<double> etas{1.0};
-    if (const char* es = std::getenv("ETAS")) {
-        etas.clear(); std::string s(es); std::size_t p = 0;
-        while (p < s.size()) { std::size_t q = s.find(',', p); if (q == std::string::npos) q = s.size(); etas.push_back(std::atof(s.substr(p, q - p).c_str())); p = q + 1; }
-    }
-    if (!tag) { std::fprintf(stderr, "SCORESFAM needs TAG\n"); return 1; }
-    const copula::Family WF[4] = {copula::Family::Gaussian, copula::Family::StudentT, copula::Family::Clayton, copula::Family::Gumbel};
-    const char* WN[4] = {"gaussian", "t", "clayton", "gumbel"};
-    // rho_S -> theta inverse tables (fine grid, linear interpolation) for t / Clayton / Gumbel
-    struct Inv { double lo, hi; std::vector<double> th; };
-    std::vector<Inv> inv(4);
-    for (int wi = 1; wi < 4; ++wi) {
-        const auto F = WF[wi];
-        const double plo = F == copula::Family::Clayton ? copula::Clayton::kMinParam : F == copula::Family::Gumbel ? copula::Gumbel::kMinParam : copula::StudentT::kMinParam;
-        const double phi = F == copula::Family::Clayton ? copula::Clayton::kMaxParam : F == copula::Family::Gumbel ? copula::Gumbel::kMaxParam : copula::StudentT::kMaxParam;
-        inv[wi].lo = copula::spearman_from_param(F, plo); inv[wi].hi = copula::spearman_from_param(F, phi);
-        const int n = 40001;
-        for (int i = 0; i < n; ++i) inv[wi].th.push_back(copula::param_from_spearman(F, inv[wi].lo + (inv[wi].hi - inv[wi].lo) * i / (n - 1.0)));
-    }
-    long clamp_hits = 0;
-    auto theta_of = [&](int wi, double rho, bool& clamped) {
-        if (wi == 0) { const double r = copula::param_from_spearman(copula::Family::Gaussian, rho); clamped = std::fabs(r) >= copula::Gaussian::kMaxParam; return r; }
-        const Inv& I = inv[wi];
-        clamped = rho <= I.lo || rho >= I.hi;
-        const double x = (std::clamp(rho, I.lo, I.hi) - I.lo) / (I.hi - I.lo) * (I.th.size() - 1.0);
-        const std::size_t i = std::min(I.th.size() - 2, std::size_t(x));
-        return I.th[i] + (x - i) * (I.th[i + 1] - I.th[i]);
-    };
-    {   // inverse-table check against bisection
-        double worst = 0;
-        for (int wi = 1; wi < 4; ++wi)
-            for (double r = -0.2; r < 0.995; r += 0.0137) { bool c; const double a = theta_of(wi, r, c), b = copula::param_from_spearman(WF[wi], r); worst = std::max(worst, std::fabs(a - b) / std::max(1e-3, std::fabs(b))); }
-        if (study_verbose())
-            std::printf("Inverse table max relative error %.2e\n", worst);
-    }
-    // component density tables on a rho_S grid for H^2 (t / Clayton / Gumbel)
-    const int nr = 799; const double rlo = -0.995, rst = 0.0025;
-    const int ng = h2.g.size();
-    std::vector<std::vector<float>> ctab(4);
-    auto build = [&](int wi) {
-        if (!ctab[wi].empty() || wi == 0 || noh2) return;
-        ctab[wi].resize(std::size_t(nr) * ng * ng);
-        for (int a = 0; a < nr; ++a) {
-            bool c; const double th = theta_of(wi, rlo + rst * a, c);
-            for (int i = 0; i < ng; ++i)
-                for (int j = 0; j < ng; ++j) {
-                    const double l = copula::log_density(WF[wi], h2.g.u[i], h2.g.u[j], th);
-                    ctab[wi][(std::size_t(a) * ng + i) * ng + j] = float(std::isfinite(l) ? std::exp(l) : 0.0);
-                }
-        }
-    };
-    auto mixW = [&](int wi, double par, const double* rho, const double* w, std::size_t K) {
-        if (wi == 0) return h2.mix(par, rho, w, K);
-        auto it = h2.truth.find(par);
-        if (it == h2.truth.end()) {
-            const dmetric::Table t(h2.g, [&](double a, double b) { const double l = copula::log_density(h2.F, a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
-            it = h2.truth.emplace(par, t.v).first;
-        }
-        std::vector<std::size_t> i0(K); std::vector<double> fr(K);
-        for (std::size_t k = 0; k < K; ++k) {
-            const double x = (std::clamp(rho[k], rlo, rlo + rst * (nr - 1)) - rlo) / rst;
-            i0[k] = std::min(std::size_t(nr - 2), std::size_t(x)); fr[k] = x - i0[k];
-        }
-        double s = 0;
-        for (int i = 0; i < ng; ++i)
-            for (int j = 0; j < ng; ++j) {
-                const std::size_t o = std::size_t(i) * ng + j;
-                double m = 0;
-                for (std::size_t k = 0; k < K; ++k) {
-                    if (w[k] <= 0) continue;
-                    const float* T0 = &ctab[wi][i0[k] * ng * ng], *T1 = T0 + ng * ng;
-                    m += w[k] * ((1 - fr[k]) * T0[o] + fr[k] * T1[o]);
-                }
-                s += std::sqrt(std::max(it->second[o], 0.0) * m) * h2.g.w[i] * h2.g.w[j];
-            }
-        return 1.0 - s;
-    };
-    if (!noh2) {   // tabulated mixture H^2 vs an exact dmetric table of the same mixture
-        for (int wi = 1; wi < 4; ++wi) build(wi);
-        const double par = copula::param_from_spearman(h2.F, 0.55);
-        double worst = 0;
-        for (int wi = 1; wi < 4; ++wi)
-            for (const auto& rs : std::vector<std::array<double, 5>>{{0.21, 0.4567, 0.6, 0.78, 0.91}, {0.05, 0.33, 0.52, 0.5501, 0.97}, {-0.2, 0.1, 0.3, 0.7, 0.85}}) {
-                const double ws[5] = {0.1, 0.3, 0.2, 0.25, 0.15};
-                double th[5]; bool c;
-                for (int k = 0; k < 5; ++k) th[k] = theta_of(wi, rs[k], c);
-                const dmetric::Table truth(h2.g, [&](double a, double b) { const double l = copula::log_density(h2.F, a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
-                const dmetric::Table mt(h2.g, [&](double a, double b) { double m = 0; for (int k = 0; k < 5; ++k) { const double l = copula::log_density(WF[wi], a, b, th[k]); m += ws[k] * (std::isfinite(l) ? std::exp(l) : 0.0); } return m; });
-                const double ex = dmetric::hellinger2(h2.g, truth, mt), tb = mixW(wi, par, rs.data(), ws, 5);
-                worst = std::max(worst, std::fabs(tb - ex) / ex);
-            }
-        if (study_verbose())
-            std::printf("Mixture H2 max relative error %.2e\n", worst);
-    }
-    std::FILE* fo = std::fopen(("results/scoresfam_seeds" + sfx + ".csv").c_str(), "w");
-    std::FILE* fd = std::fopen(("results/scoresfam_diag" + sfx + ".csv").c_str(), "w");
-    if (!fo || !fd) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    std::fprintf(fo, "gen,scenario,estimator,working,score,eta,seed,window,rmse,excess_x1000,h2_x1000\n");
-    std::fprintf(fd, "gen,scenario,estimator,working,seed,arm_clamp_ticks,score_nonfinite,eval_nonfinite\n");
-    const char* EN[3] = {"rmpl", "xiao", "hermite"};
-    for (const std::string sc : {"constant", "drift", "jump"}) {
-        const auto wins = windows(sc);
-        for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = base + sd;
-            const Stream s = make_stream(cop, sc, seed);
-            std::vector<double> lc(kN);
-            for (std::size_t t = 0; t < kN; ++t) lc[t] = copula::log_density(h2.F, s.pu[t], s.pv[t], s.par[t]);
-            // inversion estimators: arm forecasts once
-            std::vector<std::vector<std::vector<double>>> FC(3, std::vector<std::vector<double>>(kK, std::vector<double>(kN)));
-            std::vector<std::vector<char>> RD(3, std::vector<char>(kN));
-            for (int ei = 0; ei < 3; ++ei) {
-                const bool raw = ei != 0;
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm(kEst[ei == 0 ? 2 : ei - 1], n));
-                for (std::size_t t = 0; t < kN; ++t) {
-                    bool ready = true;
-                    for (std::size_t k = 0; k < kK; ++k) { FC[ei][k][t] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
-                    RD[ei][t] = ready;
-                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                    for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
-                }
-            }
-            for (int wi = 0; wi < 4; ++wi) {
-                build(wi);
-                for (int ei = 0; ei < 3; ++ei) {
-                    std::vector<std::vector<double>> RH(kK, std::vector<double>(kN)), TH(kK, std::vector<double>(kN)), TE(kK, std::vector<double>(kN));
-                    std::vector<char> ready(kN, 1);
-                    long aclamp = 0;
-                    for (std::size_t k = 0; k < kK; ++k)
-                        for (std::size_t t = 0; t < kN; ++t) {
-                            bool c; RH[k][t] = FC[ei][k][t]; TH[k][t] = theta_of(wi, RH[k][t], c);
-                            if (c && t >= kBurn) ++aclamp;
-                            TE[k][t] = wi == 0 ? copula::param_from_spearman(copula::Family::Gaussian, std::clamp(RH[k][t], -0.999, 0.999)) : TH[k][t];
-                        }
-                    ready = RD[ei];
-                    struct In { int score; double eta; std::vector<double> w; std::vector<double> se, ex, hh; };
-                    std::vector<In> in;
-                    for (double h : etas) for (int sco = 0; sco < 2; ++sco)
-                        in.push_back({sco, h, std::vector<double>(kK, 1.0 / kK), std::vector<double>(kN), std::vector<double>(kN), std::vector<double>(kN, NAN)});
-                    long snf = 0, enf = 0;
-                    std::vector<double> lsq(kK), llog(kK), ld(kK), lw(kK), rk(kK);
-                    for (std::size_t t = 0; t < kN; ++t) {
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            rk[k] = RH[k][t];
-                            ld[k] = copula::log_density(WF[wi], s.pu[t], s.pv[t], TE[k][t]);
-                            if (!std::isfinite(ld[k])) { ++enf; ld[k] = -INFINITY; }
-                        }
-                        const bool cp = !noh2 && checkpoint(sc, t);
-                        for (auto& q : in) {
-                            double r = 0, top = -INFINITY;
-                            for (std::size_t k = 0; k < kK; ++k) { r += q.w[k] * rk[k]; if (q.w[k] > 0) top = std::max(top, std::log(q.w[k]) + ld[k]); }
-                            double m = 0;
-                            for (std::size_t k = 0; k < kK; ++k) if (q.w[k] > 0) m += std::exp(std::log(q.w[k]) + ld[k] - top);
-                            r = std::clamp(r, -1.0, 1.0);
-                            q.se[t] = (r - s.rho[t]) * (r - s.rho[t]);
-                            q.ex[t] = lc[t] - (top + std::log(m));
-                            if (cp) q.hh[t] = mixW(wi, s.par[t], rk.data(), q.w.data(), kK);
-                        }
-                        if (t >= 30 && ready[t]) {
-                            const double p = 12.0 * (s.u[t] - 0.5) * (s.v[t] - 0.5);
-                            for (std::size_t k = 0; k < kK; ++k) {
-                                lsq[k] = (p - rk[k]) * (p - rk[k]);
-                                llog[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], TH[k][t]);
-                            }
-                            snf += thesis::guard_mff_losses(llog);
-                            for (auto& q : in) {
-                                thesis::apply_fixed_share(q.w, q.score ? llog : lsq, lw, q.eta, 1e-4);
-                            }
-                        }
-                    }
-                    for (const auto& q : in)
-                        for (const auto& w : wins) {
-                            const bool dense = std::string(w.name) == "rec_0_100";
-                            double a = 0, b = 0, h = 0; int nh = 0;
-                            for (std::size_t t = w.a; t < w.b; ++t) {
-                                a += q.se[t]; b += q.ex[t];
-                                if (!std::isnan(q.hh[t]) && (dense || (t - kBurn) % 50 == 0)) { h += q.hh[t]; ++nh; }
-                            }
-                            const double n = double(w.b - w.a);
-                            std::fprintf(fo, "%s,%s,%s,%s,%s,%g,%u,%s,%.8f,%.6f,%.6f\n", cop.c_str(), sc.c_str(), EN[ei], WN[wi], q.score ? "log" : "squared",
-                                         q.eta, seed, w.name, std::sqrt(a / n), 1000 * b / n, nh ? 1000 * h / nh : NAN);
-                        }
-                    std::fprintf(fd, "%s,%s,%s,%s,%u,%ld,%ld,%ld\n", cop.c_str(), sc.c_str(), EN[ei], WN[wi], seed, aclamp, snf, enf);
-                    clamp_hits += aclamp;
-                }
-            }
-        }
-        std::fflush(stdout);
-    }
-    std::fclose(fo); std::fclose(fd);
-    return 0;
-}
-
-// Compare family-specific mixture regret against the best arm and the best one- or two-switch paths.
-int run_regretfam(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    const copula::Family WF[4] = {copula::Family::Gaussian, copula::Family::StudentT, copula::Family::Clayton, copula::Family::Gumbel};
-    const char* WN[4] = {"gaussian", "t", "clayton", "gumbel"};
-    const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = std::fopen(("results/regretfam_seeds" + sfx + ".csv").c_str(), "w");
-    if (!fr) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    std::fprintf(fr, "gen,scenario,working,delta,seed,T,t0,loss_mix,best0,arm0,best1,best2,sw_t,sw_from,sw_to,n_nonfinite,n_clamp\n");
-    for (const std::string sc : {"constant", "drift", "jump"}) {
-        for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
-            const Stream s = make_stream(cop, sc, seed);
-            for (int wi = 0; wi < 4; ++wi) {
-                const FamilyInverse inv(WF[wi]);
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm("rmpl", n));
-                std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
-                std::vector<std::vector<double>> L;
-                std::vector<std::array<double, 2>> mf;
-                std::vector<std::size_t> tt;
-                std::vector<double> l(kK), lw(kK);
-                long nonfin = 0, nclamp = 0;
-                for (std::size_t t = 0; t < kN; ++t) {
-                    bool ready = t >= 30;
-                    for (const auto& a : arms) ready = ready && a->ready();
-                    if (ready) {
-                        bool clamp = false;
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            const double rho = arms[k]->estimate();
-                            l[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], inv(rho));
-                            clamp = clamp || inv.clamped(rho);
-                        }
-                        nclamp += clamp;
-                        nonfin += thesis::guard_mff_losses(l);
-                        std::array<double, 2> row{};
-                        for (int di = 0; di < 2; ++di) {
-                            double lo = INFINITY, mix = 0;
-                            for (std::size_t k = 0; k < kK; ++k) lo = std::min(lo, l[k]);
-                            for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
-                            row[di] = lo - std::log(mix);
-                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
-                        }
-                        L.push_back(l); mf.push_back(row); tt.push_back(t);
-                    }
-                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                    for (auto& a : arms) a->update(zx, zy);
-                }
-                const std::size_t T = L.size();
-                const auto oracle = regret_oracle(L);
-                for (int di = 0; di < 2; ++di) {
-                    double cm = 0;
-                    for (const auto& row : mf) cm += row[di];
-                    const auto switch_tick = oracle.before_arm == oracle.after_arm
-                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", cop.c_str(), sc.c_str(), WN[wi],
-                                 deltas[di], seed, T, tt.front(), cm, oracle.fixed_loss, kMem[oracle.fixed_arm],
-                                 oracle.one_switch_loss, oracle.prefix_loss.back()[2], switch_tick,
-                                 kMem[oracle.before_arm], kMem[oracle.after_arm], nonfin, nclamp);
-                }
-            }
-        }
-    }
-    std::fclose(fr);
-    return 0;
-}
-
-// Compare Gaussian mixture and point-forecast regret against static and switching oracles.
-int run_regret(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    constexpr int MS = kSwitchBudgets;
-    const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = std::fopen(("results/regret_seeds" + sfx + ".csv").c_str(), "w");
-    std::FILE* fc = std::fopen(("results/regret_paths" + sfx + ".csv").c_str(), "w");
-    if (!fr || !fc) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    std::fprintf(fr, "copula,scenario,estimator,delta,seed,T,t0,loss_mix,loss_point,best0,arm0,best1,best2,sw_t,sw_from,sw_to\n");
-    std::fprintf(fc, "copula,scenario,estimator,delta,loss,m,t,mean,sd\n");
-    for (const std::string sc : {"constant", "drift", "jump"}) {
-        // path sums over seeds: [ei][di][loss 0 mix / 1 point][m][t]
-        const std::size_t P = 3 * 2 * 2 * MS * kN;
-        std::vector<double> s1(P, 0.0), s2(P, 0.0);
-        auto pi = [&](int ei, int di, int l, int m, std::size_t t) { return ((((std::size_t(ei) * 2 + di) * 2 + l) * MS + m) * kN) + t; };
-        std::vector<char> scored(kN, 0);
-        for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
-            const Stream s = make_stream(cop, sc, seed);
-            for (int ei = 0; ei < 3; ++ei) {
-                const std::string e = kEst[ei];
-                const bool raw = e != "rmpl";
-                std::vector<std::unique_ptr<DependenceEstimator>> arms;
-                for (double n : kMem) arms.push_back(arm(e, n));
-                std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
-                std::vector<std::vector<double>> L;          // [scored tick][k] guarded arm loss
-                std::vector<std::array<double, 4>> mf;       // mix / point loss for delta 0, 1e-4
-                std::vector<std::size_t> tt;
-                std::vector<double> f(kK), l(kK), lw(kK);
-                for (std::size_t t = 0; t < kN; ++t) {
-                    for (std::size_t k = 0; k < kK; ++k) f[k] = arms[k]->estimate();
-                    bool ready = t >= 30;
-                    for (const auto& a : arms) ready = ready && a->ready();
-                    if (ready) {
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
-                            l[k] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t], par);
-                        }
-                        thesis::guard_mff_losses(l);
-                        std::array<double, 4> row{};
-                        for (int di = 0; di < 2; ++di) {
-                            double lo = INFINITY, r = 0;
-                            for (std::size_t k = 0; k < kK; ++k) { lo = std::min(lo, l[k]); r += w[di][k] * f[k]; }
-                            double mix = 0;
-                            for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
-                            row[2 * di] = lo - std::log(mix);
-                            r = std::clamp(r, -1.0, 1.0);
-                            row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t],
-                                                                   copula::param_from_spearman(copula::Family::Gaussian, r));
-                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
-                        }
-                        L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
-                    }
-                    const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
-                    for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
-                }
-                const std::size_t T = L.size();
-                const auto oracle = regret_oracle(L);
-                for (int di = 0; di < 2; ++di) {
-                    double cm = 0, cp = 0;
-                    for (std::size_t i = 0; i < T; ++i) {
-                        cm += mf[i][2 * di]; cp += mf[i][2 * di + 1];
-                        for (int m = 0; m < MS; ++m) {
-                            const double rm = cm - oracle.prefix_loss[i][m], rp = cp - oracle.prefix_loss[i][m];
-                            s1[pi(ei, di, 0, m, tt[i])] += rm; s2[pi(ei, di, 0, m, tt[i])] += rm * rm;
-                            s1[pi(ei, di, 1, m, tt[i])] += rp; s2[pi(ei, di, 1, m, tt[i])] += rp * rp;
-                        }
-                    }
-                    const auto switch_tick = oracle.before_arm == oracle.after_arm
-                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g\n",
-                                 cop.c_str(), sc.c_str(), e.c_str(), deltas[di], seed, T, tt.front(), cm, cp,
-                                 oracle.fixed_loss, kMem[oracle.fixed_arm], oracle.one_switch_loss,
-                                 oracle.prefix_loss.back()[2], switch_tick, kMem[oracle.before_arm], kMem[oracle.after_arm]);
-                }
-            }
-        }
-        for (int ei = 0; ei < 3; ++ei)
-            for (int di = 0; di < 2; ++di)
-                for (int lo = 0; lo < 2; ++lo)
-                    for (int m = 0; m < MS; ++m)
-                        for (std::size_t t = 0; t < kN; ++t) {
-                            if (!scored[t] || (t % 10 != 9 && t != kN - 1)) continue;
-                            const double mu = s1[pi(ei, di, lo, m, t)] / seeds;
-                            const double var = std::max(0.0, s2[pi(ei, di, lo, m, t)] / seeds - mu * mu) * seeds / (seeds - 1.0);
-                            std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), kEst[ei], deltas[di],
-                                         lo ? "point" : "mix", m, t, mu, std::sqrt(var));
-                        }
-    }
-    std::fclose(fr); std::fclose(fc);
     return 0;
 }
 
@@ -1027,10 +436,10 @@ int main(int argc, char** argv) {
     H2Table h2{.F = family_of(cop)};
     const Run run{seeds, cop, sfx, tag, h2};
     if (std::getenv("VALIDATE")) return run_validate(run);
-    if (std::getenv("FAMSWITCH")) return run_famswitch(run);
-    if (std::getenv("SCORESFAM")) return run_scoresfam(run);
-    if (std::getenv("REGRETFAM")) return run_regretfam(run);
-    if (std::getenv("REGRET")) return run_regret(run);
+    if (std::getenv("FAMSWITCH")) return strategy_experiments::run_famswitch(run);
+    if (std::getenv("SCORESFAM")) return strategy_experiments::run_scoresfam(run);
+    if (std::getenv("REGRETFAM")) return strategy_experiments::run_regretfam(run);
+    if (std::getenv("REGRET")) return strategy_experiments::run_regret(run);
     if (std::getenv("SCORES")) return run_scores(run);
     if (std::getenv("WEIGHTS")) return run_weights(run);
     return run_strategies(run);

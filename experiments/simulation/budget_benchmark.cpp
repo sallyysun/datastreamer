@@ -130,7 +130,11 @@ Data simulate(const std::string& family, const std::string& scenario, unsigned s
     return d;
 }
 
-const std::size_t kPts = (kN - kBurn) / kEvery;
+std::size_t scored_index_at_or_after(std::size_t t) {
+    return t <= kBurn ? 0 : 1 + (t - kBurn - 1) / kEvery;
+}
+
+const std::size_t kPts = scored_index_at_or_after(kN);
 
 struct Acc {
     std::vector<double> rmse, post;   // per seed
@@ -200,16 +204,23 @@ double se(const std::vector<double>& v) {
 // Ticks after the jump until the mean path covers 90% of its OWN pre->settled change, so a
 // biased (misspecified) estimator is not scored as never recovering.
 double recovery_delay(const std::vector<double>& path) {
-    auto avg = [&](std::size_t t0, std::size_t t1) {
-        double s = 0.0; std::size_t n = 0;
-        for (std::size_t t = t0; t < t1; t += kEvery) { s += path[(t - kBurn) / kEvery]; ++n; }
-        return s / n;
+    constexpr std::size_t window = 1000;
+    const std::size_t jump = scored_index_at_or_after(kJump);
+    if (jump == 0 || jump >= path.size()) return -1.0;
+
+    const std::size_t pre_start = scored_index_at_or_after(kJump > window ? kJump - window : 0);
+    const std::size_t post_start = scored_index_at_or_after(std::max(kJump, kN > window ? kN - window : 0));
+    auto avg = [&](std::size_t first, std::size_t last) {
+        double sum = 0.0;
+        for (std::size_t i = first; i < last; ++i) sum += path[i];
+        return sum / (last - first);
     };
-    const double pre = avg(kJump - 1000, kJump), post = avg(kN - 1000, kN);
+    const double pre = avg(pre_start, jump), post = avg(post_start, path.size());
     const double target = pre + 0.9 * (post - pre);
-    for (std::size_t t = kJump; t < kN; t += kEvery) {
-        const double r = path[(t - kBurn) / kEvery];
-        if ((post > pre && r >= target) || (post <= pre && r <= target)) return double(t - kJump);
+    for (std::size_t i = jump; i < path.size(); ++i) {
+        const double r = path[i];
+        if ((post > pre && r >= target) || (post <= pre && r <= target))
+            return double(kBurn + i * kEvery - kJump);
     }
     return -1.0;
 }
