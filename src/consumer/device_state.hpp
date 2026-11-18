@@ -9,7 +9,7 @@
 
 #include <cstdio>
 
-#include "../estimators/device.hpp"
+#include "../estimators/scorer.hpp"
 #include "../protocol.hpp"
 #include "paired_returns.hpp"
 
