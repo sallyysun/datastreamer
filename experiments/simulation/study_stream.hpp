@@ -6,8 +6,8 @@
 #include <string>
 
 #include "study_config.hpp"
-#include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/dependence/datasketches_kll.hpp"
+#include "../../src/special_functions.hpp"
 #include "../../src/streamgenerator/datasource/copula_source.hpp"
 #include "live_source.hpp"
 
@@ -33,8 +33,8 @@ void for_each_study_observation(const std::string& family, const std::string& sc
         source = std::make_unique<CopulaSource>(*dependence, *copula, seed);
     }
 
-    ds_margin::seed(1);
-    ds_margin::Kll x_margin(thesis::kKll), y_margin(thesis::kKll);
+    datasketches_kll::seed(1);
+    datasketches_kll::Kll x_margin(thesis::kKll), y_margin(thesis::kKll);
     for (std::size_t t = 0; t < count; ++t) {
         StudyObservation observation{};
         if (source) {
@@ -42,7 +42,7 @@ void for_each_study_observation(const std::string& family, const std::string& sc
             observation.x = sample.x;
             observation.y = sample.y;
             observation.rho_s = sample.rho_s;
-            observation.knob = sample.rho;
+            observation.knob = sample.knob;
             observation.true_u = special::normal_cdf(sample.x);
             observation.true_v = special::normal_cdf(sample.y);
         } else {

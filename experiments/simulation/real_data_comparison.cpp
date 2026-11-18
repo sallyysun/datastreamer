@@ -17,9 +17,9 @@
 #include <string_view>
 #include <vector>
 
-#include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/special_functions.hpp"
-#include "../../src/estimators/copula_family.hpp"
+#include "../../src/estimators/dependence/datasketches_kll.hpp"
+#include "../../src/special_functions.hpp"
+#include "../../src/copula_family.hpp"
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
@@ -121,8 +121,8 @@ int main(int argc, char** argv) {
         const LiveStream L = live_replay(argv[1], d.x.size());
         d.x = L.x; d.y = L.y;
     }
-    ds_margin::seed(1);
-    ds_margin::Kll kx(thesis::kKll), ky(thesis::kKll);
+    datasketches_kll::seed(1);
+    datasketches_kll::Kll kx(thesis::kKll), ky(thesis::kKll);
     const std::string estimator = est_kind();
     const bool use_raw_inputs = estimator != "rmpl";
     auto arms = make_arms(estimator);

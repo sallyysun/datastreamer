@@ -9,8 +9,8 @@
 #include <string>
 #include <vector>
 
-#include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/dependence/datasketches_kll.hpp"
+#include "../../src/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "study_stream.hpp"

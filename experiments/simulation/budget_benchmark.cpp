@@ -16,7 +16,7 @@
 #include "../../src/estimators/dependence/estimator.hpp"
 #include "../../src/estimators/dependence/hermiter.hpp"
 #include "../../src/estimators/dependence/rmpl.hpp"
-#include "../../src/estimators/dependence/xiao_spearman.hpp"
+#include "../../src/estimators/dependence/count_matrix.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
 #include "../../src/streamgenerator/datasource/copula_source.hpp"
@@ -94,10 +94,10 @@ std::vector<Cfg> build_cfgs() {
 
 std::unique_ptr<DependenceEstimator> build(const Cfg& c, unsigned seed) {
     if (c.est == "xiao") {
-        XiaoSpearmanEstimator::Config x{};
+        CountingMatrixEstimator::Config x{};
         x.bins = static_cast<std::size_t>(c.approx);
         x.lambda = c.gain > 0.0 ? 1.0 - c.gain : 0.0;   // 0 = cumulative
-        return std::make_unique<XiaoSpearmanEstimator>(x, "xiao");
+        return std::make_unique<CountingMatrixEstimator>(x, "xiao");
     }
     if (c.est == "hermite") {
         HermiteEstimator::Config h{};

@@ -9,9 +9,9 @@
 #include <string>
 #include <vector>
 
-#include "dependence/ds_margin.hpp"
+#include "dependence/datasketches_kll.hpp"
 #include "evaluation.hpp"
-#include "special_functions.hpp"
+#include "../special_functions.hpp"
 
 namespace thesis {
 
@@ -49,13 +49,12 @@ private:
 
 class Device {
 public:
-    Device() : sets_(make_sets()), seeded_(reseed()), kx_(kKll), ky_(kKll) {}
+    Device() : sets_(make_sets()), seeded_(reseed()), margins_(kKll, kClip) {}
     // Forecasts held before the next observation: sets()[e].forecasts().
     const std::vector<StrategySet>& sets() const { return sets_; }
     // Absorb one observation; returns the shared pseudo-observations (U, V) it was scored at.
     std::pair<double, double> update(double x, double y) {
-        const double u = std::clamp(kx_.cdf(x), kClip, 1 - kClip), v = std::clamp(ky_.cdf(y), kClip, 1 - kClip);
-        kx_.insert(x); ky_.insert(y);
+        const auto [u, v] = margins_.update(x, y);
         for (auto& s : sets_) s.update(x, y, u, v, t_);
         ++t_;
         return {u, v};
@@ -68,11 +67,11 @@ private:
         for (const auto& e : estimators()) v.emplace_back(e);
         return v;
     }
-    // KLL compaction coin seeded as the runner's make_stream, after the arms (RMPL constructors reseed it).
-    static bool reseed() { ds_margin::seed(1); return true; }
+    // Seed KLL compaction to match the in-process stream.
+    static bool reseed() { datasketches_kll::seed(1); return true; }
     std::vector<StrategySet> sets_;
     bool seeded_;
-    ds_margin::Kll kx_, ky_;
+    datasketches_kll::PairedKll margins_;
     std::size_t t_ = 0;
 };
 

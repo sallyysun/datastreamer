@@ -10,7 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "../estimators/dependence/ds_margin.hpp"
+#include "../estimators/dependence/datasketches_kll.hpp"
 #include "../estimators/evaluation.hpp"
 
 class LiveLab {
@@ -18,9 +18,9 @@ public:
     LiveLab(const std::string& est, const std::vector<double>& memories, const std::vector<std::string>& families,
             double eta, double delta)
         : est_(est), raw_(est != "rmpl"), mem_(memories), fam_names_(families), eta_(eta), delta_(delta),
-          vff_(est, thesis::vff_rates()[0]), kx_(thesis::kKll), ky_(thesis::kKll) {
+          vff_(est, thesis::vff_rates()[0]), margins_(thesis::kKll, thesis::kClip) {
         for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m"));
-        for (const auto& f : fam_names_) { fam_.push_back(thesis::family_of(f)); tab_.push_back(Inverse(fam_.back())); }
+        for (const auto& f : fam_names_) fam_.push_back(copula::family_of(f));
         const std::size_t M = fam_.size() * mem_.size();
         w_.assign(M, 1.0 / double(M));
         loss_.resize(M);
@@ -38,9 +38,7 @@ public:
     double vff_neff() const { return vff_.ctl.neff(); }
 
     void update(double x, double y) {
-        const double u = std::clamp(kx_.cdf(x), thesis::kClip, 1 - thesis::kClip);
-        const double v = std::clamp(ky_.cdf(y), thesis::kClip, 1 - thesis::kClip);
-        kx_.insert(x); ky_.insert(y);
+        const auto [u, v] = margins_.update(x, y);
         score(u, v);
         const double zx = special::probit(u), zy = special::probit(v);
         for (auto& a : arms_) { if (raw_) a->update(x, y); else a->update(zx, zy); }
@@ -69,35 +67,21 @@ public:
     }
 
 private:
-    // rho_S -> family parameter by linear interpolation on a fine grid (param_from_spearman per model per tick is too
-    // slow for an interactive rate); Gaussian is closed form.
-    struct Inverse {
-        copula::Family F;
-        std::vector<double> rho, par;
-        explicit Inverse(copula::Family f) : F(f) {
-            if (F == copula::Family::Gaussian) return;
-            for (int i = 0; i <= 400; ++i) {
-                const double r = -0.98 + 1.96 * i / 400.0;
-                rho.push_back(r);
-                par.push_back(copula::param_from_spearman(F, r));
-            }
-        }
-        double operator()(double r) const {
-            if (F == copula::Family::Gaussian) return copula::param_from_spearman(F, r);
-            const double x = (std::clamp(r, rho.front(), rho.back()) - rho.front()) / (rho.back() - rho.front()) * 400.0;
-            const std::size_t i = std::min<std::size_t>(399, std::size_t(x));
-            return par[i] + (x - double(i)) * (par[i + 1] - par[i]);
-        }
-    };
-
     void score(double u, double v) {
         bool ok = t_ >= 30;
         for (const auto& a : arms_) ok = ok && a->ready();
         if (!ok) return;
         const std::size_t K = mem_.size();
-        for (std::size_t f = 0; f < fam_.size(); ++f)
-            for (std::size_t k = 0; k < K; ++k)
-                loss_[f * K + k] = -copula::log_density(fam_[f], u, v, tab_[f](arms_[k]->estimate()));
+        for (std::size_t f = 0; f < fam_.size(); ++f) {
+            const auto family = fam_[f];
+            for (std::size_t k = 0; k < K; ++k) {
+                const double rho = arms_[k]->estimate();
+                // Preserve the lab's forecast range for non-Gaussian working copulas.
+                const double target = family == copula::Family::Gaussian ? rho : std::clamp(rho, -0.98, 0.98);
+                const double parameter = copula::param_from_spearman(family, target);
+                loss_[f * K + k] = -copula::log_density(family, u, v, parameter);
+            }
+        }
         thesis::update_mff_weights(w_, loss_, log_weights_, eta_, delta_);
     }
 
@@ -106,11 +90,10 @@ private:
     std::vector<double> mem_;
     std::vector<std::string> fam_names_;
     std::vector<copula::Family> fam_;
-    std::vector<Inverse> tab_;
     double eta_, delta_;
     std::vector<std::unique_ptr<DependenceEstimator>> arms_;
     thesis::Vff vff_;
-    ds_margin::Kll kx_, ky_;
+    datasketches_kll::PairedKll margins_;
     std::vector<double> w_, loss_, log_weights_;
     std::size_t t_ = 0;
 };

@@ -1,8 +1,6 @@
 #pragma once
 
-// Replays recorded daily returns (CSV date,x,y; Section 6.6's EWMA-standardised returns) as two price series: the
-// first tick is the opening price, then p_t = p_{t-1} exp(scale * x_t), so a device's log return ln(p_t / p_{t-1}) is
-// scale * x_t. No ground truth is attached (real data).
+// Replay paired CSV returns (date,x,y) as prices. After the opening tick, log returns equal scale times each input.
 
 #include <cmath>
 #include <fstream>
@@ -13,9 +11,9 @@
 
 #include "datasource.hpp"
 
-class ReplaySource : public DataSource {
+class FileSource : public DataSource {
 public:
-    explicit ReplaySource(const std::string& path, double scale = 0.01) : scale_(scale) {
+    explicit FileSource(const std::string& path, double scale = 0.01) : scale_(scale) {
         std::ifstream f(path);
         if (!f) throw std::runtime_error("cannot open " + path);
         std::string line;

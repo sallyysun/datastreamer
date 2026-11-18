@@ -92,7 +92,7 @@ inline LiveStream live_stream(const std::string& cop, const std::string& sc, uns
     return live_run({{"SEED", std::to_string(seed)}, {"COPULA", cop}, {"DEPENDENCE", sc}}, cop, n);
 }
 
-// Recorded returns (CSV date,x,y) replayed by the server; returns arrive as 0.01 x (ReplaySource's price scale).
+// Recorded returns (CSV date,x,y) replayed by the server; returns arrive as 0.01 x (FileSource's price scale).
 inline LiveStream live_replay(const std::string& csv, std::size_t n) {
     return live_run({{"REPLAY", csv}}, "", n);
 }

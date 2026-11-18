@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -11,14 +10,10 @@
 #include <cstdio>
 
 #include "../estimators/thesis_device.hpp"
-#include "../protocol/symbol_tick.hpp"
+#include "../protocol.hpp"
+#include "paired_returns.hpp"
 
-// DeviceState is the recursively-updated state Z of a consumer device
-// (thesis D = (Z, Psi, Z_0)). update() is the one-pass update map Psi applied
-// per event. It maintains, in O(1) per update:
-//   * fixed-dimensional moments  -- Welford mean/variance of prices & returns;
-//   * the inference layer        -- a bank of online copula-dependence estimators.
-// Folds the former running_stats / state_manager / dependence_monitor into one.
+// Track price and return moments alongside the Chapter 6 estimators.
 class DeviceState {
 public:
     struct Moments {
@@ -28,24 +23,17 @@ public:
         double mean_price_x, mean_price_y;
     };
 
-    // Inference = the Chapter 6 device (src/estimators/thesis_device.hpp): shared KLL pseudo-observations, and per
-    // estimator the five fixed arms, MFF and VFF, exactly as the in-process runner.
     DeviceState() = default;
 
     // Score every strategy against the ground truth carried on the ticks (rows as the runner's strategies_seeds).
     void enable_scoring(const std::string& scenario) { scenario_ = scenario; }
 
-    // Psi: fold one event into the device state (moments + inference). The wire
-    // carries prices; the return is derived here as the log-price increment
-    // (return = ln(price_t / price_{t-1})), so the first event only seeds the
-    // previous price and produces no return.
+    // Fold prices, returns and forecasts into the device state.
     void update(const TickPair& event) {
         std::lock_guard<std::mutex> lock(mutex_);
         price_x_.add(event.x.price);
         price_y_.add(event.y.price);
-        if (has_prev_) {
-            const double rx = std::log(event.x.price / prev_price_x_);
-            const double ry = std::log(event.y.price / prev_price_y_);
+        returns_.on_tick(event, [&](double rx, double ry) {
             return_x_.add(rx);
             return_y_.add(ry);
             if (scorer_ || (!scenario_.empty() && thesis::scorable(event.x.true_family))) {
@@ -54,10 +42,7 @@ public:
                                  thesis::true_param(event.x.true_family, event.x.true_knob));
             }
             dev_.update(rx, ry);
-        }
-        prev_price_x_ = event.x.price;
-        prev_price_y_ = event.y.price;
-        has_prev_ = true;
+        });
     }
 
     Moments moments() const {
@@ -89,7 +74,7 @@ public:
     }
 
 private:
-    // Online mean/variance via Welford's algorithm (was running_stats.hpp).
+    // Welford running mean and variance.
     struct Welford {
         void add(double x) {
             ++n_;
@@ -106,8 +91,7 @@ private:
 
     mutable std::mutex mutex_;
     Welford return_x_, return_y_, price_x_, price_y_;
-    double prev_price_x_ = 0.0, prev_price_y_ = 0.0;  // for return = Δlog price
-    bool has_prev_ = false;
+    PairedReturns returns_;
     thesis::Device dev_;
     std::string scenario_;
     std::unique_ptr<thesis::Scorer> scorer_;

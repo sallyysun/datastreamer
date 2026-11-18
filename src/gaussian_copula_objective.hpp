@@ -24,9 +24,7 @@ struct GaussianCopulaObjective {
     // dl/drho = [ rho(1-rho^2) - rho(z_x^2+z_y^2) + z_x z_y (1+rho^2) ] / (1-rho^2)^2.
     static double score(double zx, double zy, double rho) {
         const double d = 1.0 - rho * rho;
-        const double a = zx * zx + zy * zy;
-        const double b = zx * zy;
-        return (rho * d - rho * a + b * (1.0 + rho * rho)) / (d * d);
+        return rho / d + ((1.0 + rho * rho) * zx * zy - rho * (zx * zx + zy * zy)) / (d * d);
     }
 
     static double fisher(double rho) {

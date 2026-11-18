@@ -1,14 +1,16 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include <kll_sketch.hpp>
 
 // One marginal rank summary backed by Apache DataSketches' KLL (external/datasketches-cpp). Same interface as
 // KllSketch. See archive/notes/studies/budget_mpl.md §10.
-namespace ds_margin {
+namespace datasketches_kll {
 
 // Counts the heap the sketch actually holds, so store_bytes() is allocation, not serialised size.
 struct Counter { std::size_t live = 0; };
@@ -65,4 +67,22 @@ private:
 
 using Kll = Margin<datasketches::kll_sketch<float, std::less<float>, CountingAlloc<float>>>;
 
-}  // namespace ds_margin
+class PairedKll {
+public:
+    PairedKll(std::uint16_t capacity, double clip) : x_(capacity), y_(capacity), clip_(clip) {}
+
+    // Compute pseudo-observations from the previous sketches, then insert the pair.
+    std::pair<double, double> update(double x, double y) {
+        const double u = std::clamp(x_.cdf(x), clip_, 1 - clip_);
+        const double v = std::clamp(y_.cdf(y), clip_, 1 - clip_);
+        x_.insert(x);
+        y_.insert(y);
+        return {u, v};
+    }
+
+private:
+    Kll x_, y_;
+    double clip_;
+};
+
+}  // namespace datasketches_kll

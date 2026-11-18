@@ -6,13 +6,12 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
-#include <numbers>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "study_config.hpp"
-#include "copula_family.hpp"
+#include "../copula_family.hpp"
 #include "density_metrics.hpp"
 #include "dependence/mff.hpp"
 #include "dependence/vff.hpp"
@@ -35,19 +34,14 @@ inline const std::vector<std::string>& strategy_names() {
     return names;
 }
 
-inline copula::Family family_of(const std::string& f) {
-    if (f == "clayton") return copula::Family::Clayton;
-    if (f == "gumbel") return copula::Family::Gumbel;
-    if (f == "t") return copula::Family::StudentT;
-    return copula::Family::Gaussian;
+using copula::family_of;
+
+inline bool scorable(const std::string& family) {
+    return copula::family_from_name(family).has_value();
 }
 
-// The true copula parameter at dependence knob d (rho_S = (6/pi) asin(d/2), clamped as the generator does), as the
-// runners compute it; scored families only.
-inline bool scorable(const std::string& f) { return f == "gaussian" || f == "t" || f == "clayton" || f == "gumbel"; }
-inline double true_param(const std::string& family, double d) {
-    const double rho = std::clamp(d, -0.999, 0.999);
-    return copula::param_from_spearman(family_of(family), 6.0 / std::numbers::pi * std::asin(rho / 2.0));
+inline double true_param(const std::string& family, double knob) {
+    return copula::param_from_spearman(family_of(family), copula::target_spearman(knob));
 }
 
 struct Win { const char* name; std::size_t a, b; };

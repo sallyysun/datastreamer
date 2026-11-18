@@ -15,8 +15,7 @@ DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
 SERVER_SRC = \
 src/streamgenerator/main.cpp \
 src/streamgenerator/datasource/synthetic_source.cpp \
-src/streamgenerator/runtime/producer.cpp \
-src/protocol/serializer.cpp
+src/streamgenerator/runtime/producer.cpp
 
 SERVER_OUT = server
 
@@ -51,7 +50,7 @@ server: $(STUDY_HEADER)
 CONSUMER_OUT = consumer
 
 consumer: $(STUDY_HEADER)
-	$(CXX) src/consumer/main.cpp src/protocol/serializer.cpp -std=c++20 -O2 \
+	$(CXX) src/consumer/main.cpp -std=c++20 -O2 \
 	-I$(EIGEN)/include/eigen3 -I$(JSON)/include $(DS_INC) $(STUDY_INC) -pthread \
 	-o $(CONSUMER_OUT)
 

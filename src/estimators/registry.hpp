@@ -17,7 +17,7 @@
 #include "dependence/estimator.hpp"
 #include "dependence/hermiter.hpp"
 #include "dependence/rmpl.hpp"
-#include "dependence/xiao_spearman.hpp"
+#include "dependence/count_matrix.hpp"
 
 namespace thesis {
 
@@ -27,8 +27,8 @@ inline const std::vector<std::string>& estimators() {
 }
 
 // shared: train on the shared normal scores probit(u) rather than on the raw observations.
-inline XiaoSpearmanEstimator::Config xiao(double lambda, bool shared = false) {
-    return XiaoSpearmanEstimator::Config{.bins = 20, .lambda = lambda, .calibration = 100, .normal_score_inputs = shared};
+inline CountingMatrixEstimator::Config counting_matrix_config(double lambda, bool shared = false) {
+    return CountingMatrixEstimator::Config{.bins = 20, .lambda = lambda, .calibration = 100, .normal_score_inputs = shared};
 }
 inline HermiteEstimator::Config hermite(double lambda, bool shared = false) {
     return HermiteEstimator::Config{.order = 10, .lambda = lambda, .normal_score_inputs = shared};
@@ -44,7 +44,7 @@ inline RecursiveMPL::Config rmpl(double gain) {
 // One estimator at fixed memory N_eff (0 = no forgetting).
 inline std::unique_ptr<DependenceEstimator> arm(const std::string& est, double neff, const char* name = "arm") {
     const bool nf = neff == 0;
-    if (est == "xiao") return std::make_unique<XiaoSpearmanEstimator>(xiao(nf ? 0.0 : (neff - 1) / (neff + 1)), name);
+    if (est == "xiao") return std::make_unique<CountingMatrixEstimator>(counting_matrix_config(nf ? 0.0 : (neff - 1) / (neff + 1)), name);
     if (est == "hermite") return std::make_unique<HermiteEstimator>(hermite(nf ? 0.0 : 2 / (neff + 1)), name);
     if (est == "rmpl") return std::make_unique<RecursiveMPL>(rmpl(nf ? 1e-12 : 2 / (neff + 1)), name);
     return nullptr;

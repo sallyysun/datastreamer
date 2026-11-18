@@ -14,20 +14,16 @@
 
 #include <vector>
 
-#include "datasource/replay_source.hpp"
+#include "datasource/file_source.hpp"
 #include "datasource/synthetic_source.hpp"
 #include "runtime/producer.hpp"
 #include "runtime/session.hpp"
 #include "runtime/broker.hpp"
-#include "../protocol/serializer.hpp"
-#include "../protocol/topic.hpp"
+#include "../protocol.hpp"
 #include "runtime/delay_strategies.hpp"
 
 using json = nlohmann::json;
 
-// =========================================================
-// CONFIG LOADER
-// =========================================================
 struct Config {
     int port = 9002;        // uWS HTTP/WebSocket (browser display)
     int broker_port = 9003; // raw-TCP broker (C++ consumers)
@@ -44,17 +40,10 @@ static Config load_config() {
     return c;
 }
 
-// Experiment controls (all optional): REPLAY=<file.csv> (stream recorded returns date,x,y instead of the DGP; N defaults
-// to the file's length), SEED (DGP seed; default random), N (stop after N observations and exit; 0 =
-// endless), RATE (observations per second; 0 = as fast as delivery allows; default 10), WAIT_CONSUMERS (hold the first
-// observation until this many consumers have subscribed to both legs; delivery is then lossless), PORT / BROKER_PORT.
 static long env_long(const char* k, long d) { const char* e = std::getenv(k); return e && *e ? std::atol(e) : d; }
 static double env_double(const char* k, double d) { const char* e = std::getenv(k); return e && *e ? std::atof(e) : d;
 }
 
-// =========================================================
-// MIME + topic helpers
-// =========================================================
 static std::string mime_type(const std::string &path) {
     if (path.ends_with(".html")) return "text/html";
     if (path.ends_with(".js")) return "application/javascript";
@@ -64,8 +53,6 @@ static std::string mime_type(const std::string &path) {
     return "text/plain";
 }
 
-// The two equity symbols this server streams (the two legs of the DGP's pair).
-// Overridable via SYMBOLS=<X>,<Y>. Equity-only for now.
 static std::pair<std::string, std::string> live_symbols() {
     const char *env = std::getenv("SYMBOLS");
     const std::string s = env && *env ? env : "AAPL,MSFT";
@@ -74,15 +61,7 @@ static std::pair<std::string, std::string> live_symbols() {
     return {s.substr(0, comma), s.substr(comma + 1)};
 }
 
-// Per-symbol topic: "trades.equity.<symbol>". Consumers subscribe by prefix --
-// "trades" / "trades.equity" get every symbol, "trades.equity.AAPL" gets one
-// (see Broker::Sub::matches).
-static std::string equity_topic(const std::string &symbol) {
-    return "trades.equity." + symbol;
-}
-
-// Live regime from DEPENDENCE=constant|drift|jump (default jump).
-// The scenario horizon is independent of N, which controls when delivery stops.
+// N controls delivery length independently of the scenario horizon.
 static std::unique_ptr<Dependence> make_live_dependence() {
     const char* env = std::getenv("DEPENDENCE");
     const std::string name = env ? env : "jump";
@@ -91,18 +70,11 @@ static std::unique_ptr<Dependence> make_live_dependence() {
     return make_scenario("jump", thesis::kN);
 }
 
-// Pick the live copula family from the COPULA env var (gaussian|clayton|gumbel|t,
-// default gaussian). The Dependence sets rho_S; the copula sets its SHAPE.
 static std::unique_ptr<dgp::Copula> make_live_copula() {
     const char* env = std::getenv("COPULA");
     return dgp::make_copula(env ? env : "gaussian");
 }
 
-// =========================================================
-// SERVER = stream generator (producer) + broker.
-// The server does NOT estimate: it publishes raw events. Estimation lives in
-// each consumer's device (see src/consumer). The browser is a display client.
-// =========================================================
 int main() {
     Config cfg = load_config();
     cfg.port = int(env_long("PORT", cfg.port));
@@ -129,7 +101,7 @@ int main() {
     std::shared_ptr<DataSource> source;
     long n_run = n_obs;
     if (const char* rp = std::getenv("REPLAY")) {
-        auto replay = std::make_shared<ReplaySource>(rp);
+        auto replay = std::make_shared<FileSource>(rp);
         if (n_run <= 0) n_run = long(replay->size());
         std::cout << "replaying " << rp << " (" << replay->size() << " observations)\n";
         source = replay;
@@ -137,7 +109,6 @@ int main() {
         source = std::make_shared<SyntheticSource>(std::move(dependence), std::move(copula), seed, cop);
     }
 
-    // Raw-TCP broker for C++ consumers.
     Broker broker(cfg.broker_port);
     if (broker.start()) {
         std::cout << "broker listening on tcp/" << cfg.broker_port << "\n";
@@ -148,7 +119,6 @@ int main() {
     Producer producer(source, rate > 0 ? fixed_delay(rate) : zero_delay());
     if (wait_consumers > 0) broker.set_lossless(true);
 
-    // Serve the React build (display client).
     app.get("/*", [](auto *res, auto *req) {
         std::string path = std::string(req->getUrl());
         if (path == "/") path = "/index.html";
@@ -168,19 +138,11 @@ int main() {
         res->end(buffer.str());
     });
 
-    // The concrete per-symbol topics the browser can subscribe to, and the
-    // catalog message announcing them on connect.
     const std::vector<std::string> catalog_topics = {equity_topic(sym_x), equity_topic(sym_y)};
     const std::string catalog_msg =
         json{{"type", "catalog"}, {"symbols", json::array({sym_x, sym_y})}}.dump();
 
-    // Browser over WebSocket. Two uses:
-    //   market view: {"action":"subscribe","topics":[...]} -> the live symbol topics (expanded against the catalog)
-    //   MFF lab:     {"action":"start", ...LabConfig} starts a private session (its own steerable generator and its own
-    //                consumer process); {"action":"jump","rho":r}, {"action":"drift","rho":r,"steps":n},
-    //                {"action":"family","family":f}, {"action":"auto","on":b}, {"action":"rate","rate":x},
-    //                {"action":"pause","on":b}, {"action":"stop"} steer it. The consumer's state arrives on the broker as
-    //                "device.<id>" and is forwarded to that browser. The server estimates nothing.
+    // A WebSocket can subscribe to market ticks or steer a private lab session.
     struct PerSocket { int session = 0; };
     using WS = uWS::WebSocket<false, true, PerSocket>;
     uWS::Loop* loop = uWS::Loop::get();
@@ -263,16 +225,11 @@ int main() {
         .close = [&](auto *ws, int, std::string_view) { end_session(ws->getUserData()); }
     });
 
-    // Producer thread: pull each bivariate DGP step, split it into two per-symbol
-    // ticks, and publish each to its own topic on BOTH transports (TCP broker and
-    // WS). A subscriber -- C++ consumer or browser -- pairs the symbols it wants.
-    // No estimation here.
     std::thread producer_thread([&]() {
         while (wait_consumers > 0 && broker.ready_count(2) < std::size_t(wait_consumers))
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::size_t n = 0;
         auto sink = [&](const TickPair &event) {
-            // The DGP leaves the legs unnamed; the server names the instruments.
             SymbolTick tick_x = event.x; tick_x.symbol = sym_x;
             SymbolTick tick_y = event.y; tick_y.symbol = sym_y;
             const std::string msg_x = serializer.to_json(tick_x);

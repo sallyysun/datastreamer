@@ -4,7 +4,7 @@
 #include <memory>
 
 #include "../datasource/datasource.hpp"
-#include "../../protocol/symbol_tick.hpp"
+#include "../../protocol.hpp"
 #include "delay_strategies.hpp"
 
 class Producer {

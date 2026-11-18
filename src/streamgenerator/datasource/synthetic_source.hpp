@@ -17,8 +17,6 @@
 // that step, giving online estimators a ground truth to track live.
 class SyntheticSource : public DataSource {
 public:
-    // Defaults to a constant correlation of 0.6 with the Gaussian copula (the
-    // previous fixed behaviour).
     explicit SyntheticSource(std::unique_ptr<Dependence> dependence =
                                  std::make_unique<ConstantDependence>(0.6),
                              std::unique_ptr<dgp::Copula> copula =

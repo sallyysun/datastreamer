@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
         }
         {
             auto dep = make_scenario(sc, thesis::kN); auto c = dgp::make_copula(cop); CopulaSource src(*dep, *c, seed);
-            ds_margin::seed(1);
+            datasketches_kll::seed(1);
             LiveLab lab(est, mem, {"gaussian"}, 1.0, 1e-4);
             for (std::size_t t = 0; t < thesis::kN; ++t) {
                 lm.push_back(lab.mff()); lv.push_back(lab.vff());

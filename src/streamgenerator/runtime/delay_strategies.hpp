@@ -7,18 +7,11 @@
 
 using DelayStrategy = std::function<void()>;
 
-// -------------------------
-// no delay
-// -------------------------
 inline DelayStrategy zero_delay() {
     return []() {
-        // do nothing
     };
 }
 
-// -------------------------
-// fixed interval (deterministic rate)
-// -------------------------
 inline DelayStrategy fixed_delay(double rate) {
     return [rate]() {
         std::this_thread::sleep_for(
@@ -29,9 +22,7 @@ inline DelayStrategy fixed_delay(double rate) {
     };
 }
 
-// -------------------------
-// Poisson process (exponential inter-arrival)
-// -------------------------
+// Exponential inter-arrival times.
 inline DelayStrategy poisson_delay(double rate) {
     return [rate]() {
         static thread_local std::mt19937 gen(std::random_device{}());

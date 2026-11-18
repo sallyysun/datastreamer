@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "study_config.hpp"
-#include "../../protocol/serializer.hpp"
+#include "../../protocol.hpp"
 #include "../datasource/dependence.hpp"
 #include "../datasource/synthetic_source.hpp"
 #include "broker.hpp"
@@ -108,7 +108,7 @@ private:
     }
 
     void run() {
-        const std::string tx = "trades.equity." + sx_, ty = "trades.equity." + sy_;
+        const std::string tx = equity_topic(sx_), ty = equity_topic(sy_);
         while (running_ && !(broker_.subscribed(tx) && broker_.subscribed(ty)))   // wait for the session's consumer
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         auto next_time = std::chrono::steady_clock::now();

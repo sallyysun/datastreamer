@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
 #include <random>
 
 #include "copula.hpp"
@@ -11,20 +10,16 @@
 // Return the Gaussian-equivalent correlation and achieved Spearman rho alongside each draw.
 class CopulaSource {
 public:
-    struct Sample {
-        double x;      // standardised return / normal score of series X
-        double y;      // standardised return / normal score of series Y
-        double rho;    // dependence knob d (Gaussian-equivalent linear correlation)
-        double rho_s;  // true Spearman's rho at this step
-    };
-
     CopulaSource(Dependence& dependence, dgp::Copula& copula, unsigned seed)
         : dependence_(dependence), copula_(copula), rng_(seed) {}
 
-    Sample next() {
-        const double d = std::clamp(dependence_.next(), -0.999, 0.999);
-        const dgp::CopulaDraw draw = copula_.sample(d, rng_);
-        return {draw.z1, draw.z2, d, draw.rho_s};
+    dgp::CopulaDraw next() {
+        return draw(dependence_, copula_, rng_);
+    }
+
+    static dgp::CopulaDraw draw(Dependence& dependence, dgp::Copula& sampler, std::mt19937& rng) {
+        const double knob = std::clamp(dependence.next(), copula::Gaussian::kMinParam, copula::Gaussian::kMaxParam);
+        return sampler.sample(knob, rng);
     }
 
 private:

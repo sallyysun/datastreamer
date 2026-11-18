@@ -7,7 +7,7 @@
 #include <string>
 
 #include "../registry.hpp"
-#include "../special_functions.hpp"
+#include "../../special_functions.hpp"
 
 
 // Adapt log effective memory by RMS-scaled gradient descent on the prior mean's squared loss.

@@ -14,9 +14,9 @@
 
 #include "../../src/estimators/dependence/estimator.hpp"
 #include "../../src/estimators/dependence/hermiter.hpp"
-#include "../../src/estimators/special_functions.hpp"
+#include "../../src/special_functions.hpp"
 #include "../../src/estimators/dependence/rmpl.hpp"
-#include "../../src/estimators/dependence/xiao_spearman.hpp"
+#include "../../src/estimators/dependence/count_matrix.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
 #include "../../src/streamgenerator/datasource/copula_source.hpp"
@@ -54,8 +54,8 @@ std::unique_ptr<DependenceEstimator> rmpl(RecursiveMPL::Margin m, std::size_t k,
     return std::make_unique<RecursiveMPL>(c, "mpl");
 }
 std::unique_ptr<DependenceEstimator> xiao(bool ns) {
-    XiaoSpearmanEstimator::Config c{}; c.bins = 30; c.lambda = 0.0; c.normal_score_inputs = ns;
-    return std::make_unique<XiaoSpearmanEstimator>(c, "xiao");
+    CountingMatrixEstimator::Config c{}; c.bins = 30; c.lambda = 0.0; c.normal_score_inputs = ns;
+    return std::make_unique<CountingMatrixEstimator>(c, "xiao");
 }
 std::unique_ptr<DependenceEstimator> herm(int order, bool ns) {
     HermiteEstimator::Config c{}; c.order = order; c.lambda = 0.0; c.normal_score_inputs = ns;

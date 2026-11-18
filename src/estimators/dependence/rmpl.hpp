@@ -7,9 +7,10 @@
 
 #include "estimator.hpp"
 #include "kll_sketch.hpp"
-#include "../special_functions.hpp"
+#include "../../gaussian_copula_objective.hpp"
+#include "../../special_functions.hpp"
 #if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/build.sh, Makefile)
-#include "ds_margin.hpp"
+#include "datasketches_kll.hpp"
 #define RECURSIVE_MPL_HAS_DS 1
 #endif
 
@@ -60,9 +61,9 @@ public:
         v = std::clamp(v, c_.delta, 1.0 - c_.delta);
         const double z1 = special::probit(u), z2 = special::probit(v);
         if (c_.update == Update::Exact) { step_exact(z1, z2); return; }
-        const double r = r_, q = 1.0 - r * r;
-        const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);
-        const double info = (1.0 + r * r) / (q * q);
+        const double r = r_;
+        const double s = GaussianCopulaObjective::score(z1, z2, r);
+        const double info = GaussianCopulaObjective::fisher(r);
         ++m_;
         wsum_ = (1.0 - gain_) * wsum_ + gain_;
         r_ = std::clamp(r + gain_ / wsum_ * s / info, -c_.r_max, c_.r_max);
@@ -119,9 +120,9 @@ private:
         }
 #ifdef RECURSIVE_MPL_HAS_DS
         if (c_.margin == Margin::DsKll) {
-            ds_margin::seed(c_.seed);
-            dx_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
-            dy_ = std::make_unique<ds_margin::Kll>(static_cast<std::uint16_t>(c_.kll_k));
+            datasketches_kll::seed(c_.seed);
+            dx_ = std::make_unique<datasketches_kll::Kll>(static_cast<std::uint16_t>(c_.kll_k));
+            dy_ = std::make_unique<datasketches_kll::Kll>(static_cast<std::uint16_t>(c_.kll_k));
         }
 #endif
     }
@@ -135,6 +136,6 @@ private:
     double W_ = 0.0, S_ = 0.0, P_ = 0.0;   // Exact
     std::unique_ptr<KllSketch> kx_, ky_;
 #ifdef RECURSIVE_MPL_HAS_DS
-    std::unique_ptr<ds_margin::Kll> dx_, dy_;
+    std::unique_ptr<datasketches_kll::Kll> dx_, dy_;
 #endif
 };

@@ -11,7 +11,7 @@ make -s experiments/common/build/study_config.hpp
 FLAGS="-Iexperiments/common/build -std=c++20 -O2 -pthread -I$EIGEN/include/eigen3 -I$JSON/include -I$DS/common/include -I$DS/kll/include"
 build() {   # source, output
     mkdir -p "$(dirname "$2")"
-    $CXX "$1" src/protocol/serializer.cpp $FLAGS -o "$2"
+    $CXX "$1" $FLAGS -o "$2"
 }
 build experiments/simulation/fixed_ess_sweep.cpp           experiments/6.2-fixed-forgetting/build/fixed_ess_sweep
 build experiments/simulation/strategy_experiments.cpp      experiments/common/build/strategy_experiments

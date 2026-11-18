@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "study_config.hpp"
-#include "../copula_family.hpp"
+#include "../../copula_family.hpp"
 #include "estimator.hpp"
 
 namespace thesis {
@@ -50,7 +50,7 @@ struct Mff {
         for (std::size_t k = 0; k < kK; ++k) r += w[k] * arms[k]->estimate();
         return std::clamp(r, -1.0, 1.0);
     }
-    // n_seen: margin observations held before this tick (the bank's mx_.size() before transform)
+    // n_seen counts prior observations.
     void score(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
         bool scorable = n_seen >= 30;
         for (const auto& a : arms) scorable = scorable && a->ready();

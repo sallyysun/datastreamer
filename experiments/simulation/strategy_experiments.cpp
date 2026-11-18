@@ -11,8 +11,8 @@
 #include <string>
 #include <vector>
 
-#include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/special_functions.hpp"
+#include "../../src/estimators/dependence/datasketches_kll.hpp"
+#include "../../src/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
 #include "study_stream.hpp"
@@ -38,7 +38,7 @@ Stream make_stream(const std::string& family, const std::string& scenario, unsig
         stream.x.push_back(sample.x);
         stream.y.push_back(sample.y);
         stream.rho.push_back(sample.rho_s);
-        stream.par.push_back(copula::param_from_spearman(generating_family, dgp::detail::target_spearman(sample.knob)));
+        stream.par.push_back(copula::param_from_spearman(generating_family, copula::target_spearman(sample.knob)));
         stream.u.push_back(sample.u);
         stream.v.push_back(sample.v);
         stream.pu.push_back(sample.true_u);
@@ -206,7 +206,7 @@ int run_famswitch(const Run& run) {
                 bool ready = t >= 30;
                 for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
                 const int gt = t < kChange ? G0[g] : G1[g];
-                const double part = copula::param_from_spearman(WF[gt], dgp::detail::target_spearman(thesis::kConstantKnob));
+                const double part = copula::param_from_spearman(WF[gt], copula::target_spearman(thesis::kConstantKnob));
                 const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
                 for (int wi = 0; wi < 4; ++wi)
                     for (std::size_t k = 0; k < kK; ++k) {

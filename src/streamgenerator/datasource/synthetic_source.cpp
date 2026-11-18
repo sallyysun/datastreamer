@@ -1,8 +1,8 @@
 #include "synthetic_source.hpp"
+#include "copula_source.hpp"
 
 #include <chrono>
 #include <cmath>
-#include <numbers>
 #include <utility>
 
 SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence,
@@ -26,28 +26,16 @@ SyntheticSource::SyntheticSource(std::unique_ptr<Dependence> dependence,
 }
 
 TickPair SyntheticSource::next() {
-    // The first tick is the opening price, before any draw: a device derives each return from two consecutive
-    // prices, so observation t (the t-th draw) arrives with tick t + 1 and none is lost.
+    // Emit the opening prices before drawing the first return.
     if (!opened_) {
         opened_ = true;
         const long long ts0 = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
         return TickPair{SymbolTick{"", price_x_, volume_x_, ts0, 0.0}, SymbolTick{"", price_y_, volume_y_, ts0, 0.0}};
     }
-    // Current dependence knob for this step (clamped away from +-1 so the copula
-    // constructions stay well defined).
-    double d = dependence_->next();
-    if (d > 0.999) d = 0.999;
-    if (d < -0.999) d = -0.999;
-
-    // Sample the chosen copula family: two standard-normal scores whose
-    // dependence follows the family and whose true Spearman rho is rho_s.
-    const dgp::CopulaDraw draw = copula_->sample(d, rng_);
-    const double z1 = draw.z1;
-    const double z2 = draw.z2;
-
-    const double r_x = drift_x_ + vol_x_ * z1;
-    const double r_y = drift_y_ + vol_y_ * z2;
+    const auto sample = CopulaSource::draw(*dependence_, *copula_, rng_);
+    const double r_x = drift_x_ + vol_x_ * sample.x;
+    const double r_y = drift_y_ + vol_y_ * sample.y;
 
     price_x_ *= std::exp(r_x);
     price_y_ *= std::exp(r_y);
@@ -57,17 +45,13 @@ TickPair SyntheticSource::next() {
                   now.time_since_epoch())
                   .count();
 
-    // r_x/r_y were used to advance the prices above; the wire carries price +
-    // volume, and each device re-derives the return from consecutive prices.
-    const double rho_s = draw.rho_s;
-
-    // Symbols are left empty here (the DGP is instrument-agnostic); the server
-    // names the two legs before publishing.
-    SymbolTick x{"", price_x_, volume_x_, ts, rho_s};
-    SymbolTick y{"", price_y_, volume_y_, ts, rho_s};
+    // The server assigns the symbols before publishing.
+    SymbolTick x{"", price_x_, volume_x_, ts, sample.rho_s};
+    SymbolTick y{"", price_y_, volume_y_, ts, sample.rho_s};
     if (!family_.empty()) {
-        x.true_pit = special::normal_cdf(z1); y.true_pit = special::normal_cdf(z2);
-        x.true_knob = y.true_knob = d;
+        x.true_pit = special::normal_cdf(sample.x);
+        y.true_pit = special::normal_cdf(sample.y);
+        x.true_knob = y.true_knob = sample.knob;
         x.true_family = y.true_family = family_;
     }
     return TickPair{x, y};
