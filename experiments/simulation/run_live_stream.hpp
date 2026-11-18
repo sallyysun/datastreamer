@@ -9,7 +9,6 @@
 #include <unistd.h>
 
 #include <chrono>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -19,6 +18,7 @@
 #include <vector>
 
 #include "../../src/consumer/broker_client.hpp"
+#include "../../src/consumer/paired_returns.hpp"
 
 struct LiveStream { std::vector<double> x, y, rho_s, pu, pv, d; };
 
@@ -67,16 +67,20 @@ inline LiveStream live_run(const std::vector<std::pair<std::string, std::string>
         }
         LiveStream s;
         TickPair e;
-        double px = 0, py = 0;
-        bool opened = false;
+        PairedReturns returns;
         while (up && s.x.size() < n && c.next(e)) {
-            if (opened && e.x.true_family != family) break;   // not our server: retry on fresh ports
-            if (opened) {
-                s.x.push_back(std::log(e.x.price / px)); s.y.push_back(std::log(e.y.price / py));
+            bool wrong_family = false;
+            returns.on_tick(e, [&](double x, double y) {
+                if (e.x.true_family != family) {
+                    wrong_family = true;
+                    return;
+                }
+                s.x.push_back(x);
+                s.y.push_back(y);
                 s.rho_s.push_back(e.x.true_rho_s); s.pu.push_back(e.x.true_pit); s.pv.push_back(e.y.true_pit);
                 s.d.push_back(e.x.true_knob);
-            }
-            px = e.x.price; py = e.y.price; opened = true;
+            });
+            if (wrong_family) break;
         }
         c.close();
         if (s.x.size() < n) ::kill(pid, SIGTERM);

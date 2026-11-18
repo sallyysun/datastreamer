@@ -12,7 +12,5 @@ if [ "${SIM:-0}" = 1 ]; then
         FAMSWITCH=1 FS_H2=1 FS_EST=$e FS_GENS=$g FS_TAG=h2_${e}_$g $P   # famsw_seeds_h2_<est>_<switch>
     done; done
 fi
-python3 famsw_rmpl.py               # famsw_rmpl_dl, ch6_famswitch_rmpl_weights
-python3 famsw_accuracy.py           # ch6_famswitch_accuracy
-python3 plot_famsw_initial_id.py    # ch6_famswitch_initial_id
-python3 plot_famsw_adaptation.py    # ch6_famswitch_adaptation
+python3 analyze_family_switching.py all
+python3 plot_family_switching.py all

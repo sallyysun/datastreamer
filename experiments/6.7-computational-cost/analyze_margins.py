@@ -1,7 +1,11 @@
-"""Section 6.7 marginal-estimation ablation from results/margins_seeds.csv (margin_ablation): mean rho_S RMSE (x 10^-2) of
-each margin variant over 100 paired seeds, paired differences, and the RMSE inflation of empirical over true margins.
-Writes results/margins_2026-11-16.md."""
+"""Summarize paired-seed RMSE across marginal estimation methods."""
+from pathlib import Path
+import sys
+
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
+from report_output import write_report  # noqa: E402
 
 ORDER = ["rmpl_oracle", "rmpl_full_emp", "rmpl_seq_emp", "rmpl_seq_mid", "rmpl_seq_emp_t0_500", "rmpl_seq_emp_t0_2000", "rmpl_kll_64",
          "rmpl_kll_256", "rmpl_kll_512", "rmpl_kll_1024", "rmpl_kll_4096", "rmpl_kll_16384", "rmpl_kll_512_t0_2000",
@@ -42,8 +46,7 @@ def main():
     d = pd.read_csv("results/margins_seeds.csv")
     W = {w: d.pivot(index="seed", columns="variant", values=w) * 100 for w in ("rmse_all", "rmse_late")}
     M = report(W)
-    open("results/margins_2026-11-16.md", "w").write("\n".join(M) + "\n")
-    print("\n".join(M))
+    write_report("results/margins_2026-11-16.md", M)
 
 
 if __name__ == "__main__":

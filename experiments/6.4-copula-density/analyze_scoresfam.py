@@ -1,8 +1,4 @@
-"""MFF scoring function (squared vs log loss) across generating x working copula families (Section 6.4), from
-results/scoresfam_seeds_sfeval[_fam].csv (strategy_experiments SCORESFAM=1 TAG=sfeval). rmpl / xiao / hermite invert each
-arm's rho_S into the working family. Delta = squared - log, paired over seeds:
-positive favours log loss. With results/scoresfam_seeds_sfdev*.csv present, adds the dev-seed learning-rate check.
-Writes results/scoresfam_2026-11-15.txt and scoresfam_cells.csv."""
+"""Compare squared and log loss across generating and working copulas."""
 import math
 import os
 import sys
@@ -10,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import write_report  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -163,8 +160,7 @@ def main():
     lines += verdict_counts(cells) + matching(d) + diagnostics(load("diag_sfeval"))
     if os.path.exists(R + "scoresfam_seeds_sfdev.csv"):
         lines += eta_sensitivity(load("seeds_sfdev"))
-    open(R + "scoresfam_2026-11-15.txt", "w").write("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    write_report(R + "scoresfam_2026-11-15.txt", lines)
 
 
 if __name__ == "__main__":

@@ -20,8 +20,9 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 families)
 ```
 
-The C++ runners, live stream adapter (`live_source.hpp`) and consistency checks live in `experiments/simulation/`.
-`build.sh` puts the binaries in section or shared `build/` directories. Set `VERBOSE=1` for real-data timing and plot summaries.
+The C++ runners, live stream adapter (`run_live_stream.hpp`) and consistency checks live in `experiments/simulation/`.
+`build.sh` puts the binaries in section or shared `build/` directories. Set `VERBOSE=1` to echo saved reports and show
+optional timing and plot diagnostics.
 Edit `../study_config.json` for shared study defaults and rebuild the C++ programs to apply them. The reports use five
 fixed-memory arms. Python labels and styles live in `common/config.py` and `common/plot_style.py`.
 
@@ -40,7 +41,7 @@ Conventions:
   `archive/experiments/results-6.7-before-cut/`.
 - `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
   Linux and macOS. The thesis numbers come from Linux/libstdc++.
-- Live mode: with `LIVE=1` a runner takes each stream from a seeded server over TCP (`experiments/simulation/live_source.hpp`: the
+- Live mode: with `LIVE=1` a runner takes each stream from a seeded server over TCP (`experiments/simulation/run_live_stream.hpp`: the
   server is started per stream on free ports, observations are rebuilt from prices exactly as the consumer does).
   6.6: `LIVE=1 build/real_data_comparison in.csv out.csv` has the server replay the file (`REPLAY=`).
   Full 6.2–6.5 run over TCP (2026-11-17, 44 jobs, 60 seeds): 31 of 106 result files byte-identical to the in-process

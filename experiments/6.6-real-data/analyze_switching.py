@@ -1,14 +1,11 @@
-"""Section 6.6 switching regret of MFF and VFF: per pair, estimator and copula (t4, Gaussian check), regret per day
-against the best sequence of that estimator's five fixed arms with at most m switches over the evaluation days, found
-by dynamic programming with traceback (checked against brute force and the static oracle).
-Usage: python3 analyze_switching.py <scratch dir> -> results/switching_per_pair.csv, switching_paths.csv, switching_results.txt"""
+"""Compare real-data MFF and VFF with the best fixed-arm switching paths."""
 import itertools
 import sys
 
 import numpy as np
 import pandas as pd
 
-from real_common import FIX, eval_days, outputs, read, result
+from real_common import FIX, eval_days, outputs, read, result, write_report
 
 MS = [0, 1, 2, 5]
 EST = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
@@ -111,8 +108,7 @@ def main():
     Rg.to_csv(result("switching_per_pair.csv"), index=False)
     Pt.to_csv(result("switching_paths.csv"), index=False)
     out = report(Rg, Pt)
-    print("\n".join(out))
-    open(result("switching_results.txt"), "w").write("\n".join(out) + "\n")
+    write_report(result("switching_results.txt"), out)
 
 
 if __name__ == "__main__":

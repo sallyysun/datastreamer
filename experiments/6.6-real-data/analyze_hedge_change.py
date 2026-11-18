@@ -1,16 +1,11 @@
-"""Section 6.6 dependence changes and Hedge weighting (t4 copula). Change days: each pair's top 10% of
-D_t = |rho99_{t-1} - rho99_{t-22}| (99-day rolling Spearman held before the day, pair's own trading days). Compares MFF
-with VFF and Hedge with the exact equal-weight mixture of the five arms, on all, change and other days: pair-equal means
-with 95% intervals from a 21-day moving-block bootstrap over calendar days (blocks shared by all pairs, 2000 replicates).
-Then Hedge weight concentration, delayed reallocation and the sensitivity of the classification.
-Usage: python3 analyze_hedge_change.py <scratch dir> -> results/hedge_change_results.{csv,txt}"""
+"""Analyze how Hedge weights and losses change on large dependence shifts."""
 import sys
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, outputs, read, result
+from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, outputs, read, result, write_report
 
 LAG, BLOCK, BOOT = 21, 21, 2000
 GROUPS = ("full", "change", "other")
@@ -184,15 +179,13 @@ def main():
     D99 = days.change(99)
     CHG, PRESENT = classify(D99)
     out = indexing_check(S, days, D99, CHG, PRESENT)
-    print("\n".join(out))
     data = losses(S, days)
     masks = (PRESENT, CHG, (~CHG) & PRESENT)
     rows = []
     for part in (comparisons(data, masks, rows), concentration(data, masks), reallocation(data), sensitivity(data, days, D99, CHG, PRESENT)):
-        print("\n".join(part))
         out += part
     pd.DataFrame(rows).to_csv(result("hedge_change_results.csv"), index=False)
-    open(result("hedge_change_results.txt"), "w").write("\n".join(out) + "\n")
+    write_report(result("hedge_change_results.txt"), out)
 
 
 if __name__ == "__main__":

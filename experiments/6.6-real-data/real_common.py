@@ -14,6 +14,7 @@ from matplotlib.lines import Line2D  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 from config import MEMORIES as FIX  # noqa: E402
+from report_output import verbose_print, write_report  # noqa: E402
 EST = [("RMPL", "practical_rmpl"), ("Counting matrix", "practical_xiao"), ("Hermite series", "practical_hermite")]
 ECOL = {"RMPL": "#1baf7a", "Counting matrix": "#2a78d6", "Hermite series": "#eb6834"}
 EVAL_ROW, EVAL_FROM = 560, "2008-01-01"
@@ -25,11 +26,6 @@ RC = {"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans"], "mathtext
       "text.color": INK, "axes.labelcolor": INK, "axes.titlecolor": INK, "axes.titlelocation": "left",
       "axes.titlepad": 6, "axes.facecolor": "white", "figure.facecolor": "white", "savefig.facecolor": "white",
       "figure.dpi": 300, "savefig.dpi": 300}
-
-
-def verbose_print(*values):
-    if os.environ.get("VERBOSE") == "1":
-        print(*values)
 
 
 def result(name):

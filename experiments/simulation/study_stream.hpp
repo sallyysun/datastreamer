@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -9,7 +8,7 @@
 #include "../../src/estimators/dependence/datasketches_kll.hpp"
 #include "../../src/special_functions.hpp"
 #include "../../src/streamgenerator/datasource/copula_source.hpp"
-#include "live_source.hpp"
+#include "run_live_stream.hpp"
 
 struct StudyObservation {
     double x, y, rho_s, knob;
@@ -34,7 +33,7 @@ void for_each_study_observation(const std::string& family, const std::string& sc
     }
 
     datasketches_kll::seed(1);
-    datasketches_kll::Kll x_margin(thesis::kKll), y_margin(thesis::kKll);
+    datasketches_kll::PairedKll margins(thesis::kKll, thesis::kClip);
     for (std::size_t t = 0; t < count; ++t) {
         StudyObservation observation{};
         if (source) {
@@ -53,10 +52,9 @@ void for_each_study_observation(const std::string& family, const std::string& sc
             observation.true_u = live.pu[t];
             observation.true_v = live.pv[t];
         }
-        observation.u = std::clamp(x_margin.cdf(observation.x), thesis::kClip, 1 - thesis::kClip);
-        observation.v = std::clamp(y_margin.cdf(observation.y), thesis::kClip, 1 - thesis::kClip);
-        x_margin.insert(observation.x);
-        y_margin.insert(observation.y);
+        const auto [u, v] = margins.update(observation.x, observation.y);
+        observation.u = u;
+        observation.v = v;
         observe(observation);
     }
 }

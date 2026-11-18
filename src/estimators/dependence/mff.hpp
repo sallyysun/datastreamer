@@ -14,17 +14,22 @@
 
 namespace thesis {
 
-// Replace non-finite losses, apply Hedge in log space, then mix in uniform weight.
-inline void update_mff_weights(std::vector<double>& weights, std::vector<double>& losses,
-                               std::vector<double>& log_weights, double eta, double delta) {
+inline std::size_t guard_mff_losses(std::vector<double>& losses) {
     double worst = 0.0;
+    std::size_t nonfinite = 0;
     for (double loss : losses) {
         if (std::isfinite(loss)) worst = std::max(worst, loss);
+        else ++nonfinite;
     }
     for (double& loss : losses) {
         if (!std::isfinite(loss)) loss = worst;
     }
+    return nonfinite;
+}
 
+// Apply Hedge in log space, then mix in uniform weight.
+inline void apply_fixed_share(std::vector<double>& weights, const std::vector<double>& losses,
+                              std::vector<double>& log_weights, double eta, double delta) {
     double top = -INFINITY;
     for (std::size_t k = 0; k < weights.size(); ++k) {
         const double log_weight = weights[k] > 0 ? std::log(weights[k]) : -INFINITY;
@@ -38,6 +43,12 @@ inline void update_mff_weights(std::vector<double>& weights, std::vector<double>
     }
     const double uniform_share = delta / static_cast<double>(weights.size());
     for (double& weight : weights) weight = (1 - delta) * weight / total + uniform_share;
+}
+
+inline void update_mff_weights(std::vector<double>& weights, std::vector<double>& losses,
+                               std::vector<double>& log_weights, double eta, double delta) {
+    guard_mff_losses(losses);
+    apply_fixed_share(weights, losses, log_weights, eta, delta);
 }
 
 // MFF over the study's fixed memories, scored under one working copula.

@@ -1,14 +1,12 @@
-"""VFF learning-rate sensitivity (appendix to Section 6.3.2): VFF at each tested alpha against MFF and the hindsight-best
-fixed memory, the hindsight-best alpha, and the excess-log-loss extremes. alpha = 0.02 is the development choice; every
-"best alpha" is chosen on the evaluation seeds. Writes results/vffsens_2026-11-12.txt, vffsens_summary.csv,
-vffsens_best_alpha.csv and vffsens_extremes.csv."""
-import math
+"""Summarize sensitivity to the VFF learning rate."""
 import os
 import sys
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import write_report  # noqa: E402
+from summary_stats import standard_error as se  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -20,10 +18,6 @@ FIXED = [f"fixed_{m}" for m in C.MEMORIES]
 MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log loss (x 10^-3 nats/obs)", 1),
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
 RULE = "=" * 110
-
-
-def se(x):
-    return x.std(ddof=1) / math.sqrt(len(x))
 
 
 def wtl(x):
@@ -179,8 +173,7 @@ def main():
     X = load("extremes")
     X.to_csv(R + f"vffsens_extremes{T}.csv", index=False)
     lines += best + comparisons(d, B) + robustness(d) + extremes(X)
-    open(R + ("vffsens_2026-11-12.txt" if not T else f"vffsens{T}_2026-11-14.txt"), "w").write("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    write_report(R + ("vffsens_2026-11-12.txt" if not T else f"vffsens{T}_2026-11-14.txt"), lines)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@
 #include "../../src/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
+#include "regret_oracle.hpp"
 #include "study_stream.hpp"
 
 namespace {
@@ -201,7 +202,8 @@ int run_famswitch(const Run& run) {
             std::vector<double> sef(kN), seg(kN), exf(kN), exg(kN), hhf(kN, NAN), hhg(kN, NAN);
             std::vector<std::array<double, 4>> fw(kN);
             long nguard = 0;
-            double th[4][kK], te[4][kK], ld[4][kK], ls[4][kK], f[kK];
+            double th[4][kK], te[4][kK], ld[4][kK], f[kK];
+            std::vector<double> family_losses(wf.size()), gaussian_losses(wg.size()), log_weights(wf.size());
             for (std::size_t t = 0; t < kN; ++t) {
                 bool ready = t >= 30;
                 for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
@@ -236,20 +238,16 @@ int run_famswitch(const Run& run) {
                 }
                 for (int wi = 0; wi < 4; ++wi) { double a = 0; for (std::size_t k = 0; k < kK; ++k) a += wf[wi * kK + k]; fw[t][wi] = a; }
                 if (ready) {
-                    for (int wi = 0; wi < 4; ++wi)
-                        for (std::size_t k = 0; k < kK; ++k) ls[wi][k] = -copula::log_density(WF[wi], s.u[t], s.v[t], th[wi][k]);
-                    auto hedge = [&](std::vector<double>& w, bool fam) {
-                        const int nw = int(w.size());
-                        std::vector<double> L(nw), lw(nw);
-                        double worst = 0;
-                        for (int i = 0; i < nw; ++i) { L[i] = fam ? ls[i / kK][i % kK] : ls[0][i]; if (std::isfinite(L[i])) worst = std::max(worst, L[i]); else ++nguard; }
-                        for (double& x : L) if (!std::isfinite(x)) x = worst;
-                        double top = -INFINITY, tot = 0;
-                        for (int i = 0; i < nw; ++i) { lw[i] = (w[i] > 0 ? std::log(w[i]) : -INFINITY) - L[i]; top = std::max(top, lw[i]); }
-                        for (int i = 0; i < nw; ++i) { w[i] = std::exp(lw[i] - top); tot += w[i]; }
-                        for (double& x : w) x = (1 - 1e-4) * x / tot + 1e-4 / nw;
-                    };
-                    hedge(wf, true); hedge(wg, false);
+                    for (int wi = 0; wi < 4; ++wi) {
+                        for (std::size_t k = 0; k < kK; ++k) {
+                            family_losses[wi * kK + k] = -copula::log_density(WF[wi], s.u[t], s.v[t], th[wi][k]);
+                        }
+                    }
+                    std::copy_n(family_losses.begin(), kK, gaussian_losses.begin());
+                    nguard += thesis::guard_mff_losses(family_losses);
+                    nguard += thesis::guard_mff_losses(gaussian_losses);
+                    thesis::apply_fixed_share(wf, family_losses, log_weights, 1.0, 1e-4);
+                    thesis::apply_fixed_share(wg, gaussian_losses, log_weights, 1.0, 1e-4);
                 }
                 const double zx = special::probit(s.u[t]), zy = special::probit(s.v[t]);
                 for (auto& a : arms) { if (fest == "rmpl") a->update(zx, zy); else a->update(s.x[t], s.y[t]); }   // as in 6.3
@@ -467,19 +465,13 @@ int run_scoresfam(const Run& run) {
                         }
                         if (t >= 30 && ready[t]) {
                             const double p = 12.0 * (s.u[t] - 0.5) * (s.v[t] - 0.5);
-                            double worst = 0;
                             for (std::size_t k = 0; k < kK; ++k) {
                                 lsq[k] = (p - rk[k]) * (p - rk[k]);
                                 llog[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], TH[k][t]);
-                                if (std::isfinite(llog[k])) worst = std::max(worst, llog[k]); else ++snf;
                             }
-                            for (double& x : llog) if (!std::isfinite(x)) x = worst;
+                            snf += thesis::guard_mff_losses(llog);
                             for (auto& q : in) {
-                                const auto& L = q.score ? llog : lsq;
-                                double top = -INFINITY, tot = 0;
-                                for (std::size_t k = 0; k < kK; ++k) { lw[k] = (q.w[k] > 0 ? std::log(q.w[k]) : -INFINITY) - q.eta * L[k]; top = std::max(top, lw[k]); }
-                                for (std::size_t k = 0; k < kK; ++k) { q.w[k] = std::exp(lw[k] - top); tot += q.w[k]; }
-                                for (double& x : q.w) x = (1 - 1e-4) * x / tot + 1e-4 / kK;
+                                thesis::apply_fixed_share(q.w, q.score ? llog : lsq, lw, q.eta, 1e-4);
                             }
                         }
                     }
@@ -536,25 +528,21 @@ int run_regretfam(const Run& run) {
                     bool ready = t >= 30;
                     for (const auto& a : arms) ready = ready && a->ready();
                     if (ready) {
-                        double worst = 0; bool clamp = false;
+                        bool clamp = false;
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double rho = arms[k]->estimate();
                             l[k] = -copula::log_density(WF[wi], s.u[t], s.v[t], inv(rho));
                             clamp = clamp || inv.clamped(rho);
-                            if (std::isfinite(l[k])) worst = std::max(worst, l[k]); else ++nonfin;
                         }
                         nclamp += clamp;
-                        for (double& x : l) if (!std::isfinite(x)) x = worst;
+                        nonfin += thesis::guard_mff_losses(l);
                         std::array<double, 2> row{};
                         for (int di = 0; di < 2; ++di) {
                             double lo = INFINITY, mix = 0;
                             for (std::size_t k = 0; k < kK; ++k) lo = std::min(lo, l[k]);
                             for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
                             row[di] = lo - std::log(mix);
-                            double top = -INFINITY, tot = 0;
-                            for (std::size_t k = 0; k < kK; ++k) { lw[k] = (w[di][k] > 0 ? std::log(w[di][k]) : -INFINITY) - l[k]; top = std::max(top, lw[k]); }
-                            for (std::size_t k = 0; k < kK; ++k) { w[di][k] = std::exp(lw[k] - top); tot += w[di][k]; }
-                            for (double& x : w[di]) x = (1 - deltas[di]) * x / tot + deltas[di] / kK;
+                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t);
                     }
@@ -562,40 +550,16 @@ int run_regretfam(const Run& run) {
                     for (auto& a : arms) a->update(zx, zy);
                 }
                 const std::size_t T = L.size();
-                constexpr int MS = 3;
-                std::vector<double> D(MS * kK, INFINITY);
-                double b2 = INFINITY;
-                for (std::size_t i = 0; i < T; ++i) {
-                    std::vector<double> N(MS * kK);
-                    for (int m = 0; m < MS; ++m) {
-                        double prev = INFINITY;
-                        if (m > 0) for (std::size_t j = 0; j < kK; ++j) prev = std::min(prev, D[(m - 1) * kK + j]);
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            double stay = i == 0 ? (m == 0 ? 0.0 : INFINITY) : D[m * kK + k];
-                            if (i > 0 && m > 0) stay = std::min(stay, prev);
-                            N[m * kK + k] = L[i][k] + stay;
-                        }
-                    }
-                    D = N;
-                }
-                for (double x : D) b2 = std::min(b2, x);
-                std::vector<std::vector<double>> C(kK, std::vector<double>(T + 1, 0.0));
-                for (std::size_t k = 0; k < kK; ++k) for (std::size_t i = 0; i < T; ++i) C[k][i + 1] = C[k][i] + L[i][k];
-                double b1 = INFINITY; std::size_t swt = 0, sa = 0, sb = 0;
-                for (std::size_t tau = 0; tau <= T; ++tau)
-                    for (std::size_t a = 0; a < kK; ++a)
-                        for (std::size_t b = 0; b < kK; ++b) {
-                            const double v = C[a][tau] + C[b][T] - C[b][tau];
-                            if (v < b1 - 1e-12) { b1 = v; swt = tau; sa = a; sb = b; }
-                        }
-                std::size_t a0 = 0;
-                for (std::size_t k = 1; k < kK; ++k) if (C[k][T] < C[a0][T]) a0 = k;
+                const auto oracle = regret_oracle(L);
                 for (int di = 0; di < 2; ++di) {
                     double cm = 0;
                     for (const auto& row : mf) cm += row[di];
+                    const auto switch_tick = oracle.before_arm == oracle.after_arm
+                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
                     std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", cop.c_str(), sc.c_str(), WN[wi],
-                                 deltas[di], seed, T, tt[0], cm, C[a0][T], kMem[a0], b1, b2, sa == sb ? 0 : tt[std::min(swt, T - 1)],
-                                 kMem[sa], kMem[sb], nonfin, nclamp);
+                                 deltas[di], seed, T, tt.front(), cm, oracle.fixed_loss, kMem[oracle.fixed_arm],
+                                 oracle.one_switch_loss, oracle.prefix_loss.back()[2], switch_tick,
+                                 kMem[oracle.before_arm], kMem[oracle.after_arm], nonfin, nclamp);
                 }
             }
         }
@@ -610,7 +574,7 @@ int run_regret(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
     const std::string& sfx = run.sfx;
-    constexpr int MS = 3;   // switch budgets 0, 1, 2
+    constexpr int MS = kSwitchBudgets;
     const double deltas[2] = {0.0, 1e-4};
     std::FILE* fr = std::fopen(("results/regret_seeds" + sfx + ".csv").c_str(), "w");
     std::FILE* fc = std::fopen(("results/regret_paths" + sfx + ".csv").c_str(), "w");
@@ -641,13 +605,11 @@ int run_regret(const Run& run) {
                     bool ready = t >= 30;
                     for (const auto& a : arms) ready = ready && a->ready();
                     if (ready) {
-                        double worst = 0;
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
                             l[k] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t], par);
-                            if (std::isfinite(l[k])) worst = std::max(worst, l[k]);
                         }
-                        for (double& x : l) if (!std::isfinite(x)) x = worst;
+                        thesis::guard_mff_losses(l);
                         std::array<double, 4> row{};
                         for (int di = 0; di < 2; ++di) {
                             double lo = INFINITY, r = 0;
@@ -658,11 +620,7 @@ int run_regret(const Run& run) {
                             r = std::clamp(r, -1.0, 1.0);
                             row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t],
                                                                    copula::param_from_spearman(copula::Family::Gaussian, r));
-                            // Hedge (eta = 1) then fixed share, as Mff::score
-                            double top = -INFINITY, tot = 0;
-                            for (std::size_t k = 0; k < kK; ++k) { lw[k] = (w[di][k] > 0 ? std::log(w[di][k]) : -INFINITY) - l[k]; top = std::max(top, lw[k]); }
-                            for (std::size_t k = 0; k < kK; ++k) { w[di][k] = std::exp(lw[k] - top); tot += w[di][k]; }
-                            for (double& x : w[di]) x = (1 - deltas[di]) * x / tot + deltas[di] / kK;
+                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                     }
@@ -670,53 +628,23 @@ int run_regret(const Run& run) {
                     for (auto& a : arms) { if (raw) a->update(s.x[t], s.y[t]); else a->update(zx, zy); }
                 }
                 const std::size_t T = L.size();
-                // forward DP: D[m][k] = min loss of a sequence ending at k with exactly m switches
-                std::vector<std::array<double, MS>> best(T);
-                std::vector<double> D(MS * kK, INFINITY);
-                for (std::size_t i = 0; i < T; ++i) {
-                    std::vector<double> N(MS * kK);
-                    for (int m = 0; m < MS; ++m) {
-                        double prev = INFINITY;
-                        if (m > 0) for (std::size_t j = 0; j < kK; ++j) prev = std::min(prev, D[(m - 1) * kK + j]);
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            double stay = i == 0 ? (m == 0 ? 0.0 : INFINITY) : D[m * kK + k];
-                            if (i > 0 && m > 0) stay = std::min(stay, prev);
-                            N[m * kK + k] = L[i][k] + stay;
-                        }
-                    }
-                    D = N;
-                    for (int m = 0; m < MS; ++m) {
-                        double b = INFINITY;
-                        for (int q = 0; q <= m; ++q) for (std::size_t k = 0; k < kK; ++k) b = std::min(b, D[q * kK + k]);
-                        best[i][m] = b;
-                    }
-                }
-                // best one-switch sequence over the whole run: switch time and arms
-                std::vector<std::vector<double>> C(kK, std::vector<double>(T + 1, 0.0));
-                for (std::size_t k = 0; k < kK; ++k) for (std::size_t i = 0; i < T; ++i) C[k][i + 1] = C[k][i] + L[i][k];
-                double b1 = INFINITY; std::size_t swt = 0, sa = 0, sb = 0;
-                for (std::size_t tau = 0; tau <= T; ++tau)
-                    for (std::size_t a = 0; a < kK; ++a)
-                        for (std::size_t b = 0; b < kK; ++b) {
-                            const double v = C[a][tau] + C[b][T] - C[b][tau];
-                            if (v < b1 - 1e-12) { b1 = v; swt = tau; sa = a; sb = b; }
-                        }
-                std::size_t a0 = 0;
-                for (std::size_t k = 1; k < kK; ++k) if (C[k][T] < C[a0][T]) a0 = k;
+                const auto oracle = regret_oracle(L);
                 for (int di = 0; di < 2; ++di) {
                     double cm = 0, cp = 0;
                     for (std::size_t i = 0; i < T; ++i) {
                         cm += mf[i][2 * di]; cp += mf[i][2 * di + 1];
                         for (int m = 0; m < MS; ++m) {
-                            const double rm = cm - best[i][m], rp = cp - best[i][m];
+                            const double rm = cm - oracle.prefix_loss[i][m], rp = cp - oracle.prefix_loss[i][m];
                             s1[pi(ei, di, 0, m, tt[i])] += rm; s2[pi(ei, di, 0, m, tt[i])] += rm * rm;
                             s1[pi(ei, di, 1, m, tt[i])] += rp; s2[pi(ei, di, 1, m, tt[i])] += rp * rp;
                         }
                     }
-                    const bool same = sa == sb;
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g\n", cop.c_str(), sc.c_str(), e.c_str(),
-                                 deltas[di], seed, T, tt.empty() ? 0 : tt[0], cm, cp, C[a0][T], kMem[a0], b1, best[T - 1][2],
-                                 same ? 0 : tt[std::min(swt, T - 1)], kMem[sa], kMem[sb]);
+                    const auto switch_tick = oracle.before_arm == oracle.after_arm
+                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
+                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g\n",
+                                 cop.c_str(), sc.c_str(), e.c_str(), deltas[di], seed, T, tt.front(), cm, cp,
+                                 oracle.fixed_loss, kMem[oracle.fixed_arm], oracle.one_switch_loss,
+                                 oracle.prefix_loss.back()[2], switch_tick, kMem[oracle.before_arm], kMem[oracle.after_arm]);
                 }
             }
         }
@@ -804,23 +732,14 @@ int run_scores(const Run& run) {
                         for (const auto& a : arms) ready = ready && a->ready();
                         if (ready) {
                             const double p = 12.0 * (s.u[t] - 0.5) * (s.v[t] - 0.5);
-                            double worst = 0;
                             for (std::size_t k = 0; k < kK; ++k) {
                                 lsq[k] = (p - f[k]) * (p - f[k]);
                                 const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
                                 llog[k] = -copula::log_density(copula::Family::Gaussian, s.u[t], s.v[t], par);
-                                if (std::isfinite(llog[k])) worst = std::max(worst, llog[k]);
                             }
-                            for (double& l : llog) if (!std::isfinite(l)) l = worst;
+                            thesis::guard_mff_losses(llog);
                             for (auto& q : in) {
-                                const auto& L = q.score ? llog : lsq;
-                                double top = -INFINITY, tot = 0;
-                                for (std::size_t k = 0; k < kK; ++k) {
-                                    lw[k] = (q.w[k] > 0 ? std::log(q.w[k]) : -INFINITY) - q.eta * L[k];
-                                    top = std::max(top, lw[k]);
-                                }
-                                for (std::size_t k = 0; k < kK; ++k) { q.w[k] = std::exp(lw[k] - top); tot += q.w[k]; }
-                                for (double& x : q.w) x = (1 - 1e-4) * x / tot + 1e-4 / kK;
+                                thesis::apply_fixed_share(q.w, q.score ? llog : lsq, lw, q.eta, 1e-4);
                             }
                         }
                     }

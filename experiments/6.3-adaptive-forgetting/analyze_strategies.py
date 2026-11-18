@@ -1,12 +1,13 @@
 """Section 6.3 accuracy of fixed forgetting (hindsight-best memory per cell), VFF and MFF: RMSE, excess log loss and
 squared Hellinger per family, estimator, scenario and window, with paired differences. Writes
 results/strategies_2026-11-12.txt and results/strategies_summary.csv (DENS_TAG=mix: the mixture-density run)."""
-import math
 import os
 import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import write_report  # noqa: E402
+from summary_stats import standard_error as se  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -16,10 +17,6 @@ FIXED = [f"fixed_{m}" for m in C.MEMORIES]
 STRATS = ["fixed", "vff_slow", "vff_fast", "mff"]
 MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log loss (x 10^-3 nats/obs)", 1),
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
-
-
-def se(x):
-    return x.std(ddof=1) / math.sqrt(len(x))
 
 
 def cell(d, f, sc, e, w, m, scale):
@@ -96,8 +93,7 @@ def main():
     body, summary = tables(d)
     summary.to_csv(R + f"strategies_summary{T}.csv", index=False)
     lines = header() + body + agreement(d)
-    open(R + ("strategies_2026-11-12.txt" if not T else f"strategies{T}_2026-11-14.txt"), "w").write("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    write_report(R + ("strategies_2026-11-12.txt" if not T else f"strategies{T}_2026-11-14.txt"), lines)
 
 
 if __name__ == "__main__":

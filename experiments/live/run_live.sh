@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Chapter 6 strategy comparison over the live pipeline: for every (family, scenario, seed) one seeded server streams
-# the 5,000 observations over TCP to one consumer, which runs the Chapter 6 device and scores it against the truth on
-# the ticks. Rows = the runner's strategies_seeds_mix rows (copula,scenario,estimator,strategy,seed,window,rmse,
-# excess_x1000,h2_x1000), written to results/live_seeds[_family].csv.
-# Usage: SEEDS=60 JOBS=8 ./run_live.sh   (needs ../../server and ../../consumer: make && make consumer)
+# Score the standalone consumer over TCP and save one CSV per copula family.
+# Usage: SEEDS=60 JOBS=8 ./run_live.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 SEEDS=${SEEDS:-5}; JOBS=${JOBS:-$(nproc)}

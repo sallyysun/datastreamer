@@ -23,11 +23,11 @@
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "live_source.hpp"
+#include "run_live_stream.hpp"
 
 namespace {
 using thesis::kK; using thesis::kMem;
-constexpr double kDelta = thesis::kClip, kNu = 4.0;
+constexpr double kNu = 4.0;
 
 std::string est_kind() { const char* e = std::getenv("EST"); return e ? e : "rmpl"; }
 std::vector<std::unique_ptr<DependenceEstimator>> make_arms(const std::string& estimator) {
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
         d.x = L.x; d.y = L.y;
     }
     datasketches_kll::seed(1);
-    datasketches_kll::Kll kx(thesis::kKll), ky(thesis::kKll);
+    datasketches_kll::PairedKll margins(thesis::kKll, thesis::kClip);
     const std::string estimator = est_kind();
     const bool use_raw_inputs = estimator != "rmpl";
     auto arms = make_arms(estimator);
@@ -158,8 +158,7 @@ int main(int argc, char** argv) {
     std::fprintf(o, "\n");
     for (std::size_t t = 0; t < d.x.size(); ++t) {
         auto tk = clk::now();
-        const double u = std::clamp(kx.cdf(d.x[t]), kDelta, 1 - kDelta), v = std::clamp(ky.cdf(d.y[t]), kDelta, 1 - kDelta);
-        kx.insert(d.x[t]); ky.insert(d.y[t]);
+        const auto [u, v] = margins.update(d.x[t], d.y[t]);
         t_kll += since(tk);
         double f[kK + 2];
         for (std::size_t k = 0; k < kK; ++k) f[k] = arms[k]->estimate();

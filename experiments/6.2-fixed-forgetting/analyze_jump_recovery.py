@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import write_report  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -66,8 +67,7 @@ def main():
     df, checks = measure()
     df.to_csv(R + "jump_recovery.csv", index=False)
     lines = report(df, checks)
-    open(R + "jump_recovery_2026-11-12.txt", "w").write("\n".join(lines) + "\n")
-    print("\n".join(lines))
+    write_report(R + "jump_recovery_2026-11-12.txt", lines)
 
 
 if __name__ == "__main__":

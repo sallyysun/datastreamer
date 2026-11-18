@@ -1,7 +1,5 @@
-"""Section 6.7 tables of the validation-selected budget configurations (tab:ch6-budget-configs and the appendix
-tab:ch6-budget-configs-full), from results/budget_selected.csv and budget_sweep_n15k.csv, with the check of whether a
-smaller same-gain size was within 1 validation SE (or 1%) of each selection. Retention lambda = 1 - g.
-Writes results/budget_configs_n15k.csv, budget_configs_n15k_main.tex and budget_configs_n15k_appendix.tex."""
+"""Write the validation-selected budget configuration tables."""
+import os
 import sys
 import numpy as np
 import pandas as pd
@@ -93,8 +91,8 @@ def main():
     D.to_csv("results/budget_configs_n15k.csv", index=False)
     open("results/budget_configs_n15k_main.tex", "w").write("\n".join(main_table(D)) + "\n")
     open("results/budget_configs_n15k_appendix.tex", "w").write("\n".join(appendix_table(D)) + "\n")
-    print(open("results/budget_configs_n15k_main.tex").read())
-    report(D)
+    if os.environ.get("VERBOSE") == "1":
+        report(D)
 
 
 if __name__ == "__main__":

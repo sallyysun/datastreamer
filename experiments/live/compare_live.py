@@ -1,12 +1,11 @@
-"""Compare the live consumer's rows (results/live_seeds[_fam].csv, run_live.sh) with the in-process runner's stored rows
-(../6.4-copula-density/results/strategies_seeds_mix[_fam].csv), matched on copula, scenario, estimator, strategy, seed
-and window. Usage: python3 compare_live.py -> results/live_vs_probe.txt"""
+"""Compare live consumer scores with saved in-process scores."""
 import os
 import sys
 
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import write_report  # noqa: E402
 import config as C  # noqa: E402
 
 KEY = ["copula", "scenario", "estimator", "strategy", "seed", "window"]
@@ -22,8 +21,7 @@ def main():
     for c in ["rmse", "excess_x1000", "h2_x1000"]:
         d = (m[c + "_live"] - m[c + "_probe"]).abs()
         out.append(f"{c:13s} identical {int((d == 0).sum())}/{len(d)}  max |live - runner| {d.max():.3g}")
-    open("results/live_vs_probe.txt", "w").write("\n".join(out) + "\n")
-    print("\n".join(out))
+    write_report("results/live_vs_probe.txt", out)
 
 
 if __name__ == "__main__":

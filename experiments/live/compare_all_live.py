@@ -1,11 +1,15 @@
-"""Compare every CSV the live runs wrote (live/<section>/results/, run_all_live.sh) with the in-process file of the same
-name (<section>/results/): byte-identical, or the largest absolute and relative difference of the numeric columns and
-how many rows differ. Usage: python3 compare_all_live.py -> results/live_vs_inprocess.txt"""
+"""Compare live experiment CSVs with their in-process counterparts."""
+from pathlib import Path
+import sys
+
 import glob
 import os
 
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
+from report_output import write_report  # noqa: E402
 
 
 def compare(f, ref):
@@ -39,8 +43,7 @@ def main():
         out.append(f"{sec}/{name}: {verdict}")
     out.insert(0, f"{same} of {tot} files byte-identical to the in-process (thesis) runs.")
     os.makedirs("results", exist_ok=True)
-    open("results/live_vs_inprocess.txt", "w").write("\n".join(out) + "\n")
-    print("\n".join(out))
+    write_report("results/live_vs_inprocess.txt", out)
 
 
 if __name__ == "__main__":
