@@ -145,7 +145,7 @@ FamilySwitchSeed compare_family_mixtures_for_seed(const Generator& generator, co
     FamilySwitchSeed result;
     FixedMemoryArms arms(estimator);
     thesis::Mff family_aware(copula::Family::Gaussian, kArms), gaussian_only(copula::Family::Gaussian, kK);
-    double rho[kK], update_parameter[kFamilies][kK];
+    double rho[kK];
     std::array<double, kArms> arm_rho{}, log_density{};
     std::array<int, kArms> arm_family{};
     for (std::size_t i = 0; i < kArms; ++i) arm_family[i] = int(i / kK);
@@ -159,11 +159,13 @@ FamilySwitchSeed compare_family_mixtures_for_seed(const Generator& generator, co
         const double truth_log_density = copula::log_density(truth_family, s.true_pit_x[t], s.true_pit_y[t], truth_parameter);
         for (std::size_t w = 0; w < kFamilies; ++w)
             for (std::size_t k = 0; k < kK; ++k) {
-                update_parameter[w][k] = families.inverse[w](rho[k]);
-                log_density[w * kK + k] = copula::log_density(WorkingFamilies::family[w], s.true_pit_x[t], s.true_pit_y[t],
-                                                              families.evaluation_parameter(w, rho[k]));
+                const std::size_t i = w * kK + k;
+                const auto family = WorkingFamilies::family[w];
+                arm_rho[i] = rho[k];
+                log_density[i] = copula::log_density(family, s.true_pit_x[t], s.true_pit_y[t], families.evaluation_parameter(w, rho[k]));
+                if (ready)
+                    family_losses[i] = -copula::log_density(family, s.estimated_pit_x[t], s.estimated_pit_y[t], families.inverse[w](rho[k]));
             }
-        for (std::size_t i = 0; i < kArms; ++i) arm_rho[i] = rho[i % kK];
 
         const double truth = s.true_spearman[t];
         result.family_aware.record_error_and_excess_loss(t, family_aware.forecast(arm_rho.data()), truth, truth_log_density,
@@ -182,10 +184,6 @@ FamilySwitchSeed compare_family_mixtures_for_seed(const Generator& generator, co
             result.family_weight[t][w] = total;
         }
         if (ready) {
-            for (std::size_t w = 0; w < kFamilies; ++w)
-                for (std::size_t k = 0; k < kK; ++k)
-                    family_losses[w * kK + k] = -copula::log_density(WorkingFamilies::family[w], s.estimated_pit_x[t],
-                                                                     s.estimated_pit_y[t], update_parameter[w][k]);
             std::copy_n(family_losses.begin(), kK, gaussian_losses.begin());
             result.guarded_losses += thesis::guard_mff_losses(family_losses);
             result.guarded_losses += thesis::guard_mff_losses(gaussian_losses);
@@ -323,24 +321,27 @@ int run_family_switching_study(const Run& run) {
             for (const auto& g : kGenerators) if (name == g.name) generators.push_back(g);
     } else generators.assign(kGenerators.begin(), kGenerators.end());
 
+    constexpr std::size_t kPathStride = 10;
+    constexpr std::size_t kPathRows = (kN + kPathStride - 1) / kPathStride;
     for (const auto& generator : generators) {
         const auto wins = family_evaluation_windows(generator);
-        std::vector<double> weight_sum(kFamilies * kN, 0.0), weight_sum_sq(kFamilies * kN, 0.0);
+        std::vector<std::array<double, kFamilies>> weight_sum(kPathRows), weight_sum_sq(kPathRows);
         for (int sd = 0; sd < run.seeds; ++sd) {
             const unsigned seed = base + sd;
             const StudySeries s = load_study_series(generator.name, "constant", seed, kN);
             const FamilySwitchSeed result = compare_family_mixtures_for_seed(generator, s, estimator, families, hellinger, with_h2);
             write_switch_seed(seeds_file, ident_file, generator, seed, wins, result, with_h2);
-            for (std::size_t t = 0; t < kN; ++t)
+            for (std::size_t row = 0; row < kPathRows; ++row)
                 for (std::size_t f = 0; f < kFamilies; ++f) {
-                    const double w = result.family_weight[t][f];
-                    weight_sum[f * kN + t] += w;
-                    weight_sum_sq[f * kN + t] += w * w;
+                    const double w = result.family_weight[row * kPathStride][f];
+                    weight_sum[row][f] += w;
+                    weight_sum_sq[row][f] += w * w;
                 }
         }
-        for (std::size_t t = 0; t < kN; t += 10)
+        for (std::size_t row = 0; row < kPathRows; ++row)
             for (std::size_t f = 0; f < kFamilies; ++f) {
-                const auto [mean, sd] = seed_mean_sd(weight_sum[f * kN + t], weight_sum_sq[f * kN + t], run.seeds);
+                const auto [mean, sd] = seed_mean_sd(weight_sum[row][f], weight_sum_sq[row][f], run.seeds);
+                const std::size_t t = row * kPathStride;
                 std::fprintf(path_file, "%s,%zu,%s,%.6f,%.6f\n", generator.name, t, WorkingFamilies::name[f], mean, sd);
             }
     }
