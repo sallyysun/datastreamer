@@ -12,13 +12,13 @@
 #include <thread>
 #include <vector>
 
-#include "../../../src/estimators/dependence/estimator.hpp"
-#include "../../../src/estimators/dependence/hermiter.hpp"
-#include "../../../src/special_functions.hpp"
-#include "../../../src/estimators/dependence/rmpl.hpp"
-#include "../../../src/estimators/dependence/count_matrix.hpp"
-#include "../../../src/streamgenerator/datasource/copula.hpp"
-#include "../../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../src/estimators/dependence/estimator.hpp"
+#include "../../src/estimators/dependence/hermiter.hpp"
+#include "../../src/special_functions.hpp"
+#include "../../src/estimators/dependence/rmpl.hpp"
+#include "../../src/estimators/dependence/count_matrix.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
+#include "../../src/streamgenerator/datasource/dependence.hpp"
 
 namespace {
 constexpr std::size_t kN = 15000, kBurn = 500, kEvery = 5, kLate = 10000;

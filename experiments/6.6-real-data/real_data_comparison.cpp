@@ -24,7 +24,7 @@
 #include "../../src/estimators/dependence/vff.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "run_live_stream.hpp"
+#include "../simulation/run_live_stream.hpp"
 
 namespace {
 using thesis::kK; using thesis::kMem;

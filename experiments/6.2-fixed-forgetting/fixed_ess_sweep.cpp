@@ -13,7 +13,7 @@
 #include "../../src/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "study_stream.hpp"
+#include "../simulation/study_stream.hpp"
 
 namespace {
 using thesis::kN; using thesis::kBurn;

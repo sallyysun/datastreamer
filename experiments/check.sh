@@ -13,7 +13,8 @@ D=$(mktemp -d)
 trap 'rm -rf "$D"' EXIT
 mkdir -p "$D/results"
 cd "$D"
-exec 3>&1 > /dev/null 2>&1
+exec 3>&1 > "$D/run.log" 2>&1
+trap 'exec 1>&3 2>&3; echo "a run failed; last lines of its output:"; tail -20 "$D/run.log"' ERR
 S=$E/common/build/strategy_experiments
 $S 2
 COPULA=clayton $S 2
