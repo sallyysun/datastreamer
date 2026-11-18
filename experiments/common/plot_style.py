@@ -1,5 +1,5 @@
 """Chapter 6 Matplotlib defaults and shared figure styles."""
-from plot_theme import COL as COL, GRID as GRID, INK as INK, RC as RC, W as W
+from plot_theme import *  # noqa: F401,F403
 
 import matplotlib
 matplotlib.use("Agg")

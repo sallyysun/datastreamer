@@ -12,7 +12,7 @@ EST = [(e, C.EST_LABEL2[e]) for e in C.ESTIMATORS]
 SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 FIX = [str(m) for m in C.MEMORIES]
 BARS = [f"fixed_{n}" for n in FIX] + ["vff_slow", "mff"]
-C_OTHER, C_BEST, C_VFF, C_MFF = "#cfcfcf", "#333333", "#8E6BB8", "#C2185B"
+C_OTHER, C_BEST, C_VFF, C_MFF = (ce.STRATEGY[k] for k in ("fixed_other", "fixed", "vff", "mff"))
 CFG = {"rmse": ("strategies_seeds.csv", "rmse", 100, r"Spearman RMSE ($\times10^{-2}$)", {"constant": 8, "drift": 11, "jump": 14}),
        "h2": ("strategies_seeds_mix.csv", "h2_x1000", 1, r"Squared Hellinger ($\times10^{-3}$)", {"constant": 3.5, "drift": 4.5, "jump": 8}),
        "excess": ("strategies_seeds_mix.csv", "excess_x1000", 1, r"Excess log loss ($\times10^{-3}$)", {"constant": 6, "drift": 8, "jump": 20})}
@@ -43,11 +43,11 @@ def panel(ax, agg, sc, ym, metric):
                 ax.plot([x - bw * 0.45, x + bw * 0.45], [ym * 0.965, ym * 0.985], color="white", lw=1.2, zorder=5)
                 lab = f"{m:.0f}" if m >= 9.95 or metric == "rmse" else f"{m:.1f}"
                 lev = 1 if prev == 0 else 0
-                ax.text(x, ym * (0.99 + 0.075 * lev), lab, ha="center", va="bottom", fontsize=5.2, color="#52514e", clip_on=False)
+                ax.text(x, ym * (0.99 + 0.075 * lev), lab, ha="center", va="bottom", fontsize=5.2, color=ce.MUTED, clip_on=False)
                 prev = lev
             else:
                 prev = -1
-                ax.errorbar(x, m, yerr=2 * se, color="#52514e", lw=0.6, capsize=0, zorder=4)
+                ax.errorbar(x, m, yerr=2 * se, color=ce.MUTED, lw=0.6, capsize=0, zorder=4)
             if k == best:
                 ax.text(x, min(m + 2 * se, ym) + 0.012 * ym, k.split("_")[1], ha="center", va="bottom",
                         fontsize=5.2, color=C_BEST, rotation=90)
@@ -55,17 +55,14 @@ def panel(ax, agg, sc, ym, metric):
     ax.set_xlim(-0.55, 2.55)
     ax.set_xticks(range(3))
     ax.tick_params(axis="x", length=0)
-    ax.grid(True, axis="y", color=ce.GRID, lw=0.5, zorder=0)
-    ax.set_axisbelow(True)
+    ce.grid(ax, "y")
 
 
 def legend(fig, y):
     def sq(c):
-        return plt.Rectangle((0, 0), 1, 1, color=c)
-    fig.legend([sq(C_OTHER), sq(C_BEST), sq(C_VFF), sq(C_MFF)],
-               [r"Fixed $N_{\mathrm{eff}}$ = " + ", ".join(FIX) + " (left to right)", "Fixed, hindsight best (labelled)",
-                "VFF", "MFF"], loc="upper center", ncol=2, frameon=False, fontsize=7, bbox_to_anchor=(0.53, y),
-               handlelength=1.2, columnspacing=1.5)
+        return ce.swatch(color=c)
+    ce.top_legend(fig, [sq(C_OTHER), sq(C_BEST), sq(C_VFF), sq(C_MFF)], [r"Fixed $N_{\mathrm{eff}}$ = " + ", ".join(FIX) + " (left to right)", "Fixed, hindsight best (labelled)",
+                "VFF", "MFF"], ncol=2, handlelength=1.2, columnspacing=1.5, y=y)
 
 
 def density_fig(section_dir):
@@ -83,9 +80,7 @@ def density_fig(section_dir):
             axs[ri, 0].set_ylabel(CFG[met][3])
         legend(fig, 1.005)
         fig.subplots_adjust(left=0.08, right=0.985, top=0.855, bottom=0.085, hspace=0.26, wspace=0.22)
-        out = section_dir / "images" / "ch6_strategy_density_bars_allfixed.png"
-        fig.savefig(out)
-        plt.close(fig)
+        ce.save(fig, "ch6_strategy_density_bars_allfixed.png", out=section_dir / "images")
 
 
 def metric_fig(section_dir, metric):
@@ -100,9 +95,7 @@ def metric_fig(section_dir, metric):
         axs[0].set_ylabel(ylab)
         legend(fig, 1.01)
         fig.subplots_adjust(left=0.08, right=0.985, top=0.76 if metric == "rmse" else 0.73, bottom=0.15, wspace=0.22)
-        out = section_dir / "images" / f"ch6_strategy_{metric}_bars_allfixed.png"
-        fig.savefig(out)
-        plt.close(fig)
+        ce.save(fig, f"ch6_strategy_{metric}_bars_allfixed.png", out=section_dir / "images")
 
 
 def plot_all_fixed(section_dir, metric):

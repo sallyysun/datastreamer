@@ -8,16 +8,16 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, GRID, RC, W, box_style, change, eval_days, image, outputs, plt, read, result, verbose_print
+from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, RC, W, box_style, change, eval_days, image, outputs, plt, read, result, verbose_print
+import plot_theme as ce  # noqa: E402
 
-SER = [("fixed99", r"Fixed, $N_{\mathrm{eff}}=99$", "rho_fixed_99", "#A6A6A6"), ("fixed199", r"Fixed, $N_{\mathrm{eff}}=199$", "rho_fixed_199", "#6E6E6E"),
-       ("fixed399", r"Fixed, $N_{\mathrm{eff}}=399$", "rho_fixed_399", "#333333"), ("vff", r"VFF, $\alpha=0.02$", "rho_vff", "#8E6BB8"),
-       ("mff", "MFF", "rho_mff_t", "#C2185B")]
+SER = [(f"fixed{k}", rf"Fixed, $N_{{\mathrm{{eff}}}}={k}$", f"rho_fixed_{k}", ce.FIXED_GREY[k]) for k in (99, 199, 399)] + [
+    ("vff", r"VFF, $\alpha=0.02$", "rho_vff", ce.STRATEGY["vff"]), ("mff", "MFF", "rho_mff_t", ce.STRATEGY["mff"])]
 REF_MED = {"RMPL": (1.14, 0.19, 0.31, 0.60), "Counting matrix": (1.37, 0.25, 0.39, 0.71), "Hermite series": (1.42, 0.25, 0.39, 0.49)}
 REF_DIR = {"RMPL": (85, 93, 93, 90), "Counting matrix": (88, 97, 97, 94), "Hermite series": (82, 91, 91, 90)}
 FA = np.array(FIX, float)
-MEMC = [plt.get_cmap("plasma")(v) for v in (0.82, 0.64, 0.47, 0.30, 0.10)]
-MFFC, VFFC = "#C2185B", "#8E6BB8"
+MEMC = list(ce.memory_colours(FIX).values())
+MFFC, VFFC = ce.STRATEGY["mff"], ce.STRATEGY["vff"]
 LAGS = np.arange(-63, 127)
 
 
@@ -70,12 +70,12 @@ def response_figure(Bp, Pl):
                 ax.boxplot(v, positions=[y], orientation="horizontal", widths=0.78 if main else 0.5, patch_artist=True,
                            **box_style(col, 0.85 if main else 0.45, median_lw=2.0 if main else 1.5, flier_ms=3.0))
                 pm = Pl[(Pl.estimator == e) & (Pl.series == k)].pooled_median_ratio.item()
-                ax.plot(pm, y, marker="D", ms=3.4, mfc="white", mec="#111111", mew=0.7, ls="none", zorder=6)
+                ax.plot(pm, y, marker="D", ms=3.4, mfc="white", mec=ce.DARK, mew=0.7, ls="none", zorder=6)
             yt.append(ei * G + (len(SER) - 1) / 2)
         for si, (k, *_, col) in enumerate(SER):
             ax.plot(0, 2 * G + si, marker="o", ms=3.6, mfc="white", mec=col, mew=1.0, ls="none", zorder=7)
-        ax.text(0.025, 2 * G - 0.55, "SPY/IVV (no movement)", fontsize=6, color="#52514e", ha="left", va="center")
-        ax.axvline(1.0, color="#9a9a9a", lw=0.9, ls=(0, (3, 2)), zorder=0)
+        ax.text(0.025, 2 * G - 0.55, "SPY/IVV (no movement)", fontsize=6, color=ce.MUTED, ha="left", va="center")
+        ax.axvline(1.0, color=ce.REF, lw=0.9, ls=(0, (3, 2)), zorder=0)
         ax.set_xlim(-0.03, 1.2)
         ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
         ax.set_xticklabels(["0", "0.25", "0.5", "0.75", "1.0"])
@@ -83,20 +83,16 @@ def response_figure(Bp, Pl):
         ax.set_yticklabels([e for e, _ in EST])
         ax.tick_params(axis="y", length=0)
         ax.invert_yaxis()
-        ax.grid(True, axis="x", color=GRID, lw=0.5, zorder=0)
-        ax.set_axisbelow(True)
+        ce.grid(ax, "x")
         for ei in range(1, len(EST)):
-            ax.axhline(ei * G - 1, color="#ecebe7", lw=0.6, zorder=0)
+            ax.axhline(ei * G - 1, color=ce.GRID, lw=0.6, zorder=0)
         ax.set_xlabel("Relative change in estimated Spearman correlation")
-        h = [Patch(facecolor=c, edgecolor="#555555", lw=0.9, alpha=0.45 if k.startswith("fixed") else 0.85) for k, *_, c in SER]
-        fig.legend(h, [l for _, l, _, _ in SER], loc="upper center", ncol=len(SER), frameon=False, fontsize=6.8,
-                   bbox_to_anchor=(0.575, 1.0), columnspacing=1.0, handlelength=1.2)
-        h2 = [Line2D([], [], marker="D", ms=3.4, mfc="white", mec="#111111", ls="none"), Line2D([], [], color="#9a9a9a", lw=0.9, ls=(0, (3, 2)))]
-        fig.legend(h2, ["Pooled pair-day median", "Equal movement"], loc="upper center", ncol=2, frameon=False, fontsize=6.8,
-                   bbox_to_anchor=(0.575, 0.955), columnspacing=1.5, handlelength=1.6)
+        h = [Patch(facecolor=c, edgecolor=ce.EDGE, lw=0.9, alpha=0.45 if k.startswith("fixed") else 0.85) for k, *_, c in SER]
+        ce.top_legend(fig, h, [l for _, l, _, _ in SER], ncol=len(SER), fontsize=6.8, columnspacing=1.0, handlelength=1.2, x=0.575)
+        h2 = [Line2D([], [], marker="D", ms=3.4, mfc="white", mec=ce.DARK, ls="none"), Line2D([], [], color=ce.REF, lw=0.9, ls=(0, (3, 2)))]
+        ce.top_legend(fig, h2, ["Pooled pair-day median", "Equal movement"], ncol=2, fontsize=6.8, columnspacing=1.5, handlelength=1.6, x=0.575, y=0.955)
         fig.subplots_adjust(left=0.165, right=0.975, top=0.85, bottom=0.14)
-        fig.savefig(image("ch6_practical_response.png"))
-        plt.close(fig)
+        ce.save(fig, image("ch6_practical_response.png"))
 
 
 def response_summary(Bp, Pl):
@@ -204,21 +200,18 @@ def weights_figure(res):
             a2.set_yticks(FIX)
             a2.set_yticklabels([str(k) for k in FIX])
             a2.minorticks_off()
-            a2.grid(True, axis="y", color=GRID, lw=0.5, zorder=0)
-            a2.set_axisbelow(True)
+            ce.grid(a2, "y")
             for a in (a1, a2):
                 a.set_xlim(LAGS[0], LAGS[-1])
                 a.set_xticks([-50, 0, 50, 100])
-                a.axvline(0, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=6)
+                a.axvline(0, color=ce.DARK, lw=0.8, ls=(0, (4, 3)), zorder=6)
         axs[0, 0].set_ylabel("Mean MFF weight")
         axs[1, 0].set_ylabel("Weight-averaged\ncandidate " + r"$N_{\mathrm{eff}}$")
-        h = [plt.Rectangle((0, 0), 1, 1, color=c) for c in MEMC] + [Line2D([], [], color=MFFC, lw=1.1), Line2D([], [], color=VFFC, lw=1.1)]
-        fig.legend(h, [r"$N_{\mathrm{eff}}=%d$" % m for m in FIX] + ["MFF", "VFF"], loc="upper center", ncol=7, frameon=False, fontsize=7,
-                   bbox_to_anchor=(0.53, 0.955), handlelength=1.2, columnspacing=1.2)
-        fig.text(0.53, 0.01, "Trading days from the start of a large-change episode", ha="center", fontsize=8)
+        h = [ce.swatch(color=c) for c in MEMC] + [Line2D([], [], color=MFFC, lw=1.1), Line2D([], [], color=VFFC, lw=1.1)]
+        ce.top_legend(fig, h, [r"$N_{\mathrm{eff}}=%d$" % m for m in FIX] + ["MFF", "VFF"], ncol=7, handlelength=1.2, columnspacing=1.2, y=0.955)
+        ce.bottom_label(fig, "Trading days from the start of a large-change episode")
         fig.subplots_adjust(left=0.12, right=0.985, top=1 - 0.665 / H, bottom=0.42 / H, hspace=0.14, wspace=0.08)
-        fig.savefig(image("ch6_practical_weights_ess.png"))
-        plt.close(fig)
+        ce.save(fig, image("ch6_practical_weights_ess.png"))
 
 
 def weights_values(res):

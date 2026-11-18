@@ -19,19 +19,9 @@ FL = [C.FAMILY_MATH[f] for f in FAM]
 MET = [("rmse", "Spearman RMSE"), ("h2_x1000", "Squared Hellinger"), ("excess_x1000", "Excess log loss")]
 LIM = 60
 MINUS = "−"
-C_STAT, C_SW = "#3b4f7a", "#9fb0cf"
-C_FS, C_H = "#0072B2", "#E69F00"
+C_STAT, C_SW = ce.REGRET["static"], ce.REGRET["switching"]
+C_FS, C_H = ce.FIXED_SHARE, ce.HEDGE
 N = len(C.SEEDS)
-
-
-def y_grid(ax):
-    ax.grid(True, axis="y", color=ce.GRID, lw=0.5, zorder=0)
-    ax.set_axisbelow(True)
-
-
-def save(fig, out):
-    fig.savefig(ce.OUT + out)
-    plt.close(fig)
 
 
 def gain_matrix(cells, sc, e, m):
@@ -49,7 +39,7 @@ def heatmap_panel(ax, A, S, ri, ci):
     for i in range(4):
         for j in range(4):
             strong = abs(np.clip(A[i, j], -LIM, LIM)) > 38
-            col = ("white" if strong else "#111111") if S[i, j] else "#8a8a8a"
+            col = ("white" if strong else ce.DARK) if S[i, j] else ce.REF
             ax.text(j, i, f"{A[i, j]:+.0f}".replace("-", MINUS), ha="center", va="center", fontsize=7.2,
                     color=col, fontweight=("bold" if i == j else "normal"))
     ax.set_xticks(range(4))
@@ -68,8 +58,8 @@ def colourbar(f, im):
     cb.ax.set_xticklabels([MINUS + "60", MINUS + "30", "0\n(no difference)", "30", "60"], fontsize=6.8)
     cb.ax.tick_params(length=2, pad=1.5)
     cb.set_label("Relative error reduction with logarithmic loss (%)", fontsize=7.5, labelpad=2)
-    cax.text(-0.02, 0.5, "Squared loss\nbetter", transform=cax.transAxes, ha="right", va="center", fontsize=7, color="#a51c30")
-    cax.text(1.02, 0.5, "Log loss\nbetter", transform=cax.transAxes, ha="left", va="center", fontsize=7, color="#1d4f91")
+    cax.text(-0.02, 0.5, "Squared loss\nbetter", transform=cax.transAxes, ha="right", va="center", fontsize=7, color=ce.SQUARED_BETTER)
+    cax.text(1.02, 0.5, "Log loss\nbetter", transform=cax.transAxes, ha="left", va="center", fontsize=7, color=ce.LOG_BETTER)
 
 
 def plot_scoresfam_heatmap(e):
@@ -86,10 +76,10 @@ def plot_scoresfam_heatmap(e):
             axs[ri, 0].annotate(ml, xy=(0, 0.5), xycoords="axes fraction", xytext=(-44, 0), textcoords="offset points",
                                 rotation=90, ha="center", va="center", fontsize=8)
         f.text(0.03, 0.6, "Generating family", rotation=90, ha="center", va="center", fontsize=8)
-        f.text(0.555, 0.142, "Estimation family", ha="center", fontsize=8)
+        ce.bottom_label(f, "Estimation family", x=0.555, y=0.142)
         colourbar(f, im)
         f.subplots_adjust(left=0.2, right=0.99, top=0.96, bottom=0.225, hspace=0.07, wspace=0.05)
-        save(f, f"ch6_scoresfam_heatmap_{e}.png")
+        ce.save(f, f"ch6_scoresfam_heatmap_{e}.png")
 
 
 def plot_density_bars():
@@ -118,23 +108,22 @@ def plot_regret_summary():
                     m, se = x.mean(), standard_error(x)
                     xp = ei + (i - 0.5) * bw
                     ax.bar(xp, m, width=bw * 0.92, color=col, zorder=3)
-                    ax.errorbar(xp, m, yerr=2 * se, color="#3a3a3a", lw=0.8, capsize=0, zorder=4)
-            ax.axhline(0, color="#222222", lw=0.8, zorder=2)
+                    ax.errorbar(xp, m, yerr=2 * se, color=ce.EDGE, lw=0.8, capsize=0, zorder=4)
+            ax.axhline(0, color=ce.DARK, lw=0.8, zorder=2)
             ax.set_xticks(range(3))
             ax.set_xticklabels([C.EST_LABEL2[e] for e in C.ESTIMATORS], fontsize=6.8)
             ax.tick_params(axis="x", length=0)
             ax.set_xlim(-0.6, 2.6)
-            y_grid(ax)
+            ce.grid(ax, "y")
             ax.set_title(scl, fontsize=8, pad=3)
         axs[0].set_ylim(0, 5)
         axs[2].set_ylim(-19, 3)
         plt.setp(axs[1].get_yticklabels(), visible=False)
         axs[0].set_ylabel("Final cumulative regret (nats)", fontsize=7)
-        h = [plt.Rectangle((0, 0), 1, 1, color=C_STAT), plt.Rectangle((0, 0), 1, 1, color=C_SW)]
-        fig.legend(h, ["Static regret", "Switching regret"],
-                   loc="upper center", ncol=2, frameon=False, fontsize=7, bbox_to_anchor=(0.54, 1.0), handlelength=1.2, columnspacing=1.6)
+        h = [ce.swatch(color=C_STAT), ce.swatch(color=C_SW)]
+        ce.top_legend(fig, h, ["Static regret", "Switching regret"], ncol=2, handlelength=1.2, columnspacing=1.6, x=0.54)
         fig.subplots_adjust(left=0.1, right=0.99, top=0.78, bottom=0.17)
-        save(fig, "ch6_mff_regret_summary.png")
+        ce.save(fig, "ch6_mff_regret_summary.png")
 
 
 def plot_regret_jump(t0=2000):
@@ -151,9 +140,9 @@ def plot_regret_jump(t0=2000):
                     band = 2 * g.sd / np.sqrt(N)
                     ax.fill_between(g.t, g["mean"] - band, g["mean"] + band, color=col, alpha=0.15, lw=0, zorder=2)
                     ax.plot(g.t, g["mean"], color=col, ls="-", lw=1.3, zorder=3)
-                ax.axhline(0, color="#b5b5b5", lw=0.5, zorder=1)
-                ax.axvline(C.CHANGE, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=4)
-                y_grid(ax)
+                ax.axhline(0, color=ce.REF, lw=0.5, zorder=1)
+                ax.axvline(C.CHANGE, color=ce.DARK, lw=0.8, ls=(0, (4, 3)), zorder=4)
+                ce.grid(ax, "y")
                 ax.set_xlim(t0, C.T)
                 ax.set_xticks([2500, 3500, 4500])
                 if ri == 0:
@@ -163,11 +152,10 @@ def plot_regret_jump(t0=2000):
         axs[0, 0].set_ylabel("Static regret\n(nats)", fontsize=7)
         axs[1, 0].set_ylabel("Switching regret,\n$\\leq$1 switch (nats)", fontsize=7)
         h = [plt.Line2D([], [], color=C_H, lw=1.3), plt.Line2D([], [], color=C_FS, lw=1.3)]
-        fig.legend(h, [r"Ordinary Hedge ($\delta=0$)", r"Fixed share ($\delta=10^{-4}$)"], loc="upper center", ncol=2, frameon=False,
-                   fontsize=7, bbox_to_anchor=(0.55, 1.0), handlelength=2.4, columnspacing=1.6)
-        fig.text(0.55, 0.01, "Observation number, $n$", ha="center", fontsize=7.5)
+        ce.top_legend(fig, h, [r"Ordinary Hedge ($\delta=0$)", r"Fixed share ($\delta=10^{-4}$)"], ncol=2, handlelength=2.4, columnspacing=1.6, x=0.55)
+        ce.bottom_label(fig, "Observation number, $n$", x=0.55, fontsize=7.5)
         fig.subplots_adjust(left=0.13, right=0.99, top=0.86, bottom=0.12, hspace=0.12, wspace=0.08)
-        save(fig, "ch6_mff_regret_jump.png")
+        ce.save(fig, "ch6_mff_regret_jump.png")
 
 
 def print_regret():

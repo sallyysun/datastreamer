@@ -15,25 +15,13 @@ plt = ce.plt
 T = ("_" + os.environ["DENS_TAG"]) if os.environ.get("DENS_TAG") else ""
 SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 JUMP, J0, J1 = C.CHANGE, 2200, 3000
-COL = C.STRATEGY_COLOUR
-STR = [("fixed", "Fixed (hindsight)", COL["fixed"], "-", 1.1), ("vff_slow", "VFF", COL["vff_slow"], (0, (4, 2)), 1.2),
-       ("mff", "MFF", COL["mff"], "-", 1.1)]
-CMAP = plt.get_cmap("plasma")
-MEM = [(m, CMAP(C.MEMORY_CMAP_POS[m])) for m in C.MEMORIES]
+STR = [("fixed", "Fixed (hindsight)", ce.STRATEGY["fixed"], "-", 1.1), ("vff_slow", "VFF", ce.STRATEGY["vff"], (0, (4, 2)), 1.2),
+       ("mff", "MFF", ce.STRATEGY["mff"], "-", 1.1)]
+MEM = list(ce.memory_colours(C.MEMORIES).items())
 WC = [f"w{m}" for m, _ in MEM]
 NEFF = r"$N_{\mathrm{eff}}$"
 TIME_LABEL = "Observation number, $n$"
 RMSE_LABEL = r"RMSE ($\times10^{-2}$)"
-
-
-def y_grid(ax):
-    ax.grid(True, axis="y", color=ce.GRID, lw=0.5, zorder=0)
-    ax.set_axisbelow(True)
-
-
-def save(fig, out):
-    fig.savefig(ce.OUT + out)
-    plt.close(fig)
 
 
 def scenario_grid(fig, axs, ylab, legend_handles, legend_labels, xlabel, hspace, handlelength=None):
@@ -42,9 +30,8 @@ def scenario_grid(fig, axs, ylab, legend_handles, legend_labels, xlabel, hspace,
         row[0].set_ylabel(f"{scl}\n{ylab}")
     for ax, e in zip(axs[0], C.ESTIMATORS):
         ax.set_title(C.EST_LABEL[e])
-    fig.legend(legend_handles, legend_labels, loc="upper center", ncol=len(legend_labels), frameon=False, fontsize=7,
-               bbox_to_anchor=(0.53, 1.0), handlelength=handlelength)
-    fig.text(0.53, 0.01, xlabel, ha="center", fontsize=8)
+    ce.top_legend(fig, legend_handles, legend_labels, ncol=len(legend_labels), handlelength=handlelength)
+    ce.bottom_label(fig, xlabel)
     fig.subplots_adjust(left=0.12, right=0.985, top=0.9, bottom=0.08, hspace=hspace, wspace=0.1)
 
 
@@ -75,9 +62,9 @@ def jump_window(ax):
 
 
 def path_axes(ax, sc):
-    y_grid(ax)
+    ce.grid(ax, "y")
     if sc == "jump":
-        ax.axvline(JUMP, color="#52514e", lw=0.8, ls=(0, (4, 3)), zorder=5)
+        ax.axvline(JUMP, color=ce.MUTED, lw=0.8, ls=(0, (4, 3)), zorder=5)
         jump_window(ax)
     else:
         ax.set_xlim(500, 5000)
@@ -108,7 +95,7 @@ def plot_rmse_trajectories():
                 path_axes(ax, sc)
             row[0].set_ylim(0, {"constant": 6, "drift": 9, "jump": 62}[sc])
         scenario_grid(fig, axs, RMSE_LABEL, *strategy_handles(), TIME_LABEL, hspace=0.42, handlelength=2.2)
-        save(fig, "ch6_rmse_trajectories.png")
+        ce.save(fig, "ch6_rmse_trajectories.png")
 
 
 def plot_jump_trajectories():
@@ -124,19 +111,18 @@ def plot_jump_trajectories():
                 for part in (g.t < JUMP, g.t >= JUMP):
                     ax.plot(g.t[part], g.est_mean[part], color=col, ls=ls, lw=lw, zorder=4)
             for part in (g.t < JUMP, g.t >= JUMP):
-                ax.plot(g.t[part], g.rho_true[part], color="#9a9a9a", lw=2.4, alpha=0.6, zorder=3, solid_capstyle="butt")
-            ax.axvline(JUMP, color="#8a8a8a", lw=0.7, ls=(0, (4, 3)), zorder=2)
+                ax.plot(g.t[part], g.rho_true[part], color=ce.REF, lw=2.4, alpha=0.6, zorder=3, solid_capstyle="butt")
+            ax.axvline(JUMP, color=ce.REF, lw=0.7, ls=(0, (4, 3)), zorder=2)
             ax.set_title(C.EST_LABEL[e])
             jump_window(ax)
             ax.set_ylim(0, 0.9)
-            y_grid(ax)
+            ce.grid(ax, "y")
         axs[0].set_ylabel(r"Mean $\hat\rho_S$")
         h, l = strategy_handles()
-        fig.legend([plt.Line2D([], [], color="#9a9a9a", lw=2.4, alpha=0.6)] + h, [r"True $\rho_S$"] + l, loc="upper center",
-                   ncol=4, frameon=False, fontsize=7, bbox_to_anchor=(0.53, 1.0), handlelength=2.2)
-        fig.text(0.53, 0.02, TIME_LABEL, ha="center", fontsize=8)
+        ce.top_legend(fig, [plt.Line2D([], [], color=ce.REF, lw=2.4, alpha=0.6)] + h, [r"True $\rho_S$"] + l, ncol=4, handlelength=2.2)
+        ce.bottom_label(fig, TIME_LABEL, y=0.02)
         fig.subplots_adjust(left=0.09, right=0.985, top=0.8, bottom=0.2, wspace=0.1)
-        save(fig, "ch6_jump_trajectories.png")
+        ce.save(fig, "ch6_jump_trajectories.png")
 
 
 def weight_path(W, sc, e, delta):
@@ -150,24 +136,23 @@ def weight_panel(a0, a1, g, sc):
     a0.stackplot(g.t, *[g[k] for k in WC], colors=[col for _, col in MEM], lw=0, zorder=2)
     a0.set_ylim(0, 1)
     for p in ([g[g.t < JUMP], g[g.t >= JUMP]] if sc == "jump" else [g]):
-        a1.plot(p.t, p.nbar, color="#222222", lw=1.1, zorder=4)
+        a1.plot(p.t, p.nbar, color=ce.DARK, lw=1.1, zorder=4)
     a1.set_yscale("log")
     a1.set_ylim(30, 2600)
     a1.set_yticks([m for m, _ in MEM])
     a1.set_yticklabels([str(m) for m, _ in MEM])
     a1.minorticks_off()
-    y_grid(a1)
+    ce.grid(a1, "y")
     for ax in (a0, a1):
         ax.set_xlim(C.BURN, C.T)
         ax.set_xticks([1000, JUMP, 4000])
         if sc == "jump":
-            ax.axvline(JUMP, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=6)
+            ax.axvline(JUMP, color=ce.DARK, lw=0.8, ls=(0, (4, 3)), zorder=6)
 
 
 def weight_legend(fig, e, x):
-    h = [plt.Rectangle((0, 0), 1, 1, color=c) for _, c in MEM]
-    fig.legend(h, [r"$N_{\mathrm{eff}}=%d$" % m for m, _ in MEM], loc="upper center", ncol=5, frameon=False, fontsize=7,
-               bbox_to_anchor=(x, 1.0), handlelength=1.2, title=f"{C.EST_LABEL[e]} estimator", title_fontsize=7)
+    h = [ce.swatch(color=c) for _, c in MEM]
+    ce.top_legend(fig, h, [r"$N_{\mathrm{eff}}=%d$" % m for m, _ in MEM], ncol=5, handlelength=1.2, title=f"{C.EST_LABEL[e]} estimator", title_fontsize=7, x=x)
 
 
 def load_weights():
@@ -185,9 +170,9 @@ def plot_mff_weights(e, W):
         axs[0, 0].set_ylabel("Mean MFF weight")
         axs[1, 0].set_ylabel("Weight-averaged\ncandidate " + NEFF)
         weight_legend(fig, e, 0.53)
-        fig.text(0.53, 0.01, TIME_LABEL, ha="center", fontsize=8)
+        ce.bottom_label(fig, TIME_LABEL)
         fig.subplots_adjust(left=0.12, right=0.985, top=1 - 0.665 / 3.1, bottom=0.42 / 3.1, hspace=0.14, wspace=0.08)
-        save(fig, f"ch6_mff_weights_{e}.png")
+        ce.save(fig, f"ch6_mff_weights_{e}.png")
 
 
 def plot_fixed_share(e, W):
@@ -210,18 +195,18 @@ def plot_fixed_share(e, W):
                     a1.set_yticklabels([])
             axs[0, c].set_title(cl)
         weight_legend(fig, e, 0.55)
-        fig.text(0.56, 0.008, TIME_LABEL, ha="center", fontsize=8)
+        ce.bottom_label(fig, TIME_LABEL, x=0.56, y=0.008)
         fig.subplots_adjust(left=0.15, right=0.98, top=1 - 0.66 / H, bottom=0.45 / H, hspace=0.16, wspace=0.06)
-        save(fig, f"ch6_mff_fixedshare_jump_{e}.png")
+        ce.save(fig, f"ch6_mff_fixedshare_jump_{e}.png")
 
 
-def vffsens_panel(ax, g, ck):
-    c = np.array(to_rgb(ce.COL[ck]))
+def vffsens_panel(ax, g, e):
+    c = np.array(to_rgb(ce.ESTIMATOR[e]))
     dark = tuple(c * 0.55)
     m, s = g.loc["mff", "mean"], g.loc["mff", "se"]
     ax.axhspan(m - 2 * s, m + 2 * s, color=dark, alpha=0.15, lw=0, zorder=1)
     ax.axhline(m, color=dark, lw=1.1, ls=(0, (4, 2)), zorder=2)
-    ax.axvline(0.02, color="#9a9a9a", lw=0.7, ls=(0, (1, 1.5)), zorder=1)
+    ax.axvline(0.02, color=ce.REF, lw=0.7, ls=(0, (1, 1.5)), zorder=1)
     y = [g.loc[f"vff_{a:g}", "mean"] for a in C.VFF_RATES]
     e2 = [2 * g.loc[f"vff_{a:g}", "se"] for a in C.VFF_RATES]
     ax.errorbar(C.VFF_RATES, y, yerr=e2, color=tuple(c), lw=1.2, marker="o", ms=3, capsize=0, zorder=3)
@@ -229,7 +214,7 @@ def vffsens_panel(ax, g, ck):
     ax.set_xticks([0.005, 0.02, 0.1])
     ax.set_xticklabels(["0.005", "0.02", "0.1"])
     ax.minorticks_off()
-    y_grid(ax)
+    ce.grid(ax, "y")
 
 
 def plot_vffsens(metric, ylab, out):
@@ -241,12 +226,12 @@ def plot_vffsens(metric, ylab, out):
         for (sc, _), row in zip(SC, axs):
             for ax, e in zip(row, C.ESTIMATORS):
                 vffsens_panel(ax, S[(S.metric == metric) & (S.scenario == sc) & (S.estimator == e)].set_index("strategy"),
-                              C.EST_COLOUR_KEY[e])
-        h = [plt.Line2D([], [], color="#6b6b6b", lw=1.2, marker="o", ms=3), plt.Line2D([], [], color="#3a3a3a", lw=1.1, ls=(0, (4, 2))),
-             plt.Line2D([], [], color="#9a9a9a", lw=0.7, ls=(0, (1, 1.5)))]
+                              e)
+        h = [plt.Line2D([], [], color=ce.MUTED, lw=1.2, marker="o", ms=3), plt.Line2D([], [], color=ce.EDGE, lw=1.1, ls=(0, (4, 2))),
+             plt.Line2D([], [], color=ce.REF, lw=0.7, ls=(0, (1, 1.5)))]
         scenario_grid(fig, axs, ylab, h, ["VFF (± 2 SE)", "MFF (± 2 SE band)", r"$\alpha=0.02$ (development)"],
                       r"VFF learning rate, $\alpha$ (log scale)", hspace=0.35)
-        save(fig, out.replace(".png", T + ".png"))
+        ce.save(fig, out.replace(".png", T + ".png"))
 
 
 def main():

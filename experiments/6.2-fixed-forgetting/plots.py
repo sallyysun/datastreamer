@@ -16,29 +16,22 @@ ARMS = FIXED + ["nocum"]
 ARM_LABELS = [str(m) for m in C.MEMORIES] + ["No\nforgetting"]
 
 
-def estimator_colour(estimator):
-    return ce.COL[C.EST_COLOUR_KEY[estimator]]
-
-
 def estimator_panels(height):
     """One panel per estimator, sharing the y axis."""
     fig, axs = plt.subplots(1, 3, figsize=(ce.W, height), sharey=True)
     for ax, estimator in zip(axs, C.ESTIMATORS):
         ax.set_title(C.EST_LABEL[estimator])
-        ax.grid(True, axis="y", color=ce.GRID, lw=0.5, zorder=0)
-        ax.set_axisbelow(True)
+        ce.grid(ax, "y")
     return fig, axs
 
 
 def finish_panels(fig, axs, out, ylabel, xlabel, top, bottom, legend=None):
     axs[0].set_ylabel(ylabel)
     if legend is not None:
-        fig.legend(*axs[0].get_legend_handles_labels(), loc="upper center", frameon=False, fontsize=7,
-                   bbox_to_anchor=(0.53, 1.0), **legend)
-    fig.text(0.53, 0.015, xlabel, ha="center", fontsize=8)
+        ce.top_legend(fig, *axs[0].get_legend_handles_labels(), **legend)
+    ce.bottom_label(fig, xlabel, y=0.015)
     fig.subplots_adjust(left=0.08, right=0.975, top=top, bottom=bottom, wspace=0.12)
-    fig.savefig(ce.OUT + out)
-    plt.close(fig)
+    ce.save(fig, out)
 
 
 def label_point(ax, x, y, value, offset, above):
@@ -63,7 +56,7 @@ def plot_memory_rmse(scenario, out, ylim, label_nocum=False):
         for ax, estimator in zip(axs, C.ESTIMATORS):
             p = d[d.estimator == estimator].pivot(index="seed", columns="method", values="rmse") * 100
             mu, se = p[ARMS].mean(), standard_error(p[ARMS])
-            col = estimator_colour(estimator)
+            col = ce.ESTIMATOR[estimator]
             ax.plot(x[:5], mu[FIXED], color=col, lw=1.4, zorder=3)
             ax.errorbar(x[:5], mu[FIXED], yerr=2 * se[FIXED], fmt="o", ms=3.8, color=col, lw=1, capsize=0, zorder=4)
             ax.errorbar(x[5], mu["nocum"], yerr=2 * se["nocum"], fmt="D", ms=4.2, color=col, mfc="white", mew=1.3, lw=1,
@@ -91,9 +84,9 @@ def plot_drift_bias_variance():
     d["N"] = d.neff.astype(float)
     opt = pd.read_csv(ce.R + "fixed_ess_optimum.csv")
     opt = opt[opt.copula == "gaussian"].set_index("estimator")
-    components = [("mse", "MSE", "#303030", "-", 1.1, "o", 3),
-                  ("bias2", "Squared bias", "#E69F00", (0, (4, 2)), 1.2, "^", 4),
-                  ("var", "Variance", "#0072B2", (0, (1, 1.3)), 1.4, "s", 5)]
+    components = [("mse", "MSE", ce.TEXT, "-", 1.1, "o", 3),
+                  ("bias2", "Squared bias", ce.ORANGE, (0, (4, 2)), 1.2, "^", 4),
+                  ("var", "Variance", ce.BLUE, (0, (1, 1.3)), 1.4, "s", 5)]
     with plt.rc_context(ce.RC):
         fig, axs = estimator_panels(2.5)
         for ax, estimator in zip(axs, C.ESTIMATORS):
@@ -104,8 +97,8 @@ def plot_drift_bias_variance():
                 ax.plot(g.N, 1e3 * g[q], color=col, ls=ls, lw=lw, zorder=z)
                 ax.plot(coarse.N, 1e3 * coarse[q], ls="none", marker=mk, ms=1.8, mec=col, mfc=col, zorder=z)
                 ax.plot([], [], color=col, ls=ls, lw=lw, marker=mk, ms=2.2, label=lab)
-            ax.axvline(opt.loc[estimator, "optimum"], color="#9a9a9a", lw=0.6, zorder=1, label="Empirical optimum")
-            ax.axvline(opt.loc[estimator, "approx"], color="#9a9a9a", lw=0.6, ls=(0, (3, 2)), zorder=1, label="Approximation")
+            ax.axvline(opt.loc[estimator, "optimum"], color=ce.REF, lw=0.6, zorder=1, label="Empirical optimum")
+            ax.axvline(opt.loc[estimator, "approx"], color=ce.REF, lw=0.6, ls=(0, (3, 2)), zorder=1, label="Approximation")
             ax.set_xscale("log")
             ax.set_xlim(20, 15000)
             ax.set_ylim(0, 20)
@@ -116,9 +109,9 @@ def plot_drift_bias_variance():
 
 def plot_jump_rmse(before=300, after=500):
     """Gaussian RMSE by tick around the jump, one line per memory."""
-    cmap = plt.get_cmap("plasma")
-    memories = [(f"{m}.000000", str(m), cmap(C.MEMORY_CMAP_POS[m]), "-") for m in C.MEMORIES] + [
-        ("nocum", "No forgetting", "#0b0b0b", (0, (3, 1.6)))]
+    colour = ce.memory_colours(C.MEMORIES)
+    memories = [(f"{m}.000000", str(m), colour[m], "-") for m in C.MEMORIES] + [
+        ("nocum", "No forgetting", ce.INK, (0, (3, 1.6)))]
     d = pd.read_csv(ce.R + "fixed_ess_jumppath.csv", dtype={"neff": str})
     d = d[(d.t >= C.CHANGE - before) & (d.t <= C.CHANGE + after)]
     with plt.rc_context(ce.RC):
@@ -127,7 +120,7 @@ def plot_jump_rmse(before=300, after=500):
             for neff, lab, col, ls in memories:
                 g = d[(d.estimator == estimator) & (d.neff == neff)].sort_values("t")
                 ax.plot(g.t - C.CHANGE, 100 * np.sqrt(g.mse), color=col, ls=ls, lw=0.9, label=lab, zorder=3)
-            ax.axvline(0, color="#52514e", lw=0.8, ls=(0, (4, 3)), zorder=2)
+            ax.axvline(0, color=ce.MUTED, lw=0.8, ls=(0, (4, 3)), zorder=2)
             ax.set_xlim(-before, after)
             ax.set_ylim(0, 65)
             ax.set_xticks([-250, 0, 250, 500])
@@ -144,12 +137,12 @@ def plot_jump_recovery():
     with plt.rc_context(ce.RC):
         fig, ax = plt.subplots(figsize=(ce.W * 0.62, 2.6))
         nn = np.geomspace(30, 2600, 200)
-        ax.plot(nn, np.log(0.1) / np.log(1 - 2 / (nn + 1)), color="#9a9a9a", lw=0.9, ls=(0, (4, 2)), zorder=2,
+        ax.plot(nn, np.log(0.1) / np.log(1 - 2 / (nn + 1)), color=ce.REF, lw=0.9, ls=(0, (4, 2)), zorder=2,
                 label="Theoretical")
         for estimator, off in zip(C.ESTIMATORS, [0.94, 1.0, 1.06]):   # offsets keep overlapping markers visible
             g = r[r.estimator == estimator].sort_values("N")
             ax.plot(g.N * off, g.recovery, ls="none", marker=C.EST_MARKER[estimator], ms=4.5,
-                    color=estimator_colour(estimator), label=C.EST_LABEL[estimator], zorder=3)
+                    color=ce.ESTIMATOR[estimator], label=C.EST_LABEL[estimator], zorder=3)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set_xticks(C.MEMORIES)
@@ -161,12 +154,10 @@ def plot_jump_recovery():
         ax.set_ylim(35, 3000)
         ax.set_xlabel(r"Effective sample size, $N_{\mathrm{eff}}$")
         ax.set_ylabel("90% recovery time (observations)")
-        ax.grid(True, color=ce.GRID, lw=0.5, zorder=0)
-        ax.set_axisbelow(True)
+        ce.grid(ax)
         ax.legend(loc="upper left", frameon=False, fontsize=7, handlelength=1.6, borderaxespad=0.3, labelspacing=0.35)
         fig.subplots_adjust(left=0.16, right=0.97, top=0.96, bottom=0.17)
-        fig.savefig(ce.OUT + "ch6_jump_recovery_time.png")
-        plt.close(fig)
+        ce.save(fig, "ch6_jump_recovery_time.png")
 
 
 def main():

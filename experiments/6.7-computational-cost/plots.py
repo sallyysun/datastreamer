@@ -13,11 +13,11 @@ plt = ce.plt
 SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
 SEED_KEY = ["family", "scenario", "estimator", "approx", "gain", "seed"]
 APPROX_LABELS = {"rmpl": "KLL $k$", "xiao": "bins", "hermite": "order"}
-IMPL = {"mpl_kll": ("#6250d6", "v", "Hand-written KLL"), "mpl_dskll": (ce.COL["mle"], "^", "Apache DataSketches KLL")}
+IMPL = {"mpl_kll": (ce.KLL_OWN, "v", "Hand-written KLL"), "mpl_dskll": (ce.ESTIMATOR["rmpl"], "^", "Apache DataSketches KLL")}
 
 
 def budget_estimators(labels=C.EST_LABEL):
-    return [("mpl_dskll" if e == "rmpl" else e, labels[e], ce.COL[C.EST_COLOUR_KEY[e]], C.EST_MARKER[e]) for e in C.ESTIMATORS]
+    return [("mpl_dskll" if e == "rmpl" else e, labels[e], ce.ESTIMATOR[e], C.EST_MARKER[e]) for e in C.ESTIMATORS]
 
 
 def log2_axis(set_scale, set_ticks, set_labels, ticks):
@@ -28,17 +28,7 @@ def log2_axis(set_scale, set_ticks, set_labels, ticks):
 
 def budget_guides(ax):
     for budget in C.BUDGETS:
-        ax.axvline(budget, color="#8a8984", lw=0.5, ls=":", zorder=0)
-
-
-def grid(ax, axis="both"):
-    ax.grid(True, axis=axis, color=ce.GRID, lw=0.5, zorder=0)
-    ax.set_axisbelow(True)
-
-
-def save(fig, name):
-    fig.savefig(ce.OUT + name)
-    plt.close(fig)
+        ax.axvline(budget, color=ce.REF, lw=0.5, ls=":", zorder=0)
 
 
 def seed_rmse(path):
@@ -54,8 +44,8 @@ def plot_storage():
     with plt.rc_context(ce.RC):
         fig, ax = plt.subplots(figsize=(ce.W * 0.72, 2.5))
         for i, b in enumerate(C.BUDGETS):
-            ax.hlines(b, i - 0.45, i + 0.45, color="#444444", lw=0.8, ls=(0, (3, 2)), zorder=2)
-            ax.text(i - 0.45, b * 1.07, "budget", va="bottom", ha="left", fontsize=6, color="#444444")
+            ax.hlines(b, i - 0.45, i + 0.45, color=ce.EDGE, lw=0.8, ls=(0, (3, 2)), zorder=2)
+            ax.text(i - 0.45, b * 1.07, "budget", va="bottom", ha="left", fontsize=6, color=ce.EDGE)
             for j, (e, lab, col, _) in enumerate(EST):
                 top = sel[(sel.estimator == e) & (sel.budget_kib == b)].kib.max()
                 xp = i + (j - 1) * bw
@@ -69,11 +59,11 @@ def plot_storage():
         ax.tick_params(axis="x", length=0)
         ax.set_xlabel("Storage budget", fontsize=7.5)
         ax.set_ylabel("Maximum selected\nretained state (KiB)", fontsize=7.5)
-        grid(ax, "y")
+        ce.grid(ax, "y")
         h, l = ax.get_legend_handles_labels()
-        fig.legend(h, l, loc="upper center", ncol=3, frameon=False, fontsize=6.5, bbox_to_anchor=(0.53, 1.0), handlelength=1.2, columnspacing=1.0)
+        ce.top_legend(fig, h, l, ncol=3, fontsize=6.5, handlelength=1.2, columnspacing=1.0)
         fig.subplots_adjust(left=0.15, right=0.97, top=0.86, bottom=0.17)
-        save(fig, "ch6_budget_storage_n15k.png")
+        ce.save(fig, "ch6_budget_storage_n15k.png")
 
 
 def frontier(val, SD, f, s, e):
@@ -92,8 +82,7 @@ def memory_panel(ax, EST, fr):
     ax.set_ylim(lo - 0.08 * (top - lo), top + 0.3 * (top - lo))
     budget_guides(ax)
     log2_axis(ax.set_xscale, ax.set_xticks, ax.set_xticklabels, [2, 8, 32, 128])
-    ax.grid(True, axis="y", color=ce.GRID, lw=0.5)
-    ax.set_axisbelow(True)
+    ce.grid(ax, "y")
     ax.tick_params(labelsize=6.5)
 
 
@@ -111,11 +100,11 @@ def plot_memory_curves():
             if j == 0:
                 axs[i, j].set_ylabel(C.FAMILY_LONG[f], fontsize=7.5)
         h, l = axs[0, 0].get_legend_handles_labels()
-        fig.legend(h, l, loc="upper center", ncol=3, frameon=False, fontsize=7, bbox_to_anchor=(0.53, 1.0), handlelength=1.6, columnspacing=1.2)
-        fig.text(0.53, 0.01, "Retained state (KiB, log scale); dotted lines mark the 16, 64 and 256 KiB budgets", ha="center", fontsize=7.5)
+        ce.top_legend(fig, h, l, ncol=3, handlelength=1.6, columnspacing=1.2)
+        ce.bottom_label(fig, "Retained state (KiB, log scale); dotted lines mark the 16, 64 and 256 KiB budgets", fontsize=7.5)
         fig.text(0.005, 0.5, "Spearman RMSE ($\\times10^{-2}$)", rotation=90, va="center", fontsize=7.5)
         fig.subplots_adjust(left=0.1, right=0.99, top=0.93, bottom=0.07, hspace=0.18, wspace=0.22)
-        save(fig, "ch6_budget_memory_curves_n15k.png")
+        ce.save(fig, "ch6_budget_memory_curves_n15k.png")
 
 
 def plot_processing_time():
@@ -129,12 +118,12 @@ def plot_processing_time():
         log2_axis(ax.set_xscale, ax.set_xticks, ax.set_xticklabels, [1, 4, 16, 64, 256])
         log2_axis(ax.set_yscale, ax.set_yticks, ax.set_yticklabels, [0.25, 1, 4, 16, 64])
         budget_guides(ax)
-        grid(ax)
+        ce.grid(ax)
         ax.set_xlabel("Retained state (KiB)", fontsize=7.5)
         ax.set_ylabel("Time per observation (µs)", fontsize=7.5)
         ax.legend(frameon=False, fontsize=6.8, loc="upper left")
         fig.subplots_adjust(left=0.16, right=0.97, top=0.97, bottom=0.17)
-        save(fig, "ch6_budget_processing_time.png")
+        ce.save(fig, "ch6_budget_processing_time.png")
 
 
 def kll_inputs():
@@ -177,17 +166,17 @@ def kll_storage(ax, R):
         ax.plot(R.k, R[col], color=c, lw=1.1, zorder=2)
         ax.scatter(R.k[~over], R[col][~over], color=c, marker=m, s=12, zorder=3, label=lab)
         ax.scatter(R.k[over], R[col][over], facecolor="white", edgecolor=c, marker=m, s=12, lw=0.8, zorder=3)
-    ax.axhline(256, color="#444444", lw=0.8, ls=(0, (3, 2)))
-    ax.text(9, 256 * 1.12, "256 KiB budget", fontsize=5.8, color="#444444")
+    ax.axhline(256, color=ce.EDGE, lw=0.8, ls=(0, (3, 2)))
+    ax.text(9, 256 * 1.12, "256 KiB budget", fontsize=5.8, color=ce.EDGE)
     log2_axis(ax.set_yscale, ax.set_yticks, ax.set_yticklabels, [2, 8, 32, 128, 512])
     ax.set_ylabel("Retained state (KiB)", fontsize=7)
     ax.set_title("(a) Storage", fontsize=8, pad=3, loc="left")
 
 
 def kll_accuracy(ax, R):
-    ax.fill_between(R.k, R.d_min, R.d_max, color="#6250d6", alpha=0.18, lw=0)
-    ax.plot(R.k, R.d_mean, color="#6250d6", marker="o", ms=2.6, lw=1.1)
-    ax.axhline(0, color="#222222", lw=0.6)
+    ax.fill_between(R.k, R.d_min, R.d_max, color=ce.KLL_OWN, alpha=0.18, lw=0)
+    ax.plot(R.k, R.d_mean, color=ce.KLL_OWN, marker="o", ms=2.6, lw=1.1)
+    ax.axhline(0, color=ce.DARK, lw=0.6)
     ax.set_ylim(-0.3, 0.3)
     ax.set_ylabel("RMSE difference ($\\times10^{-2}$)\nhand-written − DataSketches", fontsize=6.5)
     ax.set_title("(b) Accuracy", fontsize=8, pad=3, loc="left")
@@ -213,15 +202,13 @@ def plot_kll_comparison():
         kll_timing(axs[2], R)
         for ax in axs:
             log2_axis(ax.set_xscale, ax.set_xticks, ax.set_xticklabels, [8, 64, 512, 4096])
-            ax.grid(True, color=ce.GRID, lw=0.5)
-            ax.set_axisbelow(True)
+            ce.grid(ax)
         h = [plt.Line2D([], [], color=IMPL[e][0], marker=IMPL[e][1], lw=1.1, ms=3) for e in IMPL]
-        h.append(plt.Line2D([], [], color="#777777", marker="v", ls="", mfc="white", ms=3.5))
-        fig.legend(h, [IMPL[e][2] for e in IMPL] + ["exceeds 256 KiB"], loc="upper center", ncol=3, frameon=False, fontsize=6.5,
-                   bbox_to_anchor=(0.53, 1.0), handlelength=1.5, columnspacing=1.2)
-        fig.text(0.53, 0.01, "KLL capacity $k$ (log scale)", ha="center", fontsize=6.3)
+        h.append(plt.Line2D([], [], color=ce.REF, marker="v", ls="", mfc="white", ms=3.5))
+        ce.top_legend(fig, h, [IMPL[e][2] for e in IMPL] + ["exceeds 256 KiB"], ncol=3, fontsize=6.5, handlelength=1.5, columnspacing=1.2)
+        ce.bottom_label(fig, "KLL capacity $k$ (log scale)", fontsize=6.3)
         fig.subplots_adjust(left=0.08, right=0.99, top=0.8, bottom=0.17, wspace=0.42)
-        save(fig, "ch6_budget_kll_comparison.png")
+        ce.save(fig, "ch6_budget_kll_comparison.png")
 
 
 def gain_panel(ax, EST, P, s, lo, hi):
@@ -232,20 +219,20 @@ def gain_panel(ax, EST, P, s, lo, hi):
         alphas.append(0.35 if b == 64 else 0.85)
         data.append(P[(P.scenario == s) & (P.estimator == e) & (P.budget == b)].pct.values)
     bp = ax.boxplot(data, positions=pos, widths=0.3, whis=1.5, patch_artist=True, showfliers=True,
-                    medianprops=dict(color="#111111", lw=1.2), whiskerprops=dict(color="#555555", lw=0.8),
-                    capprops=dict(color="#555555", lw=0.8), flierprops=dict(marker="o", ms=2.4, mfc="none", mec="#555555", mew=0.6))
+                    medianprops=dict(color=ce.DARK, lw=1.2), whiskerprops=dict(color=ce.EDGE, lw=0.8),
+                    capprops=dict(color=ce.EDGE, lw=0.8), flierprops=dict(marker="o", ms=2.4, mfc="none", mec=ce.EDGE, mew=0.6))
     for p, c, a in zip(bp["boxes"], cols, alphas):
         p.set_facecolor(c)
         p.set_alpha(a)
-        p.set_edgecolor("#444444")
+        p.set_edgecolor(ce.EDGE)
         p.set_linewidth(0.7)
-    ax.axhline(0, color="#222222", lw=0.6, zorder=1)
+    ax.axhline(0, color=ce.DARK, lw=0.6, zorder=1)
     ax.set_xticks(range(3))
     ax.set_xticklabels([label for _, label, *_ in EST], fontsize=6.6)
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-0.6, 2.6)
     ax.set_ylim(np.floor(lo) - 0.3, np.ceil(hi) + 0.3)
-    grid(ax, "y")
+    ce.grid(ax, "y")
 
 
 def plot_gain_scenarios():
@@ -259,10 +246,10 @@ def plot_gain_scenarios():
             gain_panel(ax, EST, P, s, P.pct.min(), P.pct.max())
             ax.set_title(t, fontsize=7.8, pad=3, loc="left")
         axs[0].set_ylabel("RMSE reduction vs 16 KiB (%)", fontsize=7.5)
-        h = [plt.Rectangle((0, 0), 1, 1, color="#777777", alpha=0.35), plt.Rectangle((0, 0), 1, 1, color="#777777", alpha=0.85)]
-        fig.legend(h, ["64 KiB", "256 KiB"], loc="upper center", ncol=2, frameon=False, fontsize=6.6, bbox_to_anchor=(0.54, 1.0), handlelength=1.2)
+        h = [ce.swatch(color=ce.REF, alpha=0.35), ce.swatch(color=ce.REF, alpha=0.85)]
+        ce.top_legend(fig, h, ["64 KiB", "256 KiB"], ncol=2, fontsize=6.6, handlelength=1.2, x=0.54)
         fig.subplots_adjust(left=0.08, right=0.99, top=0.84, bottom=0.13, wspace=0.06)
-        save(fig, "ch6_budget_accuracy_gain_scenarios.png")
+        ce.save(fig, "ch6_budget_accuracy_gain_scenarios.png")
     rows = [dict(scenario=s, estimator=e, budget=b, median=x.pct.median(), min=x.pct.min(), max=x.pct.max(),
                  mc_se_median=x.pct_mc_se.median(), n_sig=int((x.pct > 2 * x.pct_mc_se).sum()),
                  n_neg_sig=int((x.pct < -2 * x.pct_mc_se).sum()))

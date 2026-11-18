@@ -1,4 +1,4 @@
-"""Shared study settings and Python presentation labels."""
+"""Shared study settings and Python presentation labels. Colours live in plot_theme.py."""
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -24,28 +24,23 @@ FAMILY_TEXT = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel",
 FAMILY_MATH = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "$t_4$"}        # figures
 FAMILY_LONG = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "Student's $t_4$"}
 FAMILY_LONG_TEXT = {"gaussian": "Gaussian", "clayton": "Clayton", "gumbel": "Gumbel", "t": "Student's t4"}
-FAMILY_COLOUR = {"gaussian": "#9a9a9a", "t": "#C2185B", "clayton": "#8E6BB8", "gumbel": "#E3B505"}
-
 
 
 def sfx(family):
     return "" if family == "gaussian" else "_" + family
 
 
-# Estimators (Chapter 4). The plotting colour table keys RMPL as "mle".
+# Estimators (Chapter 4)
 ESTIMATORS = ["rmpl", "xiao", "hermite"]
 EST_LABEL = {"rmpl": "RMPL", "xiao": "Counting Matrix", "hermite": "Hermite Series"}
 EST_LABEL2 = {"rmpl": "RMPL", "xiao": "Counting\nMatrix", "hermite": "Hermite\nSeries"}   # two-line axis labels
-EST_COLOUR_KEY = {"rmpl": "mle", "xiao": "xiao", "hermite": "hermite"}
 EST_MARKER = {"rmpl": "^", "xiao": "o", "hermite": "s"}
 
 # Forgetting (Chapter 5)
 MEMORIES = STUDY["memories"]
 MEMORY_KEYS = [str(m) for m in MEMORIES] + ["nocum"]       # 6.2 columns, "nocum" = no forgetting
-MEMORY_CMAP_POS = dict(zip(MEMORIES, (0.82, 0.64, 0.47, 0.30, 0.10)))   # position on the memory colour map
 VFF_RATE = STUDY["vff_rates"][0]
 VFF_RATES = [0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]     # sensitivity grid (appendix)
-STRATEGY_COLOUR = {"fixed": "#333333", "vff_slow": "#8E6BB8", "mff": "#C2185B"}
 
 # Family switches (6.5): generator before -> after the change at CHANGE, at matched rho_S
 SWITCHES = [("gauss2t", "gaussian", "t"), ("gauss2clayton", "gaussian", "clayton"), ("clayton2gumbel", "clayton", "gumbel")]

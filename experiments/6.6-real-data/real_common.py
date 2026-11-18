@@ -11,12 +11,12 @@ import pandas as pd  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-from config import EST_COLOUR_KEY, ESTIMATORS, EST_LABEL, MEMORIES as FIX, STRATEGY_COLOUR  # noqa: E402
-from plot_theme import COL, GRID, INK, RC, W  # noqa: E402
+from config import ESTIMATORS, EST_LABEL, MEMORIES as FIX  # noqa: E402
+from plot_theme import DARK, EDGE, ESTIMATOR, GRID, RC, W  # noqa: E402
 from report_output import verbose_print, write_report  # noqa: E402
 EST_LABELS = {e: EST_LABEL[e] if e == "rmpl" else EST_LABEL[e].capitalize() for e in ESTIMATORS}
 EST = [(EST_LABELS[e], f"practical_{e}") for e in ESTIMATORS]
-ECOL = {EST_LABELS[e]: COL[EST_COLOUR_KEY[e]] for e in ESTIMATORS}
+ECOL = {EST_LABELS[e]: ESTIMATOR[e] for e in ESTIMATORS}
 EVAL_ROW, EVAL_FROM = 560, "2008-01-01"
 
 
@@ -49,7 +49,7 @@ def change(x, w=99, lag=21):
 
 
 def box_style(face, alpha, median_lw=2.0, flier_ms=3.2):
-    return dict(medianprops=dict(color="#111111", lw=median_lw), boxprops=dict(facecolor=face, edgecolor="#555555", lw=0.9, alpha=alpha),
-                whiskerprops=dict(color="#555555", lw=0.9), capprops=dict(color="#555555", lw=0.9),
-                flierprops=dict(marker="o", ms=flier_ms, mfc="none", mec="#555555", mew=0.8))
+    return dict(medianprops=dict(color=DARK, lw=median_lw), boxprops=dict(facecolor=face, edgecolor=EDGE, lw=0.9, alpha=alpha),
+                whiskerprops=dict(color=EDGE, lw=0.9), capprops=dict(color=EDGE, lw=0.9),
+                flierprops=dict(marker="o", ms=flier_ms, mfc="none", mec=EDGE, mew=0.8))
 
