@@ -1,15 +1,11 @@
-"""Section 6.6 mean predictive log loss on large dependence-change days (each pair's top 10% of the 21-day change in the
-99-day rolling Spearman; an ex post classification no method uses) and on other days, t4 copula: fixed N_eff 99 / 199 /
-399 (FIXED= to change), VFF and MFF per estimator; mean over pairs of each pair's mean loss, both panels on one span.
-Usage: python3 plot_change_days_levels.py <scratch dir> -> results/change_days_levels.csv,
-images/ch6_practical_final_change_days.png"""
+"""Compare predictive log loss on the top 10% of 21-day dependence changes."""
 import os
 import sys
 
 import numpy as np
 import pandas as pd
 
-from real_common import EST, RC, W, change, dot_legend, dot_panel, eval_days, image, np_mean_pairs, outputs, plt, read, result
+from real_common import EST, RC, W, change, dot_legend, dot_panel, eval_days, image, np_mean_pairs, outputs, plt, read, result, verbose_print
 
 FIXED = [int(k) for k in os.environ.get("FIXED", "99,199,399").split(",")]
 FIXSTY = {39: ("#A6A6A6", "D", 5.0), 99: ("#8a8a8a", "D", 7.5), 199: ("#6E6E6E", "s", 5.5), 399: ("#333333", "p", 6.5)}
@@ -59,8 +55,8 @@ def main():
         plt.close(fig)
     print("CHECK MFF - fixed 199 level differences vs mff_vs_fixed199.txt (change, other): max |diff| = %.3f" % max(
         abs(val(e, "mff", s) - val(e, "fixed199", s) - r) for e, ref in REF.items() for s, r in zip(("change", "other"), ref)))
-    print(Lv.pivot_table(index=["estimator", "strategy"], columns="days", values="loss").round(2).to_string())
-    print(f"common span {span:.1f}")
+    verbose_print(Lv.pivot_table(index=["estimator", "strategy"], columns="days", values="loss").round(2).to_string())
+    verbose_print(f"common span {span:.1f}")
 
 
 if __name__ == "__main__":

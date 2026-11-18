@@ -1,4 +1,4 @@
-"""Section 6.7 marginal-estimation ablation from results/margins_seeds.csv (probe_margins): mean rho_S RMSE (x 10^-2) of
+"""Section 6.7 marginal-estimation ablation from results/margins_seeds.csv (margin_ablation): mean rho_S RMSE (x 10^-2) of
 each margin variant over 100 paired seeds, paired differences, and the RMSE inflation of empirical over true margins.
 Writes results/margins_2026-11-16.md."""
 import pandas as pd

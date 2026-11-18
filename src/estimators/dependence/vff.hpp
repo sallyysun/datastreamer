@@ -10,14 +10,8 @@
 #include "../special_functions.hpp"
 
 
-// Common variable forgetting factor (one rule for Xiao, Hermite and RMPL). A controller adapts the
-// memory of the ideal estimator of thesis 5.4.4, the normalised EW mean m_n of
-// p_n = 12 (U_n - 1/2)(V_n - 1/2) built from the shared pseudo-observations, by stochastic gradient
-// descent on its prequential squared loss (p_n - m_{n-1})^2 (Bodenham & Adams 2017's adaptive
-// forgetting factor), with the derivative of m with respect to lambda carried recursively. The step is
-// taken in theta = log N_eff, scaled by a running RMS of the gradient, and N_eff is clamped to the
-// bank's span. Each wrapped estimator's memory is set to the controller's N_eff before it updates.
-// Used by the VFF strategy (evaluation.hpp). Design and validation: archive/notes/studies/ew_marginals.md §12.
+// Adapt log effective memory by RMS-scaled gradient descent on the prior mean's squared loss.
+// The target is 12(U - 1/2)(V - 1/2) from the shared margins; see thesis §5.4.4.
 class VffController {
 public:
     struct Config {
@@ -29,8 +23,7 @@ public:
 
     explicit VffController(Config c) : c_(c), theta_(std::log(c.neff_start)) {}
 
-    // Prequential: the loss of the mean held through n-1 against p_n, then the memory step, then the
-    // mean absorbs p_n under the new memory.
+    // Score the prior mean, adapt memory, then update the mean.
     void observe(double p) {
         if (w_ > 0.0) {
             const double e = p - m_;

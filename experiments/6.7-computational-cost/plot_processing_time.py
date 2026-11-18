@@ -1,6 +1,4 @@
-"""Section 6.7 processing time per observation (update + estimate, one thread, mean of 5 runs, n = 15,000) against
-retained state for every tested approximation size, from results/budget_time_table_n15k.csv.
-Writes images/ch6_budget_processing_time.png."""
+"""Plot single-thread update and estimation time at matched storage budgets."""
 import sys
 import pandas as pd
 

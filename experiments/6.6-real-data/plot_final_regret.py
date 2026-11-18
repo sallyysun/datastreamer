@@ -1,13 +1,9 @@
-"""Section 6.6 regret figure (t4 copula): static (m = 0) and one-switch (m = 1) regret of fixed N_eff 99 / 199 / 399,
-VFF and MFF against each pair's hindsight-best fixed arm or best sequence with at most one switch. VFF and MFF come from
-results/switching_per_pair.csv; fixed regret = mean loss - oracle, with the oracle recovered from MFF's row on the same
-days. Bars beyond the axis are cut and labelled.
-Usage: python3 plot_final_regret.py <scratch dir> -> results/final_regret_values.csv, images/ch6_practical_final_regret.png"""
+"""Compare real-data loss against static and one-switch oracles."""
 import sys
 
 import pandas as pd
 
-from real_common import EST, FIX, GRID, RC, W, eval_days, image, outputs, plt, read, result
+from real_common import EST, FIX, GRID, RC, W, eval_days, image, outputs, plt, read, result, verbose_print
 
 SWITCH_LABEL = {"RMPL": "RMPL", "Counting matrix": "Counting matrix", "Hermite series": "Hermite"}
 C_OTHER, C_BEST, C_VFF, C_MFF = "#cfcfcf", "#333333", "#8E6BB8", "#C2185B"
@@ -83,7 +79,7 @@ def main():
     R = regrets(sys.argv[1])
     R.to_csv(result("final_regret_values.csv"))
     figure(R)
-    print(R.unstack("method")[BARS].round(2).to_string())
+    verbose_print(R.unstack("method")[BARS].round(2).to_string())
 
 
 if __name__ == "__main__":

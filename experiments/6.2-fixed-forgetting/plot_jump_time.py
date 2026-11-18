@@ -1,5 +1,4 @@
-"""Figure: Spearman RMSE around the jump for each fixed N_eff, Gaussian copula (pointwise over the 60 seeds, no
-smoothing) -> images/ch6_jump_ess_rmse.png."""
+"""Plot Spearman RMSE around a Gaussian dependence jump."""
 import sys
 import numpy as np
 import pandas as pd
@@ -40,7 +39,6 @@ def main():
         fig.subplots_adjust(left=0.08, right=0.975, top=0.78, bottom=0.18, wspace=0.12)
         out = "images/ch6_jump_ess_rmse.png"
         fig.savefig(out)
-    print("wrote", out)
 
 
 if __name__ == "__main__":

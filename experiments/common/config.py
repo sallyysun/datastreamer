@@ -1,13 +1,18 @@
-"""The Chapter 6 experiment configuration, in one place: every analysis and plotting script takes its families,
-estimators, memories, scenarios, rates, switch regimes, seeds, horizon, labels and colours from here. The simulation
-side (horizon, burn-in, change point, MFF memories, KLL clip) is src/estimators/evaluation.hpp and registry.hpp."""
+"""Shared study settings and Python presentation labels."""
+from decimal import Decimal
+import json
+from pathlib import Path
+
+with (Path(__file__).resolve().parents[2] / "study_config.json").open() as file:
+    STUDY = json.load(file)
 
 # Simulation design (Table 6.2)
-SEEDS = range(42, 102)           # 60 evaluation seeds
-T, BURN, CHANGE = 5000, 500, 2500
-CONSTANT_KNOB = 0.6              # dependence knob d; rho_S = (6/pi) asin(d/2)
-DRIFT_FROM, DRIFT_SPAN = 0.2, 0.6   # matched drift path: d from 0.2 to 0.8 (span kept exact)
-JUMP_KNOB = (0.2, 0.8)           # d before and after the jump at CHANGE
+SEEDS = range(STUDY["first_seed"], STUDY["first_seed"] + STUDY["seed_count"])
+T, BURN, CHANGE = (STUDY[key] for key in ("observations", "burn_in", "change_point"))
+CONSTANT_KNOB = STUDY["constant_knob"]
+DRIFT_FROM, DRIFT_TO = STUDY["drift_knobs"]
+DRIFT_SPAN = float(Decimal(str(DRIFT_TO)) - Decimal(str(DRIFT_FROM)))
+JUMP_KNOB = tuple(STUDY["jump_knobs"])
 SCENARIOS = ["constant", "drift", "jump"]
 SCENARIO_LABEL = {"constant": "Constant", "drift": "Gradual drift", "jump": "Abrupt jump"}
 WINDOWS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
@@ -41,10 +46,10 @@ EST_COLOUR_KEY = {"rmpl": "mle", "xiao": "xiao", "hermite": "hermite"}
 EST_MARKER = {"rmpl": "^", "xiao": "o", "hermite": "s"}
 
 # Forgetting (Chapter 5)
-MEMORIES = [39, 99, 199, 399, 1999]                        # fixed N_eff arms = MFF candidates
+MEMORIES = STUDY["memories"]
 MEMORY_KEYS = [str(m) for m in MEMORIES] + ["nocum"]       # 6.2 columns, "nocum" = no forgetting
-MEMORY_CMAP_POS = {39: 0.82, 99: 0.64, 199: 0.47, 399: 0.30, 1999: 0.10}   # position on the memory colour map
-VFF_RATE = 0.02                                            # development choice ("vff_slow")
+MEMORY_CMAP_POS = dict(zip(MEMORIES, (0.82, 0.64, 0.47, 0.30, 0.10)))   # position on the memory colour map
+VFF_RATE = STUDY["vff_rates"][0]
 VFF_RATES = [0.005, 0.01, 0.02, 0.05, 0.075, 0.1, 0.2]     # sensitivity grid (appendix)
 STRATEGY_COLOUR = {"fixed": "#333333", "vff_slow": "#8E6BB8", "mff": "#C2185B"}
 

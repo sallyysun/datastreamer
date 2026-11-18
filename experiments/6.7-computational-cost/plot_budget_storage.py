@@ -1,6 +1,4 @@
-"""Section 6.7 retained state of the validation-selected configurations at each storage budget: the maximum over the 12
-family x scenario selections of the peak store_bytes() (KiB), from results/budget_selected.csv.
-Writes images/ch6_budget_storage_n15k.png."""
+"""Plot peak retained state of validation-selected configurations."""
 import sys
 import pandas as pd
 
@@ -49,7 +47,6 @@ def main():
     sel["kib"] = sel.peak_val / 1024
     figure(sel)
     print(sel.groupby(["estimator", "budget_kib"]).kib.agg(["min", "median", "max"]).round(2))
-    print("wrote images/ch6_budget_storage_n15k.png")
 
 
 if __name__ == "__main__":

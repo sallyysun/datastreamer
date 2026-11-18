@@ -1,11 +1,7 @@
 #pragma once
 
-// The browser lab's device: a viewer-built MFF. Models = working families x memories; each memory is one arm of the
-// chosen estimator (RMPL / Counting Matrix / Hermite), and each model scores that arm's rho_S as a copula of its working
-// family at the shared pseudo-observations (U, V): loss -log c_W(theta_W(rho_k))(U, V), Hedge (eta) with fixed share
-// (delta), forecast sum w rho_k. With the Gaussian family alone this is the thesis MFF (thesis::Mff); with several it is
-// the family-augmented MFF of 6.5. VFF (rate 0.02) on the same estimator runs alongside. Margins, arms and update
-// order are the Chapter 6 device's (thesis_device.hpp).
+// Run a viewer-configured MFF over working copulas and memory lengths, with VFF alongside it.
+// Score each candidate on shared pseudo-observations before updating the estimators.
 
 #include <cmath>
 #include <sstream>
@@ -27,7 +23,8 @@ public:
         for (const auto& f : fam_names_) { fam_.push_back(thesis::family_of(f)); tab_.push_back(Inverse(fam_.back())); }
         const std::size_t M = fam_.size() * mem_.size();
         w_.assign(M, 1.0 / double(M));
-        loss_.assign(M, 0.0);
+        loss_.resize(M);
+        log_weights_.resize(M);
     }
 
     // Forecasts held before the next observation.
@@ -93,25 +90,15 @@ private:
         }
     };
 
-    // thesis::Mff::score with working families: warm-up 30 margin observations and every arm ready; non-finite losses
-    // replaced by the worst finite one; Hedge then fixed share.
     void score(double u, double v) {
         bool ok = t_ >= 30;
         for (const auto& a : arms_) ok = ok && a->ready();
         if (!ok) return;
-        const std::size_t K = mem_.size(), M = w_.size();
+        const std::size_t K = mem_.size();
         for (std::size_t f = 0; f < fam_.size(); ++f)
             for (std::size_t k = 0; k < K; ++k)
                 loss_[f * K + k] = -copula::log_density(fam_[f], u, v, tab_[f](arms_[k]->estimate()));
-        double worst = 0;
-        for (double l : loss_) if (std::isfinite(l)) worst = std::max(worst, l);
-        for (double& l : loss_) if (!std::isfinite(l)) l = worst;
-        double top = -INFINITY;
-        std::vector<double> lw(M);
-        for (std::size_t m = 0; m < M; ++m) { lw[m] = (w_[m] > 0 ? std::log(w_[m]) : -INFINITY) - eta_ * loss_[m]; top = std::max(top, lw[m]); }
-        double tot = 0;
-        for (std::size_t m = 0; m < M; ++m) { w_[m] = std::exp(lw[m] - top); tot += w_[m]; }
-        for (double& x : w_) x = (1 - delta_) * x / tot + delta_ / double(M);
+        thesis::update_mff_weights(w_, loss_, log_weights_, eta_, delta_);
     }
 
     std::string est_;
@@ -124,6 +111,6 @@ private:
     std::vector<std::unique_ptr<DependenceEstimator>> arms_;
     thesis::Vff vff_;
     ds_margin::Kll kx_, ky_;
-    std::vector<double> w_, loss_;
+    std::vector<double> w_, loss_, log_weights_;
     std::size_t t_ = 0;
 };

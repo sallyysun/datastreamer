@@ -1,10 +1,8 @@
 #pragma once
 
-// The Chapter 6 device: one stream's shared pseudo-observations (cumulative DataSketches KLL k = 256 per margin,
-// clipped to [kClip, 1 - kClip]) feeding, for each estimator, the five fixed arms, MFF over them and VFF at each rate,
-// exactly as the in-process probe (experiments/simulation/scenarios.cpp). Counting Matrix and Hermite arms read the
-// raw observations (their own margins); RMPL reads probit(U). Forecasts are those held before each observation.
-// Scorer turns forecasts + ground truth into the probe's per-seed rows (MFF density = mixture, as TAG=mix).
+// Run the Chapter 6 strategies on one stream with shared KLL margins.
+// Score each forecast before updating. Counting Matrix and Hermite use raw inputs; RMPL uses probit(U).
+// Scorer uses the weighted MFF density mixture.
 
 #include <cmath>
 #include <cstdio>
@@ -70,7 +68,7 @@ private:
         for (const auto& e : estimators()) v.emplace_back(e);
         return v;
     }
-    // KLL compaction coin seeded as the probe's make_stream, after the arms (RMPL constructors reseed it).
+    // KLL compaction coin seeded as the runner's make_stream, after the arms (RMPL constructors reseed it).
     static bool reseed() { ds_margin::seed(1); return true; }
     std::vector<StrategySet> sets_;
     bool seeded_;
@@ -106,7 +104,7 @@ public:
             }
         }
     }
-    // The probe's strategies_seeds rows: copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000
+    // The runner's strategies_seeds rows: copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000
     void write(std::FILE* out, const Device& dev, unsigned seed) const {
         const auto& names = strategy_names();
         std::size_t r0 = 0;

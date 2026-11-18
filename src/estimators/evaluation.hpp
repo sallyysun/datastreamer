@@ -1,9 +1,6 @@
 #pragma once
 
-// The Chapter 6 evaluation protocol, shared by the in-process probes (experiments/) and the live consumer
-// (src/consumer/): the forgetting strategies MFF and VFF (Chapter 5) driven by the shared pseudo-observations (U, V),
-// the evaluation windows, and the density metrics (excess log loss, squared Hellinger H^2 against the Gaussian working
-// density).
+// Chapter 6 strategies, scoring windows and density metrics shared by experiments and the consumer.
 
 #include <algorithm>
 #include <cmath>
@@ -14,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "study_config.hpp"
 #include "copula_family.hpp"
 #include "density_metrics.hpp"
 #include "dependence/mff.hpp"
@@ -22,14 +20,19 @@
 
 namespace thesis {
 
-constexpr std::size_t kN = 5000, kBurn = 500, kChange = 2500;
-constexpr double kClip = 1e-3;                      // pseudo-observations clipped to [kClip, 1 - kClip]
-constexpr std::uint16_t kKll = 256;                 // capacity of the shared DataSketches KLL margins
-inline const std::vector<double>& vff_rates() { static const std::vector<double> v = {0.02, 0.1}; return v; }
+inline const std::vector<double>& vff_rates() {
+    static const std::vector<double> rates{kVffSlow, kVffFast};
+    return rates;
+}
 // Strategy order of every output row: five fixed arms, MFF, VFF at each rate.
 inline const std::vector<std::string>& strategy_names() {
-    static const std::vector<std::string> v = {"fixed_39", "fixed_99", "fixed_199", "fixed_399", "fixed_1999", "mff", "vff_slow", "vff_fast"};
-    return v;
+    static const auto names = [] {
+        std::vector<std::string> result;
+        for (double memory : kMem) result.push_back("fixed_" + std::to_string(static_cast<int>(memory)));
+        result.insert(result.end(), {"mff", "vff_slow", "vff_fast"});
+        return result;
+    }();
+    return names;
 }
 
 inline copula::Family family_of(const std::string& f) {
@@ -40,7 +43,7 @@ inline copula::Family family_of(const std::string& f) {
 }
 
 // The true copula parameter at dependence knob d (rho_S = (6/pi) asin(d/2), clamped as the generator does), as the
-// probes compute it; scored families only.
+// runners compute it; scored families only.
 inline bool scorable(const std::string& f) { return f == "gaussian" || f == "t" || f == "clayton" || f == "gumbel"; }
 inline double true_param(const std::string& family, double d) {
     const double rho = std::clamp(d, -0.999, 0.999);

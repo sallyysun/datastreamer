@@ -1,16 +1,11 @@
-"""Section 6.6 MFF weights and effective memory around large dependence-change episodes (t4 MFF). Episode start: a
-change day (each pair's top 10% of |rho99[t] - rho99[t-21]|) with none in the preceding 21 rows; window -63..+126 days.
-Top: mean MFF weight per arm; bottom: median weight-averaged candidate N_eff and VFF's controller N_eff (shared by the
-three estimators; checked). Also prints the full-period N_eff summaries.
-Usage: python3 plot_main_weights_ess.py <scratch dir> -> results/weights_ess_{values,full_period}.csv,
-images/ch6_practical_weights_ess.png"""
+"""Plot MFF weights and effective memory around large dependence changes."""
 import sys
 
 import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 
-from real_common import EST, FIX, GRID, RC, W, change, image, outputs, plt, read, result
+from real_common import EST, FIX, GRID, RC, W, change, image, outputs, plt, read, result, verbose_print
 
 FA = np.array(FIX, float)
 MEMC = [plt.get_cmap("plasma")(v) for v in (0.82, 0.64, 0.47, 0.30, 0.10)]
@@ -116,14 +111,14 @@ def main():
     pd.DataFrame(full).to_csv(result("weights_ess_full_period.csv"), index=False)
     lags = (-21, 0, 21, 63, 126)
     at = {l: int(np.where(LAGS == l)[0][0]) for l in lags}
-    print(f"episode starts (all pairs): {sum(len(v) for v in starts.values())}; with full window: " + ", ".join(f"{e} {res[e]['n']}" for e, _ in EST))
+    verbose_print(f"episode starts (all pairs): {sum(len(v) for v in starts.values())}; with full window: " + ", ".join(f"{e} {res[e]['n']}" for e, _ in EST))
     print(f"CHECK VFF controller N_eff identical across the three estimators: max |diff| = {vff_same:.3g}")
     for e, _ in EST:
         r = res[e]
-        print(f"{e:16s} lag -21/0/+21/+63/+126 | ESS39+99 weight " + "/".join(f"{r['W'][at[l], :2].sum():.2f}" for l in lags)
+        verbose_print(f"{e:16s} lag -21/0/+21/+63/+126 | ESS39+99 weight " + "/".join(f"{r['W'][at[l], :2].sum():.2f}" for l in lags)
               + " | MFF wavg ESS median " + "/".join(f"{r['M'][at[l]]:.0f}" for l in lags)
               + " | VFF " + "/".join(f"{r['V'][at[l]]:.0f}" for l in lags))
-    print(pd.DataFrame(full).round(0).to_string(index=False))
+    verbose_print(pd.DataFrame(full).round(0).to_string(index=False))
 
 
 if __name__ == "__main__":

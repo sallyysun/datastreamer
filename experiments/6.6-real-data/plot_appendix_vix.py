@@ -1,12 +1,10 @@
-"""Section 6.6 appendix: each strategy's mean log prediction loss by VIX condition (t4 copula; calm VIX < 20, moderate
-20-25, stress >= 25, VIX forward-filled to each pair-day), in the design of the change-day figure.
-Usage: python3 plot_appendix_vix.py <scratch dir> <vix.csv> -> results/vix_levels.csv, images/ch6_practical_appendix_vix.png"""
+"""Compare predictive loss by VIX regime."""
 import sys
 
 import numpy as np
 import pandas as pd
 
-from real_common import EST, RC, W, dot_legend, dot_panel, eval_days, image, outputs, plt, read, result
+from real_common import EST, RC, W, dot_legend, dot_panel, eval_days, image, outputs, plt, read, result, verbose_print
 
 ST = [("fixed99", r"Fixed, $N_{\mathrm{eff}}=99$", "lt_fixed_99", "#8a8a8a", "D", 7.5),
       ("fixed199", r"Fixed, $N_{\mathrm{eff}}=199$", "lt_fixed_199", "#6E6E6E", "s", 5.5),
@@ -50,8 +48,8 @@ def main():
         fig.subplots_adjust(left=0.19, right=0.975, top=0.9, bottom=0.1, hspace=0.62)
         fig.savefig(image("ch6_practical_appendix_vix.png"))
         plt.close(fig)
-    print(Lv.pivot_table(index=["estimator", "strategy"], columns="regime", values="loss")[["calm", "mid", "stress"]].round(2).to_string())
-    print("pair-days per condition:", ndays, f"| common span {span:.1f}")
+    verbose_print(Lv.pivot_table(index=["estimator", "strategy"], columns="regime", values="loss")[["calm", "mid", "stress"]].round(2).to_string())
+    verbose_print("pair-days per condition:", ndays, f"| common span {span:.1f}")
 
 
 if __name__ == "__main__":

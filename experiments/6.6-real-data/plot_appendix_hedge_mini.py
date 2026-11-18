@@ -1,7 +1,4 @@
-"""Section 6.6 appendix: per-pair mean of Hedge MFF loss minus the exact equal-weight mixture of the five arms (t4
-copula, full evaluation period), box plots over the 32 pairs with the pair mean and its bootstrap interval from
-results/hedge_change_results.csv (checked against the recomputed means).
-Usage: python3 plot_appendix_hedge_mini.py <scratch dir> -> images/ch6_practical_hedge_equal_mini.png"""
+"""Compare Hedge weights with an equal-weight Student-t mixture."""
 import sys
 
 import numpy as np
@@ -9,7 +6,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from real_common import ECOL, EST, FIX, GRID, RC, W, box_style, eval_days, image, outputs, plt, read, result
+from real_common import ECOL, EST, FIX, GRID, RC, W, box_style, eval_days, image, outputs, plt, read, result, verbose_print
 
 
 def differences(S):
@@ -55,7 +52,7 @@ def main():
     figure(vals, CI)
     for e, _ in EST:
         v = vals[e]
-        print(f"{e:16s} mean {v.mean():+.2f} [{CI.loc[e,'lo']:+.2f}, {CI.loc[e,'hi']:+.2f}] median {np.median(v):+.2f} "
+        verbose_print(f"{e:16s} mean {v.mean():+.2f} [{CI.loc[e,'lo']:+.2f}, {CI.loc[e,'hi']:+.2f}] median {np.median(v):+.2f} "
               f"IQR [{np.percentile(v,25):+.2f}, {np.percentile(v,75):+.2f}] range [{v.min():+.2f}, {v.max():+.2f}] pairs Hedge better {int((v < 0).sum())}/32")
 
 

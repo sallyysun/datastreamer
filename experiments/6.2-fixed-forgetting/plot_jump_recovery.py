@@ -1,5 +1,4 @@
-"""Figure: 90% recovery time after the jump against N_eff (log-log) for each estimator, with the exponential-forgetting
-prediction ln 0.1 / ln((N-1)/(N+1)) -> images/ch6_jump_recovery_time.png."""
+"""Compare empirical and predicted 90% recovery times by effective memory."""
 import sys
 import numpy as np
 import pandas as pd
@@ -42,7 +41,6 @@ def main():
         out = "images/ch6_jump_recovery_time.png"
         fig.savefig(out)
         plt.close(fig)
-    print("wrote", out)
 
 
 if __name__ == "__main__":

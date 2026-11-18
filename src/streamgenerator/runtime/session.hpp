@@ -1,9 +1,7 @@
 #pragma once
 
-// One browser lab session: its own generator (steerable: jump / drift / family switch / automatic events, at a chosen
-// rate) publishing a private pair of symbols on the broker, and its own consumer process (./consumer --live) that
-// runs the viewer's MFF on that stream and publishes its state on "device.<id>". The server forwards that state to
-// the session's browser; the server itself estimates nothing.
+// Each browser lab session owns a steerable stream and a consumer process.
+// The consumer returns estimates on its device.<id> topic.
 
 #include <signal.h>
 #include <sys/wait.h>
@@ -20,6 +18,7 @@
 #include <thread>
 #include <vector>
 
+#include "study_config.hpp"
 #include "../../protocol/serializer.hpp"
 #include "../datasource/dependence.hpp"
 #include "../datasource/synthetic_source.hpp"
@@ -30,7 +29,7 @@ struct LabConfig {
     double rho = 0.5;                  // starting rho_S
     double rate = 100.0;               // observations per second
     std::string estimator = "rmpl";    // MFF arms: rmpl | xiao | hermite
-    std::string memories = "39,99,199,399,1999";
+    std::string memories = thesis::kMemoryCsv;
     std::string families = "gaussian"; // working families of the MFF models
     double eta = 1.0, delta = 1e-4;
 };

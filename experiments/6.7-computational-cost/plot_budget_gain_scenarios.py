@@ -1,6 +1,4 @@
-"""Section 6.7 percentage reduction in test rho_S RMSE at 64 and 256 KiB relative to each estimator's own 16 KiB
-configuration, by scenario: box plots over the four families (light 64 KiB, dark 256 KiB), from results/budget_gain.csv.
-Writes images/ch6_budget_accuracy_gain_scenarios.png and results/budget_gain_scenarios.csv."""
+"""Plot RMSE reductions at 64 and 256 KiB relative to 16 KiB."""
 import sys
 import numpy as np
 import pandas as pd

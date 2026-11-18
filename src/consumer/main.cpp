@@ -5,7 +5,7 @@
 // Usage:
 //   ./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--policy all|snapshot|latest] [--print 20]
 //              [--rate 0] [--score <scenario> --seed <s> --out <file.csv>] [--n <observations>]
-// --score: score every strategy against the ground truth on the ticks and append the probe's strategies_seeds rows
+// --score: score every strategy against the ground truth on the ticks and append the runner's strategies_seeds rows
 // (copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000) to --out when the stream ends.
 // Leave --rate 0 for estimation: throttling can desync the two legs.
 // --live <id>: the browser lab's device (live_lab.hpp) instead: an MFF built from --estimator rmpl|xiao|hermite,
@@ -49,7 +49,7 @@ std::vector<std::string> split(const std::string& s) {
 // The browser lab's device loop: returns from consecutive prices, the lab MFF, state back through the broker.
 int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     std::vector<double> mem;
-    for (const auto& m : split(arg(argc, argv, "--memories", "39,99,199,399,1999"))) mem.push_back(std::atof(m.c_str()));
+    for (const auto& m : split(arg(argc, argv, "--memories", thesis::kMemoryCsv))) mem.push_back(std::atof(m.c_str()));
     const auto fams = split(arg(argc, argv, "--families", "gaussian"));
     LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
                 std::atof(arg(argc, argv, "--delta", "1e-4")));

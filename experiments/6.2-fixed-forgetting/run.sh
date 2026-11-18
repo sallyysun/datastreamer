@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 if [ "${SIM:-0}" = 1 ]; then
-    for f in gaussian clayton gumbel t; do COPULA=$f build/probe_fixed_ess 60; done
+    for f in gaussian clayton gumbel t; do COPULA=$f build/fixed_ess_sweep; done
 fi
 python3 analyze_fixed_ess.py        # tab:optimal-ess-gauss, tab:optimal-ess-all-families
 python3 analyze_jump_recovery.py    # tab:jump-recovery

@@ -1,9 +1,4 @@
-"""Section 6.6 responsiveness to large estimated dependence changes (t4 MFF). On each pair's large-change days (top 10%
-of |rho99[t] - rho99[t-21]| over the evaluation days), R = |rho^A[t] - rho^A[t-21]| / |rho99[t] - rho99[t-21]| for fixed
-N_eff 99 / 199 / 399, VFF and MFF: boxes of each pair's median R, diamonds the pooled pair-day median, plus the
-direction-agreement table. SPY/IVV under the Hermite series has median R exactly 0 (estimates pinned at rho = 1).
-Usage: python3 plot_main_response.py <scratch dir> -> results/dependence_response_{main,by_pair}.csv,
-results/tables/ch6_practical_direction_agreement.{tex,md}, images/ch6_practical_response.png"""
+"""Compare MFF and VFF responses on each pair's largest dependence-change days."""
 import os
 import sys
 
@@ -12,7 +7,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from real_common import EST, EVAL_FROM, EVAL_ROW, GRID, RC, W, box_style, image, outputs, plt, read, result
+from real_common import EST, EVAL_FROM, EVAL_ROW, GRID, RC, W, box_style, image, outputs, plt, read, result, verbose_print
 
 SER = [("fixed99", r"Fixed, $N_{\mathrm{eff}}=99$", "rho_fixed_99", "#A6A6A6"), ("fixed199", r"Fixed, $N_{\mathrm{eff}}=199$", "rho_fixed_199", "#6E6E6E"),
        ("fixed399", r"Fixed, $N_{\mathrm{eff}}=399$", "rho_fixed_399", "#333333"), ("vff", r"VFF, $\alpha=0.02$", "rho_vff", "#8E6BB8"),
@@ -54,7 +49,7 @@ def checks(Bp, Pl):
                 wd = max(wd, abs(round(100 * g.loc[k, "pooled_same_direction"]) - REF_DIR[e][j]))
     print(f"CHECK pooled medians vs verified (2 dp): max |diff| = {wm:.2f}; direction agreement vs verified (whole %): max |diff| = {wd:.0f}")
     zero = Bp[Bp.median_ratio == 0]
-    print("per-pair medians equal to 0:", zero[["estimator", "pair", "series"]].values.tolist())
+    verbose_print("per-pair medians equal to 0:", zero[["estimator", "pair", "series"]].values.tolist())
     assert set(map(tuple, zero[["estimator", "pair"]].values)) <= {("Hermite series", "SPY_IVV")}
 
 
@@ -135,12 +130,12 @@ def main():
     O = summary(Bp, Pl)
     O.to_csv(result("dependence_response_main.csv"), index=False)
     direction_table(O)
-    print(O.round(3).to_string(index=False))
+    verbose_print(O.round(3).to_string(index=False))
     counts = []
     for e, _ in EST:
         g = Bp[(Bp.estimator == e)].pivot(index="pair", columns="series", values="median_ratio")
         counts.append(int((g.mff > g.vff).sum()))
-        print(f"{e:16s} pairs with per-pair median MFF > VFF: {counts[-1]}/32 (ties {int((g.mff == g.vff).sum())}); "
+        verbose_print(f"{e:16s} pairs with per-pair median MFF > VFF: {counts[-1]}/32 (ties {int((g.mff == g.vff).sum())}); "
               f"pairs with MFF < fixed 99: {int((g.mff < g.fixed99).sum())}/32; pairs with MFF > fixed 199: {int((g.mff > g.fixed199).sum())}/32")
     assert counts == [29, 27, 23]
 

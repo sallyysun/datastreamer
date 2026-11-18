@@ -1,4 +1,4 @@
-"""Section 6.7: assemble the n = 15,000 budget sweep (probe_budget, one run per scenario x family) into
+"""Section 6.7: assemble the n = 15,000 budget sweep (budget_benchmark, one run per scenario x family) into
 results/budget_{sweep,seeds}_n15k.csv, and average the five repeated timing runs into results/budget_time_table_n15k.csv
 (retained KiB, mean us per observation and its SD across runs)."""
 import sys

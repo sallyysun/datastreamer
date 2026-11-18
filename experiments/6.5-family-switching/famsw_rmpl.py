@@ -1,6 +1,6 @@
 """Section 6.5 on the RMPL configuration: family-augmented MFF (Gaussian, t4, Clayton, Gumbel x 5 memories, each arm's
 rho_S inverted into the family parameter) vs Gaussian-only MFF, from results/famsw_{seeds,ident,path}_<gen>.csv
-(scenarios FAMSWITCH=1): initial identification, adaptation after a switch, and Delta L = L(Gaussian-only) -
+(strategy_experiments FAMSWITCH=1): initial identification, adaptation after a switch, and Delta L = L(Gaussian-only) -
 L(family), positive favouring augmentation. Writes results/famsw_rmpl_summary_2026-11-15.md, results/famsw_rmpl_dl.csv
 and images/ch6_famswitch_rmpl_weights.png."""
 import math

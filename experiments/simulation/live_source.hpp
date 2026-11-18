@@ -1,9 +1,6 @@
 #pragma once
 
-// LIVE=1: a probe's stream comes over the live pipeline instead of in-process. For each (family, scenario, seed) a
-// seeded server (LIVE_SERVER, default ../../server) is started on free ports, streams n observations over TCP, and the
-// observations are rebuilt exactly as the consumer does: log returns from consecutive prices, plus the ground truth on
-// the ticks (true rho_S, each leg's true PIT, the dependence knob d).
+// LIVE=1 starts a seeded server per stream and reconstructs returns from TCP ticks.
 
 #include <netinet/in.h>
 #include <signal.h>

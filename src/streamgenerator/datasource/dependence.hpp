@@ -7,6 +7,8 @@
 #include <numbers>
 #include <string>
 
+#include "study_config.hpp"
+
 // A Dependence produces the true copula parameter rho_t for each step,
 // advancing an internal clock on every call to next(). These drive the
 // simulated data-generating process so estimators can be scored against a
@@ -78,11 +80,13 @@ private:
     std::size_t left_ = 0;
 };
 
-// The thesis scenarios (Table 6.2), over n observations: constant 0.6; drift 0.2 -> 0.8 linearly, reaching 0.8 at
-// the last observation; jump 0.2 -> 0.8 at n / 2. nullptr for an unknown name.
+// Use the study change point at the default horizon, or the midpoint for other horizons.
 inline std::unique_ptr<Dependence> make_scenario(const std::string& name, std::size_t n) {
-    if (name == "constant") return std::make_unique<ConstantDependence>(0.6);
-    if (name == "drift") return std::make_unique<DriftDependence>(0.2, 0.8, n - 1);
-    if (name == "jump") return std::make_unique<JumpDependence>(0.2, 0.8, n / 2);
+    if (name == "constant") return std::make_unique<ConstantDependence>(thesis::kConstantKnob);
+    if (name == "drift") return std::make_unique<DriftDependence>(thesis::kDriftFrom, thesis::kDriftTo, n - 1);
+    if (name == "jump") {
+        const auto change = n == thesis::kN ? thesis::kChange : n / 2;
+        return std::make_unique<JumpDependence>(thesis::kJumpFrom, thesis::kJumpTo, change);
+    }
     return nullptr;
 }

@@ -1,6 +1,4 @@
-"""VFF learning-rate sensitivity figures (appendix to 6.3.2) from results/vffsens_summary.csv: per scenario and estimator,
-the whole-run family-mean metric of VFF against alpha (± 2 SE), MFF as a dashed line with its ± 2 SE band, and the
-development choice alpha = 0.02. Writes images/ch6_vffsens_rmse.png and ch6_vffsens_h2.png."""
+"""Plot sensitivity to the VFF learning rate by scenario and estimator."""
 import os
 import sys
 import numpy as np
@@ -59,7 +57,6 @@ def fig(S, metric, ylab, out):
         f.subplots_adjust(left=0.12, right=0.985, top=0.9, bottom=0.08, hspace=0.35, wspace=0.1)
         f.savefig(out)
         plt.close(f)
-    print("wrote " + out)
 
 
 def main():

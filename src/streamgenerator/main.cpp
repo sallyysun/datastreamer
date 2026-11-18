@@ -82,14 +82,13 @@ static std::string equity_topic(const std::string &symbol) {
 }
 
 // Live regime from DEPENDENCE=constant|drift|jump (default jump).
-// The thesis scenarios (dependence.hpp) over kLiveN observations, as offline; the clock keeps running after.
-constexpr std::size_t kLiveN = 5000;
+// The scenario horizon is independent of N, which controls when delivery stops.
 static std::unique_ptr<Dependence> make_live_dependence() {
     const char* env = std::getenv("DEPENDENCE");
     const std::string name = env ? env : "jump";
-    if (auto d = make_scenario(name, kLiveN)) return d;
+    if (auto d = make_scenario(name, thesis::kN)) return d;
     std::cout << "unknown DEPENDENCE='" << name << "', using jump\n";
-    return make_scenario("jump", kLiveN);
+    return make_scenario("jump", thesis::kN);
 }
 
 // Pick the live copula family from the COPULA env var (gaussian|clayton|gumbel|t,

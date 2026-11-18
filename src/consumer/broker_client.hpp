@@ -1,8 +1,7 @@
 #pragma once
 
-// TCP client of the broker: connects, subscribes to the two legs' topics ("trades.equity.<X>", "trades.equity.<Y>"),
-// reads newline-delimited JSON ticks and pairs the two legs FIFO into TickPairs (producers publish both legs per step,
-// in order, so front-to-front pairing is exact). Used by the consumer and by the experiments' live mode.
+// Read newline-delimited TCP ticks and pair the subscribed symbols in arrival order.
+// FIFO pairing assumes both legs arrive for every observation.
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

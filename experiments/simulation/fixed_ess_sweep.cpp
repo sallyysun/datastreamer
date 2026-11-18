@@ -1,19 +1,6 @@
-// Chapter 6.2 fixed-forgetting experiments (constant, drift, jump; four families; 60 seeds 42-101; matched paths).
-// One stream per (family, scenario, seed), generated once and reused by every estimator and memory. RMPL margins are
-// two cumulative DataSketches KLL sketches (k = 256), computed once per stream from the state before each pair and
-// fed to every RMPL arm (identical pseudo-observations across arms; the arm's ExactNormal input maps z back to u).
-// Counting matrix and Hermite arms are thesis::arm (src/estimators/registry.hpp), raw inputs.
-// Forecast held before tick t; window t = 500-4999 (jump also pre, 0-100, 100-500, post).
-// Memories: main {39, 99, 199, 399, 1999, no forgetting}; drift adds a fine grid (21 log-spaced, 200-600) and the
-// memory-sweep grid (20 log-spaced, 25-30000) for the bias-variance analysis and the approximation's variance scale.
-//
-// Usage: COPULA=<family> ./probe_fixed_ess [seeds=60]
-//   -> results/fixed_ess_seeds[_fam].csv   copula,scenario,estimator,grid,neff,seed,window,rmse,mean_err
-//      results/fixed_ess_decomp[_fam].csv  copula,scenario,estimator,grid,neff,window,bias2,var,mse
-//      results/fixed_ess_jumppath[_fam].csv copula,estimator,neff,t,mse   (main memories, jump path)
-//   VALIDATE=1: seed 42, Gaussian drift: a RecursiveMPL with its own DsKll k = 256 margins against the cached feed.
-//   JUMPBIAS=1: the jump scenario only, writing just results/fixed_ess_jumpbias[_fam].csv
-//               (copula,estimator,neff,t,mean_err,mse: per-tick mean over seeds of the error and squared error).
+// Compare fixed memories on matched streams. RMPL shares KLL margins fitted on prior observations.
+// Usage: COPULA=<family> fixed_ess_sweep [seeds=60]
+// VALIDATE=1 compares shared and internal margins; JUMPBIAS=1 writes only the jump bias path.
 
 #include <cmath>
 #include <cstdio>
@@ -26,15 +13,10 @@
 #include "../../src/estimators/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "../../src/streamgenerator/datasource/copula.hpp"
-#include "../../src/streamgenerator/datasource/dependence.hpp"
-#include "../../src/streamgenerator/datasource/copula_source.hpp"
-#include "live_source.hpp"
+#include "study_stream.hpp"
 
 namespace {
-using thesis::kN; using thesis::kBurn; using thesis::kChange;
-constexpr double kDelta = thesis::kClip;
-constexpr std::uint16_t kK = thesis::kKll;
+using thesis::kN; using thesis::kBurn;
 constexpr double kNoForget = -1.0;       // neff marker for the no-forgetting arm
 
 struct Arm { std::string est, grid; double neff; };
@@ -62,64 +44,43 @@ std::unique_ptr<DependenceEstimator> build(const Arm& a) {
     return thesis::arm(a.est, a.neff == kNoForget ? 0.0 : a.neff);
 }
 
-std::unique_ptr<Dependence> make_dep(const std::string& s) { return make_scenario(s, kN); }
-
-struct Win { const char* name; std::size_t a, b; };
-std::vector<Win> windows(const std::string& s) {
-    std::vector<Win> w{{"whole", kBurn, kN}};
-    if (s == "jump") {
-        w.push_back({"pre", kBurn, kChange}); w.push_back({"rec_0_100", kChange, kChange + 100});
-        w.push_back({"rec_100_500", kChange + 100, kChange + 500}); w.push_back({"post", kChange, kN});
-    }
-    return w;
-}
-
 struct Stream { std::vector<double> x, y, rho, zx, zy; };
 
-Stream make_stream(const std::string& cop, const std::string& sc, unsigned seed) {
-    LiveStream L;
-    std::unique_ptr<Dependence> dep;
-    std::unique_ptr<dgp::Copula> c;
-    std::unique_ptr<CopulaSource> src;
-    if (live_mode()) L = live_stream(cop, sc, seed, kN);
-    else { dep = make_dep(sc); c = dgp::make_copula(cop); src = std::make_unique<CopulaSource>(*dep, *c, seed); }
-    Stream s;
-    ds_margin::seed(1);                       // as RecursiveMPL's DsKll margin (seed 1), so VALIDATE can match it
-    ds_margin::Kll kx(kK), ky(kK);
-    for (std::size_t t = 0; t < kN; ++t) {
-        double x, y, rho_s;
-        if (src) { const auto smp = src->next(); x = smp.x; y = smp.y; rho_s = smp.rho_s; }
-        else { x = L.x[t]; y = L.y[t]; rho_s = L.rho_s[t]; }
-        const double u = std::clamp(kx.cdf(x), kDelta, 1 - kDelta), v = std::clamp(ky.cdf(y), kDelta, 1 - kDelta);
-        kx.insert(x); ky.insert(y);   // pseudo-observation from the sketch BEFORE this pair
-        s.x.push_back(x); s.y.push_back(y); s.rho.push_back(rho_s);
-        s.zx.push_back(special::probit(u)); s.zy.push_back(special::probit(v));
-    }
-    return s;
+Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
+    Stream stream;
+    for_each_study_observation(family, scenario, seed, kN, [&](const StudyObservation& sample) {
+        stream.x.push_back(sample.x);
+        stream.y.push_back(sample.y);
+        stream.rho.push_back(sample.rho_s);
+        stream.zx.push_back(special::probit(sample.u));
+        stream.zy.push_back(special::probit(sample.v));
+    });
+    return stream;
 }
 
 std::string label(double n) { return n == kNoForget ? "nocum" : std::to_string(n); }
 }  // namespace
 
 int main(int argc, char** argv) {
-    const int seeds = argc > 1 ? std::atoi(argv[1]) : 60;
+    const int seeds = argc > 1 ? std::atoi(argv[1]) : thesis::kSeedCount;
     const char* env = std::getenv("COPULA");
     const std::string cop = env ? env : "gaussian";
     const std::string sfx = cop == "gaussian" ? "" : "_" + cop;
 
     if (std::getenv("VALIDATE")) {
-        const Stream s = make_stream(cop, "drift", 42);
+        const Stream s = make_stream(cop, "drift", thesis::kFirstSeed);
         for (double n : {39.0, 399.0, kNoForget}) {
             auto fed = build({"rmpl", "main", n});
             RecursiveMPL::Config m = thesis::rmpl(n == kNoForget ? 1e-12 : 2 / (n + 1));
-            m.margin = RecursiveMPL::Margin::DsKll; m.kll_k = kK;
+            m.margin = RecursiveMPL::Margin::DsKll; m.kll_k = thesis::kKll;
             RecursiveMPL own(m, "own");          // constructor reseeds the coin with seed 1, as make_stream does
             double worst = 0;
             for (std::size_t t = 0; t < kN; ++t) {
                 worst = std::max(worst, std::fabs(fed->estimate() - own.estimate()));
                 fed->update(s.zx[t], s.zy[t]); own.update(s.x[t], s.y[t]);
             }
-            std::printf("VALIDATE %s N=%s: max |cached-feed - own DsKll| over 5000 ticks = %.3g\n", cop.c_str(), label(n).c_str(), worst);
+            std::printf("VALIDATE %s N=%s: max |cached-feed - own DsKll| over %zu ticks = %.3g\n",
+                        cop.c_str(), label(n).c_str(), kN, worst);
         }
         return 0;
     }
@@ -140,10 +101,10 @@ int main(int argc, char** argv) {
     for (const std::string sc : {"constant", "drift", "jump"}) {
         if (jb && sc != "jump") continue;
         const auto arms = arms_for(sc);
-        const auto wins = windows(sc);
+        const auto wins = thesis::windows(sc);
         std::vector<std::vector<double>> s1(arms.size(), std::vector<double>(kN)), s2 = s1;   // sums over seeds
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = 42u + sd;
+            const unsigned seed = thesis::kFirstSeed + sd;
             const Stream s = make_stream(cop, sc, seed);
             std::vector<double> e(kN);
             for (std::size_t k = 0; k < arms.size(); ++k) {

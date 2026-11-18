@@ -1,5 +1,5 @@
 """MFF regret over generating x working copula families (Section 6.4 appendix, tab:app-mff-regret-families), from
-results/regretfam_seeds[_fam].csv (scenarios REGRETFAM=1). Working model W: the five RMPL memories with
+results/regretfam_seeds[_fam].csv (strategy_experiments REGRETFAM=1). Working model W: the five RMPL memories with
 each arm's rho_S inverted into W's parameter (as in 6.5; W = Gaussian is the REGRET loss). The Chapter 5 bound is
 pathwise, so it holds whatever the specification. Writes results/regretfam_2026-11-14.txt."""
 import math

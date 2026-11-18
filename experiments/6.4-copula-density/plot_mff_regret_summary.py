@@ -1,4 +1,4 @@
-"""Section 6.4 regret figures from results/regret_seeds.csv and regret_paths.csv (scenarios REGRET=1), mixture
+"""Section 6.4 regret figures from results/regret_seeds.csv and regret_paths.csv (strategy_experiments REGRET=1), mixture
 forecaster: images/ch6_mff_regret_summary.png (final static and one-switch regret of fixed share, mean ± 2 SE) and
 images/ch6_mff_regret_jump.png (cumulative regret through the jump, Hedge vs fixed share, ± 2 SE bands)."""
 import os
@@ -57,7 +57,6 @@ def summary(fs):
         fig.subplots_adjust(left=0.1, right=0.99, top=0.78, bottom=0.17)
         fig.savefig(OUT + "ch6_mff_regret_summary.png")
         plt.close(fig)
-    print("wrote", OUT + "ch6_mff_regret_summary.png")
 
 
 def jump(P, t0=2000):
@@ -89,7 +88,6 @@ def jump(P, t0=2000):
         fig.subplots_adjust(left=0.13, right=0.99, top=0.86, bottom=0.12, hspace=0.12, wspace=0.08)
         fig.savefig(OUT + "ch6_mff_regret_jump.png")
         plt.close(fig)
-    print("wrote", OUT + "ch6_mff_regret_jump.png")
 
 
 def report(fs):

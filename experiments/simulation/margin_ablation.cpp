@@ -1,17 +1,6 @@
-// Section 6.7 diagnostic: why marginal estimation costs RMPL more than Counting Matrix / Hermite Series under constant
-// Gaussian dependence. Gaussian copula, constant dependence (as probe_budget's "constant"), n = 15,000, standard-normal margins,
-// test seeds 42-141, cumulative estimation (no forgetting), RMSE of rho_S over ticks >= 500 every 5th (as probe_budget).
-// Every variant sees the same stream. Margin treatments are applied by transforming the inputs offline:
-//   oracle      : true margins (inputs are the true N(0,1) scores)
-//   full_emp    : z = probit(rank among ALL n observations / (n + 1))       [uses the future: diagnostic only]
-//   seq_emp     : z = probit(#{s < t : x_s < x_t} / (t - 1))                 [exactly the KLL margin's u when nothing is
-//                 compressed; t = 1 gives u = 0.5]
-//   seq_mid     : z = probit((#{s < t : x_s < x_t} + 0.5) / t)             [mid-rank: avoids u = 0, 1]
-//   seq_emp_t0  : seq_emp, copula updates only from observation t0 (margins still accumulate from the start)
-// RMPL is fed transformed scores through its ExactNormal margin (u = Phi(z) back again), or uses its own DataSketches KLL margins.
-// Counting Matrix and Hermite are fed transformed scores with normal_score_inputs (fixed probit(k/B) cut-points; no standardisation).
-// Output: results/margins_seeds.csv (seed, variant, rmse_all, rmse_late), late = ticks >= 10,000.
-// Build: ../build.sh
+// Compare oracle, empirical and KLL margins on matched Gaussian streams.
+// Full-sample ranks use future observations and serve as a diagnostic.
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

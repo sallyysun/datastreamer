@@ -1,4 +1,4 @@
-"""MFF regret (Section 6.4), Gaussian copula, from results/regret_seeds.csv (scenarios REGRET=1): cumulative MFF
+"""MFF regret (Section 6.4), Gaussian copula, from results/regret_seeds.csv (strategy_experiments REGRET=1): cumulative MFF
 log loss minus the best arm (m = 0) or the best arm sequence with at most m switches, for Hedge (delta = 0) and fixed
 share (delta = 1e-4), for the mixture forecaster and the point forecast, against the Chapter 5 bound
 B_{T,m}(delta) = log K + (T-1-m) log 1/(1-delta+delta/K) + m log(K/delta). Writes results/regret_2026-11-14.txt."""

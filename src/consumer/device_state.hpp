@@ -29,10 +29,10 @@ public:
     };
 
     // Inference = the Chapter 6 device (src/estimators/thesis_device.hpp): shared KLL pseudo-observations, and per
-    // estimator the five fixed arms, MFF and VFF, exactly as the in-process probe.
+    // estimator the five fixed arms, MFF and VFF, exactly as the in-process runner.
     DeviceState() = default;
 
-    // Score every strategy against the ground truth carried on the ticks (rows as the probe's strategies_seeds).
+    // Score every strategy against the ground truth carried on the ticks (rows as the runner's strategies_seeds).
     void enable_scoring(const std::string& scenario) { scenario_ = scenario; }
 
     // Psi: fold one event into the device state (moments + inference). The wire

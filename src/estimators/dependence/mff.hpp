@@ -8,17 +8,41 @@
 #include <memory>
 #include <vector>
 
+#include "study_config.hpp"
 #include "../copula_family.hpp"
 #include "estimator.hpp"
 
 namespace thesis {
 
-constexpr std::size_t kK = 5;
-inline const double kMem[kK] = {39, 99, 199, 399, 1999};   // MFF arms = the fixed memories
+// Replace non-finite losses, apply Hedge in log space, then mix in uniform weight.
+inline void update_mff_weights(std::vector<double>& weights, std::vector<double>& losses,
+                               std::vector<double>& log_weights, double eta, double delta) {
+    double worst = 0.0;
+    for (double loss : losses) {
+        if (std::isfinite(loss)) worst = std::max(worst, loss);
+    }
+    for (double& loss : losses) {
+        if (!std::isfinite(loss)) loss = worst;
+    }
 
-// MFF: Hedge with fixed share over the fixed-memory arms, log loss of the Gaussian density at each arm's rho_S,
-// eta = 1, delta = 1e-4; forecast = weighted mean of the arms (density: the weighted mixture).
+    double top = -INFINITY;
+    for (std::size_t k = 0; k < weights.size(); ++k) {
+        const double log_weight = weights[k] > 0 ? std::log(weights[k]) : -INFINITY;
+        log_weights[k] = log_weight - eta * losses[k];
+        top = std::max(top, log_weights[k]);
+    }
+    double total = 0.0;
+    for (std::size_t k = 0; k < weights.size(); ++k) {
+        weights[k] = std::exp(log_weights[k] - top);
+        total += weights[k];
+    }
+    const double uniform_share = delta / static_cast<double>(weights.size());
+    for (double& weight : weights) weight = (1 - delta) * weight / total + uniform_share;
+}
+
+// MFF over the study's fixed memories, scored under one working copula.
 struct Mff {
+    copula::Family family = copula::Family::Gaussian;
     double eta = 1.0, delta = 1e-4;
     std::vector<double> w = std::vector<double>(kK, 1.0 / kK), loss = std::vector<double>(kK), lw = std::vector<double>(kK);
     double estimate(const std::vector<std::unique_ptr<DependenceEstimator>>& arms) const {
@@ -32,20 +56,10 @@ struct Mff {
         for (const auto& a : arms) scorable = scorable && a->ready();
         if (!scorable) return;
         for (std::size_t k = 0; k < kK; ++k) {
-            const double par = copula::param_from_spearman(copula::Family::Gaussian, arms[k]->estimate());
-            loss[k] = -copula::log_density(copula::Family::Gaussian, u, v, par);
+            const double par = copula::param_from_spearman(family, arms[k]->estimate());
+            loss[k] = -copula::log_density(family, u, v, par);
         }
-        double worst = 0;
-        for (double l : loss) if (std::isfinite(l)) worst = std::max(worst, l);
-        for (double& l : loss) if (!std::isfinite(l)) l = worst;
-        double top = -INFINITY;
-        for (std::size_t k = 0; k < kK; ++k) {
-            lw[k] = (w[k] > 0 ? std::log(w[k]) : -INFINITY) - eta * loss[k];
-            top = std::max(top, lw[k]);
-        }
-        double tot = 0;
-        for (std::size_t k = 0; k < kK; ++k) { w[k] = std::exp(lw[k] - top); tot += w[k]; }
-        for (double& x : w) x = (1 - delta) * x / tot + delta / kK;
+        update_mff_weights(w, loss, lw, eta, delta);
     }
 };
 

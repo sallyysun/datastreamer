@@ -6,13 +6,13 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 | Folder | Thesis | Program | Figures / tables |
 | --- | --- | --- | --- |
 | `ch3-background/` | Ch. 3 | — | `ch3_parametric`, `ch3_empirical` |
-| `6.2-fixed-forgetting/` | §6.2 | `probe_fixed_ess` | constant/drift/jump ESS RMSE, drift bias–variance, jump recovery; tab:optimal-ess-*, tab:jump-recovery |
-| `6.3-adaptive-forgetting/` | §6.3 + app. | `scenarios` | strategy RMSE bars, trajectories, MFF weights / fixed share, VFF rate sensitivity |
-| `6.4-copula-density/` | §6.4 + app. | `scenarios` (`SCORESFAM`, `REGRET`, `REGRETFAM`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
-| `6.5-family-switching/` | §6.5 | `scenarios` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
-| `6.6-real-data/` | §6.6 + app. | `probe_real_practical` | final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage |
-| `live/` | 6.2–6.6 over TCP | the probes with `LIVE=1`; `../server` + `../consumer` | `run_all_live.sh` + `jobs.txt` (every 6.2–6.5 simulation), `compare_all_live.py`; `run_live.sh` (the consumer binary scoring §6.3–6.4) |
-| `6.7-computational-cost/` | §6.7 + app. | `probe_budget`, `probe_margins` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
+| `6.2-fixed-forgetting/` | §6.2 | `fixed_ess_sweep` | constant/drift/jump ESS RMSE, drift bias–variance, jump recovery; tab:optimal-ess-*, tab:jump-recovery |
+| `6.3-adaptive-forgetting/` | §6.3 + app. | `strategy_experiments` | strategy RMSE bars, trajectories, MFF weights / fixed share, VFF rate sensitivity |
+| `6.4-copula-density/` | §6.4 + app. | `strategy_experiments` (`SCORESFAM`, `REGRET`, `REGRETFAM`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
+| `6.5-family-switching/` | §6.5 | `strategy_experiments` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
+| `6.6-real-data/` | §6.6 + app. | `real_data_comparison` | final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage |
+| `live/` | 6.2–6.6 over TCP | the runners with `LIVE=1`; `../server` + `../consumer` | `run_all_live.sh` + `jobs.txt` (every 6.2–6.5 simulation), `compare_all_live.py`; `run_live.sh` (the consumer binary scoring §6.3–6.4) |
+| `6.7-computational-cost/` | §6.7 + app. | `budget_benchmark`, `margin_ablation` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
 
 ```bash
 ./build.sh                          # EIGEN=/usr (Linux) or /opt/homebrew/opt/eigen (macOS)
@@ -20,12 +20,10 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 families)
 ```
 
-The C++ probes, live stream adapter (`live_source.hpp`) and consistency checks live in `experiments/simulation/`.
-The `scenarios.cpp` runner handles the fixed / VFF / MFF simulations for 6.3–6.5, with one `run_*` function per mode.
-`build.sh` puts each binary in its section's
-`build/`. Shared scripts in `common/`: `config.py` (seeds, scenarios,
-families, memories, labels and colours used by every script) and `plot_style.py` (the figure style). 6.6 shares
-`real_common.py`, ch3 `ch3_style.py`. Every script is a short docstring, functions and a `main()`.
+The C++ runners, live stream adapter (`live_source.hpp`) and consistency checks live in `experiments/simulation/`.
+`build.sh` puts the binaries in section or shared `build/` directories. Set `VERBOSE=1` for real-data timing and plot summaries.
+Edit `../study_config.json` for shared study defaults and rebuild the C++ programs to apply them. The reports use five
+fixed-memory arms. Python labels and styles live in `common/config.py` and `common/plot_style.py`.
 
 Conventions:
 
@@ -42,16 +40,16 @@ Conventions:
   `archive/experiments/results-6.7-before-cut/`.
 - `std::*_distribution` draws differ between libstdc++ and libc++, so the same seed gives different data on
   Linux and macOS. The thesis numbers come from Linux/libstdc++.
-- Live mode: with `LIVE=1` a probe takes each stream from a seeded server over TCP (`experiments/simulation/live_source.hpp`: the
+- Live mode: with `LIVE=1` a runner takes each stream from a seeded server over TCP (`experiments/simulation/live_source.hpp`: the
   server is started per stream on free ports, observations are rebuilt from prices exactly as the consumer does).
-  6.6: `LIVE=1 build/probe_real_practical in.csv out.csv` has the server replay the file (`REPLAY=`).
+  6.6: `LIVE=1 build/real_data_comparison in.csv out.csv` has the server replay the file (`REPLAY=`).
   Full 6.2–6.5 run over TCP (2026-11-17, 44 jobs, 60 seeds): 31 of 106 result files byte-identical to the in-process
   runs, the rest within ~1e-3 relative (KLL near-ties on log returns); 17 of 26 figures byte-identical, the other 9
   visually identical (at most 0.017% of pixels; `famswitch_initial_id` only by its known colour change); every thesis
   table identical except the third decimal in 4 of 840 lines of the scores-family summary.
-- `live/`: the same device and scoring as the probe (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed
+- `live/`: the same device and scoring as the runner (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed
   over TCP. The consumer sees log returns ln(p_t/p_{t-1}) = 1e-4 + 0.01 z rather than the draws z; ranks are
   unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):
-  707 streams byte-identical to the probe; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means
+  707 streams byte-identical to the runner; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means
   by at most 1e-5 relative. `experiments/simulation/test/device_vs_probe.cpp` reproduces both (draws and returns) in-process.
 - 6.6 needs the real-data inputs, which are not in the repository (see `6.6-real-data/run.sh`).

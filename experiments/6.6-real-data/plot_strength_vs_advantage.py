@@ -1,8 +1,4 @@
-"""Section 6.6 dependence strength against MFF's advantage over VFF (t4 copula): per pair, the mean 99-day rolling
-Spearman (WIN= for another window) over the evaluation days against the mean log loss of MFF minus VFF, with a
-least-squares line for illustration and the Spearman rank correlation (SPY/IVV hollow but included).
-Usage: python3 plot_strength_vs_advantage.py <scratch dir> -> results/strength_vs_advantage_w99.csv,
-images/ch6_practical_strength_vs_advantage.png"""
+"""Relate mean rolling dependence to the loss difference between MFF and VFF."""
 import os
 import sys
 
@@ -10,7 +6,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from real_common import ECOL, EST, GRID, RC, W, eval_days, image, outputs, plt, read, result
+from real_common import ECOL, EST, GRID, RC, W, eval_days, image, outputs, plt, read, result, verbose_print
 
 EMK = {"RMPL": "^", "Counting matrix": "o", "Hermite series": "s"}
 LABEL = {"XOM_CVX": "XOM/CVX", "SPY_IVV": "SPY/IVV"}
@@ -83,14 +79,14 @@ def main():
     Df = points(sys.argv[1])
     Df.to_csv(result(f"strength_vs_advantage_w{WIN}.csv"), index=False)
     for e, s in figure(Df).items():
-        print(f"{e:16s} Spearman rank correlation {s.correlation:+.3f} (p = {s.pvalue:.4f}); pairs below zero: {int((Df[Df.estimator == e].mff_minus_vff < 0).sum())}/32")
+        verbose_print(f"{e:16s} Spearman rank correlation {s.correlation:+.3f} (p = {s.pvalue:.4f}); pairs below zero: {int((Df[Df.estimator == e].mff_minus_vff < 0).sum())}/32")
     r = Df.drop_duplicates("pair").set_index("pair").mean_rho
-    print("mean rho range:", round(r.min(), 2), "-", round(r.max(), 2), "| SPY/IVV:", round(r["SPY_IVV"], 3))
+    verbose_print("mean rho range:", round(r.min(), 2), "-", round(r.max(), 2), "| SPY/IVV:", round(r["SPY_IVV"], 3))
     ex = Df[Df.pair != "SPY_IVV"]
     for e, _ in EST:
         g = ex[ex.estimator == e]
         s = spearmanr(g.mean_rho, g.mff_minus_vff)
-        print(f"   excluding SPY/IVV: {e:16s} {s.correlation:+.2f} (p = {s.pvalue:.4f})")
+        verbose_print(f"   excluding SPY/IVV: {e:16s} {s.correlation:+.2f} (p = {s.pvalue:.4f})")
 
 
 if __name__ == "__main__":

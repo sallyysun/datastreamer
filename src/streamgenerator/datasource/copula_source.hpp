@@ -7,14 +7,8 @@
 #include "copula.hpp"
 #include "dependence.hpp"
 
-// Bivariate copula source with time-varying dependence. The Dependence supplies a
-// scalar knob d per step (the Gaussian-equivalent linear correlation); the Copula
-// family maps it to the SAME target Spearman rho_S = (6/pi) asin(d/2) and samples
-// two standard-normal scores whose dependence follows that family (Gaussian /
-// Clayton / Gumbel / Student-t -- see src/.../copula.hpp). The scores double as
-// standardised "returns" fed to the estimators, and the true (achieved) Spearman
-// rho is carried alongside as ground truth. With the default Gaussian copula this
-// reproduces the original closed-form Gaussian construction exactly.
+// Draw paired normal scores from a seeded copula with a time-varying dependence schedule.
+// Return the Gaussian-equivalent correlation and achieved Spearman rho alongside each draw.
 class CopulaSource {
 public:
     struct Sample {

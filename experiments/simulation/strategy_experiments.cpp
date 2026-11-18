@@ -1,13 +1,6 @@
-// Chapter 6 simulation probe for 6.3-6.5: per (family, scenario, seed) one stream and one cumulative KLL k = 256
-// pseudo-observation sequence that feeds every margin-dependent part; the five fixed arms, MFF (thesis::Mff) and VFF
-// (thesis::Vff) per estimator, scored on the forecast held before each tick (rho_S RMSE; excess log loss at the true PIT;
-// H^2 on a grid, src/estimators/evaluation.hpp). One mode per run:
-//   (default)  results/strategies_seeds[_tag][_fam].csv, strategies_jumppath; PATHS=1 per-tick paths; DUMP_SEED=<s> one stream
-//   MIXDENS=1  MFF density = the mixture of its candidates' densities (with TAG=mix)
-//   VFF_RATES=a,b,... TAG=<tag>  VFF at those rates (sensitivity), plus strategies_extremes
-//   WEIGHTS / REGRET / REGRETFAM / SCORES / SCORESFAM / FAMSWITCH  the 6.3-6.5 studies (see each run_* function)
-//   VALIDATE=1 checks the H^2 tables and mixture densities against direct computation.
-// Usage: COPULA=<family> ./scenarios [seeds=60]; LIVE=1 takes the streams over TCP (live_source.hpp).
+// Compare fixed, MFF and VFF strategies on matched streams, scoring forecasts before each update.
+// Usage: COPULA=<family> strategy_experiments [seeds=60]; LIVE=1 uses the TCP stream.
+// See the section run.sh scripts for study flags and output files.
 
 #include <array>
 #include <cmath>
@@ -22,16 +15,12 @@
 #include "../../src/estimators/special_functions.hpp"
 #include "../../src/estimators/evaluation.hpp"
 #include "../../src/estimators/registry.hpp"
-#include "../../src/streamgenerator/datasource/copula.hpp"
-#include "../../src/streamgenerator/datasource/dependence.hpp"
-#include "../../src/streamgenerator/datasource/copula_source.hpp"
-#include "live_source.hpp"
+#include "study_stream.hpp"
 
 namespace {
 using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff; using thesis::Vff;
 using thesis::Win; using thesis::windows; using thesis::checkpoint;
 using thesis::kN; using thesis::kBurn; using thesis::kChange; using thesis::kK; using thesis::kMem;
-constexpr double kDelta = thesis::kClip;
 const char* kEst[3] = {"xiao", "hermite", "rmpl"};
 // Strategies: five fixed arms, MFF, then one VFF per rate. Default rates 0.02 / 0.1 named vff_slow / vff_fast (the
 // original outputs); VFF_RATES=a,b,... names them vff_<a>, ... (sensitivity runs; write under TAG=...).
@@ -40,36 +29,22 @@ std::vector<double> kRates = thesis::vff_rates();
 
 std::unique_ptr<DependenceEstimator> arm(const std::string& e, double n) { return thesis::arm(e, n, "m"); }
 
-std::unique_ptr<Dependence> make_dep(const std::string& s) { return make_scenario(s, kN); }
-
 struct Stream { std::vector<double> x, y, rho, par, u, v, pu, pv; };
-Stream make_stream(const std::string& cop, const std::string& sc, unsigned seed) {
-    const copula::Family F = family_of(cop);
-    LiveStream L;
-    std::unique_ptr<Dependence> dep;
-    std::unique_ptr<dgp::Copula> c;
-    std::unique_ptr<CopulaSource> src;
-    if (live_mode()) L = live_stream(cop, sc, seed, kN);
-    else { dep = make_dep(sc); c = dgp::make_copula(cop); src = std::make_unique<CopulaSource>(*dep, *c, seed); }
-    Stream s;
-    ds_margin::seed(1);
-    ds_margin::Kll kx(256), ky(256);
-    for (std::size_t t = 0; t < kN; ++t) {
-        double x, y, rho_s, d, pu, pv;
-        if (src) {
-            const auto smp = src->next();
-            x = smp.x; y = smp.y; rho_s = smp.rho_s; d = smp.rho;
-            pu = special::normal_cdf(smp.x); pv = special::normal_cdf(smp.y);
-        } else {
-            x = L.x[t]; y = L.y[t]; rho_s = L.rho_s[t]; d = L.d[t]; pu = L.pu[t]; pv = L.pv[t];
-        }
-        s.u.push_back(std::clamp(kx.cdf(x), kDelta, 1 - kDelta)); s.v.push_back(std::clamp(ky.cdf(y), kDelta, 1 - kDelta));
-        kx.insert(x); ky.insert(y);
-        s.x.push_back(x); s.y.push_back(y); s.rho.push_back(rho_s);
-        s.par.push_back(copula::param_from_spearman(F, dgp::detail::target_spearman(d)));
-        s.pu.push_back(pu); s.pv.push_back(pv);
-    }
-    return s;
+
+Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
+    Stream stream;
+    const auto generating_family = family_of(family);
+    for_each_study_observation(family, scenario, seed, kN, [&](const StudyObservation& sample) {
+        stream.x.push_back(sample.x);
+        stream.y.push_back(sample.y);
+        stream.rho.push_back(sample.rho_s);
+        stream.par.push_back(copula::param_from_spearman(generating_family, dgp::detail::target_spearman(sample.knob)));
+        stream.u.push_back(sample.u);
+        stream.v.push_back(sample.v);
+        stream.pu.push_back(sample.true_u);
+        stream.pv.push_back(sample.true_v);
+    });
+    return stream;
 }
 
 // rho_S -> family parameter, tabulated on 40001 points between the family's parameter bounds (exact for the Gaussian):
@@ -116,13 +91,7 @@ int run_validate(const Run& run) {
     return 0;
 }
 
-// Section 6.5 on the Chapter 6 configuration: RMPL arms N_eff 39-1999 on the shared cumulative KLL (k = 256)
-// pseudo-observations; family-augmented MFF = 20 models (Gaussian, t4, Clayton, Gumbel) x 5 memories, each model's
-// density c_W(theta_W(rho_k)) with theta_W = param_from_spearman(W, rho_k) (the SCORESFAM inversion); Gaussian-only
-// MFF = the 5 Gaussian models. Both: log loss on the KLL (U, V) before the arms update, eta = 1, delta = 1e-4, Mff's
-// warm-up (t >= 30, arms ready) and non-finite guard; forecast = mixture of the models' densities (weights before the
-// tick), rho = sum_k w_k rho_k. Truth: matched d = 0.6 (rho_S ~ 0.582); copula = COPULA-independent list below,
-// switch copulas change family at tick 2500. Excess log loss at the true PIT, windows from tick 500.
+// Compare family-aware and Gaussian-only MFF at matched dependence. Families switch at tick 2500.
 int run_famswitch(const Run& run) {
     const int seeds = run.seeds;
     H2Table& h2 = run.h2;
@@ -205,7 +174,7 @@ int run_famswitch(const Run& run) {
     }
     std::fprintf(fi, "gen,seed,kind,target,t50,t90,share_ge50_after,incorrect_majority,first_incorrect,pre_weight_target,n_guard\n");
     std::fprintf(fp, "gen,t,family,mean,sd\n");
-    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : 42u;
+    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
     // FS_EST = rmpl (default) | xiao | hermite: the five arms of that estimator (counting matrix / Hermite read the raw
     // data with their own margins, as in Sections 6.3-6.4; RMPL reads probit of the KLL pseudo-observations).
     const std::string fest = std::getenv("FS_EST") ? std::getenv("FS_EST") : "rmpl";
@@ -237,7 +206,7 @@ int run_famswitch(const Run& run) {
                 bool ready = t >= 30;
                 for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
                 const int gt = t < kChange ? G0[g] : G1[g];
-                const double part = copula::param_from_spearman(WF[gt], dgp::detail::target_spearman(0.6));
+                const double part = copula::param_from_spearman(WF[gt], dgp::detail::target_spearman(thesis::kConstantKnob));
                 const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
                 for (int wi = 0; wi < 4; ++wi)
                     for (std::size_t k = 0; k < kK; ++k) {
@@ -330,21 +299,14 @@ int run_famswitch(const Run& run) {
     return 0;
 }
 
-// MFF scoring function (squared vs log) x working copula family W, generating family = COPULA. Candidates:
-//   inversion estimators rmpl / xiao / hermite: each arm's rho_S -> theta_W = param_from_spearman(W, rho) (the
-//     estimator is unchanged; only its candidate density c_W(theta_W) depends on W);
-// Squared loss (12(U-1/2)(V-1/2) - rho_k)^2 needs no W; log loss -log c_W(theta_k)(U, V); both on the KLL (U, V)
-// before the arms update, warm-up t >= 30 (+ arms ready), eta = 1 (ETAS=... for the dev grid), delta = 1e-4,
-// Mff's non-finite guard. MFF: rho = sum w rho_k; density = mixture sum w c_W(theta_k) (weights before the tick).
-// Excess at the true PIT; H^2 (NOH2 skips it) on the validated 81x81 grid: W = Gaussian exact (h2.mix), else the
-// component densities tabulated on a rho_S grid (step 0.0025) and interpolated (checked against exact at start).
+// Compare squared and log loss across working copulas, using the same KLL inputs and arms.
 int run_scoresfam(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
     const std::string& sfx = run.sfx;
     const char* tag = run.tag;
     H2Table& h2 = run.h2;
-    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : 42u;
+    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
     const bool noh2 = std::getenv("NOH2") != nullptr;
     std::vector<double> etas{1.0};
     if (const char* es = std::getenv("ETAS")) {
@@ -545,12 +507,7 @@ int run_scoresfam(const Run& run) {
     return 0;
 }
 
-// Regret robustness over working families, generating family = COPULA. Working model W: the five RMPL arms with each
-// arm's rho_S inverted into W's parameter (FamilyInverse, as in 6.5), loss -log c_W(theta_W(rho_k)) at the KLL (U, V);
-// W = Gaussian is the REGRET loss.
-// Log loss, eta = 1, delta = 0 / 1e-4, mixture forecaster, Mff's non-finite guard; comparators best arm and
-// best <= 1 / <= 2 switch sequence (exact DP) on the same guarded losses. Diagnostics per run: guarded
-// (non-finite) arm losses, scored ticks with an arm at its parameter clamp.
+// Compare family-specific mixture regret against the best arm and the best one- or two-switch paths.
 int run_regretfam(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
@@ -563,7 +520,7 @@ int run_regretfam(const Run& run) {
     std::fprintf(fr, "gen,scenario,working,delta,seed,T,t0,loss_mix,best0,arm0,best1,best2,sw_t,sw_from,sw_to,n_nonfinite,n_clamp\n");
     for (const std::string sc : {"constant", "drift", "jump"}) {
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = 42u + sd;
+            const unsigned seed = thesis::kFirstSeed + sd;
             const Stream s = make_stream(cop, sc, seed);
             for (int wi = 0; wi < 4; ++wi) {
                 const FamilyInverse inv(WF[wi]);
@@ -648,12 +605,7 @@ int run_regretfam(const Run& run) {
     return 0;
 }
 
-// Static and switching regret of the log-loss MFF (eta = 1), delta = 0 (Hedge) and 1e-4 (fixed share), on the
-// scored ticks (t >= 30, every arm ready: Mff::score). Arm loss l_k = -log c_G(rho_k)(U, V) at the KLL (U, V)
-// with Mff's non-finite guard; the comparators use the same guarded losses. MFF loss: mix = -log sum_k w_k
-// exp(-l_k) (the forecaster of the Chapter 5 bound) and point = -log c_G(sum_k w_k rho_k)(U, V) (what the
-// Chapter 6 MFF forecasts). Comparators: best arm, best sequence with <= 1 and <= 2 switches (exact forward DP,
-// prefix optimum at every t). Weights are those held before the tick.
+// Compare Gaussian mixture and point-forecast regret against static and switching oracles.
 int run_regret(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
@@ -672,7 +624,7 @@ int run_regret(const Run& run) {
         auto pi = [&](int ei, int di, int l, int m, std::size_t t) { return ((((std::size_t(ei) * 2 + di) * 2 + l) * MS + m) * kN) + t; };
         std::vector<char> scored(kN, 0);
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = 42u + sd;
+            const unsigned seed = thesis::kFirstSeed + sd;
             const Stream s = make_stream(cop, sc, seed);
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
@@ -785,16 +737,14 @@ int run_regret(const Run& run) {
     return 0;
 }
 
-// MFF scoring rule x learning rate: the squared loss (p = 12(U-1/2)(V-1/2) against each arm's
-// rho) and log loss (Gaussian copula at each arm's rho), both scored on the KLL (U, V) before the arms see
-// the tick, delta = 1e-4, over the same five arms per stream; plus the fixed arms. SEED_BASE (default 42).
+// Compare MFF scoring rules and learning rates on the same fixed-memory arms.
 int run_scores(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
     const std::string& sfx = run.sfx;
     const char* tag = run.tag;
     H2Table& h2 = run.h2;
-    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : 42u;
+    const unsigned base = std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
     const bool smix = std::getenv("MIXDENS") != nullptr;   // MFF density = mixture (excess, H^2); needs TAG
     if (smix && !tag) { std::fprintf(stderr, "MIXDENS needs TAG\n"); return 1; }
     const std::vector<double> eta_sq{0.1, 0.25, 0.5, 1, 2, 4, 8, 16}, eta_log{0.25, 0.5, 1, 2, 4, 8, 16};
@@ -917,7 +867,9 @@ int run_weights(const Run& run) {
     std::FILE* fw = std::fopen(("results/strategies_weights" + sfx + ".csv").c_str(), "w");
     std::FILE* fc = std::fopen(("results/strategies_weights_seeds" + sfx + ".csv").c_str(), "w");
     if (!fw || !fc) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
-    std::fprintf(fw, "copula,scenario,estimator,delta,t,w39,w99,w199,w399,w1999,mse,rho_true,est_mean\n");
+    std::fprintf(fw, "copula,scenario,estimator,delta,t");
+    for (double memory : kMem) std::fprintf(fw, ",w%g", memory);
+    std::fprintf(fw, ",mse,rho_true,est_mean\n");
     std::fprintf(fc, "copula,scenario,estimator,delta,seed,window,rmse\n");
     const double deltas[2] = {1e-4, 0.0};
     for (const std::string sc : {"constant", "drift", "jump"}) {
@@ -925,7 +877,7 @@ int run_weights(const Run& run) {
         // [ei][di][t][k]: summed weights held before tick t; [ei][di][t]: summed squared error and forecast
         std::vector<double> ws(3 * 2 * kN * kK), es(3 * 2 * kN), fsum(3 * 2 * kN), rt(kN);
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = 42u + sd;
+            const unsigned seed = thesis::kFirstSeed + sd;
             const Stream s = make_stream(cop, sc, seed);
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
@@ -971,10 +923,7 @@ int run_weights(const Run& run) {
     return 0;
 }
 
-// MIXDENS=1: MFF's density forecast is the mixture sum_k w_k c_G(rho_k) (weights held before the tick) for the
-// excess log loss and H^2; its rho_S forecast (sum_k w_k rho_k), weights and every other strategy are unchanged.
-// Needs TAG (new files only). Also writes results/strategies_mixcheck<sfx>.csv: the mixture's cumulative log loss at
-// the KLL (U, V) over the regret window (t >= 30, arms ready), for comparison with REGRET's loss_mix (delta = 1e-4).
+// MIXDENS=1 scores the weighted density mixture. Its KLL log loss also checks the regret calculation.
 int run_strategies(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
@@ -1015,7 +964,7 @@ int run_strategies(const Run& run) {
         std::vector<std::vector<float>> xall(fx ? 3 * S : 0);          // whole-window excess, all seeds x ticks (x 1000)
         std::vector<int> xseeds(fx ? 3 * S : 0), xticks(fx ? 3 * S : 0);
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = 42u + sd;
+            const unsigned seed = thesis::kFirstSeed + sd;
             if (dseed && int(seed) != std::atoi(dseed)) continue;
             const Stream s = make_stream(cop, sc, seed);
             std::vector<double> lc(kN);
@@ -1148,7 +1097,7 @@ int run_strategies(const Run& run) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    const int seeds = argc > 1 ? std::atoi(argv[1]) : 60;
+    const int seeds = argc > 1 ? std::atoi(argv[1]) : thesis::kSeedCount;
     const char* env = std::getenv("COPULA");
     const std::string cop = env ? env : "gaussian";
     const char* tag = std::getenv("TAG");

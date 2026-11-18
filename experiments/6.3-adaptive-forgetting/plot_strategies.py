@@ -1,7 +1,4 @@
-"""Section 6.3 trajectory figures, Gaussian copula: pointwise RMSE over seeds (MSE smoothed within each regime) and the
-seed-mean forecast around the jump, for the hindsight-best fixed N_eff, VFF (alpha = 0.02) and MFF. Reads
-results/strategies_paths.csv, strategies_paths_est.csv and strategies_summary.csv; writes
-images/ch6_rmse_trajectories.png and images/ch6_jump_trajectories.png."""
+"""Plot strategy RMSE and forecasts around the Gaussian jump."""
 import os
 import sys
 import numpy as np
@@ -60,7 +57,6 @@ def finish(fig, axs, ylab, out):
     fig.subplots_adjust(left=0.12, right=0.985, top=0.9, bottom=0.08, hspace=0.42, wspace=0.1)
     fig.savefig(OUT + out)
     plt.close(fig)
-    print("wrote", OUT + out)
 
 
 def series(paths, summ, sc, e, strategy, metric):
@@ -110,7 +106,6 @@ def jump_trajectories(summ, out):
         fig.subplots_adjust(left=0.09, right=0.985, top=0.8, bottom=0.2, wspace=0.1)
         fig.savefig(OUT + out)
         plt.close(fig)
-    print("wrote", OUT + out)
 
 
 def main():

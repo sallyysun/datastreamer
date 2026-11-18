@@ -1,7 +1,4 @@
-"""Section 6.3.3 MFF weight adaptation from results/strategies_weights.csv (scenarios WEIGHTS=1): seed-mean weights
-held before each observation and the weight-averaged candidate N_eff (not the N_eff of the combined estimator), for the
-main MFF (delta = 1e-4) and for plain Hedge (delta = 0). Writes images/ch6_mff_weights_<est>.png and
-images/ch6_mff_fixedshare_jump_<est>.png."""
+"""Plot MFF weight paths for Hedge and fixed share."""
 import sys
 import numpy as np
 import pandas as pd
@@ -83,7 +80,6 @@ def weights_fig(W, e, el):
         out = f"images/ch6_mff_weights_{e}.png"
         fig.savefig(out)
         plt.close(fig)
-    print("wrote", out)
 
 
 def ablation_fig(W, e, el, scen, out):
@@ -109,7 +105,6 @@ def ablation_fig(W, e, el, scen, out):
         fig.subplots_adjust(left=0.15, right=0.98, top=1 - 0.66 / H, bottom=0.45 / H, hspace=0.16, wspace=0.06)
         fig.savefig(out)
         plt.close(fig)
-    print("wrote", out)
 
 
 def main():

@@ -1,6 +1,4 @@
-"""Section 6.5 initial family identification: box plots (whiskers at 1.5 IQR) of the observations until the true family's
-weight, summed over the five memories, first reaches 50% (a) and 90% (b) of the family-augmented MFF weight on the four
-constant-family paths, from results/famsw_ident_<family>.csv. Writes images/ch6_famswitch_initial_id.png."""
+"""Plot time to identify the generating copula family."""
 import sys
 import numpy as np
 import pandas as pd
@@ -60,7 +58,6 @@ def main():
         def q(x):
             return f"{np.percentile(x, 50):g} [{np.percentile(x, 25):g}, {np.percentile(x, 75):g}]"
         print(f"{l:16s} t50 {q(D[f].t50):22s} t90 {q(D[f].t90)}")
-    print("wrote images/ch6_famswitch_initial_id.png")
 
 
 if __name__ == "__main__":

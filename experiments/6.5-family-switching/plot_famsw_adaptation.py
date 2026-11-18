@@ -1,7 +1,4 @@
-"""Section 6.5 post-switch adaptation: (a), (b) box plots of the observations after the switch until the new family's
-weight first reaches 50% / 90% (results/famsw_ident_<switch>.csv); (c) the reduction in excess log loss over the first
-100 observations after the switch, mean ± 2 SE (results/famsw_rmpl_dl.csv, from famsw_rmpl.py).
-Writes images/ch6_famswitch_adaptation.png."""
+"""Plot time to identify the new copula family after a switch."""
 import sys
 import numpy as np
 import pandas as pd
@@ -71,7 +68,6 @@ def main():
     figure(D, L)
     for g, l, _, _ in SW:
         print(f"{l:22s} t50 med {np.median(D[g].t50):g}  t90 med {np.median(D[g].t90):g}  dL100 {L.loc[g].dL:+.1f} ± {L.loc[g].dL_2se:.1f}")
-    print("wrote images/ch6_famswitch_adaptation.png")
 
 
 if __name__ == "__main__":

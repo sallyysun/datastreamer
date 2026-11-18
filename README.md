@@ -28,6 +28,8 @@ make consumer   # -> ./consumer  (Eigen, nlohmann-json, datasketches)
 On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first build uSockets with
 `make -C external/uWebSockets/uSockets WITH_OPENSSL=1`).
 
+The build uses Python 3 to generate C++ defaults from `study_config.json`. The experiment scripts read the same file.
+
 - Server: `DEPENDENCE=constant|drift|jump` (default `jump`) selects the thesis scenario (Table 6.2, over
   5,000 observations), `COPULA=gaussian|t|clayton|gumbel|gauss2t|gauss2clayton|clayton2gumbel` the family,
   `SYMBOLS=X,Y` the pair.
@@ -38,7 +40,7 @@ On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first
 - Consumer: `./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--print 20]` runs the Chapter 6
   device (`src/estimators/thesis_device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
   VFF) and prints the true ρ_S with the MFF and VFF estimates. `--score <scenario> --seed <s> --out f.csv [--n N]`
-  scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process probe writes.
+  scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process runner writes.
 
 ## MFF lab (browser)
 

@@ -109,7 +109,6 @@ def main():
     note(ax_d, "checkerboard: exactly $u$\nempirical: $\\lfloor nu \\rfloor / n$")
 
     save(fig, "ch3_empirical")
-    print(f"wrote {OUT}/ch3_empirical.png")
 
 
 if __name__ == "__main__":

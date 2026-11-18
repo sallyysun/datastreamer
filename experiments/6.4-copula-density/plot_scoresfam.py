@@ -1,7 +1,4 @@
-"""Section 6.4 heatmaps of the log-loss advantage of MFF weighting, generating (rows) x estimation (columns) family, from
-results/scoresfam_cells.csv: cell = (squared - log) / squared x 100 over the whole run, positive = log loss better, pale
-text = within 2 SE. Rows of panels are metrics, columns scenarios.
-Usage: python3 plot_scoresfam.py [estimator ...] -> images/ch6_scoresfam_heatmap_<est>.png (default: all three)"""
+"""Plot MFF log-loss gains by generating and working copula family."""
 import sys
 import numpy as np
 import pandas as pd
@@ -79,7 +76,6 @@ def heatmap(cells, e):
         out = f"images/ch6_scoresfam_heatmap_{e}.png"
         f.savefig(out)
         plt.close(f)
-    print("wrote", out)
 
 
 def main():

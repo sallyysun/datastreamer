@@ -152,4 +152,3 @@ def fig_parametric():
 
 if __name__ == "__main__":
     fig_parametric()
-    print("wrote images/ch3_parametric.png")

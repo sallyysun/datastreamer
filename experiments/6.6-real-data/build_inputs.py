@@ -1,4 +1,4 @@
-"""Build the Section 6.6 probe inputs from the downloaded adjusted closes: for each pair, daily log returns on common
+"""Build the Section 6.6 runner inputs from the downloaded adjusted closes: for each pair, daily log returns on common
 trading days, each divided by its EWMA(0.94) volatility forecast from the previous day (variance seeded with the first
 20 returns). Writes <out>/in/<A>_<B>.csv (date, x, y) and <out>/vix.csv.
 Usage: python3 build_inputs.py <prices dir> <out dir>"""

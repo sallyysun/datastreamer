@@ -1,5 +1,5 @@
 """MFF scoring function (squared vs log loss) across generating x working copula families (Section 6.4), from
-results/scoresfam_seeds_sfeval[_fam].csv (scenarios SCORESFAM=1 TAG=sfeval). rmpl / xiao / hermite invert each
+results/scoresfam_seeds_sfeval[_fam].csv (strategy_experiments SCORESFAM=1 TAG=sfeval). rmpl / xiao / hermite invert each
 arm's rho_S into the working family. Delta = squared - log, paired over seeds:
 positive favours log loss. With results/scoresfam_seeds_sfdev*.csv present, adds the dev-seed learning-rate check.
 Writes results/scoresfam_2026-11-15.txt and scoresfam_cells.csv."""

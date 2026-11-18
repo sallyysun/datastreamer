@@ -1,8 +1,5 @@
-// Section 6.7 matched-memory-budget comparison: Counting Matrix (B bins) vs Hermite Series (order N) vs RMPL on
-// its own KLL margins (mpl_kll: hand-written KLL, mpl_dskll: Apache DataSketches KLL, capacity k), plus mpl_exact
-// (true margins, the reference). Storage = store_bytes() at its peak; accuracy = rho_S RMSE over the test seeds.
-// Usage: ./probe_budget sweep <n_test> [n_val] [family]  -> results/budget_sweep[_family].csv
-//        ./probe_budget time                     -> results/budget_timing.csv
+// Compare estimator accuracy and update time at matched storage budgets.
+// Usage: budget_benchmark sweep <n_test> [n_val] [family] | budget_benchmark time
 
 #include <algorithm>
 #include <chrono>

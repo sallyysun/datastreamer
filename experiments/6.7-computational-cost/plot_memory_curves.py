@@ -1,6 +1,4 @@
-"""Section 6.7 appendix memory curves (n = 15,000): mean test rho_S RMSE over the 100 test seeds against retained state
-for every approximation size (Counting Matrix bins, Hermite order, RMPL KLL k), each at its validation-best gain, per
-family and scenario, from results/budget_{sweep,seeds}_n15k.csv. Writes images/ch6_budget_memory_curves_n15k.png."""
+"""Plot test RMSE against retained state at validation-selected gains."""
 import sys
 import pandas as pd
 

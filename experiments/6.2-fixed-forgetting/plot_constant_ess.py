@@ -1,5 +1,4 @@
-"""Figures: Spearman RMSE of each fixed N_eff and no forgetting, Gaussian copula, constant and drift paths
--> images/ch6_constant_ess_rmse.png, images/ch6_drift_ess_rmse.png."""
+"""Plot Spearman RMSE across fixed memories under constant and drifting Gaussian dependence."""
 import math
 import sys
 import numpy as np
@@ -68,7 +67,6 @@ def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=1
         fig.subplots_adjust(left=0.08, right=0.975, top=0.9, bottom=0.24, wspace=0.12)
         fig.savefig(out)
         plt.close(fig)
-    print("wrote", out)
 
 
 def main():

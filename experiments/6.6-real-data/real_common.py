@@ -1,6 +1,8 @@
 """Shared constants, loaders and plot style for the Section 6.6 real-data scripts."""
 import glob
 import os
+from pathlib import Path
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
@@ -10,7 +12,8 @@ import pandas as pd  # noqa: E402
 from matplotlib.lines import Line2D  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FIX = [39, 99, 199, 399, 1999]
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
+from config import MEMORIES as FIX  # noqa: E402
 EST = [("RMPL", "practical_rmpl"), ("Counting matrix", "practical_xiao"), ("Hermite series", "practical_hermite")]
 ECOL = {"RMPL": "#1baf7a", "Counting matrix": "#2a78d6", "Hermite series": "#eb6834"}
 EVAL_ROW, EVAL_FROM = 560, "2008-01-01"
@@ -24,6 +27,11 @@ RC = {"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans"], "mathtext
       "figure.dpi": 300, "savefig.dpi": 300}
 
 
+def verbose_print(*values):
+    if os.environ.get("VERBOSE") == "1":
+        print(*values)
+
+
 def result(name):
     return os.path.join(HERE, "results", name)
 
@@ -33,7 +41,7 @@ def image(name):
 
 
 def outputs(S, d):
-    """{pair: path} of the probe outputs in S/d/out, sorted by pair."""
+    """{pair: path} of the runner outputs in S/d/out, sorted by pair."""
     return {os.path.basename(f)[:-4]: f for f in sorted(glob.glob(f"{S}/{d}/out/*.csv"))}
 
 

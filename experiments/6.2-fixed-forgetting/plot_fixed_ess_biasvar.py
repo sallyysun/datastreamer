@@ -1,5 +1,4 @@
-"""Figure: squared bias, variance and MSE against N_eff under Gaussian drift, with the empirical optimum and the
-(2v/d^2)^(1/3) approximation (results/fixed_ess_optimum.csv) -> images/ch6_drift_ess_bias_variance.png."""
+"""Plot bias, variance and MSE across fixed memories under Gaussian drift."""
 import sys
 import pandas as pd
 
@@ -48,7 +47,6 @@ def main():
         fig.subplots_adjust(left=0.08, right=0.975, top=0.8, bottom=0.2, wspace=0.12)
         out = ce.OUT + "ch6_drift_ess_bias_variance.png"
         fig.savefig(out)
-    print("wrote", out)
 
 
 if __name__ == "__main__":

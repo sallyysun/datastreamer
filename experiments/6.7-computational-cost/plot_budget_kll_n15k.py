@@ -1,7 +1,4 @@
-"""Section 6.7 hand-written vs Apache DataSketches KLL inside RMPL at matched capacity k (n = 15,000; each at its
-validation-best gain per family and scenario): (a) peak retained state, hollow markers above the 256 KiB budget;
-(b) paired test-RMSE difference, mean over the 12 conditions with their range; (c) time per observation, mean of 5 runs.
-Writes images/ch6_budget_kll_comparison.png and results/budget_kll_n15k_table.csv."""
+"""Compare hand-written and Apache DataSketches KLL at matched capacity."""
 import sys
 import numpy as np
 import pandas as pd
@@ -104,7 +101,6 @@ def figure(R):
         fig.subplots_adjust(left=0.08, right=0.99, top=0.8, bottom=0.17, wspace=0.42)
         fig.savefig("images/ch6_budget_kll_comparison.png")
         plt.close(fig)
-    print("wrote images/ch6_budget_kll_comparison.png")
 
 
 def main():

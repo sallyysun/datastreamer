@@ -1,5 +1,5 @@
 """Section 6.5 predictive accuracy across estimators: family-augmented (20 models) vs Gaussian-only (5 models) MFF after
-the three family switches, from results/famsw_seeds_h2_<est>_<switch>.csv (scenarios FAMSWITCH=1 FS_H2=1).
+the three family switches, from results/famsw_seeds_h2_<est>_<switch>.csv (strategy_experiments FAMSWITCH=1 FS_H2=1).
 Percentage reduction = 100 (L_G - L_F) / L_G with ± 2 SE from a paired-seed bootstrap of the ratio of means.
 Writes results/famsw_accuracy.csv, results/famsw_accuracy_2026-11-15.md and images/ch6_famswitch_accuracy.png."""
 import math

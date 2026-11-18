@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "study_config.hpp"
 #include "../../estimators/copula_family.hpp"
 #include "../../estimators/special_functions.hpp"
 
@@ -158,17 +159,17 @@ inline std::unique_ptr<Copula> make_copula(const std::string& name, double nu = 
     if (name == "gauss2t") {
         return std::make_unique<SwitchingCopula>(
             std::make_unique<GaussianCopula>(), std::make_unique<StudentTCopula>(nu),
-            2500, "gauss2t");
+            thesis::kChange, "gauss2t");
     }
     // Clayton -> Gumbel at matched Spearman rho: lower-tail dependence swapped for upper.
     if (name == "clayton2gumbel") {
         return std::make_unique<SwitchingCopula>(
-            std::make_unique<ClaytonCopula>(), std::make_unique<GumbelCopula>(), 2500, "clayton2gumbel");
+            std::make_unique<ClaytonCopula>(), std::make_unique<GumbelCopula>(), thesis::kChange, "clayton2gumbel");
     }
     // Gaussian -> Clayton at matched Spearman rho: lower-tail dependence appears.
     if (name == "gauss2clayton") {
         return std::make_unique<SwitchingCopula>(
-            std::make_unique<GaussianCopula>(), std::make_unique<ClaytonCopula>(), 2500, "gauss2clayton");
+            std::make_unique<GaussianCopula>(), std::make_unique<ClaytonCopula>(), thesis::kChange, "gauss2clayton");
     }
     if (name == "clayton") return std::make_unique<ClaytonCopula>();
     if (name == "gumbel")  return std::make_unique<GumbelCopula>();
