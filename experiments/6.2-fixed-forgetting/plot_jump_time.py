@@ -8,7 +8,7 @@ sys.path.insert(0, "../common")
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
-plt, core = ce.plt, ce.core
+plt = ce.plt
 EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 CMAP = plt.get_cmap("plasma")
 MEM = [(f"{m}.000000", str(m), CMAP(C.MEMORY_CMAP_POS[m]), "-") for m in C.MEMORIES] + [
@@ -17,10 +17,10 @@ JUMP, BEFORE, AFTER = C.CHANGE, 300, 500
 
 
 def main():
-    d = pd.read_csv(core.R + "fixed_ess_jumppath.csv", dtype={"neff": str})
+    d = pd.read_csv(ce.R + "fixed_ess_jumppath.csv", dtype={"neff": str})
     d = d[(d.t >= JUMP - BEFORE) & (d.t <= JUMP + AFTER)]
     with plt.rc_context(ce.RC):
-        fig, axs = plt.subplots(1, 3, figsize=(core.W, 2.6), sharey=True)
+        fig, axs = plt.subplots(1, 3, figsize=(ce.W, 2.6), sharey=True)
         for ax, (e, title) in zip(axs, EST):
             for k, lab, col, ls in MEM:
                 g = d[(d.estimator == e) & (d.neff == k)].sort_values("t")

@@ -4,8 +4,8 @@
 #include <cmath>
 #include <random>
 
-#include "../../src/streamgenerator/datasource/copula.hpp"
-#include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "copula.hpp"
+#include "dependence.hpp"
 
 // Bivariate copula source with time-varying dependence. The Dependence supplies a
 // scalar knob d per step (the Gaussian-equivalent linear correlation); the Copula

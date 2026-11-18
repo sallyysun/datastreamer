@@ -7,24 +7,24 @@ sys.path.insert(0, "../common")
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
-plt, core = ce.plt, ce.core
+plt = ce.plt
 COMP = [("mse", "MSE", "#303030", "-", 1.1, "o", 3), ("bias2", "Squared bias", "#E69F00", (0, (4, 2)), 1.2, "^", 4),
         ("var", "Variance", "#0072B2", (0, (1, 1.3)), 1.4, "s", 5)]
 EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 
 
 def load():
-    d = pd.read_csv(core.R + "fixed_ess_decomp.csv", dtype={"neff": str})
+    d = pd.read_csv(ce.R + "fixed_ess_decomp.csv", dtype={"neff": str})
     d = d[(d.scenario == "drift") & (d.window == "whole") & (d.neff != "nocum")].copy()
     d["N"] = d.neff.astype(float)
-    opt = pd.read_csv(core.R + "fixed_ess_optimum.csv")
+    opt = pd.read_csv(ce.R + "fixed_ess_optimum.csv")
     return d, opt[opt.copula == "gaussian"].set_index("estimator")
 
 
 def main():
     d, opt = load()
     with plt.rc_context(ce.RC):
-        fig, axs = plt.subplots(1, 3, figsize=(core.W, 2.5), sharey=True)
+        fig, axs = plt.subplots(1, 3, figsize=(ce.W, 2.5), sharey=True)
         for ax, (e, title) in zip(axs, EST):
             g = d[d.estimator == e].sort_values("N").drop_duplicates("N")
             g = g[g.N <= 12000]
@@ -46,7 +46,7 @@ def main():
                    bbox_to_anchor=(0.53, 1.0), handlelength=2.2, columnspacing=1.2)
         fig.text(0.53, 0.015, r"Effective Sample Size, $N_{\mathrm{eff}}$ (log scale)", ha="center", fontsize=8)
         fig.subplots_adjust(left=0.08, right=0.975, top=0.8, bottom=0.2, wspace=0.12)
-        out = core.OUT + "ch6_drift_ess_bias_variance.png"
+        out = ce.OUT + "ch6_drift_ess_bias_variance.png"
         fig.savefig(out)
     print("wrote", out)
 

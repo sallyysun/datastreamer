@@ -1,13 +1,13 @@
-// thesis::Device + Scorer fed the probe's in-process stream: must reproduce probe_strategies MIXDENS=1 rows.
+// thesis::Device + Scorer fed the probe's in-process stream: must reproduce scenarios MIXDENS=1 rows.
 // Usage: device_vs_probe <copula> <scenario> <seed> [returns]  -> rows on stdout
 // returns: feed the server's log returns ln(p_t / p_{t-1}), p_t = p_{t-1} exp(1e-4 + 0.01 z), instead of the draws z.
 #include <cstdio>
 #include <cstdlib>
 #include <string>
-#include "../../../src/estimators/thesis_device.hpp"
-#include "../../../src/streamgenerator/datasource/copula.hpp"
-#include "../../../src/streamgenerator/datasource/dependence.hpp"
-#include "../copula_source.hpp"
+#include "../../estimators/thesis_device.hpp"
+#include "../../streamgenerator/datasource/copula.hpp"
+#include "../../streamgenerator/datasource/dependence.hpp"
+#include "../../streamgenerator/datasource/copula_source.hpp"
 
 int main(int argc, char** argv) {
     const std::string cop = argv[1], sc = argv[2];

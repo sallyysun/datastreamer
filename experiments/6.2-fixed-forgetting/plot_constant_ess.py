@@ -9,7 +9,7 @@ sys.path.insert(0, "../common")
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
-plt, core = ce.plt, ce.core
+plt = ce.plt
 ARMS = [f"fixed_{m}" for m in C.MEMORIES] + ["nocum"]
 LAB = [str(m) for m in C.MEMORIES] + ["No\nforgetting"]
 EST = [(C.EST_COLOUR_KEY[e], C.EST_LABEL[e]) for e in C.ESTIMATORS]
@@ -17,7 +17,7 @@ SC = 100
 
 
 def load(f):
-    d = pd.read_csv(core.R + f"fixed_ess_seeds{core.sfx(f)}.csv", dtype={"neff": str})
+    d = pd.read_csv(ce.R + f"fixed_ess_seeds{C.sfx(f)}.csv", dtype={"neff": str})
     d = d[(d.grid == "main") & (d.window == "whole")].copy()
     d["component"] = d.estimator.replace({"rmpl": "mle"})
     d["method"] = d.neff.map(lambda v: "nocum" if v == "nocum" else f"fixed_{round(float(v))}")
@@ -27,11 +27,11 @@ def load(f):
 COL, INK, GRID, RC = ce.COL, ce.INK, ce.GRID, ce.RC
 
 
-def figure(scenario="constant", out=core.OUT + "ch6_constant_ess_rmse.png", ylim=13.5, label_nocum=False, est=None):
+def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=13.5, label_nocum=False, est=None):
     d = load("gaussian")
     d = d[d.scenario == scenario]
     with plt.rc_context(RC):
-        fig, axs = plt.subplots(1, 3, figsize=(core.W, 2.35), sharey=True)
+        fig, axs = plt.subplots(1, 3, figsize=(ce.W, 2.35), sharey=True)
         x = np.array([0, 1, 2, 3, 4, 5.35])   # a gap before no forgetting: it is not a point on the N_eff scale
         for ax, (e, title) in zip(axs, est or EST):
             p = d[d.component == e].pivot(index="seed", columns="method", values="rmse") * SC
@@ -52,7 +52,7 @@ def figure(scenario="constant", out=core.OUT + "ch6_constant_ess_rmse.png", ylim
                 if label_nocum:
                     ax.text(x[5], mu["nocum"] + 0.75 * ylim / 13.5, f"{mu['nocum']:.2f}", ha="center", va="bottom",
                             fontsize=6.8, color=INK)
-            m, s = core.paired(p.nocum, p.fixed_1999)
+            m, s = ce.paired(p.nocum, p.fixed_1999)
             if scenario == "constant":
                 print(f"  {title}: no forgetting - 1999 = {m:+.2f} ± {2*s:.2f} (x1e-2, paired 2 SE)")
             ax.set_title(title)
@@ -72,8 +72,8 @@ def figure(scenario="constant", out=core.OUT + "ch6_constant_ess_rmse.png", ylim
 
 
 def main():
-    figure("constant", core.OUT + "ch6_constant_ess_rmse.png")
-    figure("drift", core.OUT + "ch6_drift_ess_rmse.png", ylim=21, label_nocum=True)
+    figure("constant", ce.OUT + "ch6_constant_ess_rmse.png")
+    figure("drift", ce.OUT + "ch6_drift_ess_rmse.png", ylim=21, label_nocum=True)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Section 6.4 copula density: log vs squared loss across families, density accuracy, MFF regret.
-# SIM=1 reruns the simulations with the shared probe (../common/build/probe_strategies); otherwise from results/.
+# SIM=1 reruns the simulations with the shared probe (../common/build/scenarios); otherwise from results/.
 set -euo pipefail
 cd "$(dirname "$0")"
-P=../common/build/probe_strategies
+P=../common/build/scenarios
 if [ "${SIM:-0}" = 1 ]; then
     for f in gaussian clayton gumbel t; do
         COPULA=$f SCORESFAM=1 TAG=sfeval $P 60     # scoresfam_seeds_sfeval (evaluation seeds 42-101)

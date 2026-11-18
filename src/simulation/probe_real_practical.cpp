@@ -1,14 +1,14 @@
-// Real-data rerun of the 32-pair MFF comparison on the Chapter 6.3 construction (probe_strategies.cpp): one cumulative
+// Real-data rerun of the 32-pair MFF comparison on the Chapter 6.3 construction (scenarios.cpp): one cumulative
 // DataSketches KLL k = 256 pseudo-observation sequence per leg (clipped to [1e-3, 1 - 1e-3]) feeding the five RMPL arms
 // (gain 2/(N+1), N = 39 ... 1999) and two MFF banks: the log-loss / fixed-share rule (eta 1, delta 1e-4) scored by
 // the Gaussian copula (MFF-G, the thesis MFF) or the t4 copula (MFF-t).
 // Input: EWMA-vol-standardised daily returns, one CSV per pair (date,x,y). Output per day: (U, V), the seven rho_S
 // forecasts held before the day, and each forecast's Gaussian and t4 copula log density at (U, V).
-// Practical-application extension: adds VFF (probe_strategies.cpp Vff: RMPL, gain 2/(N+1) set from VffController,
+// Practical-application extension: adds VFF (scenarios.cpp Vff: RMPL, gain 2/(N+1) set from VffController,
 // rate 0.02, start N = 199, p_n = 12(U-1/2)(V-1/2) observed once more than 30 margin observations are held) and MFF's
 // predictive MIXTURE density log sum_k w_k c(U, V; rho_k) (Chapter 5), for each working family, with the weights held
 // before the day.
-// EST=rmpl|xiao|hermite (default rmpl): the arm and VFF estimator, configured as in probe_strategies.cpp; counting
+// EST=rmpl|xiao|hermite (default rmpl): the arm and VFF estimator, configured as in scenarios.cpp; counting
 // matrix and Hermite arms read the standardised returns (their own margins), RMPL reads probit of the KLL pseudo-obs.
 // Usage: build/probe_real_practical in.csv out.csv     ROLL=1: + rolling windows   LIVE=1: inputs over TCP (REPLAY)
 #include <chrono>
@@ -23,13 +23,13 @@
 #include <string>
 #include <vector>
 
-#include "../../src/estimators/dependence/ds_margin.hpp"
-#include "../../src/estimators/special_functions.hpp"
-#include "../../src/estimators/copula_family.hpp"
-#include "../../src/estimators/dependence/vff.hpp"
-#include "../../src/estimators/evaluation.hpp"
-#include "../../src/estimators/registry.hpp"
-#include "../common/live_source.hpp"
+#include "../estimators/dependence/ds_margin.hpp"
+#include "../estimators/special_functions.hpp"
+#include "../estimators/copula_family.hpp"
+#include "../estimators/dependence/vff.hpp"
+#include "../estimators/evaluation.hpp"
+#include "../estimators/registry.hpp"
+#include "live_source.hpp"
 
 namespace {
 using thesis::kK; using thesis::kMem;
@@ -48,7 +48,7 @@ double logc(copula::Family F, double u, double v, double rho) {
     return copula::log_density(F, u, v, copula::param_from_spearman(F, rho, kNu), kNu);
 }
 
-// MFF with log loss of working family F, the margins supplied from outside (probe_strategies' Mff
+// MFF with log loss of working family F, the margins supplied from outside (scenarios' Mff
 // with the working family as a parameter).
 struct Mff {
     copula::Family F;

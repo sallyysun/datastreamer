@@ -13,10 +13,8 @@
 #include "objective.hpp"
 #include "special_functions.hpp"
 
-// Parametric copula families: log-density, score in the family's natural
-// parameter, and a shared Spearman conversion by Gauss-Legendre on the density.
-// Clayton/Gumbel are positive-dependence only; the t copula's nu is fixed.
-// Derivations: notes/studies/roadmap.md.
+// Parametric copula families: log-density, CDF, parameter bounds, and the Spearman conversion by Gauss-Legendre on
+// the density. Clayton/Gumbel are positive-dependence only; the t copula's nu is fixed.
 namespace copula {
 
 enum class Family { Gaussian, Clayton, Gumbel, StudentT };
@@ -66,16 +64,6 @@ struct Clayton {
         return std::pow(std::pow(u, -theta) + std::pow(v, -theta) - 1.0, -1.0 / theta);
     }
 
-    static double score(double u, double v, double theta) {
-        const double a = std::pow(u, -theta);
-        const double b = std::pow(v, -theta);
-        const double S = a + b - 1.0;
-        const double Sp = -(a * std::log(u) + b * std::log(v));
-        return 1.0 / (1.0 + theta)
-               - (std::log(u) + std::log(v))
-               + std::log(S) / (theta * theta)
-               - (2.0 + 1.0 / theta) * (Sp / S);
-    }
 };
 
 struct Gumbel {
@@ -96,22 +84,6 @@ struct Gumbel {
         return std::exp(-std::pow(std::pow(x, theta) + std::pow(y, theta), 1.0 / theta));
     }
 
-    static double score(double u, double v, double theta) {
-        const double x = -std::log(u);
-        const double y = -std::log(v);
-        const double xt = std::pow(x, theta);
-        const double yt = std::pow(y, theta);
-        const double w = xt + yt;
-        const double L = std::log(w);
-        const double wp = xt * std::log(x) + yt * std::log(y);
-        const double A = std::pow(w, 1.0 / theta);
-        const double Ap = A * (wp / (theta * w) - L / (theta * theta));
-        return -Ap
-               + (std::log(x) + std::log(y))
-               - L / (theta * theta)
-               + (1.0 / theta - 2.0) * (wp / w)
-               + (Ap + 1.0) / (A + theta - 1.0);
-    }
 };
 
 struct Gaussian {
@@ -120,10 +92,6 @@ struct Gaussian {
 
     static double log_density(double u, double v, double rho) {
         return GaussianCopulaObjective::log_likelihood(
-            special::normal_ppf(u), special::normal_ppf(v), rho);
-    }
-    static double score(double u, double v, double rho) {
-        return GaussianCopulaObjective::score(
             special::normal_ppf(u), special::normal_ppf(v), rho);
     }
 };
@@ -146,14 +114,6 @@ struct StudentT {
         return log_joint - log_mx - log_my;
     }
 
-    static double score(double u, double v, double rho, double nu) {
-        const double x = special::t_ppf(u, nu);
-        const double y = special::t_ppf(v, nu);
-        const double d = 1.0 - rho * rho;
-        const double Q = x * x - 2.0 * rho * x * y + y * y;
-        const double g = 1.0 + Q / (nu * d);
-        return rho / d - (nu + 2.0) / (nu * d * d * g) * (rho * Q - x * y * d);
-    }
 };
 
 namespace detail {
@@ -303,79 +263,6 @@ inline double param_from_spearman(Family family, double target, double nu = 4.0)
         else hi = mid;
     }
     return 0.5 * (lo + hi);
-}
-
-// Expected Fisher information I(phi) = E[(d log c / d phi)^2] for one observation,
-// in the unconstrained coordinate CopulaFit steps in (thesis section 3.5.4):
-// phi = log(theta) Clayton, log(theta-1) Gumbel, atanh(rho) Gaussian / t.
-// Gaussian is closed form (1 + rho^2); the others are tabulated once by
-// Gauss-Legendre on the unit square and interpolated.
-inline double expected_info_phi(Family family, double param, double nu = 4.0) {
-    if (family == Family::Gaussian) return 1.0 + param * param;
-    constexpr int kGrid = 64;
-    const auto integrate = [](auto&& c, auto&& s) {
-        static const GaussLegendre gl(96);
-        double total = 0.0;
-        for (std::size_t i = 0; i < gl.x.size(); ++i) {
-            double row = 0.0;
-            for (std::size_t j = 0; j < gl.x.size(); ++j) {
-                const double u = gl.x[i], v = gl.x[j];
-                const double sc = s(u, v);
-                const double d = std::exp(c(u, v));
-                if (std::isfinite(sc) && std::isfinite(d)) row += gl.w[j] * d * sc * sc;
-            }
-            total += gl.w[i] * row;
-        }
-        return total;
-    };
-    switch (family) {
-        case Family::Clayton: {
-            static const detail::SpearmanTable table = [&] {
-                detail::SpearmanTable t;
-                for (int k = 0; k <= kGrid; ++k) {
-                    const double th = Clayton::kMinParam
-                        * std::pow(10.0 / Clayton::kMinParam, static_cast<double>(k) / kGrid);
-                    t.param.push_back(th);
-                    t.rho_s.push_back(integrate(
-                        [th](double u, double v) { return Clayton::log_density(u, v, th); },
-                        [th](double u, double v) { return Clayton::score(u, v, th) * th; }));
-                }
-                return t;
-            }();
-            return table.lookup(param);
-        }
-        case Family::Gumbel: {
-            static const detail::SpearmanTable table = [&] {
-                detail::SpearmanTable t;
-                for (int k = 0; k <= kGrid; ++k) {
-                    const double th = 1.0 + 1.0e-3 * std::pow(5.0 / 1.0e-3, static_cast<double>(k) / kGrid);
-                    t.param.push_back(th);
-                    t.rho_s.push_back(integrate(
-                        [th](double u, double v) { return Gumbel::log_density(u, v, th); },
-                        [th](double u, double v) { return Gumbel::score(u, v, th) * (th - 1.0); }));
-                }
-                return t;
-            }();
-            return table.lookup(param);
-        }
-        case Family::StudentT:
-        default: {
-            static double cached_nu = -1.0;
-            static detail::SpearmanTable table;
-            if (nu != cached_nu) {
-                table = detail::SpearmanTable{};
-                for (int k = 0; k <= kGrid; ++k) {
-                    const double r = -0.95 + 1.9 * static_cast<double>(k) / kGrid;
-                    table.param.push_back(r);
-                    table.rho_s.push_back(integrate(
-                        [r, nu](double u, double v) { return StudentT::log_density(u, v, r, nu); },
-                        [r, nu](double u, double v) { return StudentT::score(u, v, r, nu) * (1.0 - r * r); }));
-                }
-                cached_nu = nu;
-            }
-            return table.lookup(param);
-        }
-    }
 }
 
 }  // namespace copula

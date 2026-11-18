@@ -1,33 +1,15 @@
-"""Chapter 3: empirical and empirical checkerboard copulas on one small sample (the fig_ch3_empirical figure of
-experiments/plot_ch3_empirical.py on branch massive-refactor, with the empirical beta copula removed). Same sample:
-n = 12 pairs, latent Gaussian correlation 0.7, seed 20261025.
-  A  scaled rank pairs (R_i/n, S_i/n), mass 1/n each, at the upper-right corner of their cell
-  B  checkerboard density: n on each occupied cell, 0 elsewhere
-  C  both CDFs at v = 0.55
-  D  both first margins (v = 1): floor(nu)/n for the empirical copula, u for the checkerboard
-Self-checks: the checkerboard density integrates to 1, its margins are uniform, and it equals the empirical copula at
-every grid vertex.
-Usage: python3 plot_ch3_empirical_nobeta.py -> images/ch3_empirical.png"""
-import os
-
-import matplotlib.pyplot as plt
+"""Chapter 3: the empirical and empirical checkerboard copulas of one small sample (n = 12, latent Gaussian correlation
+0.7): A rank pairs with mass 1/n, B checkerboard density, C both copulas at v = 0.55, D both first margins. Self-checks:
+the checkerboard density integrates to 1, has uniform margins and equals the empirical copula at every grid vertex.
+Writes images/ch3_empirical.png."""
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Rectangle
 
+from ch3_style import GRID, OUT, SHADE, note, plt, save
 
 N, RHO, SEED, V_SLICE = 12, 0.7, 20261025, 0.55
 C_EMP, C_CHK = "#2a78d6", "#eb6834"
-GRID, SHADE, INK, INK_2 = "#e4e3df", "#cde2fb", "#0b0b0b", "#52514e"
-OUT = "images"
-plt.rcParams.update({"font.size": 8, "axes.titlesize": 8.5, "axes.labelsize": 8, "axes.edgecolor": INK_2, "axes.linewidth": 0.6,
-                     "axes.labelcolor": INK, "xtick.color": INK_2, "ytick.color": INK_2, "xtick.labelsize": 7, "ytick.labelsize": 7,
-                     "xtick.major.width": 0.6, "ytick.major.width": 0.6, "text.color": INK, "pdf.fonttype": 42, "savefig.dpi": 300})
-
-
-def note(ax, text):
-    ax.text(0.03, 0.97, text, transform=ax.transAxes, ha="left", va="top", color=INK_2, fontsize=7,
-            bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="none", alpha=0.8))
 
 
 def sample():
@@ -53,7 +35,8 @@ def c_chk(r, s, u, v):
 
 
 def checks(r, s, u_line):
-    cells = np.zeros((N, N)); cells[s - 1, r - 1] = N
+    cells = np.zeros((N, N))
+    cells[s - 1, r - 1] = N
     assert abs(cells.sum() / N**2 - 1) < 1e-15
     assert max(np.abs(c_chk(r, s, u_line, 1.0) - u_line).max(), np.abs(c_chk(r, s, 1.0, u_line) - u_line).max()) < 1e-12
     g = np.arange(N + 1) / N
@@ -68,19 +51,28 @@ def rank_grid(ax, zorder=0):
 
 
 def unit_square(ax, title, ylabel=True):
-    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_aspect("equal")
-    ax.set_xticks([0, 1]); ax.set_yticks([0, 1])
-    ax.set_xlabel("$u$", labelpad=-6); ax.set_ylabel("$v$" if ylabel else "", labelpad=-6)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect("equal")
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xlabel("$u$", labelpad=-6)
+    ax.set_ylabel("$v$" if ylabel else "", labelpad=-6)
     ax.set_title(title)
-    for side in ("top", "right"): ax.spines[side].set_visible(False)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
 
 
 def line_panel(ax, title, ylabel):
     ax.set_xlim(0, 1)
     ax.set_xticks([0, 0.25, 0.5, 0.75, 1], ["0", ".25", ".5", ".75", "1"])
-    ax.set_xlabel("$u$"); ax.set_ylabel(ylabel); ax.set_title(title)
-    ax.grid(axis="y", color=GRID, lw=0.4); ax.set_axisbelow(True)
-    for side in ("top", "right"): ax.spines[side].set_visible(False)
+    ax.set_xlabel("$u$")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.grid(axis="y", color=GRID, lw=0.4)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
 
 
 def main():
@@ -98,7 +90,8 @@ def main():
     ax_a.scatter(r / N, s / N, s=12, color=C_EMP, zorder=3, linewidths=0, clip_on=False)
 
     unit_square(ax_b, "B  Checkerboard\ndensity $n$ on occupied cells", ylabel=False)
-    cells = np.zeros((N, N)); cells[s - 1, r - 1] = N
+    cells = np.zeros((N, N))
+    cells[s - 1, r - 1] = N
     ax_b.imshow(cells, origin="lower", extent=(0, 1, 0, 1), cmap=ListedColormap(["white", C_CHK]), vmin=0, vmax=N,
                 interpolation="nearest", alpha=0.85, zorder=1)
     rank_grid(ax_b, zorder=2)
@@ -115,9 +108,7 @@ def main():
     ax_d.set_ylim(0, 1)
     note(ax_d, "checkerboard: exactly $u$\nempirical: $\\lfloor nu \\rfloor / n$")
 
-    os.makedirs(OUT, exist_ok=True)
-    fig.savefig(f"{OUT}/ch3_empirical.png", bbox_inches="tight")
-    plt.close(fig)
+    save(fig, "ch3_empirical")
     print(f"wrote {OUT}/ch3_empirical.png")
 
 

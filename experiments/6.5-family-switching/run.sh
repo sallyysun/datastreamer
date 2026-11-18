@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Section 6.5 family switching (Gaussian-only vs family-augmented MFF). SIM=1 reruns the simulations with the
-# shared probe (../common/build/probe_strategies); otherwise from results/.
+# shared probe (../common/build/scenarios); otherwise from results/.
 set -euo pipefail
 cd "$(dirname "$0")"
-P=../common/build/probe_strategies
+P=../common/build/scenarios
 if [ "${SIM:-0}" = 1 ]; then
     for g in gaussian t clayton gumbel gauss2t gauss2clayton clayton2gumbel; do
         FAMSWITCH=1 FS_GENS=$g FS_TAG=$g $P 60                             # famsw_{seeds,ident,path}_<generator>

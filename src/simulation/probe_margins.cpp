@@ -23,14 +23,14 @@
 #include <thread>
 #include <vector>
 
-#include "../../src/estimators/dependence/estimator.hpp"
-#include "../../src/estimators/dependence/hermiter.hpp"
-#include "../../src/estimators/special_functions.hpp"
-#include "../../src/estimators/dependence/rmpl.hpp"
-#include "../../src/estimators/dependence/xiao_spearman.hpp"
-#include "../../src/streamgenerator/datasource/copula.hpp"
-#include "../../src/streamgenerator/datasource/dependence.hpp"
-#include "../common/copula_source.hpp"
+#include "../estimators/dependence/estimator.hpp"
+#include "../estimators/dependence/hermiter.hpp"
+#include "../estimators/special_functions.hpp"
+#include "../estimators/dependence/rmpl.hpp"
+#include "../estimators/dependence/xiao_spearman.hpp"
+#include "../streamgenerator/datasource/copula.hpp"
+#include "../streamgenerator/datasource/dependence.hpp"
+#include "../streamgenerator/datasource/copula_source.hpp"
 
 namespace {
 constexpr std::size_t kN = 15000, kBurn = 500, kEvery = 5, kLate = 10000;

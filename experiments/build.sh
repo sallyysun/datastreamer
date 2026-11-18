@@ -1,18 +1,24 @@
 #!/usr/bin/env bash
-# Builds every Chapter 6 simulation program into <folder>/build/. Needs g++ (or clang++), Eigen, nlohmann-json (the
-# live mode's tick parser) and the external/datasketches-cpp submodule. EIGEN=/usr JSON=/usr on Linux,
+# Builds the Chapter 6 simulation programs (src/simulation/, src/streamgenerator/datasource/scenarios.cpp) into each
+# section's build/ folder, and the two consistency tests into common/build/. Needs g++ (or clang++), Eigen,
+# nlohmann-json (the live mode's tick parser) and the external/datasketches-cpp submodule. EIGEN=/usr JSON=/usr on Linux,
 # /opt/homebrew/opt/eigen and /opt/homebrew/opt/nlohmann-json on macOS.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 CXX=${CXX:-g++}
 EIGEN=${EIGEN:-/usr}
 JSON=${JSON:-/usr}
-DS=../../external/datasketches-cpp
+DS=external/datasketches-cpp
 FLAGS="-std=c++20 -O2 -pthread -I$EIGEN/include/eigen3 -I$JSON/include -I$DS/common/include -I$DS/kll/include"
-for p in 6.2-fixed-forgetting/probe_fixed_ess common/probe_strategies 6.6-real-data/probe_real_practical \
-         6.7-computational-cost/probe_budget 6.7-computational-cost/probe_margins; do
-    d=$(dirname "$p"); n=$(basename "$p")
-    mkdir -p "$d/build"
-    (cd "$d" && $CXX "$n.cpp" ../../src/protocol/serializer.cpp $FLAGS -o "build/$n")
-    echo "built $d/build/$n"
-done
+build() {   # source, output
+    mkdir -p "$(dirname "$2")"
+    $CXX "$1" src/protocol/serializer.cpp $FLAGS -o "$2"
+    echo "built $2"
+}
+build src/simulation/probe_fixed_ess.cpp             experiments/6.2-fixed-forgetting/build/probe_fixed_ess
+build src/streamgenerator/datasource/scenarios.cpp  experiments/common/build/scenarios
+build src/simulation/probe_real_practical.cpp        experiments/6.6-real-data/build/probe_real_practical
+build src/simulation/probe_budget.cpp                experiments/6.7-computational-cost/build/probe_budget
+build src/simulation/probe_margins.cpp               experiments/6.7-computational-cost/build/probe_margins
+build src/simulation/test/device_vs_probe.cpp        experiments/common/build/device_vs_probe
+build src/simulation/test/lab_vs_device.cpp          experiments/common/build/lab_vs_device

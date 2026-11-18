@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Section 6.3 adaptive forgetting (fixed vs VFF vs MFF). SIM=1 reruns the simulations with the shared probe
-# (../common/build/probe_strategies); otherwise the figures are rebuilt from results/.
+# (../common/build/scenarios); otherwise the figures are rebuilt from results/.
 set -euo pipefail
 cd "$(dirname "$0")"
-P=../common/build/probe_strategies
+P=../common/build/scenarios
 if [ "${SIM:-0}" = 1 ]; then
     for f in gaussian clayton gumbel t; do
         COPULA=$f $P 60                                                         # strategies_seeds, strategies_jumppath

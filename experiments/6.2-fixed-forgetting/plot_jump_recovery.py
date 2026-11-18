@@ -8,16 +8,16 @@ sys.path.insert(0, "../common")
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
-plt, core = ce.plt, ce.core
+plt = ce.plt
 EST = [(e, C.EST_LABEL[e], C.EST_COLOUR_KEY[e], C.EST_MARKER[e]) for e in C.ESTIMATORS]
 
 
 def main():
-    r = pd.read_csv(core.R + "jump_recovery.csv")
+    r = pd.read_csv(ce.R + "jump_recovery.csv")
     r = r[(r.copula == "gaussian") & (r.neff != "No forgetting")].copy()
     r["N"] = r.neff.astype(float)
     with plt.rc_context(ce.RC):
-        fig, ax = plt.subplots(figsize=(core.W * 0.62, 2.6))
+        fig, ax = plt.subplots(figsize=(ce.W * 0.62, 2.6))
         nn = np.geomspace(30, 2600, 200)
         ax.plot(nn, np.log(0.1) / np.log(1 - 2 / (nn + 1)), color="#9a9a9a", lw=0.9, ls=(0, (4, 2)), zorder=2,
                 label="Theoretical")
