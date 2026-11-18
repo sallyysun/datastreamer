@@ -1,6 +1,6 @@
 # Simulation design
 
-**Status:** implemented on the `replay-loader` branch, not yet verified against the reference outputs. The file table below records the layout before the refactor. The grouped structure further down is the current layout.
+**Status:** implemented on `final-edits`, not yet verified against the reference outputs. The file table below records the layout before the refactor. The grouped structure further down is the current layout.
 
 `src/` already generates the stream. The experiment supplies a family, dependence scenario, seed, and observation count. The current `make_stream()` in the strategy runner calls the shared generator through the study adapter, then stores the observations. The fixed-ESS sweep keeps its own copy of that loader. In the proposed design, a new `load_study_series()` in the study adapter replaces both copies. The standard run, family modes, regret modes, and fixed-ESS sweep all replay the series it returns.
 
