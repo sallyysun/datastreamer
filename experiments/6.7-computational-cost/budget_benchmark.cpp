@@ -21,6 +21,7 @@
 #include "../../src/estimators/dependence/count_matrix.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "../simulation/csv_list.hpp"
 
 namespace {
 
@@ -29,17 +30,6 @@ constexpr std::size_t kEvery = 5;          // score every 5th tick
 constexpr std::size_t kPost = 1000;        // post-change window
 constexpr unsigned kTestSeed = 42;
 constexpr unsigned kValSeed = 1000;
-
-std::vector<std::string> csv_values(std::string_view csv) {
-    std::vector<std::string> values;
-    for (std::size_t first = 0; first < csv.size();) {
-        const auto comma = csv.find(',', first);
-        const auto end = comma == std::string_view::npos ? csv.size() : comma;
-        if (end > first) values.emplace_back(csv.substr(first, end - first));
-        first = end + 1;
-    }
-    return values;
-}
 
 struct BudgetOptions {
     std::size_t observations = 5000;
@@ -58,14 +48,14 @@ BudgetOptions read_budget_options() {
     if (const char* workers = std::getenv("BUDGET_THREADS")) options.workers = std::max(1, std::atoi(workers));
     if (const char* gain = std::getenv("BUDGET_TIME_GAIN")) options.timing_gain = std::atof(gain);
     if (const char* tag = std::getenv("TAG")) options.tag_suffix = std::string("_") + tag;
-    if (const char* estimators = std::getenv("BUDGET_EST")) options.estimators = csv_values(estimators);
-    if (const char* scenarios = std::getenv("BUDGET_SCENARIOS")) options.scenarios = csv_values(scenarios);
+    if (const char* estimators = std::getenv("BUDGET_EST")) options.estimators = csv_list(estimators);
+    if (const char* scenarios = std::getenv("BUDGET_SCENARIOS")) options.scenarios = csv_list(scenarios);
     if (const char* gains = std::getenv("BUDGET_GAINS")) {
         options.gains.clear();
-        for (const auto& value : csv_values(gains)) options.gains.push_back(std::atof(value.c_str()));
+        for (const auto& value : csv_list(gains)) options.gains.push_back(std::atof(value.c_str()));
     }
     if (const char* sizes = std::getenv("BUDGET_KLL")) {
-        const auto values = csv_values(sizes);
+        const auto values = csv_list(sizes);
         if (!values.empty()) {
             options.kll_sizes.clear();
             for (const auto& value : values) options.kll_sizes.push_back(std::atoi(value.c_str()));

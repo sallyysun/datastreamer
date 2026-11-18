@@ -24,6 +24,6 @@ build experiments/simulation/experiment.cpp                experiments/common/bu
     experiments/simulation/regret.cpp
 build experiments/6.6-real-data/real_data_comparison.cpp   experiments/6.6-real-data/build/real_data_comparison
 build experiments/6.7-computational-cost/budget_benchmark.cpp  experiments/6.7-computational-cost/build/budget_benchmark
-build experiments/6.7-computational-cost/margin_comparison.cpp experiments/6.7-computational-cost/build/margin_ablation
+build experiments/6.7-computational-cost/margin_comparison.cpp experiments/6.7-computational-cost/build/margin_comparison
 build experiments/simulation/test/device_vs_probe.cpp      experiments/common/build/device_vs_probe
 build experiments/simulation/test/lab_vs_device.cpp        experiments/common/build/lab_vs_device

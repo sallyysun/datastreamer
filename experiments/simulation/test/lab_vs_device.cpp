@@ -12,9 +12,10 @@ int main(int argc, char** argv) {
     const std::string cop = argv[1], sc = argv[2];
     const unsigned seed = unsigned(std::atoi(argv[3]));
     const std::vector<double> mem(thesis::kMem, thesis::kMem + thesis::kK);
-    for (const std::string est : {"rmpl", "xiao", "hermite"}) {
+    const auto& names = thesis::estimators();
+    for (std::size_t e = 0; e < names.size(); ++e) {
+        const std::string& est = names[e];
         // Separate passes: the KLL sketches share one global compaction-coin generator.
-        const std::size_t e = est == "rmpl" ? 0 : est == "xiao" ? 1 : 2;
         std::vector<double> dm, dv, lm, lv, f;
         {
             auto dep = make_scenario(sc, thesis::kN); auto c = dgp::make_copula(cop); CopulaSource src(*dep, *c, seed);

@@ -30,10 +30,6 @@ namespace {
 
 constexpr std::size_t kFamilies = WorkingFamilies::kCount;
 
-unsigned first_seed() {
-    return std::getenv("SEED_BASE") ? unsigned(std::atoi(std::getenv("SEED_BASE"))) : thesis::kFirstSeed;
-}
-
 double squared(double x) { return x * x; }
 
 // One forecaster's scores at every tick: squared Spearman error, excess log loss, and squared Hellinger at checkpoints.
@@ -260,7 +256,7 @@ int run_family_score_comparison(const Run& run) {
     std::vector<double> etas{1.0};
     if (const char* es = std::getenv("ETAS")) {
         etas.clear();
-        for (const auto& eta : parse_list(es)) etas.push_back(std::atof(eta.c_str()));
+        for (const auto& eta : csv_list(es)) etas.push_back(std::atof(eta.c_str()));
     }
     if (!run.tag) { std::fprintf(stderr, "SCORESFAM needs TAG\n"); return 1; }
     const WorkingFamilies families;
@@ -323,7 +319,7 @@ int run_family_switching_study(const Run& run) {
     const std::string estimator = std::getenv("FS_EST") ? std::getenv("FS_EST") : "rmpl";
     std::vector<Generator> generators;
     if (const char* names = std::getenv("FS_GENS")) {
-        for (const auto& name : parse_list(names))
+        for (const auto& name : csv_list(names))
             for (const auto& g : kGenerators) if (name == g.name) generators.push_back(g);
     } else generators.assign(kGenerators.begin(), kGenerators.end());
 

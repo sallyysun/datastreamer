@@ -47,11 +47,12 @@ public:
                     const std::size_t end = std::min<std::size_t>(w.b, rs.size());
                     for (std::size_t t = w.a; t < end; ++t) {
                         a += rs[t].squared_error; b += rs[t].excess;
-                        if (!std::isnan(rs[t].h2) && (dense || (t - kBurn) % 50 == 0)) { h += rs[t].h2; ++nh; }
+                        if (!std::isnan(rs[t].h2) && (dense || (t - kBurn) % kCheckEvery == 0)) { h += rs[t].h2; ++nh; }
                     }
-                    const double n = end > w.a ? double(end - w.a) : 0.0;
+                    const double n = end > w.a ? double(end - w.a) : 0.0;   // 0: the stream ended before this window
                     std::fprintf(out, "%s,%s,%s,%s,%u,%s,%.8f,%.6f,%.6f\n", fam_.c_str(), sc_.c_str(), s.name().c_str(),
-                                 names[i].c_str(), seed, w.name, std::sqrt(a / n), 1000 * b / n, nh ? 1000 * h / nh : NAN);
+                                 names[i].c_str(), seed, w.name, n > 0 ? std::sqrt(a / n) : NAN, n > 0 ? 1000 * b / n : NAN,
+                                 nh ? 1000 * h / nh : NAN);
                 }
             }
             r0 += s.size();

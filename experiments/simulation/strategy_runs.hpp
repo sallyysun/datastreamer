@@ -10,6 +10,7 @@
 
 #include "../../src/copula_family.hpp"
 #include "../../src/estimators/device.hpp"
+#include "csv_list.hpp"
 
 namespace thesis {
 struct H2Table;
@@ -23,22 +24,6 @@ struct Run {
     const char* tag;
     thesis::H2Table& h2;
 };
-
-inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
-
-// Comma-separated values from an environment variable, skipping empty entries; empty if unset.
-inline std::vector<std::string> parse_list(const char* csv) {
-    std::vector<std::string> items;
-    if (!csv) return items;
-    const std::string text(csv);
-    for (std::size_t first = 0; first <= text.size();) {
-        std::size_t comma = text.find(',', first);
-        if (comma == std::string::npos) comma = text.size();
-        if (comma > first) items.push_back(text.substr(first, comma - first));
-        first = comma + 1;
-    }
-    return items;
-}
 
 inline std::FILE* open_result(const std::string& name) { return std::fopen(("results/" + name + ".csv").c_str(), "w"); }
 

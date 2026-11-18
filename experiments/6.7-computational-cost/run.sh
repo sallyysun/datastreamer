@@ -15,7 +15,7 @@ if [ "${SIM:-0}" = 1 ]; then
         BUDGET_N=15000 BUDGET_EST=xiao,hermite,mpl_dskll BUDGET_KLL=$KLL TAG=n15k_rep$r build/budget_benchmark time
         BUDGET_N=15000 BUDGET_EST=mpl_kll BUDGET_KLL=$KLL TAG=n15k_kll_rep$r build/budget_benchmark time
     done
-    build/margin_ablation                                                  # margins_seeds (marginal-estimation diagnostic)
+    build/margin_comparison                                               # margins_seeds (marginal-estimation diagnostic)
 fi
 python3 analyse.py   # tables
 python3 plots.py     # figures

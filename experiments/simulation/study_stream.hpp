@@ -14,6 +14,12 @@
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "run_live_stream.hpp"
 
+// First seed of a run: SEED_BASE if set (e.g. the 6.4 development seeds), else the study's first seed.
+inline unsigned first_seed() {
+    const char* base = std::getenv("SEED_BASE");
+    return base ? unsigned(std::atoi(base)) : thesis::kFirstSeed;
+}
+
 inline bool study_verbose() {
     const char* value = std::getenv("VERBOSE");
     return value && std::string_view(value) == "1";

@@ -27,7 +27,7 @@ The standard strategy run, family scoring, family switching, and regret modes li
 | `fixed_ess_sweep.cpp` | Sweep fixed memories and measure error, bias, variance, and jump recovery | §6.2 figures and tables, live jobs, and the checksum check |
 | `real_data_comparison.cpp` | Score forecasts and rolling benchmarks on observed returns | §6.6 analysis and figures, and the checksum check |
 | `budget_benchmark.cpp` | Measure accuracy, retained state, and timing across settings | §6.7 budget tables and figures, and the checksum check |
-| `margin_ablation.cpp` | Measure how different marginal estimation methods affect accuracy | §6.7 marginal estimation report |
+| `margin_ablation.cpp` (now `margin_comparison.cpp`) | Measure how different marginal estimation methods affect accuracy | §6.7 marginal estimation report |
 | `strategy_runs.hpp` | Declare modes and share replay data, fixed arms, inverse lookups, and window summaries | The four strategy source files |
 | `study_stream.hpp` | Adapt in-process or live observations and provide shared KLL margins | Strategy runs and the fixed-ESS sweep |
 | `run_live_stream.hpp` | Start the server and reconstruct paired returns from TCP ticks | The study adapter and the real-data runner |
@@ -150,7 +150,7 @@ Within the strategy executable, the file boundaries are for navigation and linki
 - **`family.cpp`** keeps the two family comparisons together. One compares scoring rules across working copulas. The other measures adaptation when the generating family changes. Both modes need family-specific weighting and density scoring. Their entry functions stay separate, and both link into the same executable as the standard loop.
 - **`regret.cpp`** owns both regret modes and their shared oracle. It compares forecast losses with the best fixed and switching sequences.
 
-An *ablation* is a controlled comparison that removes or changes a component to see what it contributes. Here the benchmark compares margin treatments on the same generated data, including known margins, empirical ranks, and KLL approximations. `margin_comparison.cpp` is a clearer source name. The executable can still be called `margin_ablation` for the existing scripts.
+`margin_comparison.cpp` runs the same generated data through each way of estimating the margins (known margins, empirical ranks, KLL approximations) and reports how much accuracy each one costs. The executable has the same name.
 
 ## Refactoring order
 
@@ -204,7 +204,7 @@ Each path has its own pass condition.
 | Path | Check | Pass condition |
 |---|---|---|
 | Linux, in process | [`check.sh`](../../check.sh) | Every output hash matches `check_reference.txt` exactly |
-| Margin ablation | Before-and-after run with the same seeds | Identical outputs. `check.sh` does not run this benchmark |
+| Margin comparison | Before-and-after run with the same seeds | Identical outputs. `check.sh` does not run this benchmark |
 | Live (`LIVE=1`) | Rerun with the same seeds | Matches the previous live run. The [documented differences](../../README.md#L45) between live and in-process runs are not by themselves grounds for a change |
 | In-process draws versus returns | [`test/device_vs_probe.cpp`](../../simulation/test/device_vs_probe.cpp) | Reproduces the `MIXDENS=1` rows |
 | Standalone TCP consumer | [`live/run_live.sh`](../../live/run_live.sh) | Matches its previous results |

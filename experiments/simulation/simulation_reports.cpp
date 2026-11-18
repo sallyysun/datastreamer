@@ -22,7 +22,7 @@ WindowScores summarize_window(const thesis::Win& window, const std::vector<doubl
     for (std::size_t t = window.a; t < window.b; ++t) {
         se_sum += squared_error[t];
         excess_sum += excess[t];
-        if (!std::isnan(hellinger[t]) && (dense || (t - thesis::kBurn) % 50 == 0)) {
+        if (!std::isnan(hellinger[t]) && (dense || (t - thesis::kBurn) % thesis::kCheckEvery == 0)) {
             h2_sum += hellinger[t];
             ++h2_count;
         }
@@ -79,7 +79,7 @@ void ForecastComparisonReport::begin_scenario(const std::string& scenario) {
 
 void ForecastComparisonReport::add(int seed_index, const SeedResults& result) {
     for (std::size_t estimator = 0; estimator < 3; ++estimator) {
-        const std::string name = kEst[estimator];
+        const std::string name = thesis::estimators()[estimator];
         const auto& traces = result.estimators[estimator].strategies;
         std::vector<char> seed_had_extreme(strategy_count_, 0);
         for (std::size_t t = 0; t < kN; ++t) {
@@ -144,7 +144,7 @@ void ForecastComparisonReport::write_extremes() {
             const std::size_t k = std::max<std::size_t>(1, v.size() / 100);
             double top = 0;
             for (std::size_t j = v.size() - k; j < v.size(); ++j) top += v[j];
-            std::fprintf(extremes_file_, "%s,%s,%s,%s,%.6g,%.6g,%.6g,%.6g,%d,%d\n", cop_.c_str(), scenario_.c_str(), kEst[estimator],
+            std::fprintf(extremes_file_, "%s,%s,%s,%s,%.6g,%.6g,%.6g,%.6g,%d,%d\n", cop_.c_str(), scenario_.c_str(), thesis::estimators()[estimator].c_str(),
                          strategy_labels_[strategy].c_str(), sum / v.size(), med, mx, sum != 0 ? top / sum : NAN, cell.extreme_seeds,
                          cell.extreme_seed_ticks);
         }
@@ -166,7 +166,7 @@ void ForecastComparisonReport::write_paths() {
                 std::nth_element(v.begin(), v.begin() + seeds / 2, v.end());
                 double med = v[seeds / 2];
                 if (seeds % 2 == 0) med = 0.5 * (med + *std::max_element(v.begin(), v.begin() + seeds / 2));
-                std::fprintf(tick_paths_file_, "%s,%s,%s,%s,%zu,%.8g,%.6g,%.6g,%.6g,", cop_.c_str(), scenario_.c_str(), kEst[estimator],
+                std::fprintf(tick_paths_file_, "%s,%s,%s,%s,%zu,%.8g,%.6g,%.6g,%.6g,", cop_.c_str(), scenario_.c_str(), thesis::estimators()[estimator].c_str(),
                              strategy_labels_[strategy].c_str(), t, cell.squared_error_sum[t] / seeds, sum / seeds, med, mx);
                 if (checkpoint(scenario_, t)) std::fprintf(tick_paths_file_, "%.6g", cell.h2_sum_x1000[t] / seeds);
                 std::vector<float> fv(seeds);
@@ -184,7 +184,7 @@ void ForecastComparisonReport::write_jump_path() {
     for (std::size_t estimator = 0; estimator < 3; ++estimator)
         for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy)
             for (std::size_t t = kBurn; t < kN; ++t)
-                std::fprintf(jump_path_file_, "%s,%s,%s,%zu,%.8g\n", cop_.c_str(), kEst[estimator], strategy_labels_[strategy].c_str(), t,
+                std::fprintf(jump_path_file_, "%s,%s,%s,%zu,%.8g\n", cop_.c_str(), thesis::estimators()[estimator].c_str(), strategy_labels_[strategy].c_str(), t,
                              totals(estimator, strategy).squared_error_sum[t] / seeds_);
 }
 
@@ -228,7 +228,7 @@ void MffWeightPathReport::add(const SeedResults& result) {
             for (const auto& w : windows_) {
                 double a = 0;
                 for (std::size_t t = w.a; t < w.b; ++t) a += trace.squared_error[t];
-                std::fprintf(window_file_, "%s,%s,%s,%g,%u,%s,%.8f\n", cop_.c_str(), scenario_.c_str(), kEst[estimator], trace.delta,
+                std::fprintf(window_file_, "%s,%s,%s,%g,%u,%s,%.8f\n", cop_.c_str(), scenario_.c_str(), thesis::estimators()[estimator].c_str(), trace.delta,
                              result.seed, w.name, std::sqrt(a / double(w.b - w.a)));
             }
         }
@@ -240,7 +240,7 @@ void MffWeightPathReport::end_scenario() {
         for (std::size_t path = 0; path < 2; ++path)
             for (std::size_t t = 0; t < kN; ++t) {
                 const std::size_t b = (estimator * 2 + path) * kN + t;
-                std::fprintf(weights_file_, "%s,%s,%s,%g,%zu", cop_.c_str(), scenario_.c_str(), kEst[estimator], delta_[path], t);
+                std::fprintf(weights_file_, "%s,%s,%s,%g,%zu", cop_.c_str(), scenario_.c_str(), thesis::estimators()[estimator].c_str(), delta_[path], t);
                 for (std::size_t k = 0; k < thesis::kK; ++k) std::fprintf(weights_file_, ",%.6g", weight_sum_[b * thesis::kK + k] / seeds_);
                 std::fprintf(weights_file_, ",%.8g,%.6g,%.6g\n", squared_error_sum_[b] / seeds_, true_spearman_[t], forecast_sum_[b] / seeds_);
             }

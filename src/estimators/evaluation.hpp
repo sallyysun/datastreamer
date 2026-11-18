@@ -102,9 +102,11 @@ inline std::vector<Win> windows(const std::string& s) {
     }
     return w;
 }
-// H^2 checkpoints: every 50 from kBurn, and every 10 in the 100 observations after the jump.
+// H^2 checkpoints: every kCheckEvery from kBurn, and every 10 in the 100 observations after the jump (those dense ones
+// count only in the rec_0_100 window).
+inline constexpr std::size_t kCheckEvery = 50;
 inline bool checkpoint(const std::string& sc, std::size_t t) {
-    return t >= kBurn && ((t - kBurn) % 50 == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
+    return t >= kBurn && ((t - kBurn) % kCheckEvery == 0 || (sc == "jump" && t >= kChange && t < kChange + 100 && (t - kChange) % 10 == 0));
 }
 
 inline double gauss_logc(double rho, double u, double v) {

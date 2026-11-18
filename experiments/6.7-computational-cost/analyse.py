@@ -1,5 +1,5 @@
 """Section 6.7 tables at n = 15,000: assemble the budget sweep and timing runs, select within each storage budget on the
-validation seeds, write the configuration tables, and (REPORTS=1) the marginal-estimation ablation."""
+validation seeds, write the configuration tables, and (REPORTS=1) the comparison of margin estimates."""
 import itertools
 import sys
 import numpy as np
@@ -166,7 +166,7 @@ def margins_report(rmse):
         diff = "—" if variant == ref else paired(whole[variant] - whole[ref])
         rows.append([variant, f"{whole[variant].mean():.3f}", f"{late[variant].mean():.3f}", diff, ref])
     check = (whole["rmpl_kll_16384"] - whole["rmpl_seq_emp"]).abs().max()
-    lines = (["# Marginal-estimation ablation, Gaussian constant dependence, n = 15,000 (2026-11-16)\n",
+    lines = (["# Margin estimates compared, Gaussian constant dependence, n = 15,000 (2026-11-16)\n",
               "RMSE of rho_S ×10⁻², 100 paired test seeds. all = obs. 500–14,999, late = 10,000–14,999; Δ = variant − ref, mean ± SE. "
               "full_emp sees the whole sample (diagnostic, not streaming).\n"]
              + md_table(["Variant", "RMSE all", "RMSE late", "Δ all vs ref ± SE", "ref"], rows)

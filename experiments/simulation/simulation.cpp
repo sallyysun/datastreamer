@@ -46,7 +46,7 @@ SeedResults Simulation::run() const {
     const bool mixture = options_.mixture_density;
 
     SeedResults results{seed_, s.true_spearman, {}};
-    for (const char* estimator : kEst) {
+    for (const auto& estimator : thesis::estimators()) {
         thesis::ForgettingStrategies strategies(estimator, vff_rates_);
         const std::size_t count = strategies.size();
         const auto& weights = strategies.mff_weights();

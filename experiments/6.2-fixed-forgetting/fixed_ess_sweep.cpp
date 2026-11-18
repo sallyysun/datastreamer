@@ -61,7 +61,7 @@ int main(int argc, char** argv) {
     const std::string sfx = cop == "gaussian" ? "" : "_" + cop;
 
     if (std::getenv("VALIDATE")) {
-        const StudySeries s = load_study_series(cop, "drift", thesis::kFirstSeed, kN);
+        const StudySeries s = load_study_series(cop, "drift", first_seed(), kN);
         const auto zx = normal_scores(s.estimated_pit_x), zy = normal_scores(s.estimated_pit_y);
         for (double n : {39.0, 399.0, kNoForget}) {
             auto fed = build({"rmpl", "main", n});
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
         const auto wins = thesis::windows(sc);
         std::vector<std::vector<double>> s1(arms.size(), std::vector<double>(kN)), s2 = s1;   // sums over seeds
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
+            const unsigned seed = first_seed() + sd;
             const StudySeries s = load_study_series(cop, sc, seed, kN);
             const auto zx = normal_scores(s.estimated_pit_x), zy = normal_scores(s.estimated_pit_y);
             std::vector<double> e(kN);

@@ -99,7 +99,7 @@ int run_regretfam(const Run& run) {
     const WorkingFamilies families;
     for (const std::string sc : {"constant", "drift", "jump"}) {
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
+            const unsigned seed = first_seed() + sd;
             const StudySeries s = load_study_series(cop, sc, seed, kN);
             for (int wi = 0; wi < 4; ++wi) {
                 const auto& inv = families.inverse[wi];
@@ -168,10 +168,10 @@ int run_regret(const Run& run) {
         auto pi = [&](int ei, int di, int l, int m, std::size_t t) { return ((((std::size_t(ei) * 2 + di) * 2 + l) * MS + m) * kN) + t; };
         std::vector<char> scored(kN, 0);
         for (int sd = 0; sd < seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
+            const unsigned seed = first_seed() + sd;
             const StudySeries s = load_study_series(cop, sc, seed, kN);
             for (int ei = 0; ei < 3; ++ei) {
-                const std::string e = kEst[ei];
+                const std::string e = thesis::estimators()[ei];
                 FixedMemoryArms arms(e);
                 thesis::Mff mix[2] = {thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[0]),
                                       thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[1])};
@@ -227,7 +227,7 @@ int run_regret(const Run& run) {
                         for (std::size_t t = 0; t < kN; ++t) {
                             if (!scored[t] || (t % 10 != 9 && t != kN - 1)) continue;
                             const auto [mean, sd] = seed_mean_sd(s1[pi(ei, di, lo, m, t)], s2[pi(ei, di, lo, m, t)], seeds);
-                            std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), kEst[ei], deltas[di],
+                            std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), thesis::estimators()[ei].c_str(), deltas[di],
                                          lo ? "point" : "mix", m, t, mean, sd);
                         }
     }

@@ -12,7 +12,7 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 | `6.5-family-switching/` | §6.5 | `strategy_experiments` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
 | `6.6-real-data/` | §6.6 + app. | `real_data_comparison` | final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage |
 | `live/` | 6.2–6.6 over TCP | the runners with `LIVE=1`; `../server` + `../consumer` | `run_all_live.sh` + `jobs.txt` (every 6.2–6.5 simulation), `compare_all_live.py`; `run_live.sh` (the consumer binary scoring §6.3–6.4) |
-| `6.7-computational-cost/` | §6.7 + app. | `budget_benchmark`, `margin_ablation` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
+| `6.7-computational-cost/` | §6.7 + app. | `budget_benchmark`, `margin_comparison` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
 
 ```bash
 ./check.sh                          # ~7 min: build, short run of every mode, compare with check_reference.txt

@@ -59,7 +59,7 @@ int Experiment::run() {
         if (options.dump_seed && sc != options.dump_scenario) continue;
         results.begin_scenario(sc);
         for (int sd = 0; sd < run_.seeds; ++sd) {
-            const unsigned seed = thesis::kFirstSeed + sd;
+            const unsigned seed = first_seed() + sd;
             if (options.dump_seed && int(seed) != std::atoi(options.dump_seed)) continue;
             results.add(sd, Simulation(run_.cop, run_.h2, sc, seed, kRates, {.mixture_density = options.mixdens}).run());
         }
@@ -74,7 +74,7 @@ int Experiment::run_weight_paths() {
     for (const std::string sc : {"constant", "drift", "jump"}) {
         results.begin_scenario(sc);
         for (int sd = 0; sd < run_.seeds; ++sd) {
-            const Simulation simulation(run_.cop, run_.h2, sc, thesis::kFirstSeed + sd, {}, {.scores = false, .weight_paths = true});
+            const Simulation simulation(run_.cop, run_.h2, sc, first_seed() + sd, {}, {.scores = false, .weight_paths = true});
             results.add(simulation.run());
         }
         results.end_scenario();
@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
     const std::string sfx = (tag ? std::string("_") + tag : std::string()) + (cop == "gaussian" ? "" : "_" + cop);
     if (const char* r = std::getenv("VFF_RATES")) {
         kRates.clear(); kStrat.resize(kK + 1);
-        for (const auto& rate : strategy_experiments::parse_list(r)) {
+        for (const auto& rate : csv_list(r)) {
             kRates.push_back(std::atof(rate.c_str()));
             kStrat.push_back("vff_" + rate);
         }

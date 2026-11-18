@@ -22,7 +22,7 @@
 namespace thesis {
 
 inline const std::vector<std::string>& estimators() {
-    static const std::vector<std::string> v = {"rmpl", "xiao", "hermite"};
+    static const std::vector<std::string> v = {"xiao", "hermite", "rmpl"};
     return v;
 }
 
