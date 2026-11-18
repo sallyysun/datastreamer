@@ -19,35 +19,6 @@
 #include "strategy_runs.hpp"
 #include "study_stream.hpp"
 
-namespace strategy_experiments {
-
-Stream make_stream(const std::string& family, const std::string& scenario, unsigned seed) {
-    Stream stream{load_study_series(family, scenario, seed, thesis::kN), {}};
-    const auto generating_family = thesis::family_of(family);
-    stream.par.reserve(stream.target.size());
-    for (double target : stream.target) stream.par.push_back(copula::param_from_spearman(generating_family, target));
-    return stream;
-}
-
-WindowScores summarize_window(const thesis::Win& window, const std::vector<double>& squared_error,
-                              const std::vector<double>& excess, const std::vector<double>& hellinger) {
-    const bool dense = std::string_view(window.name) == "rec_0_100";
-    double se_sum = 0, excess_sum = 0, h2_sum = 0;
-    std::size_t h2_count = 0;
-    for (std::size_t t = window.a; t < window.b; ++t) {
-        se_sum += squared_error[t];
-        excess_sum += excess[t];
-        if (!std::isnan(hellinger[t]) && (dense || (t - thesis::kBurn) % 50 == 0)) {
-            h2_sum += hellinger[t];
-            ++h2_count;
-        }
-    }
-    const double n = double(window.b - window.a);
-    return {std::sqrt(se_sum / n), 1000 * excess_sum / n, h2_count ? 1000 * h2_sum / h2_count : NAN};
-}
-
-}  // namespace strategy_experiments
-
 namespace {
 using thesis::family_of; using thesis::gauss_logc; using thesis::H2Table; using thesis::Mff;
 using thesis::windows; using thesis::checkpoint;
@@ -58,6 +29,8 @@ using strategy_experiments::Stream;
 using strategy_experiments::kEst;
 using strategy_experiments::make_stream;
 using strategy_experiments::summarize_window;
+using strategy_experiments::SeedResults;
+using strategy_experiments::Simulation;
 
 // Strategies: five fixed arms, MFF, then one VFF per rate. Default rates 0.02 / 0.1 named vff_slow / vff_fast (the
 // original outputs); VFF_RATES=a,b,... names them vff_<a>, ... (sensitivity runs; write under TAG=...).
@@ -143,13 +116,22 @@ int run_weights(const Run& run) {
     return 0;
 }
 
+// The standard strategy comparison: every scenario and seed, collated into the strategies_* outputs.
 // MIXDENS=1 scores the weighted density mixture. Its KLL log loss also checks the regret calculation.
-int run_strategies(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    const char* tag = run.tag;
-    H2Table& h2 = run.h2;
+class Experiment {
+public:
+    explicit Experiment(const Run& run) : run_(run) {}
+    int run();
+
+private:
+    const Run& run_;
+};
+
+int Experiment::run() {
+    const int seeds = run_.seeds;
+    const std::string& cop = run_.cop;
+    const std::string& sfx = run_.sfx;
+    const char* tag = run_.tag;
     const bool mixdens = std::getenv("MIXDENS") != nullptr;
     if (mixdens && !tag) { std::fprintf(stderr, "MIXDENS needs TAG\n"); return 1; }
     std::FILE* fmc = mixdens ? std::fopen(("results/strategies_mixcheck" + sfx + ".csv").c_str(), "w") : nullptr;
@@ -168,9 +150,7 @@ int run_strategies(const Run& run) {
     if (fp) std::fprintf(fp, "copula,scenario,estimator,strategy,t,mse,ex_mean,ex_median,ex_max,h2_mean,n_extreme,rho_true,est_mean,est_q10,est_q90\n");
     std::fprintf(fs, "copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000\n");
     std::fprintf(fj, "copula,estimator,strategy,t,mse\n");
-    const copula::Family F = family_of(cop);
     const std::size_t S = kStrat.size();
-
 
     for (const std::string sc : {"constant", "drift", "jump"}) {
         if (dseed && sc != dscen) continue;
@@ -186,55 +166,37 @@ int run_strategies(const Run& run) {
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = thesis::kFirstSeed + sd;
             if (dseed && int(seed) != std::atoi(dseed)) continue;
-            const Stream s = make_stream(cop, sc, seed);
-            std::vector<double> lc(kN);
-            for (std::size_t t = 0; t < kN; ++t) {
-                const double l = copula::log_density(F, s.pu[t], s.pv[t], s.par[t]);
-                lc[t] = l;
-            }
+            const SeedResults result = Simulation(run_, sc, seed, kRates, mixdens).run();
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
-                thesis::EstimatorStrategies strategies(e, kRates);
-                const auto& weights = strategies.mff_weights();
-                const auto mixture_weights = mixdens ? std::span<const double>(weights) : std::span<const double>{};
+                const auto& trace = result.estimators[ei].strategies;
                 std::vector<char> seed_ext(S, 0);
-                std::vector<std::vector<double>> se(S, std::vector<double>(kN)), ex(S, std::vector<double>(kN)), hh(S, std::vector<double>(kN, NAN));
-                std::vector<double> f(S);
-                double mixkll = 0;
                 for (std::size_t t = 0; t < kN; ++t) {
-                    strategies.forecasts(f);
-                    if (mixdens && strategies.mff_ready(t))
-                        mixkll -= H2Table::mix_logc(f.data(), weights.data(), kK, s.u[t], s.v[t]);
                     if (fdump)
                         for (std::size_t i = 0; i < S; ++i)
-                            std::fprintf(fdump, "%s,%s,%zu,%.10g,%.10g\n", e.c_str(), kStrat[i].c_str(), t, f[i], s.rho[t]);
-                    const thesis::ScoringObservation truth{s.rho[t], s.pu[t], s.pv[t], s.par[t], lc[t], checkpoint(sc, t)};
+                            std::fprintf(fdump, "%s,%s,%zu,%.10g,%.10g\n", e.c_str(), kStrat[i].c_str(), t, trace[i].forecast[t], result.rho[t]);
                     for (std::size_t i = 0; i < S; ++i) {
-                        const auto score = thesis::score_forecast(h2, truth, f, i, mixture_weights);
-                        se[i][t] = score.squared_error;
-                        ex[i][t] = score.excess;
-                        hh[i][t] = score.h2;
-                        jsum[ei][i][t] += score.squared_error;
+                        const double f = trace[i].forecast[t];
+                        jsum[ei][i][t] += trace[i].squared_error[t];
                         if (paths) {
-                            exs[at(ei, i, sd, t)] = float(1000 * ex[i][t]);
-                            fcs[at(ei, i, sd, t)] = float(f[i]);
-                            rho_true[t] = s.rho[t];
-                            if (truth.hellinger_checkpoint) h2s[(ei * S + i) * kN + t] += 1000 * score.h2;
-                            if (std::fabs(f[i]) > 0.98) ++nex[(ei * S + i) * kN + t];
+                            exs[at(ei, i, sd, t)] = float(1000 * trace[i].excess[t]);
+                            fcs[at(ei, i, sd, t)] = float(f);
+                            rho_true[t] = result.rho[t];
+                            if (checkpoint(sc, t)) h2s[(ei * S + i) * kN + t] += 1000 * trace[i].h2[t];
+                            if (std::fabs(f) > 0.98) ++nex[(ei * S + i) * kN + t];
                         }
                     }
-                    strategies.update(s.x[t], s.y[t], s.u[t], s.v[t], t);
                     if (fx && t >= kBurn)
                         for (std::size_t i = 0; i < S; ++i) {
-                            xall[ei * S + i].push_back(float(1000 * ex[i][t]));
-                            if (std::fabs(f[i]) > 0.98) { ++xticks[ei * S + i]; seed_ext[i] = 1; }
+                            xall[ei * S + i].push_back(float(1000 * trace[i].excess[t]));
+                            if (std::fabs(trace[i].forecast[t]) > 0.98) { ++xticks[ei * S + i]; seed_ext[i] = 1; }
                         }
                 }
                 if (fx) for (std::size_t i = 0; i < S; ++i) xseeds[ei * S + i] += seed_ext[i];
-                if (fmc) std::fprintf(fmc, "%s,%s,%s,%u,%.8f\n", cop.c_str(), sc.c_str(), e.c_str(), seed, mixkll);
+                if (fmc) std::fprintf(fmc, "%s,%s,%s,%u,%.8f\n", cop.c_str(), sc.c_str(), e.c_str(), seed, result.estimators[ei].mixture_log_loss);
                 for (const auto& w : wins) {
                     for (std::size_t i = 0; i < S; ++i) {
-                        const auto [rmse, excess, h2_score] = summarize_window(w, se[i], ex[i], hh[i]);
+                        const auto [rmse, excess, h2_score] = summarize_window(w, trace[i].squared_error, trace[i].excess, trace[i].h2);
                         std::fprintf(fs, "%s,%s,%s,%s,%u,%s,%.8f,%.6f,%.6f\n", cop.c_str(), sc.c_str(), e.c_str(), kStrat[i].c_str(),
                                      seed, w.name, rmse, excess, h2_score);
                     }
@@ -314,5 +276,5 @@ int main(int argc, char** argv) {
     if (std::getenv("REGRETFAM")) return strategy_experiments::run_regretfam(run);
     if (std::getenv("REGRET")) return strategy_experiments::run_regret(run);
     if (std::getenv("WEIGHTS")) return run_weights(run);
-    return run_strategies(run);
+    return Experiment(run).run();
 }

@@ -35,6 +35,35 @@ struct WindowScores {
     double rmse, excess_x1000, h2_x1000;
 };
 
+struct StrategyTrace {
+    std::vector<double> forecast, squared_error, excess, h2;
+};
+
+struct EstimatorTrace {
+    std::vector<StrategyTrace> strategies;
+    double mixture_log_loss = 0;
+};
+
+struct SeedResults {
+    unsigned seed;
+    std::vector<double> rho;
+    std::vector<EstimatorTrace> estimators;
+};
+
+// One scenario and seed: replay the series into each estimator's strategies, scoring each held forecast first.
+class Simulation {
+public:
+    Simulation(const Run& run, std::string scenario, unsigned seed, const std::vector<double>& rates, bool mixture);
+    SeedResults run() const;
+
+private:
+    const Run& run_;
+    std::string scenario_;
+    unsigned seed_;
+    const std::vector<double>& rates_;
+    bool mixture_;
+};
+
 WindowScores summarize_window(const thesis::Win& window, const std::vector<double>& squared_error,
                               const std::vector<double>& excess, const std::vector<double>& hellinger);
 

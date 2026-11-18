@@ -16,7 +16,8 @@ build() {   # source, output, additional sources
     $CXX "$source" "$@" $FLAGS -o "$output"
 }
 build experiments/simulation/fixed_ess_sweep.cpp           experiments/6.2-fixed-forgetting/build/fixed_ess_sweep
-build experiments/simulation/strategy_experiments.cpp      experiments/common/build/strategy_experiments \
+build experiments/simulation/experiment.cpp                experiments/common/build/strategy_experiments \
+    experiments/simulation/simulation.cpp \
     experiments/simulation/family_switching.cpp \
     experiments/simulation/family_scores.cpp \
     experiments/simulation/strategy_regret.cpp
