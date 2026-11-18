@@ -9,7 +9,7 @@
 
 #include <cstdio>
 
-#include "../estimators/thesis_device.hpp"
+#include "../estimators/device.hpp"
 #include "../protocol.hpp"
 #include "paired_returns.hpp"
 

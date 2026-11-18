@@ -9,7 +9,7 @@
 #include "study_config.hpp"
 #include "../../src/estimators/dependence/datasketches_kll.hpp"
 #include "../../src/special_functions.hpp"
-#include "../../src/streamgenerator/datasource/copula_source.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
 #include "run_live_stream.hpp"
 
 inline bool study_verbose() {

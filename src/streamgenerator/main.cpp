@@ -6,6 +6,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <chrono>
 #include <random>
 #include <map>
 #include <thread>
@@ -16,11 +17,9 @@
 
 #include "datasource/file_source.hpp"
 #include "datasource/synthetic_source.hpp"
-#include "runtime/producer.hpp"
 #include "runtime/session.hpp"
 #include "runtime/broker.hpp"
 #include "../protocol.hpp"
-#include "runtime/delay_strategies.hpp"
 
 using json = nlohmann::json;
 
@@ -116,7 +115,14 @@ int main() {
         std::cout << "failed to start broker on tcp/" << cfg.broker_port << "\n";
     }
 
-    Producer producer(source, rate > 0 ? fixed_delay(rate) : zero_delay());
+    // Emit n events (n < 0: forever), one every 1000 / rate ms (as fast as possible when rate <= 0).
+    auto produce = [&source, rate](auto&& sink, long n) {
+        for (long i = 0; n < 0 || i < n; ++i) {
+            const TickPair event = source->next();
+            if (rate > 0) std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(1000.0 / rate)));
+            sink(event);
+        }
+    };
     if (wait_consumers > 0) broker.set_lossless(true);
 
     app.get("/*", [](auto *res, auto *req) {
@@ -246,12 +252,12 @@ int main() {
             }
         };
         if (n_run > 0) {
-            producer.run(sink, int(n_run) + 1);   // + the opening tick
+            produce(sink, n_run + 1);   // + the opening tick
             std::cout << "done: " << n - 1 << " observations" << std::endl;
             broker.stop();       // closes the consumers' sockets after the queued bytes: they see end of stream
             std::_Exit(0);
         }
-        producer.run(sink);
+        produce(sink, -1);
     });
 
     app.listen(cfg.port, [&](auto *token) {

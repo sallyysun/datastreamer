@@ -1,21 +1,20 @@
 #pragma once
 
 #include <algorithm>
-#include <mutex>
-#include <memory>
-#include <map>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <numbers>
 #include <optional>
+#include <stdexcept>
 #include <string_view>
 #include <vector>
 
 #include "special_functions.hpp"
 
-// Parametric copula families: log-density, CDF, parameter bounds, and the Spearman conversion by Gauss-Legendre on
-// the density. Clayton/Gumbel are positive-dependence only; the t copula's nu is fixed.
+// Parametric copula families: log-density, CDF, parameter bounds, and the conversion between each family's parameter
+// and Spearman's rho (closed form for the Gaussian, tabulated otherwise). Clayton/Gumbel are positive-dependence only;
+// the t copula has nu = 4.
 namespace copula {
 
 enum class Family { Gaussian, Clayton, Gumbel, StudentT };
@@ -133,22 +132,6 @@ struct StudentT {
 
 namespace detail {
 
-template <typename Density>
-double spearman_integral(Density&& c) {
-    static const GaussLegendre gl(48);
-    double integral = 0.0;
-    for (std::size_t i = 0; i < gl.x.size(); ++i) {
-        const double u = gl.x[i];
-        double row = 0.0;
-        for (std::size_t j = 0; j < gl.x.size(); ++j) {
-            const double v = gl.x[j];
-            row += gl.w[j] * u * v * c(u, v);
-        }
-        integral += gl.w[i] * row;
-    }
-    return 12.0 * integral - 3.0;
-}
-
 template <typename Cdf>
 double spearman_integral_cdf(Cdf&& C) {
     static const GaussLegendre gl(64);
@@ -166,7 +149,6 @@ struct SpearmanTable {
     double min_param, max_param;
     std::vector<double> param;
     std::vector<double> rho_s;
-    bool monotone = false;
 
     double lookup(double p) const {
         if (p <= param.front()) return rho_s.front();
@@ -181,27 +163,26 @@ struct SpearmanTable {
         return std::clamp(lookup(std::clamp(parameter, min_param, max_param)), -1.0, 1.0);
     }
 
+    // The table is increasing (checked when it is built), so the inverse interpolates it the other way round.
     double inverse(double target) const {
-        double lo = min_param, hi = max_param;
+        const double lo = min_param, hi = max_param;
         const double rho_lo = spearman(lo), rho_hi = spearman(hi);
-        target = std::clamp(target, std::min(rho_lo, rho_hi), std::max(rho_lo, rho_hi));
-        if (monotone) {
-            // Gumbel's independence boundary lies below its first tabulated point.
-            if (target <= rho_lo || std::isnan(target)) return lo;
-            const auto upper = std::lower_bound(rho_s.begin(), rho_s.end(), target);
-            if (upper == rho_s.end()) return hi;
-            const std::size_t k = static_cast<std::size_t>(upper - rho_s.begin());
-            if (k == 0) return lo;
-            const double t = (target - rho_s[k - 1]) / (rho_s[k] - rho_s[k - 1]);
-            return std::clamp(param[k - 1] + t * (param[k] - param[k - 1]), lo, hi);
-        }
+        target = std::clamp(target, rho_lo, rho_hi);
+        // Gumbel's independence boundary lies below its first tabulated point.
+        if (target <= rho_lo || std::isnan(target)) return lo;
+        const auto upper = std::lower_bound(rho_s.begin(), rho_s.end(), target);
+        if (upper == rho_s.end()) return hi;
+        const std::size_t k = static_cast<std::size_t>(upper - rho_s.begin());
+        if (k == 0) return lo;
+        const double t = (target - rho_s[k - 1]) / (rho_s[k] - rho_s[k - 1]);
+        return std::clamp(param[k - 1] + t * (param[k] - param[k - 1]), lo, hi);
+    }
 
-        for (int it = 0; it < 60; ++it) {
-            const double mid = 0.5 * (lo + hi);
-            if (spearman(mid) < target) lo = mid;
-            else hi = mid;
-        }
-        return 0.5 * (lo + hi);
+    const SpearmanTable& checked() const {
+        if (!std::all_of(rho_s.begin(), rho_s.end(), [](double rho) { return std::isfinite(rho); })
+            || !std::is_sorted(rho_s.begin(), rho_s.end()))
+            throw std::logic_error("Spearman table is not finite and increasing");
+        return *this;
     }
 };
 
@@ -216,9 +197,7 @@ SpearmanTable build_spearman_table(double lo, double hi, Parameter parameter, Ra
         table.param.push_back(p);
         table.rho_s.push_back(rank_correlation(p));
     }
-    table.monotone = std::all_of(table.rho_s.begin(), table.rho_s.end(),
-                                 [](double rho) { return std::isfinite(rho); })
-                     && std::is_sorted(table.rho_s.begin(), table.rho_s.end());
+    table.checked();
     return table;
 }
 
@@ -260,26 +239,8 @@ inline SpearmanTable student_t_spearman_table(double nu) {
         t.param[kHalf - k] = -r;
         t.rho_s[kHalf - k] = -rho;
     }
-    t.monotone = std::is_sorted(t.rho_s.begin(), t.rho_s.end());
+    t.checked();
     return t;
-}
-
-inline const SpearmanTable& student_t_table(double nu) {
-    // Cache immutable tables by degrees of freedom. Repeat calls on one thread skip the lock.
-    thread_local double last_nu = -1.0;
-    thread_local const SpearmanTable* last = nullptr;
-    if (nu != last_nu || last == nullptr) {
-        static std::mutex mu;
-        static std::map<double, std::unique_ptr<const SpearmanTable>> tables;
-        std::lock_guard<std::mutex> lock(mu);
-        auto& slot = tables[nu];
-        if (!slot) {
-            slot = std::make_unique<const SpearmanTable>(student_t_spearman_table(nu));
-        }
-        last = slot.get();
-        last_nu = nu;
-    }
-    return *last;
 }
 
 inline const SpearmanTable& spearman_table(Family family, double nu) {
@@ -308,7 +269,9 @@ inline const SpearmanTable& spearman_table(Family family, double nu) {
             });
         return table;
     }
-    return student_t_table(nu);
+    if (nu != 4.0) throw std::invalid_argument("the t copula's Spearman table is built for nu = 4 only");
+    static const auto t4 = student_t_spearman_table(4.0);
+    return t4;
 }
 
 }  // namespace detail

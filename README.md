@@ -38,7 +38,7 @@ The build uses Python 3 to generate C++ defaults from `study_config.json`. The e
   subscribe; delivery is then lossless), `PORT` / `BROKER_PORT`. Synthetic ticks carry the ground truth (true ρ_S,
   each leg's true PIT, the copula parameter and family) for scoring.
 - Consumer: `./consumer [--host 127.0.0.1] [--port 9003] [--symbols AAPL,MSFT] [--print 20]` runs the Chapter 6
-  device (`src/estimators/thesis_device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
+  device (`src/estimators/device.hpp`: shared KLL pseudo-observations; per estimator five fixed arms, MFF,
   VFF) and prints the true ρ_S with the MFF and VFF estimates. `--score <scenario> --seed <s> --out f.csv [--n N]`
   scores every strategy (ρ_S RMSE, excess log loss, H²) and appends the same rows the in-process runner writes.
 

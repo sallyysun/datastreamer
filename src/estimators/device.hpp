@@ -15,9 +15,10 @@
 
 namespace thesis {
 
-class StrategySet {
+// One estimator's strategies: the fixed-memory arms, MFF over them, and VFF at each rate.
+class EstimatorStrategies {
 public:
-    explicit StrategySet(const std::string& est) : est_(est), raw_(est != "rmpl") {
+    explicit EstimatorStrategies(const std::string& est) : est_(est), raw_(est != "rmpl") {
         for (double n : kMem) arms_.push_back(arm(est, n, "m"));
         vffs_.reserve(vff_rates().size());
         for (double r : vff_rates()) vffs_.emplace_back(est, r);
@@ -51,7 +52,7 @@ class Device {
 public:
     Device() : sets_(make_sets()), seeded_(reseed()), margins_(kKll, kClip) {}
     // Forecasts held before the next observation: sets()[e].forecasts().
-    const std::vector<StrategySet>& sets() const { return sets_; }
+    const std::vector<EstimatorStrategies>& sets() const { return sets_; }
     // Absorb one observation; returns the shared pseudo-observations (U, V) it was scored at.
     std::pair<double, double> update(double x, double y) {
         const auto [u, v] = margins_.update(x, y);
@@ -62,14 +63,14 @@ public:
     std::size_t count() const { return t_; }
 
 private:
-    static std::vector<StrategySet> make_sets() {
-        std::vector<StrategySet> v;
+    static std::vector<EstimatorStrategies> make_sets() {
+        std::vector<EstimatorStrategies> v;
         for (const auto& e : estimators()) v.emplace_back(e);
         return v;
     }
     // Seed KLL compaction to match the in-process stream.
     static bool reseed() { datasketches_kll::seed(1); return true; }
-    std::vector<StrategySet> sets_;
+    std::vector<EstimatorStrategies> sets_;
     bool seeded_;
     datasketches_kll::PairedKll margins_;
     std::size_t t_ = 0;
