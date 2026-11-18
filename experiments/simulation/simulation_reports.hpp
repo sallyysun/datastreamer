@@ -25,12 +25,12 @@ struct StrategyOptions {
 };
 
 // The strategies_* outputs and the per-scenario sums across seeds behind them.
-class StrategyResults {
+class ForecastComparisonReport {
 public:
-    StrategyResults(const Run& run, const StrategyOptions& options, const std::vector<std::string>& strategy_labels);
-    ~StrategyResults();
-    StrategyResults(const StrategyResults&) = delete;
-    StrategyResults& operator=(const StrategyResults&) = delete;
+    ForecastComparisonReport(const Run& run, const StrategyOptions& options, const std::vector<std::string>& strategy_labels);
+    ~ForecastComparisonReport();
+    ForecastComparisonReport(const ForecastComparisonReport&) = delete;
+    ForecastComparisonReport& operator=(const ForecastComparisonReport&) = delete;
 
     bool ok() const { return ok_; }
     void begin_scenario(const std::string& scenario);
@@ -72,13 +72,13 @@ private:
     std::vector<double> true_spearman_;
 };
 
-// WEIGHTS=1: the strategies_weights outputs, from the weight paths the standard run records.
-class WeightResults {
+// WEIGHTS=1: the strategies_weights outputs, from the weight paths a weights-only Simulation records.
+class MffWeightPathReport {
 public:
-    explicit WeightResults(const Run& run);
-    ~WeightResults();
-    WeightResults(const WeightResults&) = delete;
-    WeightResults& operator=(const WeightResults&) = delete;
+    explicit MffWeightPathReport(const Run& run);
+    ~MffWeightPathReport();
+    MffWeightPathReport(const MffWeightPathReport&) = delete;
+    MffWeightPathReport& operator=(const MffWeightPathReport&) = delete;
 
     bool ok() const { return weights_file_ && window_file_; }
     void begin_scenario(const std::string& scenario);

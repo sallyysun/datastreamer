@@ -59,8 +59,8 @@ inline SeedMeanSd seed_mean_sd(double sum, double sum_sq, int seeds) {
 using thesis::FixedMemoryArms;
 
 int run_validate(const Run& run);
-int run_famswitch(const Run& run);
-int run_scoresfam(const Run& run);
+int run_family_switching_study(const Run& run);
+int run_family_score_comparison(const Run& run);
 int run_regretfam(const Run& run);
 int run_regret(const Run& run);
 

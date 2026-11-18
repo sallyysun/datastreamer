@@ -18,7 +18,7 @@ build() {   # source, output, additional sources
 build experiments/simulation/fixed_ess_sweep.cpp           experiments/6.2-fixed-forgetting/build/fixed_ess_sweep
 build experiments/simulation/experiment.cpp                experiments/common/build/strategy_experiments \
     experiments/simulation/simulation.cpp \
-    experiments/simulation/strategy_results.cpp \
+    experiments/simulation/simulation_reports.cpp \
     experiments/simulation/validate.cpp \
     experiments/simulation/family.cpp \
     experiments/simulation/regret.cpp

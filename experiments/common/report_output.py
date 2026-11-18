@@ -20,3 +20,8 @@ def write_report(path, lines):
 
 def format_estimate(mean, uncertainty, mean_format="+.2f", uncertainty_format=".2f", *, separator=" ± "):
     return f"{mean:{mean_format}}{separator}{uncertainty:{uncertainty_format}}"
+
+
+def md_table(columns, rows):
+    return (["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
+            + ["| " + " | ".join(r) + " |" for r in rows])

@@ -1,4 +1,4 @@
-#include "strategy_results.hpp"
+#include "simulation_reports.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -31,7 +31,7 @@ WindowScores summarize_window(const thesis::Win& window, const std::vector<doubl
     return {std::sqrt(se_sum / n), 1000 * excess_sum / n, h2_count ? 1000 * h2_sum / h2_count : NAN};
 }
 
-StrategyResults::StrategyResults(const Run& run, const StrategyOptions& options,
+ForecastComparisonReport::ForecastComparisonReport(const Run& run, const StrategyOptions& options,
                                  const std::vector<std::string>& strategy_labels)
     : cop_(run.cop), seeds_(run.seeds), paths_(options.paths), strategy_labels_(strategy_labels),
       strategy_count_(strategy_labels.size()) {
@@ -56,12 +56,12 @@ StrategyResults::StrategyResults(const Run& run, const StrategyOptions& options,
     std::fprintf(jump_path_file_, "copula,estimator,strategy,t,mse\n");
 }
 
-StrategyResults::~StrategyResults() {
+ForecastComparisonReport::~ForecastComparisonReport() {
     for (std::FILE* f : {seed_scores_file_, jump_path_file_, tick_paths_file_, seed_dump_file_, extremes_file_, mixture_check_file_})
         if (f) std::fclose(f);
 }
 
-void StrategyResults::begin_scenario(const std::string& scenario) {
+void ForecastComparisonReport::begin_scenario(const std::string& scenario) {
     scenario_ = scenario;
     windows_ = windows(scenario);
     true_spearman_.assign(kN, 0.0);
@@ -77,7 +77,7 @@ void StrategyResults::begin_scenario(const std::string& scenario) {
     }
 }
 
-void StrategyResults::add(int seed_index, const SeedResults& result) {
+void ForecastComparisonReport::add(int seed_index, const SeedResults& result) {
     for (std::size_t estimator = 0; estimator < 3; ++estimator) {
         const std::string name = kEst[estimator];
         const auto& traces = result.estimators[estimator].strategies;
@@ -126,13 +126,13 @@ void StrategyResults::add(int seed_index, const SeedResults& result) {
     }
 }
 
-void StrategyResults::end_scenario() {
+void ForecastComparisonReport::end_scenario() {
     if (extremes_file_) write_extremes();
     if (tick_paths_file_) write_paths();
     if (scenario_ == "jump") write_jump_path();
 }
 
-void StrategyResults::write_extremes() {
+void ForecastComparisonReport::write_extremes() {
     for (std::size_t estimator = 0; estimator < 3; ++estimator)
         for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
             const auto& cell = totals(estimator, strategy);
@@ -150,7 +150,7 @@ void StrategyResults::write_extremes() {
         }
 }
 
-void StrategyResults::write_paths() {
+void ForecastComparisonReport::write_paths() {
     const int seeds = seeds_;
     for (std::size_t estimator = 0; estimator < 3; ++estimator)
         for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
@@ -180,7 +180,7 @@ void StrategyResults::write_paths() {
         }
 }
 
-void StrategyResults::write_jump_path() {
+void ForecastComparisonReport::write_jump_path() {
     for (std::size_t estimator = 0; estimator < 3; ++estimator)
         for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy)
             for (std::size_t t = kBurn; t < kN; ++t)
@@ -188,7 +188,7 @@ void StrategyResults::write_jump_path() {
                              totals(estimator, strategy).squared_error_sum[t] / seeds_);
 }
 
-WeightResults::WeightResults(const Run& run)
+MffWeightPathReport::MffWeightPathReport(const Run& run)
     : cop_(run.cop), seeds_(run.seeds), weights_file_(open_result("strategies_weights" + run.sfx)),
       window_file_(open_result("strategies_weights_seeds" + run.sfx)) {
     if (!ok()) return;
@@ -198,12 +198,12 @@ WeightResults::WeightResults(const Run& run)
     std::fprintf(window_file_, "copula,scenario,estimator,delta,seed,window,rmse\n");
 }
 
-WeightResults::~WeightResults() {
+MffWeightPathReport::~MffWeightPathReport() {
     for (std::FILE* f : {weights_file_, window_file_})
         if (f) std::fclose(f);
 }
 
-void WeightResults::begin_scenario(const std::string& scenario) {
+void MffWeightPathReport::begin_scenario(const std::string& scenario) {
     scenario_ = scenario;
     windows_ = windows(scenario);
     weight_sum_.assign(3 * 2 * kN * thesis::kK, 0.0);
@@ -212,7 +212,7 @@ void WeightResults::begin_scenario(const std::string& scenario) {
     true_spearman_.assign(kN, 0.0);
 }
 
-void WeightResults::add(const SeedResults& result) {
+void MffWeightPathReport::add(const SeedResults& result) {
     true_spearman_ = result.true_spearman;
     for (std::size_t estimator = 0; estimator < 3; ++estimator) {
         const auto& paths = result.estimators[estimator].weight_paths;
@@ -235,7 +235,7 @@ void WeightResults::add(const SeedResults& result) {
     }
 }
 
-void WeightResults::end_scenario() {
+void MffWeightPathReport::end_scenario() {
     for (std::size_t estimator = 0; estimator < 3; ++estimator)
         for (std::size_t path = 0; path < 2; ++path)
             for (std::size_t t = 0; t < kN; ++t) {

@@ -57,8 +57,8 @@ The standard comparison has two lifetimes. An `Experiment` covers the full study
 
 | Class | Owns | Main method |
 |---|---|---|
-| `Experiment` | The run options for the standard mode, and a `StrategyResults` for the length of the study. | `run()` checks the options, opens the outputs, loops over scenarios and seeds, creates a fresh `Simulation` for each, and passes each result on. |
-| `StrategyResults` | The CSV outputs and the per-scenario sums across seeds. | `add()` collates one seed's results and writes its per-seed rows. `end_scenario()` writes the summaries across seeds. |
+| `Experiment` | The run options for the standard mode, and a `ForecastComparisonReport` for the length of the study. | `run()` checks the options, opens the outputs, loops over scenarios and seeds, creates a fresh `Simulation` for each, and passes each result on. |
+| `ForecastComparisonReport` | The CSV outputs and the per-scenario sums across seeds. | `add()` collates one seed's results and writes its per-seed rows. `end_scenario()` writes the summaries across seeds. |
 | `Simulation` | The configuration and lifetime of one seeded run. The producer owns its random state, the loaded series owns the shared margins, and each estimator's strategies own their estimates and weights. | `run()` loads one series, replays it into each estimator's strategies, and scores each held forecast against truth before the update. It returns the results for that seed. |
 
 `main()` constructs an `Experiment` for the standard mode. Each `Simulation` scores all configured estimators on the same replayed series. `main()` owns the `H2Table` and shares it through `Run`, because the family, regret, and validation modes use the same cache. Per-seed metrics start fresh. `SeedResults` is an ordinary result value that carries the metrics needed for the requested outputs. The simulation returns it to the experiment for aggregation and CSV output.
@@ -78,12 +78,12 @@ classDiagram
         +run() SeedResults
     }
     class SeedResults
-    class StrategyResults
+    class ForecastComparisonReport
     class StudySeries
     class ForgettingStrategies
     class H2Table
 
-    Experiment *-- StrategyResults : owns for the study
+    Experiment *-- ForecastComparisonReport : owns for the study
     Experiment --> Run : reads options
     Run --> H2Table : shared cache owned by main()
     Experiment ..> Simulation : creates one per scenario and seed
@@ -91,7 +91,7 @@ classDiagram
     Simulation ..> ForgettingStrategies : reads forecasts and updates
     Simulation ..> H2Table : uses during scoring
     Simulation ..> SeedResults : returns
-    StrategyResults ..> SeedResults : collates
+    ForecastComparisonReport ..> SeedResults : collates
 ```
 
 Scoring calls the shared functions in `src/estimators/` with the shared `H2Table`. The loader fills the series from `CopulaSource` in process, or from reconstructed TCP returns in live mode.
@@ -108,7 +108,7 @@ flowchart LR
 
 ## Proposed grouped file structure
 
-Keep the sources for the strategy executable directly under `experiments/simulation/`. They already share an entry point and build target. `fixed_ess_sweep.cpp` also stays at the top level as the §6.2 runner. The `benchmarks/` folder groups the §6.7 cost programs, and `test/` groups the comparisons. `Experiment` stays private to `experiment.cpp`. `Simulation` and its per-seed result types have their own header. `StrategyResults` has its own pair of files and takes the strategy labels from `main()`. The replay series has one type, `StudySeries`; callers that score against the generating parameter compute it with `generating_parameters()`.
+Keep the sources for the strategy executable directly under `experiments/simulation/`. They already share an entry point and build target. `fixed_ess_sweep.cpp` also stays at the top level as the §6.2 runner. The `benchmarks/` folder groups the §6.7 cost programs, and `test/` groups the comparisons. `Experiment` stays private to `experiment.cpp`. `Simulation` and its per-seed result types have their own header. `ForecastComparisonReport` has its own pair of files and takes the strategy labels from `main()`. The replay series has one type, `StudySeries`; callers that score against the generating parameter compute it with `generating_parameters()`.
 
 ```text
 src/
@@ -123,7 +123,7 @@ experiments/simulation/
   run_live_stream.hpp           Server start and return reconstruction over TCP
   experiment.cpp                main(), mode dispatch, and Experiment
   simulation.hpp/.cpp           Simulation, SeedResults, and the single-seed forecast loop
-  strategy_results.hpp/.cpp     StrategyResults, window summaries, and the strategies_* CSVs
+  simulation_reports.hpp/.cpp     ForecastComparisonReport, window summaries, and the strategies_* CSVs
   strategy_runs.hpp             Run options, mode declarations, and small runner helpers
   validate.cpp                  VALIDATE=1 table and density checks
   working_families.hpp          Working families, rho_S tables, and family Hellinger
@@ -139,13 +139,13 @@ experiments/simulation/
     lab_vs_device.cpp           Browser lab and device comparison
 ```
 
-The proposed structure has 18 simulation files, up from the current 15. The split replaces `strategy_experiments.cpp` with `experiment.cpp`, `simulation.cpp`, and `strategy_results.cpp`, which link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
+The proposed structure has 18 simulation files, up from the current 15. The split replaces `strategy_experiments.cpp` with `experiment.cpp`, `simulation.cpp`, and `simulation_reports.cpp`, which link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
 
 Within the strategy executable, the file boundaries are for navigation and linking.
 
 - **`experiment.cpp`** reads options and dispatches modes. For the standard comparison, `Experiment::run()` loops over scenarios and seeds, calls `Simulation::run()`, and writes the aggregated results.
 - **`simulation.cpp`** runs one scenario and seed. It loads the series, replays it through the estimator strategies and scorer in `src/`, and returns `SeedResults`.
-- **`strategy_results.cpp`** collates `SeedResults` across seeds and writes the `strategies_*` CSVs. Its window summary is shared with the family modes.
+- **`simulation_reports.cpp`** collates `SeedResults` across seeds and writes the `strategies_*` CSVs. Its window summary is shared with the family modes.
 - **`strategy_runs.hpp`** holds the run options and the mode entry points. `Experiment` stays private to `experiment.cpp`.
 - **`family.cpp`** keeps the two family comparisons together. One compares scoring rules across working copulas. The other measures adaptation when the generating family changes. Both modes need family-specific weighting and density scoring. Their entry functions stay separate, and both link into the same executable as the standard loop.
 - **`regret.cpp`** owns both regret modes and their shared oracle. It compares forecast losses with the best fixed and switching sequences.
@@ -160,7 +160,7 @@ An *ablation* is a controlled comparison that removes or changes a component to 
 
 ## Mode functions
 
-The file layout is settled. Most of the remaining length sits in a few mode functions, each a single 60–145 line body that reads the environment, opens its CSVs, runs a table self-check, loops over scenarios and seeds, runs the per-tick loop, and prints. `Simulation` and `StrategyResults` already do this for the standard run.
+The file layout is settled. Most of the remaining length sits in a few mode functions, each a single 60–145 line body that reads the environment, opens its CSVs, runs a table self-check, loops over scenarios and seeds, runs the per-tick loop, and prints. `Simulation` and `ForecastComparisonReport` already do this for the standard run.
 
 | Function | Lines |
 |---|---|

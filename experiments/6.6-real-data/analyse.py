@@ -10,283 +10,312 @@ from scipy.stats import spearmanr
 from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, eval_days, outputs, read, result, write_report
 from report_output import reports_enabled
 
-MS = [0, 1, 2, 5]
-SWITCH_EST = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
-SET = {"t4": ("lt_", "lt_mffmix_t", "lt_mff_t"), "Gaussian": ("lg_", "lg_mffmix_g", "lg_mff_g")}
-LAG, BLOCK, BOOT = 21, 21, 2000
-GROUPS = ("full", "change", "other")
+SWITCH_LIMITS = [0, 1, 2, 5]
+SWITCH_ESTIMATORS = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
+FORECAST_COLUMNS = {"t4": ("lt_", "lt_mffmix_t", "lt_mff_t"), "Gaussian": ("lg_", "lg_mffmix_g", "lg_mff_g")}
+METHODS = ("MFF", "VFF", "MFF single density")
+CHANGE_WINDOW, CHANGE_LAG, CHANGE_QUANTILE = 99, 21, 0.90
+BOOT_BLOCK, BOOT_DRAWS = 21, 2000
+DAY_GROUPS = ("full", "change", "other")
+TRAIL, HOLD, HORIZON = 63, 21, 121
+REPORT_LAGS = [0, 5, 10, 21, 42, 63, 120]
 
 
-def best_seq(Lk, m):
-    """Lk: (K, T) losses. Returns (min cost over <= m switches, path of arm indices)."""
-    K, T = Lk.shape
-    D = np.full((m + 1, K), np.inf)
-    D[0] = Lk[:, 0]
-    back = np.zeros((T, m + 1, K, 2), dtype=np.int16)
-    arms = np.arange(K)
-    for t in range(1, T):
-        E = np.full((m + 1, K), np.inf)
-        for j in range(m + 1):
-            stay = D[j]
+def best_switching_sequence(losses, max_switches):
+    """Lowest total loss over arm sequences with at most max_switches switches, and that sequence (losses: arms x days)."""
+    n_arms, n_days = losses.shape
+    arms = np.arange(n_arms)
+    cost = np.full((max_switches + 1, n_arms), np.inf)
+    cost[0] = losses[:, 0]
+    back = np.zeros((n_days, max_switches + 1, n_arms, 2), dtype=np.int16)
+    for t in range(1, n_days):
+        new_cost = np.full((max_switches + 1, n_arms), np.inf)
+        for j in range(max_switches + 1):
+            stay = cost[j]
             if j > 0:
-                prev = D[j - 1]
-                order = np.argsort(prev)[:2]
-                sw = np.where(arms == order[0], prev[order[1]], prev[order[0]])   # best other arm
-                fromk = np.where(arms == order[0], order[1], order[0])
+                first, second = np.argsort(cost[j - 1])[:2]
+                switch_from = np.where(arms == first, second, first)
+                switch = cost[j - 1][switch_from]
             else:
-                sw, fromk = np.full(K, np.inf), np.zeros(K, int)
-            take_sw = sw < stay
-            E[j] = Lk[:, t] + np.where(take_sw, sw, stay)
-            back[t, j, :, 0] = np.where(take_sw, j - 1, j)
-            back[t, j, :, 1] = np.where(take_sw, fromk, arms)
-        D = E
-    j, k = np.unravel_index(np.argmin(D), D.shape)
-    cost, path = D[j, k], np.empty(T, int)
-    for t in range(T - 1, -1, -1):
+                switch, switch_from = np.full(n_arms, np.inf), np.zeros(n_arms, int)
+            switched = switch < stay
+            new_cost[j] = losses[:, t] + np.where(switched, switch, stay)
+            back[t, j, :, 0] = np.where(switched, j - 1, j)
+            back[t, j, :, 1] = np.where(switched, switch_from, arms)
+        cost = new_cost
+    j, k = np.unravel_index(np.argmin(cost), cost.shape)
+    total, path = cost[j, k], np.empty(n_days, int)
+    for t in range(n_days - 1, -1, -1):
         path[t] = k
         if t > 0:
             j, k = back[t, j, k]
-    return cost, path
+    return total, path
 
 
-def brute_force_check():
+def check_against_brute_force():
     rng = np.random.default_rng(1)
+    n_days = 7
     for _ in range(200):
-        T = 7
-        Lk = rng.normal(size=(3, T))
-        m = rng.integers(0, 3)
-        best = min(sum(Lk[s[t], t] for t in range(T)) for s in itertools.product(range(3), repeat=T)
-                   if sum(s[t] != s[t - 1] for t in range(1, T)) <= m)
-        c, p = best_seq(Lk, m)
-        assert abs(c - best) < 1e-9 and abs(Lk[p, np.arange(T)].sum() - c) < 1e-9 and (np.diff(p) != 0).sum() <= m
+        losses = rng.normal(size=(3, n_days))
+        max_switches = rng.integers(0, 3)
+        best = min(sum(losses[s[t], t] for t in range(n_days)) for s in itertools.product(range(3), repeat=n_days)
+                   if sum(s[t] != s[t - 1] for t in range(1, n_days)) <= max_switches)
+        total, path = best_switching_sequence(losses, max_switches)
+        assert abs(total - best) < 1e-9
+        assert abs(losses[path, np.arange(n_days)].sum() - total) < 1e-9
+        assert (np.diff(path) != 0).sum() <= max_switches
 
 
-def regrets(S):
-    rows, paths = [], []
-    for est, d in SWITCH_EST.items():
-        for pair, f in outputs(S, d).items():
-            x = eval_days(read(f)).reset_index(drop=True)
-            T = len(x)
-            for fam, (pre, mix, plug) in SET.items():
-                Lk = -x[[f"{pre}fixed_{k}" for k in FIX]].values.T
-                static = Lk.sum(1).min()
-                for m in MS:
-                    cost, path = best_seq(Lk, m)
-                    assert (np.diff(path) != 0).sum() <= m and abs(Lk[path, np.arange(T)].sum() - cost) < 1e-6
-                    assert m > 0 or abs(cost - static) < 1e-6
-                    for meth, c in (("MFF", mix), ("VFF", f"{pre}vff"), ("MFF single density", plug)):
-                        rows.append(dict(estimator=est, copula=fam, m=m, method=meth, pair=pair, regret=1e3 * (-x[c].values.sum() - cost) / T))
+def switching_regrets(workdir):
+    """Per pair, each method's regret against the best sequence with at most m switches; the oracle paths for m = 1, 2."""
+    regrets, oracle_paths = [], []
+    for estimator, folder in SWITCH_ESTIMATORS.items():
+        for pair, path_csv in outputs(workdir, folder).items():
+            days = eval_days(read(path_csv)).reset_index(drop=True)
+            n_days = len(days)
+            for copula, (prefix, mixture, single) in FORECAST_COLUMNS.items():
+                arm_losses = -days[[f"{prefix}fixed_{k}" for k in FIX]].values.T
+                static = arm_losses.sum(1).min()
+                for m in SWITCH_LIMITS:
+                    total, path = best_switching_sequence(arm_losses, m)
+                    assert (np.diff(path) != 0).sum() <= m and abs(arm_losses[path, np.arange(n_days)].sum() - total) < 1e-6
+                    assert m > 0 or abs(total - static) < 1e-6
+                    for method, column in zip(METHODS, (mixture, f"{prefix}vff", single)):
+                        regret = 1e3 * (-days[column].values.sum() - total) / n_days
+                        regrets.append(dict(estimator=estimator, copula=copula, m=m, method=method, pair=pair, regret=regret))
                     if m in (1, 2):
-                        sw = np.flatnonzero(np.diff(path) != 0) + 1
-                        paths.append(dict(estimator=est, copula=fam, m=m, pair=pair, switches=len(sw),
-                                          switch_dates=";".join(str(x.date.iloc[i].date()) for i in sw),
-                                          segments="->".join(str(FIX[s[0]]) for s in np.split(path, sw)),
-                                          gain_vs_static=1e3 * (static - cost) / T))
-    return pd.DataFrame(rows), pd.DataFrame(paths)
+                        switch_days = np.flatnonzero(np.diff(path) != 0) + 1
+                        oracle_paths.append(dict(
+                            estimator=estimator, copula=copula, m=m, pair=pair, switches=len(switch_days),
+                            switch_dates=";".join(str(days.date.iloc[i].date()) for i in switch_days),
+                            segments="->".join(str(FIX[s[0]]) for s in np.split(path, switch_days)),
+                            gain_vs_static=1e3 * (static - total) / n_days))
+    return pd.DataFrame(regrets), pd.DataFrame(oracle_paths)
 
 
-def switching_report(Rg, Pt):
-    columns = f"{'Estimator':18s} {'Method':19s}" + "".join(f"{f'm={m}':>9s}" for m in MS) + "   Negative at m=1"
+def switching_report(regrets, oracle_paths):
+    columns = f"{'Estimator':18s} {'Method':19s}" + "".join(f"{f'm={m}':>9s}" for m in SWITCH_LIMITS) + "   Negative at m=1"
     out = ["Switching regret vs the best fixed-arm sequence with ≤ m switches (×10⁻³ nats/day/pair, mean over 32 pairs)", "", columns]
-    for fam in ("t4", "Gaussian"):
-        out += ["", fam]
-        for est in SWITCH_EST:
-            for meth in ("MFF", "VFF", "MFF single density"):
-                g = Rg[(Rg.estimator == est) & (Rg.copula == fam) & (Rg.method == meth)]
-                neg = int((g[g.m == 1].regret < 0).sum())
-                out.append(f"  {est:16s} {meth:19s}" + "".join(f" {g[g.m == m].regret.mean():+8.2f}" for m in MS) + f"   {neg}/32")
+    for copula in ("t4", "Gaussian"):
+        out += ["", copula]
+        for estimator, method in itertools.product(SWITCH_ESTIMATORS, METHODS):
+            g = regrets[(regrets.estimator == estimator) & (regrets.copula == copula) & (regrets.method == method)]
+            means = "".join(f" {g[g.m == m].regret.mean():+8.2f}" for m in SWITCH_LIMITS)
+            negative = int((g[g.m == 1].regret < 0).sum())
+            out.append(f"  {estimator:16s} {method:19s}" + means + f"   {negative}/32")
     out.append("\nStudent t oracle sequences")
-    for est in SWITCH_EST:
+    t4 = oracle_paths[oracle_paths.copula == "t4"]
+    for estimator in SWITCH_ESTIMATORS:
         for m in (1, 2):
-            g = Pt[(Pt.estimator == est) & (Pt.copula == "t4") & (Pt.m == m)]
-            out.append(f"  {est:16s} m={m}: pairs using all {m} switch(es) {int((g.switches == m).sum())}/32; oracle gain over static "
-                       f"{g.gain_vs_static.mean():.2f} (median {g.gain_vs_static.median():.2f}); most common sequences {g.segments.value_counts().head(4).to_dict()}")
-        g = Pt[(Pt.estimator == est) & (Pt.copula == "t4") & (Pt.m == 1) & (Pt.switches == 1)]
-        out.append(f"  {'':16s} m=1 switch years: {pd.to_datetime(g.switch_dates).dt.year.value_counts().sort_index().to_dict()}")
+            g = t4[(t4.estimator == estimator) & (t4.m == m)]
+            common = g.segments.value_counts().head(4).to_dict()
+            out.append(f"  {estimator:16s} m={m}: pairs using all {m} switch(es) {int((g.switches == m).sum())}/32; oracle gain over static "
+                       f"{g.gain_vs_static.mean():.2f} (median {g.gain_vs_static.median():.2f}); most common sequences {common}")
+        one = t4[(t4.estimator == estimator) & (t4.m == 1) & (t4.switches == 1)]
+        years = pd.to_datetime(one.switch_dates).dt.year.value_counts().sort_index().to_dict()
+        out.append(f"  {'':16s} m=1 switch years: {years}")
     return out
 
 
-def evaldays(x):
+def eval_days_by_date(x):
     x = x.iloc[EVAL_ROW:]
     return x[x.date >= EVAL_FROM].set_index("date")
 
 
-class Days:
-    """Pair x calendar-day cubes on the union of the pairs' evaluation days."""
+class PairDays:
+    """Pair x calendar-day arrays on the union of the pairs' evaluation days."""
 
-    def __init__(self, roll):
-        self.roll = roll
-        self.pairs = list(roll)
-        self.idx = pd.DatetimeIndex(sorted(set().union(*[evaldays(x).index for x in roll.values()])))
+    def __init__(self, rolling):
+        self.rolling = rolling
+        self.pairs = list(rolling)
+        self.dates = pd.DatetimeIndex(sorted(set().union(*[eval_days_by_date(x).index for x in rolling.values()])))
 
-    def change(self, W, lag=LAG):
-        return np.stack([evaldays(x.assign(D=(x[f"rho_roll_{W}"] - x[f"rho_roll_{W}"].shift(lag)).abs())).D.reindex(self.idx).values
-                         for x in self.roll.values()])
+    def change(self, window, lag=CHANGE_LAG):
+        """|rho_roll_window[t] - rho_roll_window[t - lag]|, lagged in each pair's own trading days."""
+        def size(x):
+            rho = x[f"rho_roll_{window}"]
+            return eval_days_by_date(x.assign(D=(rho - rho.shift(lag)).abs())).D.reindex(self.dates).values
+        return np.stack([size(x) for x in self.rolling.values()])
 
-    def cube(self, P, c):
-        return np.stack([P[p][c].reindex(self.idx).values for p in self.pairs])
-
-
-def classify(D, q=0.90, per_pair=True):
-    present = ~np.isnan(D)
-    thr = np.nanquantile(D, q, axis=1, keepdims=True) if per_pair else np.nanquantile(D, q)
-    return (D >= thr) & present, present
+    def stack(self, by_pair, column):
+        return np.stack([by_pair[p][column].reindex(self.dates).values for p in self.pairs])
 
 
-def stat(Dm, M):
-    """Pair-equal mean of Dm over mask M (x 1e3), its moving-block bootstrap interval, and the pairs with a negative mean."""
-    X = np.where(M, Dm, np.nan)
-    ok = ~np.isnan(X)
-    n_pairs, Tn = X.shape
-    Cs = np.concatenate([np.zeros((n_pairs, 1)), np.cumsum(np.nan_to_num(X), 1)], 1)
-    Cn = np.concatenate([np.zeros((n_pairs, 1)), np.cumsum(ok, 1)], 1)
-    has = Cn[:, -1] > 0
-    est = 1e3 * np.mean(Cs[has, -1] / Cn[has, -1])
+def change_days(change, quantile=CHANGE_QUANTILE, per_pair=True):
+    present = ~np.isnan(change)
+    threshold = np.nanquantile(change, quantile, axis=1, keepdims=True) if per_pair else np.nanquantile(change, quantile)
+    return (change >= threshold) & present, present
+
+
+def pair_mean_with_ci(difference, mask):
+    """Pair-equal mean of difference over mask (x 1e3), its moving-block bootstrap 95% interval, and pairs with a negative mean."""
+    values = np.where(mask, difference, np.nan)
+    present = ~np.isnan(values)
+    n_pairs, n_days = values.shape
+    sums = np.concatenate([np.zeros((n_pairs, 1)), np.cumsum(np.nan_to_num(values), 1)], 1)
+    counts = np.concatenate([np.zeros((n_pairs, 1)), np.cumsum(present, 1)], 1)
+    has_days = counts[:, -1] > 0
+    pair_means = sums[has_days, -1] / counts[has_days, -1]
     rng = np.random.default_rng(0)
-    nb = int(np.ceil(Tn / BLOCK))
-    last = Tn - (nb - 1) * BLOCK
-    bs = []
-    for _ in range(BOOT):
-        st = rng.integers(0, Tn - BLOCK + 1, nb)
-        en = st + BLOCK
-        en[-1] = st[-1] + last
-        n = (Cn[:, en] - Cn[:, st]).sum(1)
+    n_blocks = int(np.ceil(n_days / BOOT_BLOCK))
+    last_block = n_days - (n_blocks - 1) * BOOT_BLOCK
+    draws = []
+    for _ in range(BOOT_DRAWS):
+        starts = rng.integers(0, n_days - BOOT_BLOCK + 1, n_blocks)
+        ends = starts + BOOT_BLOCK
+        ends[-1] = starts[-1] + last_block
+        n = (counts[:, ends] - counts[:, starts]).sum(1)
         k = n > 0
-        bs.append(1e3 * np.mean((Cs[k][:, en] - Cs[k][:, st]).sum(1) / n[k]))
-    lo, hi = np.percentile(bs, [2.5, 97.5])
-    return est, lo, hi, int(((Cs[has, -1] / Cn[has, -1]) < 0).sum())
+        draws.append(1e3 * np.mean((sums[k][:, ends] - sums[k][:, starts]).sum(1) / n[k]))
+    lo, hi = np.percentile(draws, [2.5, 97.5])
+    return 1e3 * np.mean(pair_means), lo, hi, int((pair_means < 0).sum())
 
 
-def fmt(r):
-    return f"{r[0]:+6.2f} [{r[1]:+6.2f},{r[2]:+6.2f}]{'*' if r[1] > 0 or r[2] < 0 else ' '} ({r[3]:2d}/32)"
+def format_ci(r):
+    estimate, lo, hi, negative = r
+    star = "*" if lo > 0 or hi < 0 else " "
+    return f"{estimate:+6.2f} [{lo:+6.2f},{hi:+6.2f}]{star} ({negative:2d}/32)"
 
 
-def indexing_check(S, days, D99, CHG, PRESENT):
-    x, t = days.roll["JPM_BAC"], 1000
-    xin = pd.read_csv(f"{S}/rerun/in/JPM_BAC.csv")
-    thr = np.nanquantile(D99, 0.9, axis=1)
+def indexing_check(workdir, days, change, is_change, present):
+    x, t = days.rolling["JPM_BAC"], 1000
+    inputs = pd.read_csv(f"{workdir}/rerun/in/JPM_BAC.csv")
+    spearman = spearmanr(inputs.x[t - 99:t], inputs.y[t - 99:t]).correlation
+    threshold = np.nanquantile(change, CHANGE_QUANTILE, axis=1)
+    spy = threshold[days.pairs.index("SPY_IVV")]
     return [f"CHECK JPM_BAC t=1000: rho_roll_99[t] = {x.rho_roll_99[t]:.8f}, Spearman of rows {t-99}..{t-1} = "
-            f"{spearmanr(xin.x[t-99:t], xin.y[t-99:t]).correlation:.8f}; D_t lags 21 of the pair's own trading days",
-            f"   threshold per pair: median {np.median(thr):.3f}, range {thr.min():.3f}-{thr.max():.3f} (SPY/IVV {thr[days.pairs.index('SPY_IVV')]:.4f}); "
-            f"change pair-days {int(CHG.sum())} of {int(PRESENT.sum())}"]
+            f"{spearman:.8f}; D_t lags 21 of the pair's own trading days",
+            f"   threshold per pair: median {np.median(threshold):.3f}, range {threshold.min():.3f}-{threshold.max():.3f} (SPY/IVV {spy:.4f}); "
+            f"change pair-days {int(is_change.sum())} of {int(present.sum())}"]
 
 
-def losses(S, days):
+def pair_day_losses(workdir, days):
+    """Per estimator: fixed-arm losses and Hedge weights (arm x pair x day), and the MFF, VFF and equal-weight losses."""
     data = {}
-    for e, d in EST:
-        P = {p: evaldays(read(f)) for p, f in outputs(S, d).items()}
-        Lk = np.stack([-days.cube(P, f"lt_fixed_{k}") for k in FIX])
-        data[e] = dict(Lk=Lk, W=np.stack([days.cube(P, f"wt_{k}") for k in FIX]), mff=-days.cube(P, "lt_mffmix_t"),
-                       vff=-days.cube(P, "lt_vff"), eq=-np.log(np.mean(np.exp(-Lk), axis=0)))
+    for label, folder in EST:
+        by_pair = {p: eval_days_by_date(read(f)) for p, f in outputs(workdir, folder).items()}
+        arms = np.stack([-days.stack(by_pair, f"lt_fixed_{k}") for k in FIX])
+        data[label] = dict(arms=arms, weights=np.stack([days.stack(by_pair, f"wt_{k}") for k in FIX]),
+                           mff=-days.stack(by_pair, "lt_mffmix_t"), vff=-days.stack(by_pair, "lt_vff"),
+                           equal=-np.log(np.mean(np.exp(-arms), axis=0)))
     return data
 
 
 def comparisons(data, masks, rows):
     out = ["", "Paired log-loss differences (×10⁻³ nats/day/pair, 95% CI, pairs with lower MFF loss)"]
-    for analysis, title, other in [
-            ("mff-vff", "MFF − VFF", "vff"),
-            ("hedge-equal", "Hedge MFF − equal weights (same five densities)", "eq")]:
+    for analysis, title, other in [("mff-vff", "MFF − VFF", "vff"),
+                                   ("hedge-equal", "Hedge MFF − equal weights (same five densities)", "equal")]:
         out.append(f"\n{title}")
-        for e in data:
+        for label, d in data.items():
             cells = []
-            for lab, M in zip(GROUPS, masks):
-                r = stat(data[e]["mff"] - data[e][other], M)
-                cells.append(f"{lab} {fmt(r)}")
-                rows.append(dict(analysis=analysis, estimator=e, days=lab, est=r[0], lo=r[1], hi=r[2]))
-            out.append(f"   {e:16s} " + " | ".join(cells))
-    n_pairs = data["RMPL"]["Lk"].shape[1]
+            for group, mask in zip(DAY_GROUPS, masks):
+                r = pair_mean_with_ci(d["mff"] - d[other], mask)
+                cells.append(f"{group} {format_ci(r)}")
+                rows.append(dict(analysis=analysis, estimator=label, days=group, est=r[0], lo=r[1], hi=r[2]))
+            out.append(f"   {label:16s} " + " | ".join(cells))
+    n_pairs = data["RMPL"]["arms"].shape[1]
 
-    def regret(e, key):
-        D = data[e]
-        return 1e3 * np.nanmean([np.nanmean(D[key][i]) - min(np.nanmean(D["Lk"][k, i]) for k in range(5)) for i in range(n_pairs)])
+    def regret(d, key):
+        best_arm = [min(np.nanmean(d["arms"][k, i]) for k in range(len(FIX))) for i in range(n_pairs)]
+        return 1e3 * np.nanmean([np.nanmean(d[key][i]) - best_arm[i] for i in range(n_pairs)])
     out.append("   context: regret vs each pair's hindsight-best single arm, full period: "
-               + "; ".join(f"{e}: Hedge {regret(e, 'mff'):+.2f}, equal {regret(e, 'eq'):+.2f}" for e in data))
+               + "; ".join(f"{label}: Hedge {regret(d, 'mff'):+.2f}, equal {regret(d, 'equal'):+.2f}" for label, d in data.items()))
     return out
 
 
 def concentration(data, masks):
     out = ["\nHedge weight concentration (pooled pair-days, weights held before the day)"]
-    for e in data:
-        Wt = data[e]["W"]
-        neff, wmax = 1.0 / np.sum(Wt ** 2, axis=0), np.max(Wt, axis=0)
-        cells = [f"{lab}: N_active median {np.nanmedian(neff[M]):.2f} (mean {np.nanmean(neff[M]):.2f}); "
-                 f"max weight > 0.9 on {np.nanmean(wmax[M] > 0.9):.0%}, > 0.5 on {np.nanmean(wmax[M] > 0.5):.0%}"
-                 for lab, M in zip(("all", "change", "other"), masks)]
-        out += [f"   {e:16s} " + " | ".join(cells),
-                f"   {'':16s} share of arm-pair-days with weight < 0.001: {np.nanmean(Wt[:, masks[0]] < 1e-3):.0%}; "
-                f"smallest weight seen {np.nanmin(Wt):.1e} (fixed-share floor delta/K = 2e-5)"]
+    for label, d in data.items():
+        weights = d["weights"]
+        active, top = 1.0 / np.sum(weights ** 2, axis=0), np.max(weights, axis=0)
+        cells = [f"{group}: N_active median {np.nanmedian(active[m]):.2f} (mean {np.nanmean(active[m]):.2f}); "
+                 f"max weight > 0.9 on {np.nanmean(top[m] > 0.9):.0%}, > 0.5 on {np.nanmean(top[m] > 0.5):.0%}"
+                 for group, m in zip(("all", "change", "other"), masks)]
+        out += [f"   {label:16s} " + " | ".join(cells),
+                f"   {'':16s} share of arm-pair-days with weight < 0.001: {np.nanmean(weights[:, masks[0]] < 1e-3):.0%}; "
+                f"smallest weight seen {np.nanmin(weights):.1e} (fixed-share floor delta/K = 2e-5)"]
     return out
 
 
-def takeovers(Lk, Wt):
-    """Hedge weight paths (lags 0..120) of an arm that becomes the trailing-63-day best and stays so for 21 days."""
-    tw = []
-    for i in range(Lk.shape[1]):
-        ok = ~np.isnan(Lk[0, i])
-        Li, Wi = Lk[:, i, ok], Wt[:, i, ok]
-        T = Li.shape[1]
-        csum = np.concatenate([np.zeros((5, 1)), np.cumsum(Li, 1)], 1)
-        trail = np.full((5, T), np.nan)
-        trail[:, 63:] = (csum[:, 63:T] - csum[:, 0:T - 63]) / 63
-        lead = np.where(np.isnan(trail[0]), -1, np.nanargmin(np.nan_to_num(trail, nan=np.inf), axis=0))
-        for t in range(64, T - 121):
-            if lead[t] != lead[t - 1] and lead[t] >= 0 and (lead[t:t + 21] == lead[t]).all():
-                tw.append(Wi[lead[t], t:t + 121])
-    return np.array(tw)
+def takeovers(arms, weights):
+    """Weight paths (lags 0..HORIZON-1) of an arm that becomes the trailing-TRAIL-day best and stays best for HOLD days."""
+    paths = []
+    n_arms = len(FIX)
+    for pair in range(arms.shape[1]):
+        present = ~np.isnan(arms[0, pair])
+        losses, w = arms[:, pair, present], weights[:, pair, present]
+        n_days = losses.shape[1]
+        cumulative = np.concatenate([np.zeros((n_arms, 1)), np.cumsum(losses, 1)], 1)
+        trailing = np.full((n_arms, n_days), np.nan)
+        trailing[:, TRAIL:] = (cumulative[:, TRAIL:n_days] - cumulative[:, 0:n_days - TRAIL]) / TRAIL
+        leader = np.where(np.isnan(trailing[0]), -1, np.nanargmin(np.nan_to_num(trailing, nan=np.inf), axis=0))
+        for t in range(TRAIL + 1, n_days - HORIZON):
+            new = leader[t] != leader[t - 1] and leader[t] >= 0
+            if new and (leader[t:t + HOLD] == leader[t]).all():
+                paths.append(w[leader[t], t:t + HORIZON])
+    return np.array(paths)
 
 
 def reallocation(data):
     out = ["\nHedge weights after a change in the trailing-63-day leader (new leader best for ≥ 21 days; lags in trading days)"]
-    for e in data:
-        tw = takeovers(data[e]["Lk"], data[e]["W"])
-        days_to_half = f"{np.median([np.argmax(w > 0.5) if (w > 0.5).any() else 121 for w in tw]):.0f}" if len(tw) else "-"
-        out.append(f"   {e:16s} episodes {len(tw)}; median weight of the new trailing-best arm at lag "
-                   + ", ".join(f"{l}: {np.median(tw[:, l]):.2f}" for l in [0, 5, 10, 21, 42, 63, 120])
-                   + f"; share of episodes where it starts below 0.05: {np.mean(tw[:, 0] < 0.05):.0%}; median days until weight > 0.5: " + days_to_half)
+    for label, d in data.items():
+        paths = takeovers(d["arms"], d["weights"])
+        half = [np.argmax(w > 0.5) if (w > 0.5).any() else HORIZON for w in paths]
+        days_to_half = f"{np.median(half):.0f}" if len(paths) else "-"
+        at_lags = ", ".join(f"{lag}: {np.median(paths[:, lag]):.2f}" for lag in REPORT_LAGS)
+        out.append(f"   {label:16s} episodes {len(paths)}; median weight of the new trailing-best arm at lag " + at_lags
+                   + f"; share of episodes where it starts below 0.05: {np.mean(paths[:, 0] < 0.05):.0%}; median days until weight > 0.5: " + days_to_half)
     return out
 
 
-def sensitivity(data, days, D99, CHG, PRESENT):
+def change_vs_other(data, estimators, other, is_change, rest):
+    return [pair_mean_with_ci(data[e]["mff"] - data[e][other], m)[0] for e in estimators for m in (is_change, rest)]
+
+
+def sensitivity(data, days, change, is_change, present):
     out = ["\nChange-day sensitivity (RMPL, counting matrix in brackets)"]
-    for lab, W, q in (("W=99, top 10% (primary)", 99, 0.90), ("W=99, top 5%", 99, 0.95), ("W=99, top 20%", 99, 0.80),
-                      ("W=39, top 10%", 39, 0.90), ("W=199, top 10%", 199, 0.90)):
-        C, Pm = classify(days.change(W), q)
-        O = (~C) & Pm
-        a = [stat(data[e]["mff"] - data[e]["vff"], M)[0] for e in ("RMPL", "Counting matrix") for M in (C, O)]
-        b = [stat(data[e]["mff"] - data[e]["eq"], M)[0] for e in ("RMPL", "Counting matrix") for M in (C, O)]
-        out.append(f"   {lab:24s} MFF-VFF change {a[0]:+6.2f} ({a[2]:+6.2f}) other {a[1]:+6.2f} ({a[3]:+6.2f}) | Hedge-equal change {b[0]:+6.2f} "
-                   f"({b[2]:+6.2f}) other {b[1]:+6.2f} ({b[3]:+6.2f}) | share of primary change days included {np.mean(C[CHG]):.0%}")
-    Cg, Pg = classify(D99, 0.90, per_pair=False)
-    Og = (~Cg) & Pg
-    r = data["RMPL"]
-    out += [f"   pooled threshold {np.nanquantile(D99, 0.9):.3f}: pairs with no change days {int((Cg.sum(1) == 0).sum())}; "
-            f"change share by pair {Cg.sum(1).min() / PRESENT.sum(1).max():.0%}-{(Cg.sum(1) / PRESENT.sum(1)).max():.0%}",
-            f"   {'W=99, top 10% pooled':24s} MFF-VFF change {stat(r['mff'] - r['vff'], Cg)[0]:+6.2f} other {stat(r['mff'] - r['vff'], Og)[0]:+6.2f} | "
-            f"Hedge-equal change {stat(r['mff'] - r['eq'], Cg)[0]:+6.2f} other {stat(r['mff'] - r['eq'], Og)[0]:+6.2f}  (threshold across all pairs; RMPL)"]
+    variants = (("W=99, top 10% (primary)", 99, 0.90), ("W=99, top 5%", 99, 0.95), ("W=99, top 20%", 99, 0.80),
+                ("W=39, top 10%", 39, 0.90), ("W=199, top 10%", 199, 0.90))
+    pair = ("RMPL", "Counting matrix")
+    for label, window, quantile in variants:
+        chg, pres = change_days(days.change(window), quantile)
+        rest = (~chg) & pres
+        a = change_vs_other(data, pair, "vff", chg, rest)
+        b = change_vs_other(data, pair, "equal", chg, rest)
+        out.append(f"   {label:24s} MFF-VFF change {a[0]:+6.2f} ({a[2]:+6.2f}) other {a[1]:+6.2f} ({a[3]:+6.2f}) | Hedge-equal change {b[0]:+6.2f} "
+                   f"({b[2]:+6.2f}) other {b[1]:+6.2f} ({b[3]:+6.2f}) | share of primary change days included {np.mean(chg[is_change]):.0%}")
+    pooled, pooled_present = change_days(change, CHANGE_QUANTILE, per_pair=False)
+    a = change_vs_other(data, ("RMPL",), "vff", pooled, (~pooled) & pooled_present)
+    b = change_vs_other(data, ("RMPL",), "equal", pooled, (~pooled) & pooled_present)
+    counts = pooled.sum(1)
+    out += [f"   pooled threshold {np.nanquantile(change, CHANGE_QUANTILE):.3f}: pairs with no change days {int((counts == 0).sum())}; "
+            f"change share by pair {counts.min() / present.sum(1).max():.0%}-{(counts / present.sum(1)).max():.0%}",
+            f"   {'W=99, top 10% pooled':24s} MFF-VFF change {a[0]:+6.2f} other {a[1]:+6.2f} | "
+            f"Hedge-equal change {b[0]:+6.2f} other {b[1]:+6.2f}  (threshold across all pairs; RMPL)"]
     return out
 
 
-def switching(S):
-    brute_force_check()
-    Rg, Pt = regrets(S)
-    Rg.to_csv(result("switching_per_pair.csv"), index=False)
-    Pt.to_csv(result("switching_paths.csv"), index=False)
+def switching(workdir):
+    check_against_brute_force()
+    regrets, oracle_paths = switching_regrets(workdir)
+    regrets.to_csv(result("switching_per_pair.csv"), index=False)
+    oracle_paths.to_csv(result("switching_paths.csv"), index=False)
     if reports_enabled():
-        write_report(result("switching_results.txt"), switching_report(Rg, Pt))
+        write_report(result("switching_results.txt"), switching_report(regrets, oracle_paths))
 
 
-def hedge_change(S):
-    days = Days({p: read(f) for p, f in outputs(S, "practical_roll2").items()})
-    D99 = days.change(99)
-    CHG, PRESENT = classify(D99)
-    data = losses(S, days)
-    masks = (PRESENT, CHG, (~CHG) & PRESENT)
+def hedge_change(workdir):
+    days = PairDays({p: read(f) for p, f in outputs(workdir, "practical_roll2").items()})
+    change = days.change(CHANGE_WINDOW)
+    is_change, present = change_days(change)
+    data = pair_day_losses(workdir, days)
+    masks = (present, is_change, (~is_change) & present)
     rows = []
     comparison_lines = comparisons(data, masks, rows)
     pd.DataFrame(rows).to_csv(result("hedge_change_results.csv"), index=False)
     if reports_enabled():
-        lines = indexing_check(S, days, D99, CHG, PRESENT) + comparison_lines
-        lines += concentration(data, masks) + reallocation(data) + sensitivity(data, days, D99, CHG, PRESENT)
+        lines = indexing_check(workdir, days, change, is_change, present) + comparison_lines
+        lines += concentration(data, masks) + reallocation(data) + sensitivity(data, days, change, is_change, present)
         write_report(result("hedge_change_results.txt"), lines)
 
 

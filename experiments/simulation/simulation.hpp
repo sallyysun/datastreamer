@@ -3,7 +3,9 @@
 #include <string>
 #include <vector>
 
-#include "strategy_runs.hpp"
+namespace thesis {
+struct H2Table;
+}
 
 namespace strategy_experiments {
 
@@ -30,19 +32,28 @@ struct SeedResults {
     std::vector<EstimatorTrace> estimators;
 };
 
+// What a run records. scores: each strategy's forecast, squared error, excess log loss and H2 (MIXDENS scores MFF
+// with the weighted density mixture); weight_paths: the MFF and plain-Hedge weights (WEIGHTS).
+struct SimulationOptions {
+    bool mixture_density = false;
+    bool scores = true;
+    bool weight_paths = false;
+};
+
 // One scenario and seed: replay the series into each estimator's strategies, scoring each held forecast first.
 class Simulation {
 public:
-    Simulation(const Run& run, std::string scenario, unsigned seed, const std::vector<double>& rates, bool mixture,
-               bool weight_paths = false);
+    Simulation(std::string cop, thesis::H2Table& h2, std::string scenario, unsigned seed, std::vector<double> vff_rates,
+               SimulationOptions options);
     SeedResults run() const;
 
 private:
-    const Run& run_;
+    std::string cop_;
+    thesis::H2Table& h2_;
     std::string scenario_;
     unsigned seed_;
-    const std::vector<double>& rates_;
-    bool mixture_, weight_paths_;
+    std::vector<double> vff_rates_;
+    SimulationOptions options_;
 };
 
 }  // namespace strategy_experiments

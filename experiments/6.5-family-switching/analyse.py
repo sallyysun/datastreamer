@@ -1,4 +1,5 @@
-"""Analyse family identification, adaptation, and predictive accuracy."""
+"""Section 6.5 tables: family identification, adaptation after a switch, and predictive accuracy of family-augmented
+against Gaussian-only MFF."""
 import itertools
 from pathlib import Path
 import sys
@@ -8,7 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 import config as C  # noqa: E402
-from report_output import format_estimate, reports_enabled, write_report  # noqa: E402
+from report_output import format_estimate, md_table, reports_enabled, write_report  # noqa: E402
 from summary_stats import standard_error  # noqa: E402
 
 RESULTS = Path("results")
@@ -16,6 +17,8 @@ CONSTANT_FAMILIES = [(f, C.FAMILY_LONG_TEXT[f]) for f in C.FAMILIES_T31]
 SWITCHES = [(g, f"{C.FAMILY_TEXT[a]} → {C.FAMILY_TEXT[b]}") for g, a, b in C.SWITCHES]
 ESTIMATORS = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 ACCURACY_METRICS = [("excess_x1000", "Excess log loss"), ("h2_x1000", "Squared Hellinger")]
+DENSITY_WINDOWS = ["rec_0_100", "late", "post", "pre"]
+ACCURACY_WINDOWS = ["post", "rec_0_100", "late"]
 BOOTSTRAP_DRAWS, BOOTSTRAP_SEED = 10000, 20261115
 EARLY_END = C.CHANGE + 100
 SETTLED_START = C.CHANGE + 500
@@ -31,52 +34,53 @@ RMPL_HEADER = ["# Section 6.5 — family-augmented vs Gaussian-only MFF (RMPL, K
                f"Mixture forecasts, log loss, η = 1, δ = 10⁻⁴; {len(C.SEEDS)} seeds, switch at {C.CHANGE}, scored from {C.BURN}.\n"]
 
 
-def read_family_results(kind, regime):
+def read_results(kind, regime):
     return pd.read_csv(RESULTS / f"famsw_{kind}_{regime}.csv")
 
 
-def paired_methods(rows, metric, columns="method"):
+def by_method(rows, metric, columns="method"):
     return rows.pivot_table(index="seed", columns=columns, values=metric)
 
 
-def md_table(columns, rows):
-    return (["| " + " | ".join(columns) + " |", "|" + "---|" * len(columns)]
-            + ["| " + " | ".join(r) + " |" for r in rows])
+def whole_run(regime, metric):
+    seeds = read_results("seeds", regime)
+    return by_method(seeds[seeds.window == "whole"], metric)
 
 
-def q(x):
-    def s(a):
-        return "never" if not np.isfinite(a) else f"{a:g}"
-    v = [np.quantile(np.asarray(x, float), p) for p in (.5, .25, .75)]
-    return f"{s(v[0])} [{s(v[1])}, {s(v[2])}]"
+def median_iqr(times):
+    def show(t):
+        return "never" if not np.isfinite(t) else f"{t:g}"
+    median, q1, q3 = (np.quantile(np.asarray(times, float), p) for p in (.5, .25, .75))
+    return f"{show(median)} [{show(q1)}, {show(q3)}]"
 
 
-def crossing(d):
+def crossing(ident):
     """Median [IQR] time to 50% and 90% weight (never reached = infinite), and how many runs reach each."""
-    t50 = np.where(d.t50 >= 0, d.t50, np.inf)
-    t90 = np.where(d.t90 >= 0, d.t90, np.inf)
-    return [q(t50), q(t90), f"{(d.t50 >= 0).sum()}/{len(d)} / {(d.t90 >= 0).sum()}/{len(d)}"]
+    t50 = np.where(ident.t50 >= 0, ident.t50, np.inf)
+    t90 = np.where(ident.t90 >= 0, ident.t90, np.inf)
+    n = len(ident)
+    return [median_iqr(t50), median_iqr(t90), f"{(ident.t50 >= 0).sum()}/{n} / {(ident.t90 >= 0).sum()}/{n}"]
 
 
-def paired(dd):
-    return dd.mean(), 2 * standard_error(dd)
+def paired(diff):
+    return diff.mean(), 2 * standard_error(diff)
 
 
-def lost_majority(d):
-    return f"{int(d.incorrect_majority.sum())}/{len(d)}"
+def lost_majority(ident):
+    return f"{int(ident.incorrect_majority.sum())}/{len(ident)}"
 
 
 def identification():
     initial, switch = [], []
-    for g, gl in CONSTANT_FAMILIES:
-        d, p = read_family_results("ident", g), read_family_results("path", g)
-        w = p[(p.family == g) & (p.t >= C.BURN)]["mean"].mean()
-        initial.append([gl, *crossing(d), lost_majority(d),
-                        f"{d.share_ge50_after.median():.3f} ({d.share_ge50_after.min():.3f})", f"{w:.3f}"])
-    for g, gl in SWITCHES:
-        d, p = read_family_results("ident", g), read_family_results("path", g)
-        w = p[(p.family == d.target.iloc[0]) & (p.t >= SETTLED_START)]["mean"].mean()
-        switch.append([gl, *crossing(d), f"{d.pre_weight_target.mean():.4f}", f"{w:.3f}", lost_majority(d)])
+    for regime, label in CONSTANT_FAMILIES:
+        ident, path = read_results("ident", regime), read_results("path", regime)
+        weight = path[(path.family == regime) & (path.t >= C.BURN)]["mean"].mean()
+        share = ident.share_ge50_after
+        initial.append([label, *crossing(ident), lost_majority(ident), f"{share.median():.3f} ({share.min():.3f})", f"{weight:.3f}"])
+    for regime, label in SWITCHES:
+        ident, path = read_results("ident", regime), read_results("path", regime)
+        weight = path[(path.family == ident.target.iloc[0]) & (path.t >= SETTLED_START)]["mean"].mean()
+        switch.append([label, *crossing(ident), f"{ident.pre_weight_target.mean():.4f}", f"{weight:.3f}", lost_majority(ident)])
     return (["## Initial identification (constant family, uniform start)\n"]
             + md_table(["Family", "50%, median [IQR]", "90%", "reached 50 / 90%", "lost majority", "≥ 50% after (median, min)",
                         f"weight {EVALUATION_TICKS}"], initial)
@@ -87,20 +91,20 @@ def identification():
 
 def density(rows):
     switch, constant = [], []
-    for g, gl in SWITCHES:
-        x = paired_methods(read_family_results("seeds", g), "excess_x1000", ["method", "window"])
+    for regime, label in SWITCHES:
+        loss = by_method(read_results("seeds", regime), "excess_x1000", ["method", "window"])
         cells = []
-        for w in ["rec_0_100", "late", "post", "pre"]:
-            m, se2 = paired(x[("gaussian_mff", w)] - x[("family_mff", w)])
-            rows.append(dict(regime=g, window=w, dL=m, dL_2se=se2, n=len(x)))
-            cells.append(format_estimate(m, se2, "+.1f", ".1f"))
-        switch.append([gl, *cells, f"{x[('gaussian_mff', 'post')].mean():.2f} / {x[('family_mff', 'post')].mean():.2f}"])
-    for g, gl in CONSTANT_FAMILIES:
-        s = read_family_results("seeds", g)
-        x = paired_methods(s[s.window == "whole"], "excess_x1000")
-        m, se2 = paired(x.gaussian_mff - x.family_mff)
-        rows.append(dict(regime=g + "_constant", window="whole", dL=m, dL_2se=se2, n=len(x)))
-        constant.append([gl, format_estimate(m, se2), f"{x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f}"])
+        for window in DENSITY_WINDOWS:
+            diff, err = paired(loss[("gaussian_mff", window)] - loss[("family_mff", window)])
+            rows.append(dict(regime=regime, window=window, dL=diff, dL_2se=err, n=len(loss)))
+            cells.append(format_estimate(diff, err, "+.1f", ".1f"))
+        post = f"{loss[('gaussian_mff', 'post')].mean():.2f} / {loss[('family_mff', 'post')].mean():.2f}"
+        switch.append([label, *cells, post])
+    for regime, label in CONSTANT_FAMILIES:
+        loss = whole_run(regime, "excess_x1000")
+        diff, err = paired(loss.gaussian_mff - loss.family_mff)
+        rows.append(dict(regime=regime + "_constant", window="whole", dL=diff, dL_2se=err, n=len(loss)))
+        constant.append([label, format_estimate(diff, err), f"{loss.gaussian_mff.mean():.2f} / {loss.family_mff.mean():.2f}"])
     return (["\n## Density accuracy: ΔL = Gaussian-only − family (×10⁻³ nats/obs, mean ± 2 SE)\n"]
             + md_table(["Switch", f"early {EARLY_TICKS}", f"later {LATE_TICKS}", f"post {POST_TICKS}", f"pre {PRE_TICKS}",
                         "L Gauss / family (post)"], switch)
@@ -110,53 +114,57 @@ def density(rows):
 
 def rmse():
     rows = []
-    for g, gl in CONSTANT_FAMILIES + SWITCHES:
-        s = read_family_results("seeds", g)
-        x = paired_methods(s[s.window == "whole"], "rmse") * 100
-        m, se2 = paired(x.gaussian_mff - x.family_mff)
-        rows.append([gl, f"{x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f}", format_estimate(m, se2)])
-    guard = pd.concat([read_family_results("ident", g) for g, _ in CONSTANT_FAMILIES + SWITCHES]).n_guard.sum()
+    for regime, label in CONSTANT_FAMILIES + SWITCHES:
+        error = whole_run(regime, "rmse") * 100
+        diff, err = paired(error.gaussian_mff - error.family_mff)
+        rows.append([label, f"{error.gaussian_mff.mean():.2f} / {error.family_mff.mean():.2f}", format_estimate(diff, err)])
+    guard = pd.concat([read_results("ident", regime) for regime, _ in CONSTANT_FAMILIES + SWITCHES]).n_guard.sum()
     return (["\n## ρ_S RMSE ×10⁻², whole run (positive difference favours family)\n"]
             + md_table(["Scenario", "Gauss / family", "difference"], rows)
             + [f"\nNon-finite model log densities replaced by Mff's guard: {int(guard)}."])
 
 
 def accuracy():
+    """Per estimator, switch, window and metric: losses, the paired reduction and the bootstrap percentage reduction."""
     rng = np.random.default_rng(BOOTSTRAP_SEED)
     rows = []
-    for (e, _), (g, _) in itertools.product(ESTIMATORS, SWITCHES):
-        s = read_family_results(f"seeds_h2_{e}", g)
-        for w, (m, _) in itertools.product(["post", "rec_0_100", "late"], ACCURACY_METRICS):
-            x = paired_methods(s[s.window == w], m)
-            G, F = x.gaussian_mff.values, x.family_mff.values
-            dd = G - F
-            idx = rng.integers(0, len(G), size=(BOOTSTRAP_DRAWS, len(G)))
-            bp = 100 * (G[idx].mean(1) - F[idx].mean(1)) / G[idx].mean(1)
-            rows.append(dict(estimator=e, regime=g, window=w, metric=m, L_gauss=G.mean(), L_family=F.mean(),
-                             dL=dd.mean(), dL_2se=2 * standard_error(dd),
-                             pct=100 * (G.mean() - F.mean()) / G.mean(), pct_2se=2 * bp.std(ddof=1),
-                             pct_lo=np.percentile(bp, 2.5), pct_hi=np.percentile(bp, 97.5), min_gauss=G.min(), n=len(G)))
+    for (estimator, _), (regime, _) in itertools.product(ESTIMATORS, SWITCHES):
+        seeds = read_results(f"seeds_h2_{estimator}", regime)
+        for window, (metric, _) in itertools.product(ACCURACY_WINDOWS, ACCURACY_METRICS):
+            loss = by_method(seeds[seeds.window == window], metric)
+            gauss, family = loss.gaussian_mff.values, loss.family_mff.values
+            diff = gauss - family
+            draws = rng.integers(0, len(gauss), size=(BOOTSTRAP_DRAWS, len(gauss)))
+            boot_pct = 100 * (gauss[draws].mean(1) - family[draws].mean(1)) / gauss[draws].mean(1)
+            rows.append(dict(estimator=estimator, regime=regime, window=window, metric=metric, L_gauss=gauss.mean(),
+                             L_family=family.mean(), dL=diff.mean(), dL_2se=2 * standard_error(diff),
+                             pct=100 * (gauss.mean() - family.mean()) / gauss.mean(), pct_2se=2 * boot_pct.std(ddof=1),
+                             pct_lo=np.percentile(boot_pct, 2.5), pct_hi=np.percentile(boot_pct, 97.5),
+                             min_gauss=gauss.min(), n=len(gauss)))
     return pd.DataFrame(rows)
 
 
-def row(D, e, g, w, m):
-    return D[(D.estimator == e) & (D.regime == g) & (D.window == w) & (D.metric == m)].iloc[0]
+def accuracy_row(results, estimator, regime, window, metric):
+    return results[(results.estimator == estimator) & (results.regime == regime) & (results.window == window)
+                   & (results.metric == metric)].iloc[0]
 
 
-def accuracy_report(D):
-    post = D[D.window == "post"]
+def accuracy_report(results):
+    post = results[results.window == "post"]
     main = []
-    for (m, ml), (g, gl), (e, el) in itertools.product(ACCURACY_METRICS, SWITCHES, ESTIMATORS):
-        r = row(D, e, g, "post", m)
-        main.append([ml, gl, el, f"{r.L_gauss:.2f}", f"{r.L_family:.2f}", format_estimate(r.dL, r.dL_2se),
+    for (metric, mlabel), (regime, slabel), (estimator, elabel) in itertools.product(ACCURACY_METRICS, SWITCHES, ESTIMATORS):
+        r = accuracy_row(results, estimator, regime, "post", metric)
+        main.append([mlabel, slabel, elabel, f"{r.L_gauss:.2f}", f"{r.L_family:.2f}", format_estimate(r.dL, r.dL_2se),
                      f"{r.pct:.1f} ± {r.pct_2se:.1f} [{r.pct_lo:.1f}, {r.pct_hi:.1f}]"])
-    windows = [[gl, ml] + [format_estimate(r.dL, r.dL_2se) for r in (row(D, "rmpl", g, w, m) for w in ("rec_0_100", "late", "post"))]
-               for (g, gl), (m, ml) in itertools.product(SWITCHES, ACCURACY_METRICS)]
+    windows = []
+    for (regime, slabel), (metric, mlabel) in itertools.product(SWITCHES, ACCURACY_METRICS):
+        cells = [accuracy_row(results, "rmpl", regime, w, metric) for w in ("rec_0_100", "late", "post")]
+        windows.append([slabel, mlabel] + [format_estimate(r.dL, r.dL_2se) for r in cells])
     spread = []
-    for (m, ml), (g, gl) in itertools.product(ACCURACY_METRICS, SWITCHES):
-        x = post[(post.regime == g) & (post.metric == m)]
-        spread.append([ml, gl, f"{x.pct.max() - x.pct.min():.2f}", f"{x.pct_2se.max():.2f}"])
-    smallest = {m: post[post.metric == m].min_gauss.min() for m, _ in ACCURACY_METRICS}
+    for (metric, mlabel), (regime, slabel) in itertools.product(ACCURACY_METRICS, SWITCHES):
+        cell = post[(post.regime == regime) & (post.metric == metric)]
+        spread.append([mlabel, slabel, f"{cell.pct.max() - cell.pct.min():.2f}", f"{cell.pct_2se.max():.2f}"])
+    smallest = {metric: post[post.metric == metric].min_gauss.min() for metric, _ in ACCURACY_METRICS}
     return (["# Section 6.5 accuracy across estimators: family-augmented vs Gaussian-only MFF\n",
              f"Post-switch ({POST_TICKS}), ×10⁻³. % = 100 (L_G − L_F)/L_G, ± 2 SE and 95% CI by paired-seed bootstrap.\n"]
             + md_table(["Metric", "Switch", "Estimator", "Gauss", "Family", "reduction ± 2 SE", "% ± 2 SE [95% CI]"], main)
