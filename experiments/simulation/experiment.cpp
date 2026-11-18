@@ -172,7 +172,9 @@ StrategyResults::StrategyResults(const Run& run, const StrategyOptions& options)
     fdump_ = dseed ? std::fopen(("results/strategies_dump_" + options.dump_scenario + "_s" + dseed + sfx + ".csv").c_str(), "w") : nullptr;
     if (fdump_) std::fprintf(fdump_, "estimator,strategy,t,forecast,rho_true\n");
     fx_ = (run.tag && !paths_) ? std::fopen(("results/strategies_extremes" + sfx + ".csv").c_str(), "w") : nullptr;
-    if (!fs_ || !fj_ || (paths_ && !dseed && !fp_) || (dseed && !fdump_) || (run.tag && !paths_ && !fx_)) return;
+    if (!fs_ || !fj_ || (options.mixdens && !fmc_) || (paths_ && !dseed && !fp_) || (dseed && !fdump_) ||
+        (run.tag && !paths_ && !fx_))
+        return;
     ok_ = true;
     if (fx_) std::fprintf(fx_, "copula,scenario,estimator,strategy,ex_mean,ex_median,ex_max,top1pct_share,seeds_extreme,seedticks_extreme\n");
     if (fp_) std::fprintf(fp_, "copula,scenario,estimator,strategy,t,mse,ex_mean,ex_median,ex_max,h2_mean,n_extreme,rho_true,est_mean,est_q10,est_q90\n");

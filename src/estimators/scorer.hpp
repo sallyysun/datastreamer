@@ -4,6 +4,7 @@
 // loss at the true PIT and H^2 at the checkpoints, then window means. Evaluation only: it needs the truth a deployed
 // device never sees, and it keeps every tick (memory grows with the stream).
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -43,11 +44,12 @@ public:
                 for (std::size_t i = 0; i < s.size(); ++i) {
                     const auto& rs = rows_[r0 + i];
                     double a = 0, b = 0, h = 0; int nh = 0;
-                    for (std::size_t t = w.a; t < w.b && t < rs.size(); ++t) {
+                    const std::size_t end = std::min<std::size_t>(w.b, rs.size());
+                    for (std::size_t t = w.a; t < end; ++t) {
                         a += rs[t].squared_error; b += rs[t].excess;
                         if (!std::isnan(rs[t].h2) && (dense || (t - kBurn) % 50 == 0)) { h += rs[t].h2; ++nh; }
                     }
-                    const double n = double(w.b - w.a);
+                    const double n = end > w.a ? double(end - w.a) : 0.0;
                     std::fprintf(out, "%s,%s,%s,%s,%u,%s,%.8f,%.6f,%.6f\n", fam_.c_str(), sc_.c_str(), s.name().c_str(),
                                  names[i].c_str(), seed, w.name, std::sqrt(a / n), 1000 * b / n, nh ? 1000 * h / nh : NAN);
                 }
