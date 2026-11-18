@@ -40,8 +40,8 @@ inline bool scorable(const std::string& family) {
     return copula::family_from_name(family).has_value();
 }
 
-inline double true_param(const std::string& family, double knob) {
-    return copula::param_from_spearman(family_of(family), copula::target_spearman(knob));
+inline double true_param(const std::string& family, double target) {
+    return copula::param_from_spearman(family_of(family), target);
 }
 
 struct Win { const char* name; std::size_t a, b; };

@@ -28,7 +28,7 @@ def regrets(S):
                     worst = max(worst, abs(orc - min(L.values())))
                 rows += [dict(estimator=e, m=m, method=f"fixed{k}", pair=p, regret=L[k] - orc) for k in FIX]
                 rows += [dict(estimator=e, m=m, method=k, pair=p, regret=g[k]) for k in ("VFF", "MFF")]
-    print(f"CHECK static oracle from switching_per_pair.csv vs min fixed loss: max |diff| = {worst:.2e}")
+    verbose_print(f"CHECK static oracle from switching_per_pair.csv vs min fixed loss: max |diff| = {worst:.2e}")
     return pd.DataFrame(rows).groupby(["estimator", "m", "method"]).regret.mean()
 
 

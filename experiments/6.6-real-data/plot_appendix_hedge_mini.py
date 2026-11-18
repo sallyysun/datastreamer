@@ -48,7 +48,7 @@ def main():
     CI = pd.read_csv(result("hedge_change_results.csv"))
     CI = CI[(CI.analysis == "hedge-equal") & (CI.days == "full")].set_index("estimator")
     vals = differences(sys.argv[1])
-    print("CHECK mean over pairs vs hedge_change_results.csv: max |diff| = %.2e" % max(abs(vals[e].mean() - CI.loc[e, "est"]) for e, _ in EST))
+    verbose_print("CHECK mean over pairs vs hedge_change_results.csv: max |diff| = %.2e" % max(abs(vals[e].mean() - CI.loc[e, "est"]) for e, _ in EST))
     figure(vals, CI)
     for e, _ in EST:
         v = vals[e]

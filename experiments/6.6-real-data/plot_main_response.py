@@ -47,7 +47,7 @@ def checks(Bp, Pl):
             if k in g.index:
                 wm = max(wm, abs(round(g.loc[k, "pooled_median_ratio"], 2) - REF_MED[e][j]))
                 wd = max(wd, abs(round(100 * g.loc[k, "pooled_same_direction"]) - REF_DIR[e][j]))
-    print(f"CHECK pooled medians vs verified (2 dp): max |diff| = {wm:.2f}; direction agreement vs verified (whole %): max |diff| = {wd:.0f}")
+    verbose_print(f"CHECK pooled medians vs verified (2 dp): max |diff| = {wm:.2f}; direction agreement vs verified (whole %): max |diff| = {wd:.0f}")
     zero = Bp[Bp.median_ratio == 0]
     verbose_print("per-pair medians equal to 0:", zero[["estimator", "pair", "series"]].values.tolist())
     assert set(map(tuple, zero[["estimator", "pair"]].values)) <= {("Hermite series", "SPY_IVV")}

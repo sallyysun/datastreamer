@@ -12,7 +12,6 @@
 #include <string_view>
 #include <vector>
 
-#include "gaussian_copula_objective.hpp"
 #include "special_functions.hpp"
 
 // Parametric copula families: log-density, CDF, parameter bounds, and the Spearman conversion by Gauss-Legendre on
@@ -105,15 +104,12 @@ struct Gaussian {
     static constexpr double kMaxParam = 0.999;
 
     static double log_density(double u, double v, double rho) {
-        return GaussianCopulaObjective::log_likelihood(
-            special::normal_ppf(u), special::normal_ppf(v), rho);
+        const double zx = special::normal_ppf(u), zy = special::normal_ppf(v);
+        const double d = 1.0 - rho * rho;
+        const double q = rho * rho * (zx * zx + zy * zy) - 2.0 * rho * zx * zy;
+        return -0.5 * std::log(d) - q / (2.0 * d);
     }
 };
-
-inline double target_spearman(double knob) {
-    const double rho = std::clamp(knob, Gaussian::kMinParam, Gaussian::kMaxParam);
-    return 6.0 / std::numbers::pi * std::asin(rho / 2.0);
-}
 
 struct StudentT {
     static constexpr double kMinParam = -0.999;
@@ -200,7 +196,6 @@ struct SpearmanTable {
             return std::clamp(param[k - 1] + t * (param[k] - param[k - 1]), lo, hi);
         }
 
-        // Student-t quadrature can make the table nonmonotone near its endpoints.
         for (int it = 0; it < 60; ++it) {
             const double mid = 0.5 * (lo + hi);
             if (spearman(mid) < target) lo = mid;
@@ -227,6 +222,48 @@ SpearmanTable build_spearman_table(double lo, double hi, Parameter parameter, Ra
     return table;
 }
 
+// Spearman's rho of the t copula. A density integral on the unit square misses its corner mass (0.0024 too high at
+// r = 0.81, nu = 4), so this uses the exact representation rho_S = (6/pi) E[asin(r / sqrt((1 + W0/W1)(1 + W0/W2)))],
+// (W0, W1, W2) ~ Dirichlet(nu/2, nu/2, nu/2), written as W0 = A, W1 = (1 - A) B, W2 = (1 - A)(1 - B) with
+// A ~ Beta(nu/2, nu), B ~ Beta(nu/2, nu/2), by Gauss-Legendre on [0, 1]^2; odd in r, tabulated on 4001 points.
+inline SpearmanTable student_t_spearman_table(double nu) {
+    static const GaussLegendre gl(256);
+    const std::size_t n = gl.x.size();
+    const double a = nu / 2.0;
+    const double ca = std::lgamma(3.0 * a) - std::lgamma(a) - std::lgamma(2.0 * a);
+    const double cb = std::lgamma(2.0 * a) - 2.0 * std::lgamma(a);
+    std::vector<double> wa(n), wb(n), scale(n * n);
+    for (std::size_t i = 0; i < n; ++i) {
+        const double x = gl.x[i];
+        wa[i] = gl.w[i] * std::exp(ca + (a - 1.0) * std::log(x) + (2.0 * a - 1.0) * std::log1p(-x));
+        wb[i] = gl.w[i] * std::exp(cb + (a - 1.0) * (std::log(x) + std::log1p(-x)));
+    }
+    for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t j = 0; j < n; ++j) {
+            const double A = gl.x[i], B = gl.x[j];
+            const double x = A / ((1.0 - A) * B), y = A / ((1.0 - A) * (1.0 - B));
+            scale[i * n + j] = 1.0 / std::sqrt((1.0 + x) * (1.0 + y));
+        }
+    constexpr int kHalf = 2000;
+    SpearmanTable t{StudentT::kMinParam, StudentT::kMaxParam, std::vector<double>(2 * kHalf + 1), std::vector<double>(2 * kHalf + 1)};
+    for (int k = 0; k <= kHalf; ++k) {
+        const double r = StudentT::kMaxParam * k / kHalf;
+        double e = 0.0;
+        for (std::size_t i = 0; i < n; ++i) {
+            double row = 0.0;
+            for (std::size_t j = 0; j < n; ++j) row += wb[j] * std::asin(r * scale[i * n + j]);
+            e += wa[i] * row;
+        }
+        const double rho = 6.0 / std::numbers::pi * e;
+        t.param[kHalf + k] = r;
+        t.rho_s[kHalf + k] = rho;
+        t.param[kHalf - k] = -r;
+        t.rho_s[kHalf - k] = -rho;
+    }
+    t.monotone = std::is_sorted(t.rho_s.begin(), t.rho_s.end());
+    return t;
+}
+
 inline const SpearmanTable& student_t_table(double nu) {
     // Cache immutable tables by degrees of freedom. Repeat calls on one thread skip the lock.
     thread_local double last_nu = -1.0;
@@ -237,16 +274,7 @@ inline const SpearmanTable& student_t_table(double nu) {
         std::lock_guard<std::mutex> lock(mu);
         auto& slot = tables[nu];
         if (!slot) {
-            slot = std::make_unique<const SpearmanTable>(build_spearman_table(
-                StudentT::kMinParam, StudentT::kMaxParam,
-                [](int k, int grid) {
-                    return StudentT::kMinParam
-                        + (StudentT::kMaxParam - StudentT::kMinParam) * static_cast<double>(k) / grid;
-                },
-                [nu](double r) {
-                    return spearman_integral(
-                        [r, nu](double u, double v) { return std::exp(StudentT::log_density(u, v, r, nu)); });
-                }));
+            slot = std::make_unique<const SpearmanTable>(student_t_spearman_table(nu));
         }
         last = slot.get();
         last_nu = nu;

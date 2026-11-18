@@ -16,15 +16,16 @@
 // Sample paired normal scores under the chosen copula family.
 namespace dgp {
 
+// target: the scenario's Spearman rho at this step; rho_s: the Spearman rho the sampled parameter achieves.
 struct CopulaDraw {
     double x, y;
-    double knob;
+    double target;
     double rho_s;
 };
 
 struct Copula {
     virtual ~Copula() = default;
-    virtual CopulaDraw sample(double d, std::mt19937& rng) = 0;
+    virtual CopulaDraw sample(double target, std::mt19937& rng) = 0;
     virtual const char* name() const = 0;
 };
 
@@ -36,11 +37,11 @@ inline double to_normal_score(double u) {
 
 class GaussianCopula : public Copula {
 public:
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double rho = std::clamp(d, copula::Gaussian::kMinParam, copula::Gaussian::kMaxParam);
+    CopulaDraw sample(double target, std::mt19937& rng) override {
+        const double rho = copula::param_from_spearman(copula::Family::Gaussian, target);
         const double z1 = normal_(rng);
         const double z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng);
-        return {z1, z2, rho, copula::target_spearman(d)};
+        return {z1, z2, target, copula::spearman_from_param(copula::Family::Gaussian, rho)};
     }
     const char* name() const override { return "gaussian"; }
 
@@ -50,15 +51,14 @@ private:
 
 class ClaytonCopula : public Copula {
 public:
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double target = copula::target_spearman(d);
+    CopulaDraw sample(double target, std::mt19937& rng) override {
         const double th = copula::param_from_spearman(copula::Family::Clayton, target);
         const double u1 = unif_(rng);
         const double w = unif_(rng);
         const double u2 = std::pow(
             std::pow(u1, -th) * (std::pow(w, -th / (1.0 + th)) - 1.0) + 1.0, -1.0 / th);
         const double achieved = copula::spearman_from_param(copula::Family::Clayton, th);
-        return {detail::to_normal_score(u1), detail::to_normal_score(u2), d, achieved};
+        return {detail::to_normal_score(u1), detail::to_normal_score(u2), target, achieved};
     }
     const char* name() const override { return "clayton"; }
 
@@ -68,8 +68,7 @@ private:
 
 class GumbelCopula : public Copula {
 public:
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double target = copula::target_spearman(d);
+    CopulaDraw sample(double target, std::mt19937& rng) override {
         const double th = copula::param_from_spearman(copula::Family::Gumbel, target);
         double u1, u2;
         if (th <= 1.0 + 1e-9) {
@@ -82,7 +81,7 @@ public:
             u2 = std::exp(-std::pow(e2 / m, 1.0 / th));
         }
         const double achieved = copula::spearman_from_param(copula::Family::Gumbel, th);
-        return {detail::to_normal_score(u1), detail::to_normal_score(u2), d, achieved};
+        return {detail::to_normal_score(u1), detail::to_normal_score(u2), target, achieved};
     }
     const char* name() const override { return "gumbel"; }
 
@@ -102,8 +101,7 @@ private:
 class StudentTCopula : public Copula {
 public:
     explicit StudentTCopula(double nu) : nu_(nu) {}
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        const double target = copula::target_spearman(d);
+    CopulaDraw sample(double target, std::mt19937& rng) override {
         const double rho = copula::param_from_spearman(copula::Family::StudentT, target, nu_);
         const double z1 = normal_(rng);
         const double z2 = rho * z1 + std::sqrt(1.0 - rho * rho) * normal_(rng);
@@ -111,7 +109,7 @@ public:
         const double u1 = special::t_cdf(z1 / s, nu_);
         const double u2 = special::t_cdf(z2 / s, nu_);
         const double achieved = copula::spearman_from_param(copula::Family::StudentT, rho, nu_);
-        return {detail::to_normal_score(u1), detail::to_normal_score(u2), d, achieved};
+        return {detail::to_normal_score(u1), detail::to_normal_score(u2), target, achieved};
     }
     const char* name() const override { return "student_t"; }
 
@@ -129,8 +127,8 @@ public:
         : before_(std::move(before)), after_(std::move(after)),
           switch_tick_(switch_tick), name_(name) {}
 
-    CopulaDraw sample(double d, std::mt19937& rng) override {
-        return (t_++ < switch_tick_) ? before_->sample(d, rng) : after_->sample(d, rng);
+    CopulaDraw sample(double target, std::mt19937& rng) override {
+        return (t_++ < switch_tick_) ? before_->sample(target, rng) : after_->sample(target, rng);
     }
     const char* name() const override { return name_; }
 

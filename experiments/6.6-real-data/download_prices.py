@@ -34,7 +34,7 @@ def main():
             continue
         r = fetch(s)
         if r is None:
-            print("FAIL", s)
+            print("FAIL", s, file=sys.stderr)
             continue
         ts = r["timestamp"]
         adj = (r["indicators"].get("adjclose") or [{}])[0].get("adjclose") or r["indicators"]["quote"][0]["close"]
@@ -42,7 +42,6 @@ def main():
             w = csv.writer(f)
             w.writerow(["unix", "adj"])
             w.writerows([t, a] for t, a in zip(ts, adj) if a)
-        print(s, len(ts), time.strftime("%Y-%m-%d", time.gmtime(ts[0])), flush=True)
         time.sleep(0.3)
 
 

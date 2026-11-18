@@ -11,8 +11,8 @@ def main(config_path, output_path):
     memories = config["memories"]
     if len(memories) != 5:
         raise ValueError("Chapter 6 reports expect five fixed-memory arms")
-    drift_from, drift_to = config["drift_knobs"]
-    jump_from, jump_to = config["jump_knobs"]
+    drift_from, drift_to = config["drift_rho_s"]
+    jump_from, jump_to = config["jump_rho_s"]
     vff_slow, vff_fast = config["vff_rates"]
     memory_values = ", ".join(map(str, memories))
     memory_csv = ",".join(map(str, memories))
@@ -29,7 +29,7 @@ inline constexpr std::size_t kBurn = {config["burn_in"]};
 inline constexpr std::size_t kChange = {config["change_point"]};
 inline constexpr unsigned kFirstSeed = {config["first_seed"]};
 inline constexpr int kSeedCount = {config["seed_count"]};
-inline constexpr double kConstantKnob = {config["constant_knob"]};
+inline constexpr double kConstantRhoS = {config["constant_rho_s"]};
 inline constexpr double kDriftFrom = {drift_from};
 inline constexpr double kDriftTo = {drift_to};
 inline constexpr double kJumpFrom = {jump_from};

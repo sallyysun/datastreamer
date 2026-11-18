@@ -36,7 +36,7 @@ def main():
 
     def val(e, r, k):
         return Lv[(Lv.estimator == e) & (Lv.regime == r) & (Lv.strategy == k)].loss.iloc[0]
-    print("CHECK MFF - VFF vs verified (2 dp): max |diff| = %.3f" % max(abs(round(val(e, r, "mff") - val(e, r, "vff"), 2) - ref[i])
+    verbose_print("CHECK MFF - VFF vs verified (2 dp): max |diff| = %.3f" % max(abs(round(val(e, r, "mff") - val(e, r, "vff"), 2) - ref[i])
                                                                    for e, ref in REF.items() for i, (r, _) in enumerate(REG)))
     span = max(max(val(e, r, k) for e, _ in EST for k, *_ in ST) - min(val(e, r, k) for e, _ in EST for k, *_ in ST) for r, _ in REG) * 1.12
     with plt.rc_context(RC):

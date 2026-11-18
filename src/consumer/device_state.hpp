@@ -39,7 +39,7 @@ public:
             if (scorer_ || (!scenario_.empty() && thesis::scorable(event.x.true_family))) {
                 if (!scorer_) scorer_ = std::make_unique<thesis::Scorer>(event.x.true_family, scenario_);
                 scorer_->observe(dev_, dev_.count(), event.x.true_rho_s, event.x.true_pit, event.y.true_pit,
-                                 thesis::true_param(event.x.true_family, event.x.true_knob));
+                                 thesis::true_param(event.x.true_family, event.x.true_target));
             }
             dev_.update(rx, ry);
         });

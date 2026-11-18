@@ -19,10 +19,8 @@ VMAX = float(os.environ.get("V_NMAX", "2000"))
 
 
 def drift_rate():
-    """RMS of d rho_S / dt along the matched drift path over the evaluation window."""
-    t = np.arange(C.BURN, C.T)
-    r = C.DRIFT_FROM + C.DRIFT_SPAN * t / (C.T - 1)
-    return np.sqrt(np.mean(((3 / np.pi) / np.sqrt(1 - r ** 2 / 4) * C.DRIFT_SPAN / (C.T - 1)) ** 2))
+    """d rho_S / dt along the drift path, which is linear in rho_S."""
+    return C.DRIFT_SPAN / (C.T - 1)
 
 
 def load(name):

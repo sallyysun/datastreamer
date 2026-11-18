@@ -39,7 +39,7 @@ Stream make_stream(const std::string& family, const std::string& scenario, unsig
         stream.x.push_back(sample.x);
         stream.y.push_back(sample.y);
         stream.rho.push_back(sample.rho_s);
-        stream.par.push_back(copula::param_from_spearman(generating_family, copula::target_spearman(sample.knob)));
+        stream.par.push_back(copula::param_from_spearman(generating_family, sample.target));
         stream.u.push_back(sample.u);
         stream.v.push_back(sample.v);
         stream.pu.push_back(sample.true_u);
@@ -165,7 +165,7 @@ int run_famswitch(const Run& run) {
         double worst = 0;
         for (int wi = 1; wi < 4; ++wi) {
             const int wis[3] = {wi, wi, 0}; const double rhs[3] = {0.31, 0.6123, 0.55}, wss[3] = {0.3, 0.5, 0.2};
-            const double par = copula::param_from_spearman(WF[wi], 0.582);
+            const double par = copula::param_from_spearman(WF[wi], thesis::kConstantRhoS);
             const dmetric::Table tt(h2.g, [&](double a, double b) { const double l = copula::log_density(WF[wi], a, b, par); return std::isfinite(l) ? std::exp(l) : 0.0; });
             const dmetric::Table mt(h2.g, [&](double a, double b) { double m = 0; for (int k = 0; k < 3; ++k) { const double th = wis[k] == 0 ? copula::param_from_spearman(copula::Family::Gaussian, rhs[k]) : copula::param_from_spearman(WF[wis[k]], rhs[k]); const double l = copula::log_density(WF[wis[k]], a, b, th); m += wss[k] * (std::isfinite(l) ? std::exp(l) : 0.0); } return m; });
             const double ex = dmetric::hellinger2(h2.g, tt, mt), tb = h2mix(wi, par, wis, rhs, wss, 3);
@@ -208,7 +208,7 @@ int run_famswitch(const Run& run) {
                 bool ready = t >= 30;
                 for (std::size_t k = 0; k < kK; ++k) { f[k] = arms[k]->estimate(); ready = ready && arms[k]->ready(); }
                 const int gt = t < kChange ? G0[g] : G1[g];
-                const double part = copula::param_from_spearman(WF[gt], copula::target_spearman(thesis::kConstantKnob));
+                const double part = copula::param_from_spearman(WF[gt], thesis::kConstantRhoS);
                 const double lc = copula::log_density(WF[gt], s.pu[t], s.pv[t], part);
                 for (int wi = 0; wi < 4; ++wi)
                     for (std::size_t k = 0; k < kK; ++k) {
@@ -291,7 +291,6 @@ int run_famswitch(const Run& run) {
                 const double mu = ps[wi * kN + t] / seeds, var = std::max(0.0, pq[wi * kN + t] / seeds - mu * mu) * seeds / (seeds - 1.0);
                 std::fprintf(fp, "%s,%zu,%s,%.6f,%.6f\n", GN[g], t, WN[wi], mu, std::sqrt(var));
             }
-        std::printf("%s famswitch done\n", GN[g]); std::fflush(stdout);
     }
     std::fclose(fo); std::fclose(fi); std::fclose(fp);
     return 0;
@@ -492,7 +491,6 @@ int run_scoresfam(const Run& run) {
                 }
             }
         }
-        std::printf("%s %s scoresfam done\n", cop.c_str(), sc.c_str());
         std::fflush(stdout);
     }
     std::fclose(fo); std::fclose(fd);
@@ -563,7 +561,6 @@ int run_regretfam(const Run& run) {
                 }
             }
         }
-        std::printf("%s %s regretfam done\n", cop.c_str(), sc.c_str());
     }
     std::fclose(fr);
     return 0;
@@ -659,7 +656,6 @@ int run_regret(const Run& run) {
                             std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), kEst[ei], deltas[di],
                                          lo ? "point" : "mix", m, t, mu, std::sqrt(var));
                         }
-        std::printf("%s %s regret done\n", cop.c_str(), sc.c_str());
     }
     std::fclose(fr); std::fclose(fc);
     return 0;
@@ -772,7 +768,6 @@ int run_scores(const Run& run) {
                         std::fprintf(fj2, "%s,%s,%s,%g,%zu,%.8g,%.6g\n", cop.c_str(), kEst[ei], lg ? "log" : "squared", eta, t,
                                      jse[ei * M + i][t] / seeds, 1000 * jex[ei * M + i][t] / seeds);
                 }
-        std::printf("%s %s scores done\n", cop.c_str(), sc.c_str());
     }
     std::fclose(fo); std::fclose(fj2);
     return 0;
@@ -836,7 +831,6 @@ int run_weights(const Run& run) {
                     for (std::size_t k = 0; k < kK; ++k) std::fprintf(fw, ",%.6g", ws[b * kK + k] / seeds);
                     std::fprintf(fw, ",%.8g,%.6g,%.6g\n", es[b] / seeds, rt[t], fsum[b] / seeds);
                 }
-        std::printf("%s %s weights done\n", cop.c_str(), sc.c_str());
     }
     std::fclose(fw); std::fclose(fc);
     return 0;
@@ -1003,7 +997,6 @@ int run_strategies(const Run& run) {
                 for (std::size_t i = 0; i < S; ++i)
                     for (std::size_t t = kBurn; t < kN; ++t)
                         std::fprintf(fj, "%s,%s,%s,%zu,%.8g\n", cop.c_str(), kEst[ei], kStrat[i].c_str(), t, jsum[ei][i][t] / seeds);
-        std::printf("%s %s done\n", cop.c_str(), sc.c_str());
     }
     std::fclose(fs); std::fclose(fj);
     if (fp) std::fclose(fp);

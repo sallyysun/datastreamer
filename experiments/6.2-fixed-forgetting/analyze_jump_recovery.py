@@ -14,7 +14,7 @@ FAMS = [(f, C.sfx(f)) for f in C.FAMILIES]
 EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 MEM = [(f"{m}.000000", str(m)) for m in C.MEMORIES] + [("nocum", "No forgetting")]
 RUN, THR = 20, 0.1
-PRE, POST = C.rho_s(C.JUMP_KNOB[0]), C.rho_s(C.JUMP_KNOB[1])
+PRE, POST = C.JUMP_RHO_S
 GAP = abs(PRE - POST)
 
 

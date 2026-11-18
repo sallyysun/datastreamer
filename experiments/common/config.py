@@ -9,10 +9,10 @@ with (Path(__file__).resolve().parents[2] / "study_config.json").open() as file:
 # Simulation design (Table 6.2)
 SEEDS = range(STUDY["first_seed"], STUDY["first_seed"] + STUDY["seed_count"])
 T, BURN, CHANGE = (STUDY[key] for key in ("observations", "burn_in", "change_point"))
-CONSTANT_KNOB = STUDY["constant_knob"]
-DRIFT_FROM, DRIFT_TO = STUDY["drift_knobs"]
+CONSTANT_RHO_S = STUDY["constant_rho_s"]                    # target Spearman rho of each scenario
+DRIFT_FROM, DRIFT_TO = STUDY["drift_rho_s"]
 DRIFT_SPAN = float(Decimal(str(DRIFT_TO)) - Decimal(str(DRIFT_FROM)))
-JUMP_KNOB = tuple(STUDY["jump_knobs"])
+JUMP_RHO_S = tuple(STUDY["jump_rho_s"])
 SCENARIOS = ["constant", "drift", "jump"]
 SCENARIO_LABEL = {"constant": "Constant", "drift": "Gradual drift", "jump": "Abrupt jump"}
 WINDOWS = {"constant": ["whole"], "drift": ["whole"], "jump": ["whole", "pre", "rec_0_100", "rec_100_500", "post"]}
@@ -30,12 +30,6 @@ FAMILY_COLOUR = {"gaussian": "#9a9a9a", "t": "#C2185B", "clayton": "#8E6BB8", "g
 
 def sfx(family):
     return "" if family == "gaussian" else "_" + family
-
-
-def rho_s(d):
-    """Spearman's rho of the dependence knob d (the Gaussian-equivalent correlation)."""
-    import numpy as np
-    return 6 / np.pi * np.arcsin(d / 2)
 
 
 # Estimators (Chapter 4). The plotting colour table keys RMPL as "mle".

@@ -142,5 +142,4 @@ int main() {
     out << "seed,variant,rmse_all,rmse_late\n";
     for (std::size_t v = 0; v < V.size(); ++v)
         for (std::size_t s = 0; s < nseed; ++s) out << 42 + s << ',' << V[v].name << ',' << all[v][s] << ',' << late[v][s] << '\n';
-    std::fprintf(stderr, "wrote results/margins_seeds.csv\n");
 }

@@ -53,7 +53,7 @@ def main():
         fig.subplots_adjust(left=0.19, right=0.975, top=0.86, bottom=0.13, hspace=0.6)
         fig.savefig(image(f"ch6_practical_final_change_days{TAG}.png"))
         plt.close(fig)
-    print("CHECK MFF - fixed 199 level differences vs mff_vs_fixed199.txt (change, other): max |diff| = %.3f" % max(
+    verbose_print("CHECK MFF - fixed 199 level differences vs mff_vs_fixed199.txt (change, other): max |diff| = %.3f" % max(
         abs(val(e, "mff", s) - val(e, "fixed199", s) - r) for e, ref in REF.items() for s, r in zip(("change", "other"), ref)))
     verbose_print(Lv.pivot_table(index=["estimator", "strategy"], columns="days", values="loss").round(2).to_string())
     verbose_print(f"common span {span:.1f}")

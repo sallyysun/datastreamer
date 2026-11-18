@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 
 EST = ["mpl_dskll", "xiao", "hermite"]
@@ -50,7 +51,7 @@ def main():
     sel = select(sw, SD)
     sel.to_csv("results/budget_selected.csv", index=False)
     gains(sel, SD).to_csv("results/budget_gain.csv", index=False)
-    print("wrote results/budget_selected.csv, results/budget_gain.csv")
+    verbose_print("wrote results/budget_selected.csv, results/budget_gain.csv")
 
 
 if __name__ == "__main__":

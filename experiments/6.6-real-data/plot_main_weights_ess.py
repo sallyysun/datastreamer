@@ -112,7 +112,7 @@ def main():
     lags = (-21, 0, 21, 63, 126)
     at = {l: int(np.where(LAGS == l)[0][0]) for l in lags}
     verbose_print(f"episode starts (all pairs): {sum(len(v) for v in starts.values())}; with full window: " + ", ".join(f"{e} {res[e]['n']}" for e, _ in EST))
-    print(f"CHECK VFF controller N_eff identical across the three estimators: max |diff| = {vff_same:.3g}")
+    verbose_print(f"CHECK VFF controller N_eff identical across the three estimators: max |diff| = {vff_same:.3g}")
     for e, _ in EST:
         r = res[e]
         verbose_print(f"{e:16s} lag -21/0/+21/+63/+126 | ESS39+99 weight " + "/".join(f"{r['W'][at[l], :2].sum():.2f}" for l in lags)

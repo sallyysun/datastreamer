@@ -146,7 +146,6 @@ int main(int argc, char** argv) {
                 for (std::size_t t = kBurn; t < kN; ++t)
                     std::fprintf(fj, "%s,%s,%s,%zu,%.8g\n", cop.c_str(), arms[k].est.c_str(), label(arms[k].neff).c_str(), t, s2[k][t] / S);
         }
-        std::printf("%s %s done (%zu arms x %d seeds)\n", cop.c_str(), sc.c_str(), arms.size(), seeds);
     }
     std::printf("decomposition guard: %zu checks, worst residual %.3g\n", checks, worst_resid);
     std::fclose(fs); std::fclose(fd); std::fclose(fj);

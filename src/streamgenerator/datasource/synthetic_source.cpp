@@ -51,7 +51,7 @@ TickPair SyntheticSource::next() {
     if (!family_.empty()) {
         x.true_pit = special::normal_cdf(sample.x);
         y.true_pit = special::normal_cdf(sample.y);
-        x.true_knob = y.true_knob = sample.knob;
+        x.true_target = y.true_target = sample.target;
         x.true_family = y.true_family = family_;
     }
     return TickPair{x, y};

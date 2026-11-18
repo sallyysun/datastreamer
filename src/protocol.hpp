@@ -13,7 +13,7 @@ struct SymbolTick {
     long long timestamp = 0;
     double true_rho_s = 0.0;
     double true_pit = 0.0;
-    double true_knob = 0.0;
+    double true_target = 0.0;
     std::string true_family;
 };
 
@@ -49,7 +49,7 @@ inline std::string Serializer::to_json(const SymbolTick& tick) {
     };
     if (!tick.true_family.empty()) {
         j["true_pit"] = tick.true_pit;
-        j["true_knob"] = tick.true_knob;
+        j["true_target"] = tick.true_target;
         j["true_family"] = tick.true_family;
     }
     return j.dump();
@@ -65,7 +65,7 @@ inline SymbolTick Serializer::symbol_from_json(const std::string& text) {
     if (j.contains("true_rho_s")) tick.true_rho_s = j["true_rho_s"].get<double>();
     if (j.contains("true_family")) {
         tick.true_pit = j["true_pit"].get<double>();
-        tick.true_knob = j["true_knob"].get<double>();
+        tick.true_target = j["true_target"].get<double>();
         tick.true_family = j["true_family"].get<std::string>();
     }
     return tick;

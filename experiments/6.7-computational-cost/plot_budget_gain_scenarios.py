@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt = ce.plt
@@ -65,7 +66,7 @@ def main():
     figure(P, "images/ch6_budget_accuracy_gain_scenarios.png")
     R = summary(P)
     R.to_csv("results/budget_gain_scenarios.csv", index=False)
-    print(R.round(2).to_string(index=False))
+    verbose_print(R.round(2).to_string(index=False))
 
 
 if __name__ == "__main__":

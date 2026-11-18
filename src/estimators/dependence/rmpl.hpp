@@ -7,7 +7,6 @@
 
 #include "estimator.hpp"
 #include "kll_sketch.hpp"
-#include "../../gaussian_copula_objective.hpp"
 #include "../../special_functions.hpp"
 #if __has_include(<kll_sketch.hpp>)   // DataSketches on the include path (experiments/build.sh, Makefile)
 #include "datasketches_kll.hpp"
@@ -61,9 +60,9 @@ public:
         v = std::clamp(v, c_.delta, 1.0 - c_.delta);
         const double z1 = special::probit(u), z2 = special::probit(v);
         if (c_.update == Update::Exact) { step_exact(z1, z2); return; }
-        const double r = r_;
-        const double s = GaussianCopulaObjective::score(z1, z2, r);
-        const double info = GaussianCopulaObjective::fisher(r);
+        const double r = r_, q = 1.0 - r * r;
+        const double s = r / q + ((1.0 + r * r) * z1 * z2 - r * (z1 * z1 + z2 * z2)) / (q * q);
+        const double info = (1.0 + r * r) / (q * q);
         ++m_;
         wsum_ = (1.0 - gain_) * wsum_ + gain_;
         r_ = std::clamp(r + gain_ / wsum_ * s / info, -c_.r_max, c_.r_max);

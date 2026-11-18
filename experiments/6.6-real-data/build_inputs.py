@@ -35,7 +35,6 @@ def main():
     v = load(prices, "^VIX")
     v.index = pd.to_datetime(v.index, unit="s").strftime("%Y-%m-%d")
     v.rename("vix").to_csv(f"{out}/vix.csv")
-    print("ok", len(PAIRS))
 
 
 if __name__ == "__main__":

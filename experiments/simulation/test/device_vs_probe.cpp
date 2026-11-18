@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
     const copula::Family F = thesis::family_of(cop);
     for (std::size_t t = 0; t < thesis::kN; ++t) {
         const auto s = src.next();
-        const double par = copula::param_from_spearman(F, copula::target_spearman(s.knob));
+        const double par = copula::param_from_spearman(F, s.target);
         sco.observe(dev, t, s.rho_s, special::normal_cdf(s.x), special::normal_cdf(s.y), par);
         if (!ret) { dev.update(s.x, s.y); continue; }
         const double nx = px * std::exp(1e-4 + 0.01 * s.x), ny = py * std::exp(1e-4 + 0.01 * s.y);

@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -46,7 +47,7 @@ def main():
     sel = pd.read_csv("results/budget_selected.csv")
     sel["kib"] = sel.peak_val / 1024
     figure(sel)
-    print(sel.groupby(["estimator", "budget_kib"]).kib.agg(["min", "median", "max"]).round(2))
+    verbose_print(sel.groupby(["estimator", "budget_kib"]).kib.agg(["min", "median", "max"]).round(2))
 
 
 if __name__ == "__main__":

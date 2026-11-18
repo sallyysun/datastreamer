@@ -15,6 +15,7 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 | `6.7-computational-cost/` | §6.7 + app. | `budget_benchmark`, `margin_ablation` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
 
 ```bash
+./check.sh                          # ~7 min: build, short run of every mode, compare with check_reference.txt
 ./build.sh                          # EIGEN=/usr (Linux) or /opt/homebrew/opt/eigen (macOS)
 6.2-fixed-forgetting/run.sh         # figures + tables from results/
 SIM=1 6.2-fixed-forgetting/run.sh   # rerun the simulations first (60 seeds x 4 families)

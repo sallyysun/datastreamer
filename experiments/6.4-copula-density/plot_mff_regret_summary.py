@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -95,7 +96,7 @@ def report(fs):
         for e, _ in EST:
             g = fs[(fs.scenario == sc) & (fs.estimator == e)]
             a, b = g.loss_mix - g.best0, g.loss_mix - g.best1
-            print(f"{sc:9s} {e:8s} static {a.mean():7.2f} ± {2*a.std(ddof=1)/np.sqrt(len(a)):.2f}   "
+            verbose_print(f"{sc:9s} {e:8s} static {a.mean():7.2f} ± {2*a.std(ddof=1)/np.sqrt(len(a)):.2f}   "
                   f"switch1 {b.mean():6.2f} ± {2*b.std(ddof=1)/np.sqrt(len(b)):.2f}")
 
 

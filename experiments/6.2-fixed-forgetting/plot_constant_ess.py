@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -45,7 +46,7 @@ def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=1
                     ax.text(xi, mu[a] + 0.75, f"{mu[a]:.2f}", ha="center", va="bottom", fontsize=6.8, color=INK)
             else:
                 k = int(np.argmin(mu[ARMS[:5]].values))
-                print(f"  {title} {scenario}: minimum {mu[ARMS[k]]:.2f} at N_eff {ARMS[k][6:]}")
+                verbose_print(f"  {title} {scenario}: minimum {mu[ARMS[k]]:.2f} at N_eff {ARMS[k][6:]}")
                 ax.text(x[k], mu[ARMS[k]] - 0.75 * ylim / 13.5, f"{mu[ARMS[k]]:.2f}", ha="center", va="top",
                         fontsize=6.8, color=INK)
                 if label_nocum:
@@ -53,7 +54,7 @@ def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=1
                             fontsize=6.8, color=INK)
             m, s = ce.paired(p.nocum, p.fixed_1999)
             if scenario == "constant":
-                print(f"  {title}: no forgetting - 1999 = {m:+.2f} ± {2*s:.2f} (x1e-2, paired 2 SE)")
+                verbose_print(f"  {title}: no forgetting - 1999 = {m:+.2f} ± {2*s:.2f} (x1e-2, paired 2 SE)")
             ax.set_title(title)
             ax.set_xticks(x)
             ax.set_xticklabels(LAB, fontsize=7)

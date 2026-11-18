@@ -23,7 +23,7 @@ RMPL_HEADER = ["# Section 6.5 (RMPL / KLL configuration) — family-augmented vs
           "family-augmented MFF = 20 models (Gaussian, t4, Clayton, Gumbel × 5 memories; each RMPL ρ_S mapped to the family "
           "parameter by inversion, as in the Section 6.4 scoring-function experiment); Gaussian-only MFF = the 5 Gaussian models; "
           "both log loss, η = 1, δ = 10⁻⁴, mixture density forecast, warm-up as Chapter 6. 60 replications (seeds 42–101), "
-          "T = 5000, ρ_S ≈ 0.582 constant, switch at observation 2500, evaluation from observation 500.\n",
+          "T = 5000, ρ_S = 0.6 constant, switch at observation 2500, evaluation from observation 500.\n",
           "Verification: on the Gaussian constant path, Gaussian-only MFF reproduces the existing Section 6.3 mixture-density MFF "
           "and Section 6.4 log-loss MFF (RMPL) exactly (ρ_S RMSE and excess log loss, all 60 seeds, max difference 0).\n"]
 

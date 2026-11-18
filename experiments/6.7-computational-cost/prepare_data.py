@@ -18,7 +18,6 @@ def main():
                                                us_sd=("mean_ns", lambda x: x.std() / 1e3)).reset_index()
     g["cv"] = g.us_sd / g.us
     g.to_csv("results/budget_time_table_n15k.csv", index=False)
-    print("wrote results/budget_sweep_n15k.csv, results/budget_seeds_n15k.csv, results/budget_time_table_n15k.csv")
 
 
 if __name__ == "__main__":

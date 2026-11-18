@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -106,7 +107,7 @@ def figure(R):
 def main():
     R = table(*load())
     R.to_csv("results/budget_kll_n15k_table.csv", index=False)
-    print(R.round(3).to_string(index=False))
+    verbose_print(R.round(3).to_string(index=False))
     figure(R)
 
 

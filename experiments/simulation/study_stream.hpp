@@ -11,7 +11,7 @@
 #include "run_live_stream.hpp"
 
 struct StudyObservation {
-    double x, y, rho_s, knob;
+    double x, y, rho_s, target;
     double true_u, true_v;
     double u, v;
 };
@@ -41,14 +41,14 @@ void for_each_study_observation(const std::string& family, const std::string& sc
             observation.x = sample.x;
             observation.y = sample.y;
             observation.rho_s = sample.rho_s;
-            observation.knob = sample.knob;
+            observation.target = sample.target;
             observation.true_u = special::normal_cdf(sample.x);
             observation.true_v = special::normal_cdf(sample.y);
         } else {
             observation.x = live.x[t];
             observation.y = live.y[t];
             observation.rho_s = live.rho_s[t];
-            observation.knob = live.d[t];
+            observation.target = live.target[t];
             observation.true_u = live.pu[t];
             observation.true_v = live.pv[t];
         }

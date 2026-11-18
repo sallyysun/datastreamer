@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from real_common import FIX, eval_days, outputs, read, result, write_report
+from real_common import FIX, eval_days, outputs, read, result, verbose_print, write_report
 
 MS = [0, 1, 2, 5]
 EST = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
@@ -54,7 +54,7 @@ def brute_force_check():
                    if sum(s[t] != s[t - 1] for t in range(1, T)) <= m)
         c, p = best_seq(Lk, m)
         assert abs(c - best) < 1e-9 and abs(Lk[p, np.arange(T)].sum() - c) < 1e-9 and (np.diff(p) != 0).sum() <= m
-    print("CHECK brute force (200 random short series): DP optimum, traced path cost and switch budget all agree")
+    verbose_print("CHECK brute force (200 random short series): DP optimum, traced path cost and switch budget all agree")
 
 
 def regrets(S):
@@ -78,7 +78,7 @@ def regrets(S):
                                           switch_dates=";".join(str(x.date.iloc[i].date()) for i in sw),
                                           segments="->".join(str(FIX[s[0]]) for s in np.split(path, sw)),
                                           gain_vs_static=1e3 * (static - cost) / T))
-    print("CHECK every pair/estimator/copula: m = 0 equals the static oracle; traced paths respect the budget and reproduce the cost")
+    verbose_print("CHECK every pair/estimator/copula: m = 0 equals the static oracle; traced paths respect the budget and reproduce the cost")
     return pd.DataFrame(rows), pd.DataFrame(paths)
 
 

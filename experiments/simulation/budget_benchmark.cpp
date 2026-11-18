@@ -235,11 +235,7 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
                 const std::size_t ns = split ? n_test : n_val;
                 std::vector<Acc> acc;
                 std::vector<double> truth;
-                const auto t0 = std::chrono::steady_clock::now();
                 run_split(fam, sc, base, ns, cfgs, acc, truth);
-                const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-                std::fprintf(stderr, "%-8s %-8s %s %3zu seeds  %.1fs\n", fam.c_str(), sc.c_str(),
-                             split ? "test" : "val ", ns, secs);
                 for (std::size_t c = 0; c < cfgs.size(); ++c) {
                     const auto& a = acc[c];
                     out << fam << ',' << sc << ',' << (split ? "test" : "val") << ',' << cfgs[c].est << ','
@@ -259,7 +255,6 @@ void sweep(std::size_t n_test, std::size_t n_val, const std::vector<std::string>
             }
         }
     }
-    std::fprintf(stderr, "wrote results/budget_sweep%s.csv, results/budget_paths%s.csv\n", sfx.c_str(), sfx.c_str());
 }
 
 // Single thread, Gaussian drift, gain 0.02: wall time of update() + estimate() per tick, which
@@ -295,7 +290,6 @@ void timing() {
         std::sort(sorted.begin(), sorted.end());
         out << c.est << ',' << c.approx << ',' << peak << ',' << mean(tick) << ','
             << sorted[static_cast<std::size_t>(0.95 * sorted.size())] << ',' << mean(upd) << '\n';
-        std::fprintf(stderr, "%-12s %5d  %8zu B  %9.0f ns\n", c.est.c_str(), c.approx, peak, mean(tick));
     }
 }
 

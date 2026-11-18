@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from report_output import verbose_print  # noqa: E402
 import config as C  # noqa: E402
 
 EST = [("mpl_dskll", "RMPL", "k"), ("xiao", "Counting Matrix", "B"), ("hermite", "Hermite Series", "N")]
@@ -73,16 +74,16 @@ def appendix_table(D):
 
 
 def report(D):
-    print(D.groupby(["estimator", "budget_kib"]).agg(approx_min=("approx", "min"), approx_max=("approx", "max"), kib_max=("kib", "max"),
+    verbose_print(D.groupby(["estimator", "budget_kib"]).agg(approx_min=("approx", "min"), approx_max=("approx", "max"), kib_max=("kib", "max"),
                                                      util_max=("util_pct", "max"), util_med=("util_pct", "median"),
                                                      larger=("larger_than_needed", "sum")).round(1).to_string())
-    print(D.groupby(["scenario"]).retention.agg(lambda s: sorted(set(s))).to_string())
+    verbose_print(D.groupby(["scenario"]).retention.agg(lambda s: sorted(set(s))).to_string())
     for col, kcol, lab in [("larger_than_needed", "smallest_within_1se_kib", "within 1 validation SE"),
                            ("larger_than_1pct", "smallest_within_1pct_kib", "within 1% RMSE")]:
-        print(f"selections larger than the smallest same-gain size {lab}: {int(D[col].sum())}/108")
+        verbose_print(f"selections larger than the smallest same-gain size {lab}: {int(D[col].sum())}/108")
         for (e, b), g in D.groupby(["estimator", "budget_kib"]):
             x = g[g[col]]
-            print(f"  {e:10s} {b:4d} KiB: {len(x)}/12, median excess {np.median(x.kib - x[kcol]) if len(x) else 0:.1f} KiB")
+            verbose_print(f"  {e:10s} {b:4d} KiB: {len(x)}/12, median excess {np.median(x.kib - x[kcol]) if len(x) else 0:.1f} KiB")
 
 
 def main():
