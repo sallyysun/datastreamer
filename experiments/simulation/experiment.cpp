@@ -132,13 +132,21 @@ public:
 
     bool ok() const { return ok_; }
     void begin_scenario(const std::string& scenario);
-    void add(int sd, const SeedResults& result);
+    void add(int seed_index, const SeedResults& result);
     void end_scenario();
 
 private:
-    std::size_t at(int ei, std::size_t i, int sd, std::size_t t) const {
-        return ((std::size_t(ei) * S_ + i) * seeds_ + sd) * kN + t;
-    }
+    // One estimator and strategy across the seeds of a scenario.
+    struct StrategyTotals {
+        std::vector<double> squared_error_sum;              // [t]
+        std::vector<double> h2_sum_x1000;                   // [t], PATHS only
+        std::vector<int> extreme_seeds_by_tick;             // [t], PATHS only
+        std::vector<float> excess_x1000, forecast;          // [seed * kN + t], PATHS only
+        std::vector<float> excess_after_burn_in_x1000;      // all seeds x ticks, extremes only
+        int extreme_seeds = 0, extreme_seed_ticks = 0;      // extremes only
+    };
+
+    StrategyTotals& totals(std::size_t estimator, std::size_t strategy) { return totals_[estimator * strategy_count_ + strategy]; }
     void write_extremes();
     void write_paths();
     void write_jump_path();
@@ -146,113 +154,125 @@ private:
     const std::string& cop_;
     const int seeds_;
     const bool paths_;
-    const std::size_t S_ = kStrat.size();
-    std::FILE *fmc_ = nullptr, *fs_ = nullptr, *fj_ = nullptr, *fp_ = nullptr, *fdump_ = nullptr, *fx_ = nullptr;
+    const std::size_t strategy_count_ = kStrat.size();
+    std::FILE* mixture_check_file_ = nullptr;
+    std::FILE* seed_scores_file_ = nullptr;
+    std::FILE* jump_path_file_ = nullptr;
+    std::FILE* tick_paths_file_ = nullptr;
+    std::FILE* seed_dump_file_ = nullptr;
+    std::FILE* extremes_file_ = nullptr;
     bool ok_ = false;
 
-    std::string sc_;
-    std::vector<thesis::Win> wins_;
-    std::vector<std::vector<std::vector<double>>> jsum_;
-    std::vector<float> exs_, fcs_;   // excess, forecasts
-    std::vector<double> rho_true_, h2s_;
-    std::vector<int> nex_;
-    std::vector<std::vector<float>> xall_;   // whole-window excess, all seeds x ticks (x 1000)
-    std::vector<int> xseeds_, xticks_;
+    std::string scenario_;
+    std::vector<thesis::Win> windows_;
+    std::vector<StrategyTotals> totals_;   // [estimator * strategy_count_ + strategy]
+    std::vector<double> true_spearman_;
 };
 
 StrategyResults::StrategyResults(const Run& run, const StrategyOptions& options)
     : cop_(run.cop), seeds_(run.seeds), paths_(options.paths) {
     const std::string& sfx = run.sfx;
     const char* dseed = options.dump_seed;
-    fmc_ = options.mixdens ? std::fopen(("results/strategies_mixcheck" + sfx + ".csv").c_str(), "w") : nullptr;
-    if (fmc_) std::fprintf(fmc_, "copula,scenario,estimator,seed,mixloss_kll\n");
-    fs_ = std::fopen(paths_ ? "/dev/null" : ("results/strategies_seeds" + sfx + ".csv").c_str(), "w");
-    fj_ = std::fopen(paths_ ? "/dev/null" : ("results/strategies_jumppath" + sfx + ".csv").c_str(), "w");
-    fp_ = (paths_ && !dseed) ? std::fopen(("results/strategies_paths" + sfx + ".csv").c_str(), "w") : nullptr;
-    fdump_ = dseed ? std::fopen(("results/strategies_dump_" + options.dump_scenario + "_s" + dseed + sfx + ".csv").c_str(), "w") : nullptr;
-    if (fdump_) std::fprintf(fdump_, "estimator,strategy,t,forecast,rho_true\n");
-    fx_ = (run.tag && !paths_) ? std::fopen(("results/strategies_extremes" + sfx + ".csv").c_str(), "w") : nullptr;
-    if (!fs_ || !fj_ || (options.mixdens && !fmc_) || (paths_ && !dseed && !fp_) || (dseed && !fdump_) ||
-        (run.tag && !paths_ && !fx_))
+    auto open = [&](const std::string& name) { return std::fopen(("results/strategies_" + name + sfx + ".csv").c_str(), "w"); };
+    mixture_check_file_ = options.mixdens ? open("mixcheck") : nullptr;
+    if (mixture_check_file_) std::fprintf(mixture_check_file_, "copula,scenario,estimator,seed,mixloss_kll\n");
+    seed_scores_file_ = paths_ ? std::fopen("/dev/null", "w") : open("seeds");
+    jump_path_file_ = paths_ ? std::fopen("/dev/null", "w") : open("jumppath");
+    tick_paths_file_ = (paths_ && !dseed) ? open("paths") : nullptr;
+    seed_dump_file_ = dseed ? open("dump_" + options.dump_scenario + "_s" + dseed) : nullptr;
+    if (seed_dump_file_) std::fprintf(seed_dump_file_, "estimator,strategy,t,forecast,rho_true\n");
+    extremes_file_ = (run.tag && !paths_) ? open("extremes") : nullptr;
+    if (!seed_scores_file_ || !jump_path_file_ || (options.mixdens && !mixture_check_file_) ||
+        (paths_ && !dseed && !tick_paths_file_) || (dseed && !seed_dump_file_) || (run.tag && !paths_ && !extremes_file_))
         return;
     ok_ = true;
-    if (fx_) std::fprintf(fx_, "copula,scenario,estimator,strategy,ex_mean,ex_median,ex_max,top1pct_share,seeds_extreme,seedticks_extreme\n");
-    if (fp_) std::fprintf(fp_, "copula,scenario,estimator,strategy,t,mse,ex_mean,ex_median,ex_max,h2_mean,n_extreme,rho_true,est_mean,est_q10,est_q90\n");
-    std::fprintf(fs_, "copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000\n");
-    std::fprintf(fj_, "copula,estimator,strategy,t,mse\n");
+    if (extremes_file_) std::fprintf(extremes_file_, "copula,scenario,estimator,strategy,ex_mean,ex_median,ex_max,top1pct_share,seeds_extreme,seedticks_extreme\n");
+    if (tick_paths_file_) std::fprintf(tick_paths_file_, "copula,scenario,estimator,strategy,t,mse,ex_mean,ex_median,ex_max,h2_mean,n_extreme,rho_true,est_mean,est_q10,est_q90\n");
+    std::fprintf(seed_scores_file_, "copula,scenario,estimator,strategy,seed,window,rmse,excess_x1000,h2_x1000\n");
+    std::fprintf(jump_path_file_, "copula,estimator,strategy,t,mse\n");
 }
 
 StrategyResults::~StrategyResults() {
-    for (std::FILE* f : {fs_, fj_, fp_, fdump_, fx_, fmc_})
+    for (std::FILE* f : {seed_scores_file_, jump_path_file_, tick_paths_file_, seed_dump_file_, extremes_file_, mixture_check_file_})
         if (f) std::fclose(f);
 }
 
 void StrategyResults::begin_scenario(const std::string& scenario) {
-    const std::size_t S = S_;
-    sc_ = scenario;
-    wins_ = windows(scenario);
-    jsum_.assign(3, std::vector<std::vector<double>>(S, std::vector<double>(kN)));
-    exs_.assign(paths_ ? 3 * S * seeds_ * kN : 0, 0.0f);
-    fcs_.assign(paths_ ? 3 * S * seeds_ * kN : 0, 0.0f);
-    rho_true_.assign(kN, 0.0);
-    h2s_.assign(paths_ ? 3 * S * kN : 0, 0.0);
-    nex_.assign(paths_ ? 3 * S * kN : 0, 0);
-    xall_.assign(fx_ ? 3 * S : 0, {});
-    xseeds_.assign(fx_ ? 3 * S : 0, 0);
-    xticks_.assign(fx_ ? 3 * S : 0, 0);
+    scenario_ = scenario;
+    windows_ = windows(scenario);
+    true_spearman_.assign(kN, 0.0);
+    totals_.assign(3 * strategy_count_, {});
+    for (auto& cell : totals_) {
+        cell.squared_error_sum.assign(kN, 0.0);
+        if (paths_) {
+            cell.h2_sum_x1000.assign(kN, 0.0);
+            cell.extreme_seeds_by_tick.assign(kN, 0);
+            cell.excess_x1000.assign(std::size_t(seeds_) * kN, 0.0f);
+            cell.forecast.assign(std::size_t(seeds_) * kN, 0.0f);
+        }
+    }
 }
 
-void StrategyResults::add(int sd, const SeedResults& result) {
-    const std::size_t S = S_;
-    const std::string& sc = sc_;
-    for (int ei = 0; ei < 3; ++ei) {
-        const std::string e = kEst[ei];
-        const auto& trace = result.estimators[ei].strategies;
-        std::vector<char> seed_ext(S, 0);
+void StrategyResults::add(int seed_index, const SeedResults& result) {
+    for (std::size_t estimator = 0; estimator < 3; ++estimator) {
+        const std::string name = kEst[estimator];
+        const auto& traces = result.estimators[estimator].strategies;
+        std::vector<char> seed_had_extreme(strategy_count_, 0);
         for (std::size_t t = 0; t < kN; ++t) {
-            if (fdump_)
-                for (std::size_t i = 0; i < S; ++i)
-                    std::fprintf(fdump_, "%s,%s,%zu,%.10g,%.10g\n", e.c_str(), kStrat[i].c_str(), t, trace[i].forecast[t], result.true_spearman[t]);
-            for (std::size_t i = 0; i < S; ++i) {
-                const double f = trace[i].forecast[t];
-                jsum_[ei][i][t] += trace[i].squared_error[t];
+            if (seed_dump_file_)
+                for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy)
+                    std::fprintf(seed_dump_file_, "%s,%s,%zu,%.10g,%.10g\n", name.c_str(), kStrat[strategy].c_str(), t,
+                                 traces[strategy].forecast[t], result.true_spearman[t]);
+            for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
+                const auto& trace = traces[strategy];
+                auto& cell = totals(estimator, strategy);
+                const double forecast = trace.forecast[t];
+                cell.squared_error_sum[t] += trace.squared_error[t];
                 if (paths_) {
-                    exs_[at(ei, i, sd, t)] = float(1000 * trace[i].excess[t]);
-                    fcs_[at(ei, i, sd, t)] = float(f);
-                    rho_true_[t] = result.true_spearman[t];
-                    if (checkpoint(sc, t)) h2s_[(ei * S + i) * kN + t] += 1000 * trace[i].h2[t];
-                    if (std::fabs(f) > 0.98) ++nex_[(ei * S + i) * kN + t];
+                    const std::size_t sample = std::size_t(seed_index) * kN + t;
+                    cell.excess_x1000[sample] = float(1000 * trace.excess[t]);
+                    cell.forecast[sample] = float(forecast);
+                    true_spearman_[t] = result.true_spearman[t];
+                    if (checkpoint(scenario_, t)) cell.h2_sum_x1000[t] += 1000 * trace.h2[t];
+                    if (std::fabs(forecast) > 0.98) ++cell.extreme_seeds_by_tick[t];
                 }
             }
-            if (fx_ && t >= kBurn)
-                for (std::size_t i = 0; i < S; ++i) {
-                    xall_[ei * S + i].push_back(float(1000 * trace[i].excess[t]));
-                    if (std::fabs(trace[i].forecast[t]) > 0.98) { ++xticks_[ei * S + i]; seed_ext[i] = 1; }
+            if (extremes_file_ && t >= kBurn)
+                for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
+                    const auto& trace = traces[strategy];
+                    auto& cell = totals(estimator, strategy);
+                    cell.excess_after_burn_in_x1000.push_back(float(1000 * trace.excess[t]));
+                    if (std::fabs(trace.forecast[t]) > 0.98) { ++cell.extreme_seed_ticks; seed_had_extreme[strategy] = 1; }
                 }
         }
-        if (fx_) for (std::size_t i = 0; i < S; ++i) xseeds_[ei * S + i] += seed_ext[i];
-        if (fmc_) std::fprintf(fmc_, "%s,%s,%s,%u,%.8f\n", cop_.c_str(), sc.c_str(), e.c_str(), result.seed, result.estimators[ei].mixture_log_loss);
-        for (const auto& w : wins_) {
-            for (std::size_t i = 0; i < S; ++i) {
-                const auto [rmse, excess, h2_score] = summarize_window(w, trace[i].squared_error, trace[i].excess, trace[i].h2);
-                std::fprintf(fs_, "%s,%s,%s,%s,%u,%s,%.8f,%.6f,%.6f\n", cop_.c_str(), sc.c_str(), e.c_str(), kStrat[i].c_str(),
-                             result.seed, w.name, rmse, excess, h2_score);
+        if (extremes_file_)
+            for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy)
+                totals(estimator, strategy).extreme_seeds += seed_had_extreme[strategy];
+        if (mixture_check_file_)
+            std::fprintf(mixture_check_file_, "%s,%s,%s,%u,%.8f\n", cop_.c_str(), scenario_.c_str(), name.c_str(), result.seed,
+                         result.estimators[estimator].mixture_log_loss);
+        for (const auto& w : windows_) {
+            for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
+                const auto& trace = traces[strategy];
+                const auto [rmse, excess, h2_score] = summarize_window(w, trace.squared_error, trace.excess, trace.h2);
+                std::fprintf(seed_scores_file_, "%s,%s,%s,%s,%u,%s,%.8f,%.6f,%.6f\n", cop_.c_str(), scenario_.c_str(), name.c_str(),
+                             kStrat[strategy].c_str(), result.seed, w.name, rmse, excess, h2_score);
             }
         }
     }
 }
 
 void StrategyResults::end_scenario() {
-    if (fx_) write_extremes();
-    if (fp_) write_paths();
-    if (sc_ == "jump") write_jump_path();
+    if (extremes_file_) write_extremes();
+    if (tick_paths_file_) write_paths();
+    if (scenario_ == "jump") write_jump_path();
 }
 
 void StrategyResults::write_extremes() {
-    const std::size_t S = S_;
-    for (int ei = 0; ei < 3; ++ei)
-        for (std::size_t i = 0; i < S; ++i) {
-            auto v = xall_[ei * S + i];
+    for (std::size_t estimator = 0; estimator < 3; ++estimator)
+        for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
+            const auto& cell = totals(estimator, strategy);
+            auto v = cell.excess_after_burn_in_x1000;
             double sum = 0, mx = -INFINITY;
             for (float x : v) { sum += x; mx = std::max(mx, double(x)); }
             std::sort(v.begin(), v.end());
@@ -260,41 +280,48 @@ void StrategyResults::write_extremes() {
             const std::size_t k = std::max<std::size_t>(1, v.size() / 100);
             double top = 0;
             for (std::size_t j = v.size() - k; j < v.size(); ++j) top += v[j];
-            std::fprintf(fx_, "%s,%s,%s,%s,%.6g,%.6g,%.6g,%.6g,%d,%d\n", cop_.c_str(), sc_.c_str(), kEst[ei], kStrat[i].c_str(),
-                         sum / v.size(), med, mx, sum != 0 ? top / sum : NAN, xseeds_[ei * S + i], xticks_[ei * S + i]);
+            std::fprintf(extremes_file_, "%s,%s,%s,%s,%.6g,%.6g,%.6g,%.6g,%d,%d\n", cop_.c_str(), scenario_.c_str(), kEst[estimator],
+                         kStrat[strategy].c_str(), sum / v.size(), med, mx, sum != 0 ? top / sum : NAN, cell.extreme_seeds,
+                         cell.extreme_seed_ticks);
         }
 }
 
 void StrategyResults::write_paths() {
-    const std::size_t S = S_;
     const int seeds = seeds_;
-    for (int ei = 0; ei < 3; ++ei)
-        for (std::size_t i = 0; i < S; ++i)
+    for (std::size_t estimator = 0; estimator < 3; ++estimator)
+        for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy) {
+            const auto& cell = totals(estimator, strategy);
             for (std::size_t t = kBurn; t < kN; ++t) {
                 std::vector<float> v(seeds);
                 double sum = 0, mx = -INFINITY;
-                for (int sd = 0; sd < seeds; ++sd) { v[sd] = exs_[at(ei, i, sd, t)]; sum += v[sd]; mx = std::max(mx, double(v[sd])); }
+                for (int sd = 0; sd < seeds; ++sd) {
+                    v[sd] = cell.excess_x1000[std::size_t(sd) * kN + t];
+                    sum += v[sd];
+                    mx = std::max(mx, double(v[sd]));
+                }
                 std::nth_element(v.begin(), v.begin() + seeds / 2, v.end());
                 double med = v[seeds / 2];
                 if (seeds % 2 == 0) med = 0.5 * (med + *std::max_element(v.begin(), v.begin() + seeds / 2));
-                const bool cp = checkpoint(sc_, t);
-                std::fprintf(fp_, "%s,%s,%s,%s,%zu,%.8g,%.6g,%.6g,%.6g,", cop_.c_str(), sc_.c_str(), kEst[ei], kStrat[i].c_str(), t,
-                             jsum_[ei][i][t] / seeds, sum / seeds, med, mx);
-                if (cp) std::fprintf(fp_, "%.6g", h2s_[(ei * S + i) * kN + t] / seeds);
+                std::fprintf(tick_paths_file_, "%s,%s,%s,%s,%zu,%.8g,%.6g,%.6g,%.6g,", cop_.c_str(), scenario_.c_str(), kEst[estimator],
+                             kStrat[strategy].c_str(), t, cell.squared_error_sum[t] / seeds, sum / seeds, med, mx);
+                if (checkpoint(scenario_, t)) std::fprintf(tick_paths_file_, "%.6g", cell.h2_sum_x1000[t] / seeds);
                 std::vector<float> fv(seeds);
                 double fsum = 0;
-                for (int sd = 0; sd < seeds; ++sd) { fv[sd] = fcs_[at(ei, i, sd, t)]; fsum += fv[sd]; }
+                for (int sd = 0; sd < seeds; ++sd) { fv[sd] = cell.forecast[std::size_t(sd) * kN + t]; fsum += fv[sd]; }
                 std::sort(fv.begin(), fv.end());
                 auto q = [&](double p) { const double x = p * (seeds - 1); const int k = int(x); return fv[k] + (x - k) * (fv[std::min(k + 1, seeds - 1)] - fv[k]); };
-                std::fprintf(fp_, ",%d,%.6g,%.6g,%.6g,%.6g\n", nex_[(ei * S + i) * kN + t], rho_true_[t], fsum / seeds, q(0.1), q(0.9));
+                std::fprintf(tick_paths_file_, ",%d,%.6g,%.6g,%.6g,%.6g\n", cell.extreme_seeds_by_tick[t], true_spearman_[t], fsum / seeds,
+                             q(0.1), q(0.9));
             }
+        }
 }
 
 void StrategyResults::write_jump_path() {
-    for (int ei = 0; ei < 3; ++ei)
-        for (std::size_t i = 0; i < S_; ++i)
+    for (std::size_t estimator = 0; estimator < 3; ++estimator)
+        for (std::size_t strategy = 0; strategy < strategy_count_; ++strategy)
             for (std::size_t t = kBurn; t < kN; ++t)
-                std::fprintf(fj_, "%s,%s,%s,%zu,%.8g\n", cop_.c_str(), kEst[ei], kStrat[i].c_str(), t, jsum_[ei][i][t] / seeds_);
+                std::fprintf(jump_path_file_, "%s,%s,%s,%zu,%.8g\n", cop_.c_str(), kEst[estimator], kStrat[strategy].c_str(), t,
+                             totals(estimator, strategy).squared_error_sum[t] / seeds_);
 }
 
 // The standard strategy comparison: one Simulation per scenario and seed, collated by StrategyResults.
