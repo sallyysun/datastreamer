@@ -4,10 +4,10 @@
 #include <cstdlib>
 #include <string>
 #include "../../../src/consumer/live_lab.hpp"
-#include "../../../src/estimators/thesis_device.hpp"
+#include "../../../src/estimators/device.hpp"
 #include "../../../src/streamgenerator/datasource/copula.hpp"
 #include "../../../src/streamgenerator/datasource/dependence.hpp"
-#include "../../../src/streamgenerator/datasource/copula_source.hpp"
+#include "../../../src/streamgenerator/datasource/copula.hpp"
 
 int main(int argc, char** argv) {
     const std::string cop = argv[1], sc = argv[2];

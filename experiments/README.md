@@ -32,7 +32,7 @@ Conventions:
 - Simulations: 60 seeds (42–101), T = 5,000, evaluation from observation 500, change at 2,500, scenarios from
   `make_scenario` in `src/streamgenerator/datasource/dependence.hpp` (constant 0.6, drift 0.2 → 0.8, jump
   0.2 → 0.8). 6.7 uses n = 15,000, validation seeds 1000–1039, test seeds 42–141.
-- In-process streams come from `src/streamgenerator/datasource/copula_source.hpp`. The estimators come from
+- In-process streams come from `src/streamgenerator/datasource/copula.hpp`. The estimators come from
   `src/estimators/registry.hpp` (`thesis::arm`); MFF, VFF and the scoring from
   `src/estimators/dependence/mff.hpp` and `vff.hpp`, the scoring from `src/estimators/evaluation.hpp`, applied to shared KLL
   pseudo-observations. The live consumer runs the same code.
@@ -49,7 +49,7 @@ Conventions:
   runs, the rest within ~1e-3 relative (KLL near-ties on log returns); 17 of 26 figures byte-identical, the other 9
   visually identical (at most 0.017% of pixels; `famswitch_initial_id` only by its known colour change); every thesis
   table identical except the third decimal in 4 of 840 lines of the scores-family summary.
-- `live/`: the same device and scoring as the runner (`src/estimators/thesis_device.hpp`, `evaluation.hpp`), fed
+- `live/`: the same device and scoring as the runner (`src/estimators/device.hpp`, `evaluation.hpp`), fed
   over TCP. The consumer sees log returns ln(p_t/p_{t-1}) = 1e-4 + 0.01 z rather than the draws z; ranks are
   unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):
   707 streams byte-identical to the runner; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means

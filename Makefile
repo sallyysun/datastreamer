@@ -12,10 +12,7 @@ JSON ?= /opt/homebrew/opt/nlohmann-json
 DS = external/datasketches-cpp
 DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
 
-SERVER_SRC = \
-src/streamgenerator/main.cpp \
-src/streamgenerator/datasource/synthetic_source.cpp \
-src/streamgenerator/runtime/producer.cpp
+SERVER_SRC = src/streamgenerator/main.cpp
 
 SERVER_OUT = server
 

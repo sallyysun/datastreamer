@@ -2,7 +2,7 @@
 
 // The thesis estimators (Chapter 4), configured once: "rmpl" (recursive Gaussian MPL), "xiao" (Counting Matrix),
 // "hermite" (Hermite Series). The forgetting strategies (Chapter 5: fixed N_eff, VFF, MFF) and the Chapter 6
-// device built from them are in evaluation.hpp and thesis_device.hpp.
+// device built from them are in evaluation.hpp and device.hpp.
 //
 // ⚠️ The forgetting knob is a mirror image across estimators, all mapped from one memory N_eff:
 //   Counting Matrix retention lambda = (N - 1)/(N + 1)   (LARGER = longer memory)

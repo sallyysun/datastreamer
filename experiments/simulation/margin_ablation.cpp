@@ -19,7 +19,7 @@
 #include "../../src/estimators/dependence/count_matrix.hpp"
 #include "../../src/streamgenerator/datasource/copula.hpp"
 #include "../../src/streamgenerator/datasource/dependence.hpp"
-#include "../../src/streamgenerator/datasource/copula_source.hpp"
+#include "../../src/streamgenerator/datasource/copula.hpp"
 
 namespace {
 constexpr std::size_t kN = 15000, kBurn = 500, kEvery = 5, kLate = 10000;
