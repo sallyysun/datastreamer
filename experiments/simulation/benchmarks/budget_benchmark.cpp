@@ -15,12 +15,12 @@
 #include <thread>
 #include <vector>
 
-#include "../../src/estimators/dependence/estimator.hpp"
-#include "../../src/estimators/dependence/hermiter.hpp"
-#include "../../src/estimators/dependence/rmpl.hpp"
-#include "../../src/estimators/dependence/count_matrix.hpp"
-#include "../../src/streamgenerator/datasource/copula.hpp"
-#include "../../src/streamgenerator/datasource/dependence.hpp"
+#include "../../../src/estimators/dependence/estimator.hpp"
+#include "../../../src/estimators/dependence/hermiter.hpp"
+#include "../../../src/estimators/dependence/rmpl.hpp"
+#include "../../../src/estimators/dependence/count_matrix.hpp"
+#include "../../../src/streamgenerator/datasource/copula.hpp"
+#include "../../../src/streamgenerator/datasource/dependence.hpp"
 
 namespace {
 

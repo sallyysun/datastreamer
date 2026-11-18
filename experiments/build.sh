@@ -18,11 +18,10 @@ build() {   # source, output, additional sources
 build experiments/simulation/fixed_ess_sweep.cpp           experiments/6.2-fixed-forgetting/build/fixed_ess_sweep
 build experiments/simulation/experiment.cpp                experiments/common/build/strategy_experiments \
     experiments/simulation/simulation.cpp \
-    experiments/simulation/family_switching.cpp \
-    experiments/simulation/family_scores.cpp \
-    experiments/simulation/strategy_regret.cpp
+    experiments/simulation/family.cpp \
+    experiments/simulation/regret.cpp
 build experiments/simulation/real_data_comparison.cpp      experiments/6.6-real-data/build/real_data_comparison
-build experiments/simulation/budget_benchmark.cpp          experiments/6.7-computational-cost/build/budget_benchmark
-build experiments/simulation/margin_ablation.cpp           experiments/6.7-computational-cost/build/margin_ablation
+build experiments/simulation/benchmarks/budget_benchmark.cpp experiments/6.7-computational-cost/build/budget_benchmark
+build experiments/simulation/benchmarks/margin_comparison.cpp experiments/6.7-computational-cost/build/margin_ablation
 build experiments/simulation/test/device_vs_probe.cpp      experiments/common/build/device_vs_probe
 build experiments/simulation/test/lab_vs_device.cpp        experiments/common/build/lab_vs_device

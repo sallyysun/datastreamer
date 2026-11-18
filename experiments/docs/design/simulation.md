@@ -1,38 +1,40 @@
 # Simulation design
 
+**Status:** implemented on the `replay-loader` branch, not yet verified against the reference outputs. The file table below records the layout before the refactor. The grouped structure further down is the current layout.
+
 `src/` already generates the stream. The experiment supplies a family, dependence scenario, seed, and observation count. The current `make_stream()` in the strategy runner calls the shared generator through the study adapter, then stores the observations. The fixed-ESS sweep keeps its own copy of that loader. In the proposed design, a new `load_study_series()` in the study adapter replaces both copies. The standard run, family modes, regret modes, and fixed-ESS sweep all replay the series it returns.
 
 ## How observations reach the experiments
 
 - **In-process.** `make_scenario()` supplies a target Spearman correlation for each tick. `CopulaSource` uses that schedule and a seeded sampler to draw the pair. The experiment receives the draws and their ground truth from the code in `src/`. [Scenario factory](../../../src/streamgenerator/datasource/dependence.hpp#L81) · [Copula source](../../../src/streamgenerator/datasource/copula.hpp#L168)
 - **Live.** The server uses the same copula draw path. `SyntheticSource` turns draws into price ticks and carries the truth alongside them. The experiment's TCP adapter reconstructs paired returns the same way the consumer does. A live experiment therefore receives reconstructed returns, while an in-process experiment receives the original draws. [Synthetic source](../../../src/streamgenerator/datasource/synthetic_source.hpp#L24) · [TCP adapter](../../simulation/run_live_stream.hpp#L46)
-- **Preparation for scoring.** The study adapter computes shared KLL pseudo-observations using the preceding pairs. The strategy runner then stores those inputs alongside the true coordinates, Spearman correlation, and generating parameter used by the scorer. Buffering lets several estimators or forecast variants score exactly the same observations. [Study adapter](../../simulation/study_stream.hpp#L20) · [Current strategy loader](../../simulation/strategy_experiments.cpp#L24)
+- **Preparation for scoring.** The study adapter computes shared KLL pseudo-observations using the preceding pairs. The strategy runner then stores those inputs alongside the true coordinates, Spearman correlation, and generating parameter used by the scorer. Buffering lets several estimators or forecast variants score exactly the same observations. [Study adapter](../../simulation/study_stream.hpp#L20) · [Strategy loader](../../simulation/simulation.cpp#L15)
 
 The source should continue to own the dependence schedule, copula sampling, and random number generator. The experiment should own its choice of streams, replay policy, metrics, and outputs. The live device can continue consuming one observation at a time, without a stored study series.
 
 The TCP adapter also stays a separate header. `real_data_comparison.cpp` includes it directly for file replay, so folding it into the study adapter would pull the study's KLL preparation into the real-data runner.
 
-## Current files and callers
+## Files before the refactor
 
-The standard strategy run, family scoring, family switching, and regret modes link into one executable. The section scripts start the executable, and Python reads the resulting CSVs. [Build entry points](../../build.sh#L18) · [Section workflows](../../README.md)
+The standard strategy run, family scoring, family switching, and regret modes link into one executable. The section scripts start the executable, and Python reads the resulting CSVs. [Build entry points](../../build.sh) · [Section workflows](../../README.md)
 
 | File | Responsibility | Direct users or outputs |
 |---|---|---|
-| [strategy_experiments.cpp](../../simulation/strategy_experiments.cpp) | Dispatch modes and run the standard strategy comparison, weight paths, and validation | §6.3–6.5 section scripts, live jobs, and the checksum check |
-| [family_scores.cpp](../../simulation/family_scores.cpp) | Compare squared and log loss across working families and learning rates | `SCORESFAM`, §6.4 analysis and heatmaps |
-| [family_switching.cpp](../../simulation/family_switching.cpp) | Measure identification, adaptation, and predictive accuracy when the generating family stays fixed or switches | `FAMSWITCH`, §6.5 analysis and figures |
-| [strategy_regret.cpp](../../simulation/strategy_regret.cpp) | Compare predictive loss with the best fixed and switching sequences | `REGRET` and `REGRETFAM`, §6.4 regret analysis |
-| [fixed_ess_sweep.cpp](../../simulation/fixed_ess_sweep.cpp) | Sweep fixed memories and measure error, bias, variance, and jump recovery | §6.2 figures and tables, live jobs, and the checksum check |
-| [real_data_comparison.cpp](../../simulation/real_data_comparison.cpp) | Score forecasts and rolling benchmarks on observed returns | §6.6 analysis and figures, and the checksum check |
-| [budget_benchmark.cpp](../../simulation/budget_benchmark.cpp) | Measure accuracy, retained state, and timing across settings | §6.7 budget tables and figures, and the checksum check |
-| [margin_ablation.cpp](../../simulation/margin_ablation.cpp) | Measure how different marginal estimation methods affect accuracy | §6.7 marginal estimation report |
-| [strategy_runs.hpp](../../simulation/strategy_runs.hpp) | Declare modes and share replay data, fixed arms, inverse lookups, and window summaries | The four strategy source files |
-| [study_stream.hpp](../../simulation/study_stream.hpp) | Adapt in-process or live observations and provide shared KLL margins | Strategy runs and the fixed-ESS sweep |
-| [run_live_stream.hpp](../../simulation/run_live_stream.hpp) | Start the server and reconstruct paired returns from TCP ticks | The study adapter and the real-data runner |
-| [family_hellinger.hpp](../../simulation/family_hellinger.hpp) | Tabulate working densities and cache truth densities for Hellinger scoring | Family scoring and family switching |
-| [regret_oracle.hpp](../../simulation/regret_oracle.hpp) | Compute fixed and switching comparators from a loss matrix | Both regret modes |
-| [test/device_vs_probe.cpp](../../simulation/test/device_vs_probe.cpp) | Score the device on synthetic draws or reconstructed returns | The in-process device comparison |
-| [test/lab_vs_device.cpp](../../simulation/test/lab_vs_device.cpp) | Compare the browser lab's forecasts with the device | The browser-lab consistency check |
+| `strategy_experiments.cpp` | Dispatch modes and run the standard strategy comparison, weight paths, and validation | §6.3–6.5 section scripts, live jobs, and the checksum check |
+| `family_scores.cpp` | Compare squared and log loss across working families and learning rates | `SCORESFAM`, §6.4 analysis and heatmaps |
+| `family_switching.cpp` | Measure identification, adaptation, and predictive accuracy when the generating family stays fixed or switches | `FAMSWITCH`, §6.5 analysis and figures |
+| `strategy_regret.cpp` | Compare predictive loss with the best fixed and switching sequences | `REGRET` and `REGRETFAM`, §6.4 regret analysis |
+| `fixed_ess_sweep.cpp` | Sweep fixed memories and measure error, bias, variance, and jump recovery | §6.2 figures and tables, live jobs, and the checksum check |
+| `real_data_comparison.cpp` | Score forecasts and rolling benchmarks on observed returns | §6.6 analysis and figures, and the checksum check |
+| `budget_benchmark.cpp` | Measure accuracy, retained state, and timing across settings | §6.7 budget tables and figures, and the checksum check |
+| `margin_ablation.cpp` | Measure how different marginal estimation methods affect accuracy | §6.7 marginal estimation report |
+| `strategy_runs.hpp` | Declare modes and share replay data, fixed arms, inverse lookups, and window summaries | The four strategy source files |
+| `study_stream.hpp` | Adapt in-process or live observations and provide shared KLL margins | Strategy runs and the fixed-ESS sweep |
+| `run_live_stream.hpp` | Start the server and reconstruct paired returns from TCP ticks | The study adapter and the real-data runner |
+| `family_hellinger.hpp` | Tabulate working densities and cache truth densities for Hellinger scoring | Family scoring and family switching |
+| `regret_oracle.hpp` | Compute fixed and switching comparators from a loss matrix | Both regret modes |
+| `test/device_vs_probe.cpp` | Score the device on synthetic draws or reconstructed returns | The in-process device comparison |
+| `test/lab_vs_device.cpp` | Compare the browser lab's forecasts with the device | The browser-lab consistency check |
 
 ## Proposed design
 
