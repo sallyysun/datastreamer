@@ -13,9 +13,5 @@ if [ "${SIM:-0}" = 1 ]; then
     PATHS=1 $P             # strategies_paths
     WEIGHTS=1 $P           # strategies_weights (MFF weight paths, delta = 1e-4 and 0)
 fi
-python3 analyze_strategies.py
-python3 analyze_vffsens.py
-python3 ../common/strategy_allfixed.py . rmse  # ch6_strategy_rmse_bars_allfixed
-python3 plot_strategies.py                      # ch6_rmse_trajectories, ch6_jump_trajectories
-python3 plot_mff_weights.py                     # ch6_mff_weights_*, ch6_mff_fixedshare_jump_*
-python3 plot_vffsens.py                         # ch6_vffsens_rmse, ch6_vffsens_h2
+python3 analyse.py   # summaries
+python3 plots.py     # figures

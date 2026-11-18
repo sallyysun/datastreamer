@@ -72,4 +72,29 @@ private:
     std::vector<double> true_spearman_;
 };
 
+// WEIGHTS=1: the strategies_weights outputs, from the weight paths the standard run records.
+class WeightResults {
+public:
+    explicit WeightResults(const Run& run);
+    ~WeightResults();
+    WeightResults(const WeightResults&) = delete;
+    WeightResults& operator=(const WeightResults&) = delete;
+
+    bool ok() const { return weights_file_ && window_file_; }
+    void begin_scenario(const std::string& scenario);
+    void add(const SeedResults& result);
+    void end_scenario();
+
+private:
+    const std::string& cop_;
+    const int seeds_;
+    std::FILE* weights_file_ = nullptr;
+    std::FILE* window_file_ = nullptr;
+    std::string scenario_;
+    std::vector<thesis::Win> windows_;
+    std::vector<double> delta_;
+    // [estimator][path][t][k] summed weights; [estimator][path][t] summed squared error and forecast
+    std::vector<double> weight_sum_, squared_error_sum_, forecast_sum_, true_spearman_;
+};
+
 }  // namespace strategy_experiments

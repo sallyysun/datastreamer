@@ -46,12 +46,11 @@ double logc(copula::Family F, double u, double v, double rho) {
     return copula::log_density(F, u, v, copula::param_from_spearman(F, rho, kNu), kNu);
 }
 
-double mixture(copula::Family F, const std::vector<double>& w, const std::vector<std::unique_ptr<DependenceEstimator>>& arms,
+double mixture(copula::Family F, const thesis::Mff& mff, const std::vector<std::unique_ptr<DependenceEstimator>>& arms,
                double u, double v) {
-    double top = -INFINITY; double l[kK];
-    for (std::size_t k = 0; k < kK; ++k) { l[k] = std::log(w[k]) + logc(F, u, v, arms[k]->estimate()); top = std::max(top, l[k]); }
-    double s = 0; for (double x : l) s += std::exp(x - top);
-    return top + std::log(s);
+    double log_density[kK];
+    for (std::size_t k = 0; k < kK; ++k) log_density[k] = logc(F, u, v, arms[k]->estimate());
+    return mff.mixture_log_density(log_density);
 }
 
 // Rolling-window batch benchmark: exact sample Spearman correlation of the preceding W pairs (ranks within the window,
@@ -253,8 +252,8 @@ int main(int argc, char** argv) {
         const double fv = vff.inner->estimate();
         double ng = 0, nt = 0; for (std::size_t k = 0; k < kK; ++k) { ng += mg.w[k] * kMem[k]; nt += mt.w[k] * kMem[k]; }
         std::fprintf(o, ",%.8f,%.8f,%.8f,%.4f,%.8f,%.8f,%.3f,%.3f", fv, logc(copula::Family::Gaussian, u, v, fv),
-                     logc(copula::Family::StudentT, u, v, fv), vff.ctl.neff(), mixture(copula::Family::Gaussian, mg.w, arms, u, v),
-                     mixture(copula::Family::StudentT, mt.w, arms, u, v), ng, nt);
+                     logc(copula::Family::StudentT, u, v, fv), vff.ctl.neff(), mixture(copula::Family::Gaussian, mg, arms, u, v),
+                     mixture(copula::Family::StudentT, mt, arms, u, v), ng, nt);
         if (rolling) rolling->write_scores(o, u, v);
         std::fprintf(o, "\n");
         const auto tm = Clock::now();

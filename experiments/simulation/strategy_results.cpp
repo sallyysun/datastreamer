@@ -37,7 +37,7 @@ StrategyResults::StrategyResults(const Run& run, const StrategyOptions& options,
       strategy_count_(strategy_labels.size()) {
     const std::string& sfx = run.sfx;
     const char* dseed = options.dump_seed;
-    auto open = [&](const std::string& name) { return std::fopen(("results/strategies_" + name + sfx + ".csv").c_str(), "w"); };
+    auto open = [&](const std::string& name) { return open_result("strategies_" + name + sfx); };
     mixture_check_file_ = options.mixdens ? open("mixcheck") : nullptr;
     if (mixture_check_file_) std::fprintf(mixture_check_file_, "copula,scenario,estimator,seed,mixloss_kll\n");
     seed_scores_file_ = paths_ ? std::fopen("/dev/null", "w") : open("seeds");
@@ -186,6 +186,64 @@ void StrategyResults::write_jump_path() {
             for (std::size_t t = kBurn; t < kN; ++t)
                 std::fprintf(jump_path_file_, "%s,%s,%s,%zu,%.8g\n", cop_.c_str(), kEst[estimator], strategy_labels_[strategy].c_str(), t,
                              totals(estimator, strategy).squared_error_sum[t] / seeds_);
+}
+
+WeightResults::WeightResults(const Run& run)
+    : cop_(run.cop), seeds_(run.seeds), weights_file_(open_result("strategies_weights" + run.sfx)),
+      window_file_(open_result("strategies_weights_seeds" + run.sfx)) {
+    if (!ok()) return;
+    std::fprintf(weights_file_, "copula,scenario,estimator,delta,t");
+    for (double memory : thesis::kMem) std::fprintf(weights_file_, ",w%g", memory);
+    std::fprintf(weights_file_, ",mse,rho_true,est_mean\n");
+    std::fprintf(window_file_, "copula,scenario,estimator,delta,seed,window,rmse\n");
+}
+
+WeightResults::~WeightResults() {
+    for (std::FILE* f : {weights_file_, window_file_})
+        if (f) std::fclose(f);
+}
+
+void WeightResults::begin_scenario(const std::string& scenario) {
+    scenario_ = scenario;
+    windows_ = windows(scenario);
+    weight_sum_.assign(3 * 2 * kN * thesis::kK, 0.0);
+    squared_error_sum_.assign(3 * 2 * kN, 0.0);
+    forecast_sum_.assign(3 * 2 * kN, 0.0);
+    true_spearman_.assign(kN, 0.0);
+}
+
+void WeightResults::add(const SeedResults& result) {
+    true_spearman_ = result.true_spearman;
+    for (std::size_t estimator = 0; estimator < 3; ++estimator) {
+        const auto& paths = result.estimators[estimator].weight_paths;
+        delta_ = {paths[0].delta, paths[1].delta};
+        for (std::size_t path = 0; path < 2; ++path) {
+            const auto& trace = paths[path];
+            for (std::size_t t = 0; t < kN; ++t) {
+                const std::size_t b = (estimator * 2 + path) * kN + t;
+                squared_error_sum_[b] += trace.squared_error[t];
+                forecast_sum_[b] += trace.forecast[t];
+                for (std::size_t k = 0; k < thesis::kK; ++k) weight_sum_[b * thesis::kK + k] += trace.weights[t * thesis::kK + k];
+            }
+            for (const auto& w : windows_) {
+                double a = 0;
+                for (std::size_t t = w.a; t < w.b; ++t) a += trace.squared_error[t];
+                std::fprintf(window_file_, "%s,%s,%s,%g,%u,%s,%.8f\n", cop_.c_str(), scenario_.c_str(), kEst[estimator], trace.delta,
+                             result.seed, w.name, std::sqrt(a / double(w.b - w.a)));
+            }
+        }
+    }
+}
+
+void WeightResults::end_scenario() {
+    for (std::size_t estimator = 0; estimator < 3; ++estimator)
+        for (std::size_t path = 0; path < 2; ++path)
+            for (std::size_t t = 0; t < kN; ++t) {
+                const std::size_t b = (estimator * 2 + path) * kN + t;
+                std::fprintf(weights_file_, "%s,%s,%s,%g,%zu", cop_.c_str(), scenario_.c_str(), kEst[estimator], delta_[path], t);
+                for (std::size_t k = 0; k < thesis::kK; ++k) std::fprintf(weights_file_, ",%.6g", weight_sum_[b * thesis::kK + k] / seeds_);
+                std::fprintf(weights_file_, ",%.8g,%.6g,%.6g\n", squared_error_sum_[b] / seeds_, true_spearman_[t], forecast_sum_[b] / seeds_);
+            }
 }
 
 }  // namespace strategy_experiments

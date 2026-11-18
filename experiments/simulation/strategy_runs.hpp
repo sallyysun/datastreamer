@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -24,14 +26,42 @@ struct Run {
 
 inline constexpr const char* kEst[] = {"xiao", "hermite", "rmpl"};
 
+// Comma-separated values from an environment variable, skipping empty entries; empty if unset.
+inline std::vector<std::string> parse_list(const char* csv) {
+    std::vector<std::string> items;
+    if (!csv) return items;
+    const std::string text(csv);
+    for (std::size_t first = 0; first <= text.size();) {
+        std::size_t comma = text.find(',', first);
+        if (comma == std::string::npos) comma = text.size();
+        if (comma > first) items.push_back(text.substr(first, comma - first));
+        first = comma + 1;
+    }
+    return items;
+}
+
+inline std::FILE* open_result(const std::string& name) { return std::fopen(("results/" + name + ".csv").c_str(), "w"); }
+
+inline int missing_results_folder() {
+    std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n");
+    return 1;
+}
+
+struct SeedMeanSd { double mean, sd; };
+
+// Mean and sample standard deviation across seeds from running sums.
+inline SeedMeanSd seed_mean_sd(double sum, double sum_sq, int seeds) {
+    const double mean = sum / seeds;
+    const double var = std::max(0.0, sum_sq / seeds - mean * mean) * seeds / (seeds - 1.0);
+    return {mean, std::sqrt(var)};
+}
+
 using thesis::FixedMemoryArms;
 
+int run_validate(const Run& run);
 int run_famswitch(const Run& run);
 int run_scoresfam(const Run& run);
 int run_regretfam(const Run& run);
 int run_regret(const Run& run);
-
-using thesis::FamilyHellinger;
-using thesis::FamilyInverse;
 
 }  // namespace strategy_experiments

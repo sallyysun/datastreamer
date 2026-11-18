@@ -17,14 +17,5 @@ if [ "${SIM:-0}" = 1 ]; then
     done
     build/margin_ablation                                                  # margins_seeds (marginal-estimation diagnostic)
 fi
-python3 prepare_data.py                 # budget_{sweep,seeds}_n15k, budget_time_table_n15k
-python3 select_configs.py               # budget_selected, budget_gain
-python3 make_budget_config_tables.py    # tab:ch6-budget-configs, tab:budget-configurations-full
-if [ "${REPORTS:-0}" = 1 ]; then
-    python3 analyze_margins.py
-fi
-python3 plot_budget_storage.py          # ch6_budget_storage_n15k
-python3 plot_budget_kll_n15k.py         # ch6_budget_kll_comparison
-python3 plot_processing_time.py         # ch6_budget_processing_time
-python3 plot_memory_curves.py           # ch6_budget_memory_curves_n15k
-python3 plot_budget_gain_scenarios.py   # ch6_budget_accuracy_gain_scenarios
+python3 analyse.py   # tables
+python3 plots.py     # figures

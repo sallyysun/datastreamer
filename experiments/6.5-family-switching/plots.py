@@ -1,5 +1,4 @@
 """Plot family-switching timing, weights, and predictive accuracy."""
-import argparse
 from pathlib import Path
 import sys
 
@@ -172,21 +171,11 @@ def plot_accuracy():
 
 
 def main():
-    plots = {
-        "weights": plot_weights,
-        "accuracy": plot_accuracy,
-        "identification": plot_identification,
-        "adaptation": plot_adaptation,
-    }
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", nargs="?", choices=("all", *plots), default="all")
-    mode = parser.parse_args().mode
     IMAGES.mkdir(exist_ok=True)
-    if mode == "all":
-        for plot in plots.values():
-            plot()
-    else:
-        plots[mode]()
+    plot_weights()
+    plot_accuracy()
+    plot_identification()
+    plot_adaptation()
 
 
 if __name__ == "__main__":

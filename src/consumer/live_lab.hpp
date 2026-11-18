@@ -68,7 +68,7 @@ public:
 
 private:
     void score(double u, double v) {
-        bool ok = t_ >= 30;
+        bool ok = t_ >= thesis::kMffWarmup;
         for (const auto& a : arms_) ok = ok && a->ready();
         if (!ok) return;
         const std::size_t K = mem_.size();

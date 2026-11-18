@@ -85,11 +85,11 @@ The 312-line file contains two experiment runners. Each parses options, runs est
 
 | Current | Suggested | Where |
 |---|---|---|
-| `load()`, `get(W, sc, e, delta)`, `frame(ax, sc)` | `load_weight_paths()`, `select_weight_path(weight_paths, scenario, estimator, delta)`, `style_time_axis(ax, scenario)` | [MFF weights](../../6.3-adaptive-forgetting/plot_mff_weights.py#L20) |
+| `weight_path(W, sc, e, delta)`, `weight_panel(a0, a1, g, sc)` | `select_weight_path(weight_paths, scenario, estimator, delta)`, `plot_weight_panel(...)` | [MFF weights](../../6.3-adaptive-forgetting/plots.py#L131) |
 | `load(section_dir, metric)`, `panel(ax, agg, sc, ym, metric)` | `load_strategy_summary()`, `plot_scenario_bars(ax, summary, scenario, y_limit, metric)` | [Shared strategy plot](../../common/strategy_allfixed.py#L21) |
-| `Days`, `idx`, `classify(D, ...)`, `stat(Dm, M)` | `PairedTradingDays`, `calendar_dates`, `classify_large_changes(changes, ...)`, `summarize_masked_loss_difference(loss_difference, mask)` | [Hedge change analysis](../../6.6-real-data/analyze_hedge_change.py#L20) |
+| `Days`, `idx`, `classify(D, ...)`, `stat(Dm, M)` | `PairedTradingDays`, `calendar_dates`, `classify_large_changes(changes, ...)`, `summarize_masked_loss_difference(loss_difference, mask)` | [Hedge change analysis](../../6.6-real-data/analyse.py#L114) |
 
-Name array axes where shape matters, especially arm × pair × day in the hedge analysis. Break the aligned change calculation into named steps and preserve the order of shifting by trading days before reindexing to calendar dates. Move reusable statistics into `summary_stats.py` only when callers use the same pairing, units and missing-data policy. Keep report strings near the output so the computation can be read without skipping formatted prose. [Day alignment](../../6.6-real-data/analyze_hedge_change.py#L27) · [Shared statistics](../../common/summary_stats.py)
+Name array axes where shape matters, especially arm × pair × day in the hedge analysis. Break the aligned change calculation into named steps and preserve the order of shifting by trading days before reindexing to calendar dates. Move reusable statistics into `summary_stats.py` only when callers use the same pairing, units and missing-data policy. Keep report strings near the output so the computation can be read without skipping formatted prose. [Day alignment](../../6.6-real-data/analyse.py#L109) · [Shared statistics](../../common/summary_stats.py)
 
 ## Suggested order
 

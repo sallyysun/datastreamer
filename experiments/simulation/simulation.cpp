@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <span>
 #include <string>
@@ -12,8 +13,24 @@
 namespace strategy_experiments {
 
 Simulation::Simulation(const Run& run, std::string scenario, unsigned seed, const std::vector<double>& rates,
-                       bool mixture)
-    : run_(run), scenario_(std::move(scenario)), seed_(seed), rates_(rates), mixture_(mixture) {}
+                       bool mixture, bool weight_paths)
+    : run_(run), scenario_(std::move(scenario)), seed_(seed), rates_(rates), mixture_(mixture), weight_paths_(weight_paths) {}
+
+namespace {
+
+WeightTrace empty_weight_trace(double delta) {
+    using thesis::kN;
+    return {delta, std::vector<double>(kN * thesis::kK), std::vector<double>(kN), std::vector<double>(kN)};
+}
+
+void record_weights(WeightTrace& trace, std::size_t t, const std::vector<double>& weights, double forecast, double truth) {
+    std::copy(weights.begin(), weights.end(), trace.weights.begin() + t * thesis::kK);
+    const double error = forecast - truth;
+    trace.forecast[t] = forecast;
+    trace.squared_error[t] = error * error;
+}
+
+}  // namespace
 
 SeedResults Simulation::run() const {
     using thesis::kN;
@@ -29,7 +46,9 @@ SeedResults Simulation::run() const {
         const std::size_t count = strategies.size();
         const auto& weights = strategies.mff_weights();
         const auto mixture_weights = mixture_ ? std::span<const double>(weights) : std::span<const double>{};
-        EstimatorTrace trace{std::vector<StrategyTrace>(count), 0};
+        EstimatorTrace trace{std::vector<StrategyTrace>(count), 0, {}};
+        thesis::Mff hedge(copula::Family::Gaussian, thesis::kK, 1.0, 0.0);
+        if (weight_paths_) trace.weight_paths = {empty_weight_trace(thesis::Mff().delta), empty_weight_trace(hedge.delta)};
         for (auto& strategy : trace.strategies) {
             strategy.forecast.resize(kN);
             strategy.squared_error.resize(kN);
@@ -50,6 +69,12 @@ SeedResults Simulation::run() const {
                 strategy.squared_error[t] = score.squared_error;
                 strategy.excess[t] = score.excess;
                 strategy.h2[t] = score.h2;
+            }
+            if (weight_paths_) {
+                const auto& arms = strategies.arms().estimators();
+                record_weights(trace.weight_paths[0], t, weights, f[thesis::kK], s.true_spearman[t]);
+                record_weights(trace.weight_paths[1], t, hedge.w, hedge.estimate(arms), s.true_spearman[t]);
+                hedge.score_and_update_weights(arms, s.estimated_pit_x[t], s.estimated_pit_y[t], t);
             }
             strategies.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t], t);
         }

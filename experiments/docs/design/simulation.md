@@ -124,7 +124,9 @@ experiments/simulation/
   experiment.cpp                main(), mode dispatch, and Experiment
   simulation.hpp/.cpp           Simulation, SeedResults, and the single-seed forecast loop
   strategy_results.hpp/.cpp     StrategyResults, window summaries, and the strategies_* CSVs
-  strategy_runs.hpp             Run options and mode declarations
+  strategy_runs.hpp             Run options, mode declarations, and small runner helpers
+  validate.cpp                  VALIDATE=1 table and density checks
+  working_families.hpp          Working families, rho_S tables, and family Hellinger
   family.cpp                    Family scoring and switching
   regret.cpp                    Regret modes and their oracle
   fixed_ess_sweep.cpp           §6.2 fixed-memory accuracy and recovery
@@ -137,7 +139,7 @@ experiments/simulation/
     lab_vs_device.cpp           Browser lab and device comparison
 ```
 
-The proposed structure has 16 simulation files, up from the current 15. The split replaces `strategy_experiments.cpp` with `experiment.cpp`, `simulation.cpp`, and `strategy_results.cpp`, which link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
+The proposed structure has 18 simulation files, up from the current 15. The split replaces `strategy_experiments.cpp` with `experiment.cpp`, `simulation.cpp`, and `strategy_results.cpp`, which link into the same `strategy_experiments` executable. `regret_oracle.hpp` folds into `regret.cpp`. The two Hellinger implementations merge in `src/estimators/evaluation.hpp`. That header already holds the Chapter 6 evaluation, so the family tables join code used only by the experiments, not code the live consumer needs. The section scripts keep their executable names, mode flags, CSV names, and output schemas.
 
 Within the strategy executable, the file boundaries are for navigation and linking.
 
@@ -186,6 +188,8 @@ Most of that length restates MFF. `Mff` is fixed at the five study arms, so mode
 `run_weights` mostly duplicates the standard run. Its δ = 1e-4 rows replay the same arms and the same `Mff` that `ForgettingStrategies` holds, in the same scoring order, so their weights, squared errors and mean forecasts are already computed there. Only the δ = 0 Hedge comparison is new. `SeedResults` can carry the MFF weight path, and the weight outputs can come from the standard run, with δ = 0 as an extra strategy enabled only under `WEIGHTS=1`.
 
 ### Order
+
+Steps 1–5 are implemented on `final-edits`, not yet verified against the reference outputs. `VALIDATE=1` now prints the family table checks, so `validate_strategies.txt` changes by design.
 
 1. Let `Mff` take any number of arms, a learning rate and a share rate. Give it `forecast()`, `mixture_log_density()`, `mixture_loss()` and `update()`, and name the 30-tick warm-up. The family, regret and real-data modes then hold `Mff` values instead of raw weight vectors. Keep each mode's existing log-sum-exp form and loss guard, so outputs stay identical.
 2. Move the table self-checks in `run_scoresfam` and `run_famswitch` into `VALIDATE=1`.

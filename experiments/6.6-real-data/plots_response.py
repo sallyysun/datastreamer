@@ -1,4 +1,5 @@
-"""Compare MFF and VFF responses on each pair's largest dependence-change days."""
+"""Section 6.6 response figures: how far MFF, VFF and fixed memories move on each pair's largest dependence changes, and
+MFF weights and effective memory around those episodes. Usage: python3 plots_response.py <workdir>"""
 import os
 import sys
 
@@ -7,13 +8,17 @@ import pandas as pd
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from real_common import EST, EVAL_FROM, EVAL_ROW, GRID, RC, W, box_style, image, outputs, plt, read, result, verbose_print
+from real_common import EST, EVAL_FROM, EVAL_ROW, FIX, GRID, RC, W, box_style, change, eval_days, image, outputs, plt, read, result, verbose_print
 
 SER = [("fixed99", r"Fixed, $N_{\mathrm{eff}}=99$", "rho_fixed_99", "#A6A6A6"), ("fixed199", r"Fixed, $N_{\mathrm{eff}}=199$", "rho_fixed_199", "#6E6E6E"),
        ("fixed399", r"Fixed, $N_{\mathrm{eff}}=399$", "rho_fixed_399", "#333333"), ("vff", r"VFF, $\alpha=0.02$", "rho_vff", "#8E6BB8"),
        ("mff", "MFF", "rho_mff_t", "#C2185B")]
 REF_MED = {"RMPL": (1.14, 0.19, 0.31, 0.60), "Counting matrix": (1.37, 0.25, 0.39, 0.71), "Hermite series": (1.42, 0.25, 0.39, 0.49)}
 REF_DIR = {"RMPL": (85, 93, 93, 90), "Counting matrix": (88, 97, 97, 94), "Hermite series": (82, 91, 91, 90)}
+FA = np.array(FIX, float)
+MEMC = [plt.get_cmap("plasma")(v) for v in (0.82, 0.64, 0.47, 0.30, 0.10)]
+MFFC, VFFC = "#C2185B", "#8E6BB8"
+LAGS = np.arange(-63, 127)
 
 
 def ratios(S):
@@ -39,7 +44,7 @@ def ratios(S):
     return pd.DataFrame(rows), pd.DataFrame(pooled)
 
 
-def checks(Bp, Pl):
+def response_checks(Bp, Pl):
     wm = wd = 0
     for e in REF_MED:
         g = Pl[Pl.estimator == e].set_index("series")
@@ -52,7 +57,7 @@ def checks(Bp, Pl):
     assert set(map(tuple, zero[["estimator", "pair"]].values)) <= {("Hermite series", "SPY_IVV")}
 
 
-def figure(Bp, Pl):
+def response_figure(Bp, Pl):
     G = len(SER) + 1
     with plt.rc_context(RC):
         fig, ax = plt.subplots(figsize=(W, 3.7))
@@ -94,7 +99,7 @@ def figure(Bp, Pl):
         plt.close(fig)
 
 
-def summary(Bp, Pl):
+def response_summary(Bp, Pl):
     out = []
     for e, _ in EST:
         for k, *_ in SER:
@@ -121,12 +126,13 @@ def direction_table(O):
     open(result("tables/ch6_practical_direction_agreement.md"), "w").write("\n".join(md) + "\n")
 
 
-def main():
-    Bp, Pl = ratios(sys.argv[1])
+def plot_response(S):
+    """How far each series moves relative to the rolling Spearman on large-change days."""
+    Bp, Pl = ratios(S)
     Bp.to_csv(result("dependence_response_by_pair.csv"), index=False)
-    checks(Bp, Pl)
-    figure(Bp, Pl)
-    O = summary(Bp, Pl)
+    response_checks(Bp, Pl)
+    response_figure(Bp, Pl)
+    O = response_summary(Bp, Pl)
     O.to_csv(result("dependence_response_main.csv"), index=False)
     direction_table(O)
     counts = []
@@ -136,6 +142,109 @@ def main():
         verbose_print(f"{e:16s} MFF > VFF {counts[-1]}/32, ties {int((g.mff == g.vff).sum())}, "
                       f"MFF < fixed 99 {int((g.mff < g.fixed99).sum())}/32, MFF > fixed 199 {int((g.mff > g.fixed199).sum())}/32")
     assert counts == [29, 27, 23]
+
+
+def eval_rows(x):
+    return eval_days(x).reset_index(drop=True)
+
+
+def episode_starts(roll):
+    starts = {}
+    for p, x in roll.items():
+        D = eval_rows(x.assign(D=change(x))).D.values
+        c = D >= np.nanquantile(D, 0.9)
+        starts[p] = [t for t in range(len(c)) if c[t] and t >= 21 and not c[t - 21:t].any()]
+    return starts
+
+
+def episodes(S, roll, starts):
+    res, full, vff_paths = {}, [], {}
+    for e, d in EST:
+        Wl, Ml, Vl, Mall, Vall, Hall, pm = [], [], [], [], [], [], []
+        for p, f in outputs(S, d).items():
+            x = eval_rows(read(f))
+            assert (x.date.values == eval_rows(roll[p]).date.values).all()
+            Wt = x[[f"wt_{k}" for k in FIX]].values
+            mem, nv = Wt @ FA, x.neff_vff.values
+            assert np.abs(mem - x.neff_mff_t.values).max() < 0.01, "sum_k w_k N_k must equal the saved neff_mff_t"
+            vff_paths.setdefault(p, []).append(nv)
+            Mall.append(mem)
+            Vall.append(nv)
+            Hall.append(1 / (Wt @ (1 / FA)))
+            pm.append(mem.mean())
+            for t in starts[p]:
+                if t + LAGS[0] >= 0 and t + LAGS[-1] < len(x):
+                    sl = t + LAGS
+                    Wl.append(Wt[sl])
+                    Ml.append(mem[sl])
+                    Vl.append(nv[sl])
+        Wl, Ml, Vl = np.array(Wl), np.array(Ml), np.array(Vl)
+        res[e] = dict(W=Wl.mean(0), M=np.median(Ml, 0), Mq=np.percentile(Ml, [25, 75], 0), V=np.median(Vl, 0), Vq=np.percentile(Vl, [25, 75], 0), n=len(Wl))
+        M, V, H = map(np.concatenate, (Mall, Vall, Hall))
+        full.append(dict(estimator=e, mff_wavg_median=np.median(M), mff_wavg_q25=np.percentile(M, 25), mff_wavg_q75=np.percentile(M, 75),
+                         mff_wavg_mean=M.mean(), pair_mean_min=min(pm), pair_mean_max=max(pm), mff_harmonic_median=np.median(H),
+                         vff_median=np.median(V), vff_mean=V.mean()))
+    vff_same = max(np.abs(a - b).max() for v in vff_paths.values() for a in v for b in v)
+    return res, full, vff_same
+
+
+def weights_figure(res):
+    H = 3.1
+    with plt.rc_context(RC):
+        fig, axs = plt.subplots(2, 3, figsize=(W, H), sharex=True, sharey="row", gridspec_kw={"height_ratios": [1.35, 1]})
+        for ci, (e, _) in enumerate(EST):
+            r, a1, a2 = res[e], axs[0, ci], axs[1, ci]
+            a1.stackplot(LAGS, *r["W"].T, colors=MEMC, lw=0, zorder=2)
+            a1.set_ylim(0, 1)
+            a1.set_title(e)
+            a2.plot(LAGS, r["V"], color=VFFC, lw=1.1, zorder=3)
+            a2.plot(LAGS, r["M"], color=MFFC, lw=1.1, zorder=4)
+            a2.set_yscale("log")
+            a2.set_ylim(30, 2600)
+            a2.set_yticks(FIX)
+            a2.set_yticklabels([str(k) for k in FIX])
+            a2.minorticks_off()
+            a2.grid(True, axis="y", color=GRID, lw=0.5, zorder=0)
+            a2.set_axisbelow(True)
+            for a in (a1, a2):
+                a.set_xlim(LAGS[0], LAGS[-1])
+                a.set_xticks([-50, 0, 50, 100])
+                a.axvline(0, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=6)
+        axs[0, 0].set_ylabel("Mean MFF weight")
+        axs[1, 0].set_ylabel("Weight-averaged\ncandidate " + r"$N_{\mathrm{eff}}$")
+        h = [plt.Rectangle((0, 0), 1, 1, color=c) for c in MEMC] + [Line2D([], [], color=MFFC, lw=1.1), Line2D([], [], color=VFFC, lw=1.1)]
+        fig.legend(h, [r"$N_{\mathrm{eff}}=%d$" % m for m in FIX] + ["MFF", "VFF"], loc="upper center", ncol=7, frameon=False, fontsize=7,
+                   bbox_to_anchor=(0.53, 0.955), handlelength=1.2, columnspacing=1.2)
+        fig.text(0.53, 0.01, "Trading days from the start of a large-change episode", ha="center", fontsize=8)
+        fig.subplots_adjust(left=0.12, right=0.985, top=1 - 0.665 / H, bottom=0.42 / H, hspace=0.14, wspace=0.08)
+        fig.savefig(image("ch6_practical_weights_ess.png"))
+        plt.close(fig)
+
+
+def weights_values(res):
+    rows = []
+    for e, _ in EST:
+        r = res[e]
+        for j, l in enumerate(LAGS):
+            rows.append(dict(estimator=e, lag=l, **{f"w_{k}": r["W"][j, i] for i, k in enumerate(FIX)}, mff_wavg_ess_median=r["M"][j],
+                             mff_wavg_ess_q25=r["Mq"][0, j], mff_wavg_ess_q75=r["Mq"][1, j], vff_ess_median=r["V"][j], n_episodes=r["n"]))
+    return pd.DataFrame(rows)
+
+
+def plot_weights_ess(S):
+    """MFF weights and effective memory around large-change episodes."""
+    roll = {p: read(f) for p, f in outputs(S, "practical_roll2").items()}
+    starts = episode_starts(roll)
+    res, full, vff_same = episodes(S, roll, starts)
+    weights_figure(res)
+    weights_values(res).to_csv(result("weights_ess_values.csv"), index=False)
+    pd.DataFrame(full).to_csv(result("weights_ess_full_period.csv"), index=False)
+    verbose_print(f"Episode starts {sum(len(v) for v in starts.values())}, max VFF ESS difference {vff_same:.3g}")
+
+
+def main():
+    plot_weights_ess(sys.argv[1])
+    plot_response(sys.argv[1])
 
 
 if __name__ == "__main__":

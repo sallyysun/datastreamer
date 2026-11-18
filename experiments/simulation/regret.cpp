@@ -13,6 +13,7 @@
 #include "../../src/estimators/evaluation.hpp"
 #include "strategy_runs.hpp"
 #include "study_stream.hpp"
+#include "working_families.hpp"
 
 inline constexpr int kSwitchBudgets = 3;
 
@@ -91,43 +92,39 @@ int run_regretfam(const Run& run) {
     const int seeds = run.seeds;
     const std::string& cop = run.cop;
     const std::string& sfx = run.sfx;
-    const copula::Family WF[4] = {copula::Family::Gaussian, copula::Family::StudentT, copula::Family::Clayton, copula::Family::Gumbel};
-    const char* WN[4] = {"gaussian", "t", "clayton", "gumbel"};
     const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = std::fopen(("results/regretfam_seeds" + sfx + ".csv").c_str(), "w");
-    if (!fr) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
+    std::FILE* fr = open_result("regretfam_seeds" + sfx);
+    if (!fr) return missing_results_folder();
     std::fprintf(fr, "gen,scenario,working,delta,seed,T,t0,loss_mix,best0,arm0,best1,best2,sw_t,sw_from,sw_to,n_nonfinite,n_clamp\n");
-    const FamilyInverse inverses[4] = {FamilyInverse(WF[0]), FamilyInverse(WF[1]), FamilyInverse(WF[2]), FamilyInverse(WF[3])};
+    const WorkingFamilies families;
     for (const std::string sc : {"constant", "drift", "jump"}) {
         for (int sd = 0; sd < seeds; ++sd) {
             const unsigned seed = thesis::kFirstSeed + sd;
             const StudySeries s = load_study_series(cop, sc, seed, kN);
             for (int wi = 0; wi < 4; ++wi) {
-                const auto& inv = inverses[wi];
+                const auto& inv = families.inverse[wi];
+                const auto family = WorkingFamilies::family[wi];
                 FixedMemoryArms arms("rmpl");
-                std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
+                thesis::Mff mix[2] = {thesis::Mff(family, kK, 1.0, deltas[0]), thesis::Mff(family, kK, 1.0, deltas[1])};
                 std::vector<std::vector<double>> L;
                 std::vector<std::array<double, 2>> mf;
                 std::vector<std::size_t> tt;
-                std::vector<double> l(kK), lw(kK);
+                std::vector<double> l(kK);
                 long nonfin = 0, nclamp = 0;
                 for (std::size_t t = 0; t < kN; ++t) {
-                    if (t >= 30 && arms.ready()) {
+                    if (t >= thesis::kMffWarmup && arms.ready()) {
                         bool clamp = false;
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double rho = arms.estimate(k);
-                            l[k] = -copula::log_density(WF[wi], s.estimated_pit_x[t], s.estimated_pit_y[t], inv(rho));
+                            l[k] = -copula::log_density(family, s.estimated_pit_x[t], s.estimated_pit_y[t], inv(rho));
                             clamp = clamp || inv.clamped(rho);
                         }
                         nclamp += clamp;
                         nonfin += thesis::guard_mff_losses(l);
                         std::array<double, 2> row{};
                         for (int di = 0; di < 2; ++di) {
-                            double lo = INFINITY, mix = 0;
-                            for (std::size_t k = 0; k < kK; ++k) lo = std::min(lo, l[k]);
-                            for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
-                            row[di] = lo - std::log(mix);
-                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
+                            row[di] = mix[di].mixture_loss(l.data());
+                            mix[di].update(l);
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t);
                     }
@@ -140,7 +137,7 @@ int run_regretfam(const Run& run) {
                     for (const auto& row : mf) cm += row[di];
                     const auto switch_tick = oracle.before_arm == oracle.after_arm
                         ? 0 : tt[std::min(oracle.switch_index, T - 1)];
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", cop.c_str(), sc.c_str(), WN[wi],
+                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", cop.c_str(), sc.c_str(), WorkingFamilies::name[wi],
                                  deltas[di], seed, T, tt.front(), cm, oracle.fixed_loss, kMem[oracle.fixed_arm],
                                  oracle.one_switch_loss, oracle.prefix_loss.back()[2], switch_tick,
                                  kMem[oracle.before_arm], kMem[oracle.after_arm], nonfin, nclamp);
@@ -159,9 +156,9 @@ int run_regret(const Run& run) {
     const std::string& sfx = run.sfx;
     constexpr int MS = kSwitchBudgets;
     const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = std::fopen(("results/regret_seeds" + sfx + ".csv").c_str(), "w");
-    std::FILE* fc = std::fopen(("results/regret_paths" + sfx + ".csv").c_str(), "w");
-    if (!fr || !fc) { std::fprintf(stderr, "run from the experiment folder (results/ must exist)\n"); return 1; }
+    std::FILE* fr = open_result("regret_seeds" + sfx);
+    std::FILE* fc = open_result("regret_paths" + sfx);
+    if (!fr || !fc) return missing_results_folder();
     std::fprintf(fr, "copula,scenario,estimator,delta,seed,T,t0,loss_mix,loss_point,best0,arm0,best1,best2,sw_t,sw_from,sw_to\n");
     std::fprintf(fc, "copula,scenario,estimator,delta,loss,m,t,mean,sd\n");
     for (const std::string sc : {"constant", "drift", "jump"}) {
@@ -176,14 +173,15 @@ int run_regret(const Run& run) {
             for (int ei = 0; ei < 3; ++ei) {
                 const std::string e = kEst[ei];
                 FixedMemoryArms arms(e);
-                std::vector<std::vector<double>> w(2, std::vector<double>(kK, 1.0 / kK));
+                thesis::Mff mix[2] = {thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[0]),
+                                      thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[1])};
                 std::vector<std::vector<double>> L;          // [scored tick][k] guarded arm loss
                 std::vector<std::array<double, 4>> mf;       // mix / point loss for delta 0, 1e-4
                 std::vector<std::size_t> tt;
-                std::vector<double> f(kK), l(kK), lw(kK);
+                std::vector<double> f(kK), l(kK);
                 for (std::size_t t = 0; t < kN; ++t) {
                     arms.forecasts(f.data());
-                    if (t >= 30 && arms.ready()) {
+                    if (t >= thesis::kMffWarmup && arms.ready()) {
                         for (std::size_t k = 0; k < kK; ++k) {
                             const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
                             l[k] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t], par);
@@ -191,15 +189,11 @@ int run_regret(const Run& run) {
                         thesis::guard_mff_losses(l);
                         std::array<double, 4> row{};
                         for (int di = 0; di < 2; ++di) {
-                            double lo = INFINITY, r = 0;
-                            for (std::size_t k = 0; k < kK; ++k) { lo = std::min(lo, l[k]); r += w[di][k] * f[k]; }
-                            double mix = 0;
-                            for (std::size_t k = 0; k < kK; ++k) mix += w[di][k] * std::exp(-(l[k] - lo));
-                            row[2 * di] = lo - std::log(mix);
-                            r = std::clamp(r, -1.0, 1.0);
+                            row[2 * di] = mix[di].mixture_loss(l.data());
+                            const double r = mix[di].forecast(f.data());
                             row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t],
                                                                    copula::param_from_spearman(copula::Family::Gaussian, r));
-                            thesis::apply_fixed_share(w[di], l, lw, 1.0, deltas[di]);
+                            mix[di].update(l);
                         }
                         L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
                     }
@@ -232,10 +226,9 @@ int run_regret(const Run& run) {
                     for (int m = 0; m < MS; ++m)
                         for (std::size_t t = 0; t < kN; ++t) {
                             if (!scored[t] || (t % 10 != 9 && t != kN - 1)) continue;
-                            const double mu = s1[pi(ei, di, lo, m, t)] / seeds;
-                            const double var = std::max(0.0, s2[pi(ei, di, lo, m, t)] / seeds - mu * mu) * seeds / (seeds - 1.0);
+                            const auto [mean, sd] = seed_mean_sd(s1[pi(ei, di, lo, m, t)], s2[pi(ei, di, lo, m, t)], seeds);
                             std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), kEst[ei], deltas[di],
-                                         lo ? "point" : "mix", m, t, mu, std::sqrt(var));
+                                         lo ? "point" : "mix", m, t, mean, sd);
                         }
     }
     std::fclose(fr); std::fclose(fc);

@@ -57,6 +57,7 @@ public:
         for (std::size_t j = 0; j < vffs_.size(); ++j) f[kK + 1 + j] = vffs_[j].inner->estimate();
     }
     const std::vector<double>& mff_weights() const { return mff_.w; }
+    const FixedMemoryArms& arms() const { return arms_; }
     bool mff_ready(std::size_t t) const { return mff_.ready(arms_.estimators(), t); }
     // t = observations already absorbed (the margins' size before this one).
     void update(double x, double y, double u, double v, std::size_t t) {

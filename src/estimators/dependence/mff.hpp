@@ -51,27 +51,62 @@ inline void update_mff_weights(std::vector<double>& weights, std::vector<double>
     apply_fixed_share(weights, losses, log_weights, eta, delta);
 }
 
-// MFF over the study's fixed memories, scored under one working copula.
+inline constexpr std::size_t kMffWarmup = 30;
+
+// Hedge with fixed share over any set of arms. The default is MFF over the study's fixed memories under one
+// working copula.
 struct Mff {
-    copula::Family family = copula::Family::Gaussian;
-    double eta = 1.0, delta = 1e-4;
-    std::vector<double> w = std::vector<double>(kK, 1.0 / kK), loss = std::vector<double>(kK), lw = std::vector<double>(kK);
+    copula::Family family;
+    double eta, delta;
+    std::vector<double> w, loss, lw;
+
+    explicit Mff(copula::Family family = copula::Family::Gaussian, std::size_t arms = kK, double eta = 1.0,
+                 double delta = 1e-4)
+        : family(family), eta(eta), delta(delta), w(arms, 1.0 / double(arms)), loss(arms), lw(arms) {}
+
+    std::size_t size() const { return w.size(); }
+
+    double forecast(const double* rho) const {
+        double r = 0;
+        for (std::size_t k = 0; k < w.size(); ++k) r += w[k] * rho[k];
+        return std::clamp(r, -1.0, 1.0);
+    }
     double estimate(const std::vector<std::unique_ptr<DependenceEstimator>>& arms) const {
         double r = 0;
-        for (std::size_t k = 0; k < kK; ++k) r += w[k] * arms[k]->estimate();
+        for (std::size_t k = 0; k < w.size(); ++k) r += w[k] * arms[k]->estimate();
         return std::clamp(r, -1.0, 1.0);
+    }
+    // log sum_k w_k c_k from the arms' log densities, over arms with positive weight.
+    double mixture_log_density(const double* log_density) const {
+        double top = -INFINITY;
+        for (std::size_t k = 0; k < w.size(); ++k)
+            if (w[k] > 0) top = std::max(top, std::log(w[k]) + log_density[k]);
+        double m = 0;
+        for (std::size_t k = 0; k < w.size(); ++k)
+            if (w[k] > 0) m += std::exp(std::log(w[k]) + log_density[k] - top);
+        return top + std::log(m);
+    }
+    // -log sum_k w_k exp(-loss_k), shifted by the smallest loss.
+    double mixture_loss(const double* losses) const {
+        double lo = INFINITY;
+        for (std::size_t k = 0; k < w.size(); ++k) lo = std::min(lo, losses[k]);
+        double mix = 0;
+        for (std::size_t k = 0; k < w.size(); ++k) mix += w[k] * std::exp(-(losses[k] - lo));
+        return lo - std::log(mix);
     }
     // n_seen counts prior observations.
     bool ready(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, std::size_t n_seen) const {
-        return n_seen >= 30 && std::all_of(arms.begin(), arms.end(), [](const auto& arm) { return arm->ready(); });
+        return n_seen >= kMffWarmup && std::all_of(arms.begin(), arms.end(), [](const auto& arm) { return arm->ready(); });
     }
+    void update(const std::vector<double>& losses) { apply_fixed_share(w, losses, lw, eta, delta); }
     void score_and_update_weights(const std::vector<std::unique_ptr<DependenceEstimator>>& arms, double u, double v, std::size_t n_seen) {
         if (!ready(arms, n_seen)) return;
-        for (std::size_t k = 0; k < kK; ++k) {
+        for (std::size_t k = 0; k < w.size(); ++k) {
             const double par = copula::param_from_spearman(family, arms[k]->estimate());
             loss[k] = -copula::log_density(family, u, v, par);
         }
-        update_mff_weights(w, loss, lw, eta, delta);
+        guard_mff_losses(loss);
+        update(loss);
     }
 };
 
