@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Quick reproducibility check: builds the simulation programs, runs every mode on a short run (2 seeds, a short
 # budget sweep, a synthetic real-data pair), and compares each output's SHA-256 with experiments/check_reference.txt.
+# Then the two consistency tests: the live device must reproduce the runner's rows exactly (device_vs_probe), and the
+# browser lab's MFF and VFF must equal the device's (lab_vs_device). GitHub runs this on every push (.github/workflows).
 # Linux/libstdc++ only (std::*_distribution draws differ on macOS).
 #   experiments/check.sh            build, run, compare (exit 1 on any difference)
 #   experiments/check.sh --update   rewrite the reference after an intended change
@@ -47,7 +49,34 @@ for e in rmpl xiao hermite; do
     EST=$e ROLL=1 $R in.csv results/realroll_$e.csv
 done
 (cd results && sha256sum * | sort -k2) > sums.txt
+T=$E/common/build
+for sc in constant drift jump; do for seed in 42 43; do $T/device_vs_probe gaussian $sc $seed; done; done > device_rows.csv
+$T/lab_vs_device gaussian jump 42 > lab_vs_device.txt
 exec 1>&3 2>&3
+tests_ok=1
+if ! python3 - results/strategies_seeds_mix.csv device_rows.csv <<'PY'
+import sys
+import pandas as pd
+runner = pd.read_csv(sys.argv[1])
+device = pd.read_csv(sys.argv[2], header=None, names=runner.columns)
+key = ["copula", "scenario", "estimator", "strategy", "seed", "window"]
+both = device.merge(runner, on=key, suffixes=("_device", "_runner"))
+worst = max((both[c + "_device"] - both[c + "_runner"]).abs().max() for c in ["rmse", "excess_x1000", "h2_x1000"])
+ok = len(device) > 0 and len(both) == len(device) and worst == 0
+print(f"device_vs_probe: {len(both)} of {len(device)} device rows match the runner, max difference {worst:g}")
+sys.exit(0 if ok else 1)
+PY
+then tests_ok=0; fi
+if ! python3 - lab_vs_device.txt <<'PY'
+import re, sys
+lines = open(sys.argv[1]).read().split("\n")
+diffs = [float(v) for line in lines for v in re.findall(r"\| ([-+0-9.eE]+|nan|inf)", line)]
+ok = len(diffs) == 6 and all(d == 0 for d in diffs)
+print("lab_vs_device: lab MFF and VFF equal the device's for all three estimators" if ok
+      else "lab_vs_device: the lab and the device disagree:\n" + "\n".join(lines))
+sys.exit(0 if ok else 1)
+PY
+then tests_ok=0; fi
 [ -z "${KEEP:-}" ] || { mkdir -p "$KEEP" && cp results/* "$KEEP"/; }
 if [ "${1:-}" = --update ]; then
     cp sums.txt "$E/check_reference.txt"
@@ -61,3 +90,4 @@ else
     grep '^[<>]' diff.txt | awk '{print "  " $2}' | sort -u
     exit 1
 fi
+[ "$tests_ok" = 1 ] || exit 1
