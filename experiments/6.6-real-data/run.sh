@@ -16,3 +16,4 @@ fi
 python3 analyse.py "$S"          # tables
 python3 plots_loss.py "$S"       # loss figures
 python3 plots_response.py "$S"   # response figures
+python3 plots_examples.py "$S"   # ch6_practical_examples, ch6_practical_example_scatter (appendix)
