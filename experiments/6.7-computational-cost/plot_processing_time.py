@@ -3,12 +3,11 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
-import config as C  # noqa: E402
+from budget_plot_style import budget_estimators, budget_guides, log2_axis  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt = ce.plt
-EST = [("mpl_dskll", "RMPL", ce.COL["mle"], "^"), ("xiao", "Counting Matrix", ce.COL["xiao"], "o"),
-       ("hermite", "Hermite Series", ce.COL["hermite"], "s")]
+EST = budget_estimators()
 
 
 def main():
@@ -18,14 +17,9 @@ def main():
         for e, lab, c, m in EST:
             x = T[T.estimator == e]
             ax.plot(x.kib, x.us, color=c, marker=m, ms=3, lw=1.1, label=lab)
-        ax.set_xscale("log", base=2)
-        ax.set_yscale("log", base=2)
-        ax.set_xticks([1, 4, 16, 64, 256])
-        ax.set_xticklabels(["1", "4", "16", "64", "256"])
-        ax.set_yticks([0.25, 1, 4, 16, 64])
-        ax.set_yticklabels(["0.25", "1", "4", "16", "64"])
-        for b in C.BUDGETS:
-            ax.axvline(b, color="#8a8984", lw=0.5, ls=":", zorder=0)
+        log2_axis(ax.set_xscale, ax.set_xticks, ax.set_xticklabels, [1, 4, 16, 64, 256])
+        log2_axis(ax.set_yscale, ax.set_yticks, ax.set_yticklabels, [0.25, 1, 4, 16, 64])
+        budget_guides(ax)
         ax.grid(True, color=ce.GRID, lw=0.5)
         ax.set_axisbelow(True)
         ax.set_xlabel("Retained state (KiB)", fontsize=7.5)

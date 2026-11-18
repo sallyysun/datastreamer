@@ -10,6 +10,9 @@ def verbose_print(*values):
 
 
 def write_report(path, lines):
-    text = "\n".join(lines)
-    Path(path).write_text(text + "\n")
-    verbose_print(text)
+    Path(path).write_text("\n".join(lines) + "\n")
+    verbose_print(path)
+
+
+def format_estimate(mean, uncertainty, mean_format="+.2f", uncertainty_format=".2f", *, separator=" ± "):
+    return f"{mean:{mean_format}}{separator}{uncertainty:{uncertainty_format}}"

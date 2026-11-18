@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import verbose_print  # noqa: E402
+from report_output import format_estimate, verbose_print  # noqa: E402
+from summary_stats import standard_error  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -37,7 +38,7 @@ def summary(fs):
             for ei, (e, el) in enumerate(EST):
                 g = fs[(fs.scenario == sc) & (fs.estimator == e)]
                 for i, (x, col) in enumerate([(g.loss_mix - g.best0, C_STAT), (g.loss_mix - g.best1, C_SW)]):
-                    m, se = x.mean(), x.std(ddof=1) / np.sqrt(len(x))
+                    m, se = x.mean(), standard_error(x)
                     xp = ei + (i - 0.5) * bw
                     ax.bar(xp, m, width=bw * 0.92, color=col, zorder=3)
                     ax.errorbar(xp, m, yerr=2 * se, color="#3a3a3a", lw=0.8, capsize=0, zorder=4)
@@ -96,8 +97,9 @@ def report(fs):
         for e, _ in EST:
             g = fs[(fs.scenario == sc) & (fs.estimator == e)]
             a, b = g.loss_mix - g.best0, g.loss_mix - g.best1
-            verbose_print(f"{sc:9s} {e:8s} static {a.mean():7.2f} ± {2*a.std(ddof=1)/np.sqrt(len(a)):.2f}   "
-                  f"switch1 {b.mean():6.2f} ± {2*b.std(ddof=1)/np.sqrt(len(b)):.2f}")
+            static = format_estimate(a.mean(), standard_error(a, scale=2), "7.2f")
+            switch = format_estimate(b.mean(), standard_error(b, scale=2), "6.2f")
+            verbose_print(f"{sc:9s} {e:8s} static {static}   switch1 {switch}")
 
 
 def main():

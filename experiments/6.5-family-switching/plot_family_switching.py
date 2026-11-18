@@ -1,16 +1,14 @@
 """Plot family-switching timing, weights, and predictive accuracy."""
 import argparse
-import os
 from pathlib import Path
 import sys
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
-from report_output import verbose_print  # noqa: E402
+from report_output import format_estimate  # noqa: E402
 
 plt = ce.plt
 RESULTS = Path(ce.R)
@@ -73,12 +71,6 @@ def plot_identification():
         fig.subplots_adjust(left=0.15, right=0.97, top=0.88, bottom=0.2, wspace=0.12)
         fig.savefig(IMAGES / "ch6_famswitch_initial_id.png")
         plt.close(fig)
-    if os.environ.get("VERBOSE") == "1":
-        def quartiles(values):
-            return f"{np.percentile(values, 50):g} [{np.percentile(values, 25):g}, {np.percentile(values, 75):g}]"
-        for regime, label, _ in INITIAL:
-            rows = data[regime]
-            verbose_print(f"{label:16s} t50 {quartiles(rows.t50):22s} t90 {quartiles(rows.t90)}")
 
 
 def reduction_panel(ax, L, labels):
@@ -87,7 +79,8 @@ def reduction_panel(ax, L, labels):
         ax.barh(i + 1, r.dL, height=0.55, color=c, alpha=0.75, edgecolor="#444444", lw=0.7, zorder=3)
         ax.errorbar(r.dL, i + 1, xerr=r.dL_2se, color="#3a3a3a", lw=0.8, capsize=2, capthick=0.8, zorder=4)
         lo, hi = r.dL - r.dL_2se, r.dL + r.dL_2se
-        ax.text(hi + 1.5 if r.dL >= 0 else lo - 1.5, i + 1, f"{r.dL:+.1f} ± {r.dL_2se:.1f}".replace("-", "−"), va="center",
+        estimate = format_estimate(r.dL, r.dL_2se, "+.1f", ".1f").replace("-", "−")
+        ax.text(hi + 1.5 if r.dL >= 0 else lo - 1.5, i + 1, estimate, va="center",
                 ha="left" if r.dL >= 0 else "right", fontsize=6.5, color="#333333")
     ax.axvline(0, color="#222222", lw=0.7, zorder=2)
     ax.set_yticks(range(1, 4))
@@ -120,11 +113,6 @@ def plot_adaptation():
         reduction_panel(ax_c, early, labels)
         fig.savefig(IMAGES / "ch6_famswitch_adaptation.png")
         plt.close(fig)
-    if os.environ.get("VERBOSE") == "1":
-        for regime, label, _ in SWITCHES:
-            rows, loss = data[regime], early.loc[regime]
-            verbose_print(f"{label:22s} t50 med {np.median(rows.t50):g}  t90 med {np.median(rows.t90):g}  "
-                          f"dL100 {loss.dL:+.1f} ± {loss.dL_2se:.1f}")
 
 
 def plot_weights():
@@ -133,12 +121,12 @@ def plot_weights():
         fig, axs = plt.subplots(1, 3, figsize=(ce.W, 2.45), sharey=True)
         for ax, (g, title) in zip(axs, titles):
             W = pd.read_csv(RESULTS / f"famsw_path_{g}.csv").pivot_table(index="t", columns="family", values="mean")
-            W = W[W.index >= 500][[f for f, _, _ in WEIGHT_FAMILIES]]
+            W = W[W.index >= C.BURN][[f for f, _, _ in WEIGHT_FAMILIES]]
             W = W.div(W.sum(axis=1), axis=0)
             ax.stackplot(W.index, *[W[f] for f, _, _ in WEIGHT_FAMILIES], colors=[c for _, _, c in WEIGHT_FAMILIES], lw=0, zorder=2)
-            ax.axvline(2500, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=4)
-            ax.set_xlim(500, 5000)
-            ax.set_xticks([1000, 2500, 4000])
+            ax.axvline(C.CHANGE, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=4)
+            ax.set_xlim(C.BURN, C.T)
+            ax.set_xticks([1000, C.CHANGE, 4000])
             ax.set_ylim(0, 1)
             ax.set_title(title, fontsize=8, pad=3)
         axs[0].set_ylabel("Mean MFF weight", fontsize=7.5)

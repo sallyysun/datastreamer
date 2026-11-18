@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import verbose_print  # noqa: E402
+from budget_plot_style import log2_axis  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -44,12 +44,6 @@ def table(val, SD, t, K):
                          d_mean=np.mean(diffs), d_min=np.min(diffs), d_max=np.max(diffs), d_absmax=np.max(np.abs(diffs)),
                          rmse_own=np.mean(rm["mpl_kll"]), rmse_ds=np.mean(rm["mpl_dskll"])))
     return pd.DataFrame(rows)
-
-
-def log2_axis(set_scale, set_ticks, set_labels, ticks):
-    set_scale("log", base=2)
-    set_ticks(ticks)
-    set_labels([f"{v:g}" for v in ticks])
 
 
 def storage(ax, R):
@@ -107,7 +101,6 @@ def figure(R):
 def main():
     R = table(*load())
     R.to_csv("results/budget_kll_n15k_table.csv", index=False)
-    verbose_print(R.round(3).to_string(index=False))
     figure(R)
 
 

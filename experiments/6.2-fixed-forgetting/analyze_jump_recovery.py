@@ -47,10 +47,11 @@ def measure():
 
 def report(df, checks):
     out = [f"90% recovery after the jump: rho_S {PRE:.4f} -> {POST:.4f} (gap {GAP:.4f}); threshold B(k) <= {THR} held for {RUN}",
-           "consecutive forecasts; k = post-jump observations absorbed before the forecast; 60 seeds; Linux/libstdc++."]
+           "consecutive forecasts; k = post-jump observations absorbed before the forecast; 60 seeds; Linux/libstdc++.",
+           "Cells show recovery time in observations, B(100) in brackets, and mean B over the last 500 observations."]
     out += checks + [""]
     for f, _ in FAMS:
-        out.append(f"=== {f}: recovery time (observations); B(100) in brackets; tail = mean B over the last 500 observations ===")
+        out.append(C.FAMILY_TEXT[f])
         out.append(f"{'N_eff':14s} " + "  ".join(f"{name:>26s}" for _, name in EST))
         for _, lab in MEM:
             cells = []

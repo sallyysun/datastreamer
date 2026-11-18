@@ -147,7 +147,8 @@ int main(int argc, char** argv) {
                     std::fprintf(fj, "%s,%s,%s,%zu,%.8g\n", cop.c_str(), arms[k].est.c_str(), label(arms[k].neff).c_str(), t, s2[k][t] / S);
         }
     }
-    std::printf("decomposition guard: %zu checks, worst residual %.3g\n", checks, worst_resid);
+    if (study_verbose())
+        std::printf("Decomposition residual max %.3g (%zu checks)\n", worst_resid, checks);
     std::fclose(fs); std::fclose(fd); std::fclose(fj);
     if (fb) std::fclose(fb);
 }

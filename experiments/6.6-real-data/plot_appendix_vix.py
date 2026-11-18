@@ -4,12 +4,9 @@ import sys
 import numpy as np
 import pandas as pd
 
-from real_common import EST, RC, W, dot_legend, dot_panel, eval_days, image, outputs, plt, read, result, verbose_print
+from real_common import EST, dot_strategies, eval_days, outputs, plot_loss_levels, read, result, verbose_print
 
-ST = [("fixed99", r"Fixed, $N_{\mathrm{eff}}=99$", "lt_fixed_99", "#8a8a8a", "D", 7.5),
-      ("fixed199", r"Fixed, $N_{\mathrm{eff}}=199$", "lt_fixed_199", "#6E6E6E", "s", 5.5),
-      ("fixed399", r"Fixed, $N_{\mathrm{eff}}=399$", "lt_fixed_399", "#333333", "p", 6.5),
-      ("vff", r"VFF, $\alpha=0.02$", "lt_vff", "#8E6BB8", "^", 8.0), ("mff", "MFF", "lt_mffmix_t", "#C2185B", "o", 7.0)]
+ST = dot_strategies()
 REG = [("calm", "Calm (VIX < 20)"), ("mid", "Moderate (20 ≤ VIX < 25)"), ("stress", "Stress (VIX ≥ 25)")]
 REF = {"RMPL": (-1.79, -2.65, -8.67), "Counting matrix": (-2.40, -1.56, -5.94), "Hermite series": (-3.64, -2.45, -5.75)}
 
@@ -34,22 +31,14 @@ def main():
     Lv, ndays = levels(sys.argv[1], vix)
     Lv.to_csv(result("vix_levels.csv"), index=False)
 
-    def val(e, r, k):
+    def val(e, k, r):
         return Lv[(Lv.estimator == e) & (Lv.regime == r) & (Lv.strategy == k)].loss.iloc[0]
-    verbose_print("CHECK MFF - VFF vs verified (2 dp): max |diff| = %.3f" % max(abs(round(val(e, r, "mff") - val(e, r, "vff"), 2) - ref[i])
-                                                                   for e, ref in REF.items() for i, (r, _) in enumerate(REG)))
-    span = max(max(val(e, r, k) for e, _ in EST for k, *_ in ST) - min(val(e, r, k) for e, _ in EST for k, *_ in ST) for r, _ in REG) * 1.12
-    with plt.rc_context(RC):
-        fig, axs = plt.subplots(3, 1, figsize=(W, 4.6))
-        for ax, (rk, rl) in zip(axs, REG):
-            dot_panel(ax, lambda e, k: val(e, rk, k), ST, span, rl)
-        fig.supxlabel(r"Mean logarithmic prediction loss ($\times10^{-3}$ nats per day per pair)", fontsize=8, y=0.012)
-        dot_legend(fig, ST)
-        fig.subplots_adjust(left=0.19, right=0.975, top=0.9, bottom=0.1, hspace=0.62)
-        fig.savefig(image("ch6_practical_appendix_vix.png"))
-        plt.close(fig)
-    verbose_print(Lv.pivot_table(index=["estimator", "strategy"], columns="regime", values="loss")[["calm", "mid", "stress"]].round(2).to_string())
-    verbose_print("pair-days per condition:", ndays, f"| common span {span:.1f}")
+    max_diff = max(abs(round(val(e, "mff", r) - val(e, "vff", r), 2) - ref[i])
+                   for e, ref in REF.items() for i, (r, _) in enumerate(REG))
+    verbose_print(f"MFF − VFF vs reference, max difference {max_diff:.3f}")
+    plot_loss_levels(REG, ST, val, "ch6_practical_appendix_vix.png",
+                     height=4.6, span_padding=1.12, label_y=0.012, top=0.9, bottom=0.1, hspace=0.62)
+    verbose_print("VIX pair-days", ndays)
 
 
 if __name__ == "__main__":

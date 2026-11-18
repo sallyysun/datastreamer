@@ -8,7 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 import config as C  # noqa: E402
-from report_output import write_report  # noqa: E402
+from report_output import format_estimate, write_report  # noqa: E402
 from summary_stats import standard_error  # noqa: E402
 
 RESULTS = Path("results")
@@ -55,7 +55,7 @@ def paired(dd):
 
 
 def identification():
-    M = ["## Initial family identification (constant families, uniform start)\n",
+    M = ["## Initial identification (constant family, uniform start)\n",
          "| Generating family | 50% weight, median [IQR] | 90% weight, median [IQR] | reached 50% / 90% | another family ≥ 50% after identification | share of later obs. with true family ≥ 50% (median, min) | mean true-family weight, obs. 500–4999 |",
          "|---|---|---|---|---|---|---|"]
     for g, gl in CONSTANT_FAMILIES:
@@ -63,7 +63,7 @@ def identification():
         w = p[(p.family == g) & (p.t >= 500)]["mean"].mean()
         M.append(f"| {gl} | {crossing(d)} | {int(d.incorrect_majority.sum())}/60 | "
                  f"{d.share_ge50_after.median():.3f} ({d.share_ge50_after.min():.3f}) | {w:.3f} |")
-    M += ["\n## Adaptation following a family switch\n",
+    M += ["\n## Switch adaptation\n",
           "| Switch | new family 50%, median [IQR] (obs. after switch) | 90%, median [IQR] | reached 50% / 90% | new-family weight before switch | new-family weight, obs. 3000–4999 | another family ≥ 50% after identification |",
           "|---|---|---|---|---|---|---|"]
     for g, gl in SWITCHES:
@@ -74,7 +74,8 @@ def identification():
 
 
 def density(rows):
-    M = ["\n## Predictive density accuracy: ΔL = L(Gaussian-only MFF) − L(family-augmented MFF), ×10⁻³ nats/obs, mean ± 2 SE over 60 paired replications\n",
+    M = ["\n## Predictive density accuracy\n",
+         "ΔL is Gaussian-only minus family-augmented loss (×10⁻³ nats/obs, mean ± 2 SE over 60 pairs).\n",
          "| Scenario | first 100 after switch (2500–2599) | remaining 2400 (2600–4999) | full post-switch (2500–4999) | pre-switch (500–2499) | L Gaussian-only / family (post) |",
          "|---|---|---|---|---|---|"]
     for g, gl in SWITCHES:
@@ -83,7 +84,7 @@ def density(rows):
         for w in ["rec_0_100", "late", "post", "pre"]:
             m, se2 = paired(x[("gaussian_mff", w)] - x[("family_mff", w)])
             rows.append(dict(regime=g, window=w, dL=m, dL_2se=se2, n=len(x)))
-            cells.append(f"{m:+.1f} ± {se2:.1f}")
+            cells.append(format_estimate(m, se2, "+.1f", ".1f"))
         M.append(f"| {gl} | " + " | ".join(cells) + f" | {x[('gaussian_mff', 'post')].mean():.2f} / {x[('family_mff', 'post')].mean():.2f} |")
     M += ["\nConstant families (observations 500–4999): ΔL (negative = cost of family augmentation)\n",
           "| Generating family | ΔL, mean ± 2 SE | L Gaussian-only / family |", "|---|---|---|"]
@@ -92,7 +93,7 @@ def density(rows):
         x = paired_methods(s[s.window == "whole"], "excess_x1000")
         m, se2 = paired(x.gaussian_mff - x.family_mff)
         rows.append(dict(regime=g + "_constant", window="whole", dL=m, dL_2se=se2, n=len(x)))
-        M.append(f"| {gl} | {m:+.2f} ± {se2:.2f} | {x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f} |")
+        M.append(f"| {gl} | {format_estimate(m, se2)} | {x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f} |")
     return M
 
 
@@ -103,7 +104,7 @@ def rmse():
         s = read_family_results("seeds", g)
         x = paired_methods(s[s.window == "whole"], "rmse") * 100
         m, se2 = paired(x.gaussian_mff - x.family_mff)
-        M.append(f"| {gl} | {x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f} | {m:+.2f} ± {se2:.2f} |")
+        M.append(f"| {gl} | {x.gaussian_mff.mean():.2f} / {x.family_mff.mean():.2f} | {format_estimate(m, se2)} |")
     guard = pd.concat([read_family_results("ident", g) for g, _ in CONSTANT_FAMILIES] + [read_family_results("ident", g) for g, _ in SWITCHES]).n_guard.sum()
     return M + [f"\nNon-finite model log densities replaced by Mff's guard: {int(guard)} in total."]
 
@@ -142,20 +143,21 @@ def accuracy_report(D):
         for g, gl in SWITCHES:
             for e, el in ESTIMATORS:
                 r = row(D, e, g, "post", m)
-                M.append(f"| {ml} | {gl} | {el} | {r.L_gauss:.2f} | {r.L_family:.2f} | {r.dL:+.2f} ± {r.dL_2se:.2f} | "
+                M.append(f"| {ml} | {gl} | {el} | {r.L_gauss:.2f} | {r.L_family:.2f} | {format_estimate(r.dL, r.dL_2se)} | "
                          f"{r.pct:.1f} ± {r.pct_2se:.1f} [{r.pct_lo:.1f}, {r.pct_hi:.1f}] |")
     post = D[D.window == "post"]
     M.append(f"\nDenominators: smallest per-seed Gaussian-only value across all cells = "
              f"{post[post.metric == 'excess_x1000'].min_gauss.min():.2f} ×10⁻³ (excess) / "
              f"{post[post.metric == 'h2_x1000'].min_gauss.min():.2f} ×10⁻³ (H²); all positive and far from zero.")
-    M += ["\n## RMPL: early vs later recovery (absolute reduction ± 2 SE, ×10⁻³; positive favours family augmentation)\n",
+    M += ["\n## RMPL recovery windows\n",
+          "Absolute reduction (×10⁻³, mean ± 2 SE). Positive values favour family augmentation.\n",
           "| Switch | Metric | first 100 (2500–2599) | remaining 2400 (2600–4999) | full post-switch |", "|---|---|---|---|---|"]
     for g, gl in SWITCHES:
         for m, ml in ACCURACY_METRICS:
             c = [row(D, "rmpl", g, w, m) for w in ("rec_0_100", "late", "post")]
-            M.append(f"| {gl} | {ml} | " + " | ".join(f"{r.dL:+.2f} ± {r.dL_2se:.2f}" for r in c) + " |")
+            M.append(f"| {gl} | {ml} | " + " | ".join(format_estimate(r.dL, r.dL_2se) for r in c) + " |")
     M.append("\nH² uses checkpoints: every 10 observations in 2500–2599 (rec_0_100) and every 50 elsewhere; excess log loss uses every observation.")
-    M += ["\n## Estimator agreement (full post-switch % reduction: max − min across the three estimators)\n",
+    M += ["\n## Estimator agreement after the switch\n",
           "| Metric | Switch | spread (pp) | largest 2 SE (pp) |", "|---|---|---|---|"]
     for m, ml in ACCURACY_METRICS:
         for g, gl in SWITCHES:

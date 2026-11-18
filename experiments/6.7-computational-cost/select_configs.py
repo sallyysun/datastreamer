@@ -2,13 +2,12 @@
 budget and estimator, the approximation size and gain with the lowest validation RMSE among those whose peak retained
 state fits the budget, then its test RMSE; and the percentage RMSE reduction at 64 and 256 KiB relative to the 16 KiB
 selection over the paired test seeds. Writes results/budget_selected.csv and results/budget_gain.csv."""
-import math
 import sys
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import verbose_print  # noqa: E402
+from summary_stats import standard_error  # noqa: E402
 import config as C  # noqa: E402
 
 EST = ["mpl_dskll", "xiao", "hermite"]
@@ -28,7 +27,7 @@ def select(sw, SD):
                     t = tst[(tst.family == f) & (tst.scenario == s) & (tst.estimator == e) & (tst.approx == a) & np.isclose(tst.gain, g)].iloc[0]
                     x = SD.loc[(f, s, e, a, g)]
                     rows.append(dict(family=f, scenario=s, budget_kib=b, estimator=e, approx=a, gain=g, val_rmse=100 * r.rmse,
-                                     rmse=100 * x.mean(), se=100 * x.std(ddof=1) / math.sqrt(len(x)), peak_val=int(r.peak_bytes),
+                                     rmse=100 * x.mean(), se=standard_error(x, scale=100), peak_val=int(r.peak_bytes),
                                      peak_test=int(t.peak_bytes), cap=cap, util=100 * max(r.peak_bytes, t.peak_bytes) / cap))
     return pd.DataFrame(rows)
 
@@ -41,7 +40,7 @@ def gains(sel, SD):
         for b in (64, 256):
             d = base - SD.loc[(f, s, e, int(x.loc[b].approx), float(x.loc[b].gain))].values
             rows.append(dict(family=f, scenario=s, estimator=e, budget=b, pct=100 * d.mean() / base.mean(),
-                             pct_mc_se=100 * d.std(ddof=1) / np.sqrt(len(d)) / base.mean()))
+                             pct_mc_se=standard_error(d, scale=100) / base.mean()))
     return pd.DataFrame(rows)
 
 
@@ -51,7 +50,6 @@ def main():
     sel = select(sw, SD)
     sel.to_csv("results/budget_selected.csv", index=False)
     gains(sel, SD).to_csv("results/budget_gain.csv", index=False)
-    verbose_print("wrote results/budget_selected.csv, results/budget_gain.csv")
 
 
 if __name__ == "__main__":

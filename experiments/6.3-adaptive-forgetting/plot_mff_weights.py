@@ -12,7 +12,7 @@ CMAP = plt.get_cmap("plasma")
 MEM = [(m, CMAP(C.MEMORY_CMAP_POS[m])) for m in C.MEMORIES]
 EST = [(e, C.EST_LABEL[e]) for e in C.ESTIMATORS]
 SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
-JUMP, T0, T1 = 2500, 500, 5000
+JUMP, T0, T1 = C.CHANGE, C.BURN, C.T
 WC = [f"w{m}" for m, _ in MEM]
 NEFF = r"$N_{\mathrm{eff}}$"
 
@@ -35,7 +35,7 @@ def regimes(g, sc):
 
 def frame(ax, sc):
     ax.set_xlim(T0, T1)
-    ax.set_xticks([1000, 2500, 4000])
+    ax.set_xticks([1000, JUMP, 4000])
     if sc == "jump":
         ax.axvline(JUMP, color="#111111", lw=0.8, ls=(0, (4, 3)), zorder=6)
 

@@ -3,14 +3,15 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
+from budget_plot_style import budget_estimators, budget_guides, log2_axis  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt = ce.plt
 FAMS = [(f, C.FAMILY_LONG[f]) for f in C.FAMILIES_T31]
 SC = [(s, C.SCENARIO_LABEL[s]) for s in C.SCENARIOS]
-EST = [("mpl_dskll", "RMPL (KLL $k$)", ce.COL["mle"], "^"), ("xiao", "Counting Matrix (bins)", ce.COL["xiao"], "o"),
-       ("hermite", "Hermite Series (order)", ce.COL["hermite"], "s")]
+APPROX_LABELS = {"rmpl": "KLL $k$", "xiao": "bins", "hermite": "order"}
+EST = budget_estimators({e: f"{C.EST_LABEL[e]} ({APPROX_LABELS[e]})" for e in C.ESTIMATORS})
 
 
 def frontier(val, SD, f, s, e):
@@ -27,11 +28,8 @@ def panel(ax, fr):
     lo = min(best)
     top = max(top, max(best) + 0.25 * (top - lo))
     ax.set_ylim(lo - 0.08 * (top - lo), top + 0.3 * (top - lo))
-    for b in C.BUDGETS:
-        ax.axvline(b, color="#8a8984", lw=0.5, ls=":", zorder=0)
-    ax.set_xscale("log", base=2)
-    ax.set_xticks([2, 8, 32, 128])
-    ax.set_xticklabels(["2", "8", "32", "128"])
+    budget_guides(ax)
+    log2_axis(ax.set_xscale, ax.set_xticks, ax.set_xticklabels, [2, 8, 32, 128])
     ax.grid(True, axis="y", color=ce.GRID, lw=0.5)
     ax.set_axisbelow(True)
     ax.tick_params(labelsize=6.5)

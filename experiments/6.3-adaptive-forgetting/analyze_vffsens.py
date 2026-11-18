@@ -7,6 +7,7 @@ import pandas as pd
 sys.path.insert(0, "../common")
 from report_output import write_report  # noqa: E402
 from summary_stats import standard_error as se  # noqa: E402
+from summary_stats import win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -17,11 +18,10 @@ RATES = [f"{r:g}" for r in C.VFF_RATES]
 FIXED = [f"fixed_{m}" for m in C.MEMORIES]
 MET = [("rmse", "Spearman RMSE (x 10^-2)", 100), ("excess_x1000", "Excess log loss (x 10^-3 nats/obs)", 1),
        ("h2_x1000", "Squared Hellinger (x 10^-3)", 1)]
-RULE = "=" * 110
 
 
 def wtl(x):
-    return "W" if x.mean() < -2 * se(x) else "L" if x.mean() > 2 * se(x) else "T"
+    return win_loss_tie(x.mean(), se(x))
 
 
 def load(kind):
@@ -69,27 +69,27 @@ def sensitivity(S):
     out = ["VFF learning-rate sensitivity. 60 seeds (42-101), matched paths, prequential forecasts, KLL k = 256 margins (shared by",
            "RMPL arms, VFF controller and MFF scoring), MFF eta = 1, delta = 1e-4 (log loss) fixed throughout. Linux/libstdc++.",
            "alpha = 0.02 = development choice. 'best alpha' = HINDSIGHT on the evaluation seeds. MFF - VFF: paired, mean ± 2 SE;",
-           "W/T/L = MFF lower / within 2 SE / higher. Reproduction: alpha 0.02, 0.1, MFF and fixed rows equal strategies_seeds exactly."]
+           "W/T/L = MFF lower / within 2 SE / higher. Reproduction: alpha 0.02, 0.1, MFF and fixed rows equal strategies_seeds exactly.",
+           "Window tables show family means followed by MFF - VFF and its uncertainty."]
+    columns = f"{'Estimator':16s} a=" + " ".join(f"{a:>7s}" for a in RATES) + f" | {'MFF':>7s} {'Fixed':>7s}"
     for m, mlab, _ in MET:
-        out += ["", "#" * 110, f"# {mlab}", "#" * 110]
+        out += ["", mlab, columns]
         for sc in C.SCENARIOS:
             for w in C.WINDOWS[sc]:
-                out += ["", f"=== {sc}, window {w}: family mean (VFF by alpha | MFF | Fixed hindsight), then MFF - VFF(alpha) ==="]
+                out += ["", f"{sc} / {w}"]
                 for e, el in EST:
                     g = S[(S.metric == m) & (S.scenario == sc) & (S.window == w) & (S.estimator == e) & (S.copula == "mean4")]
                     g = g.set_index("strategy")
                     vals = " ".join(f"{g.loc['vff_' + a, 'mean']:7.2f}" for a in RATES)
-                    out += [f"{el:16s} a=" + " ".join(f"{a:>7s}" for a in RATES) + f" | {'MFF':>7s} {'Fixed':>7s}",
-                            f"{'':16s}   {vals} | {g.loc['mff', 'mean']:7.2f} {g.loc['fixed', 'mean']:7.2f}",
-                            f"{'':16s}   " + " ".join(f"{g.loc['vff_' + a, 'mff_minus']:+6.2f}{g.loc['vff_' + a, 'verdict']}" for a in RATES)
-                            + "   (MFF - VFF)",
+                    out += [f"{el:16s}   {vals} | {g.loc['mff', 'mean']:7.2f} {g.loc['fixed', 'mean']:7.2f}",
+                            f"{'':16s}   " + " ".join(f"{g.loc['vff_' + a, 'mff_minus']:+6.2f}{g.loc['vff_' + a, 'verdict']}" for a in RATES),
                             f"{'':16s}   " + " ".join(f"±{2 * g.loc['vff_' + a, 'mff_minus_se']:5.2f} " for a in RATES)]
     return out
 
 
 def best_alpha(S):
     """Hindsight-best alpha per scenario, and the single alpha minimising the mean ratio to the per-scenario best."""
-    out, rows = ["", RULE, "BEST TESTED ALPHA (HINDSIGHT, evaluation seeds), whole run, family mean", RULE], []
+    out, rows = ["", "Hindsight-best alpha (whole run, family mean)"], []
     for m, mlab, _ in MET:
         out.append(f"-- {mlab}")
         for e, el in EST:
@@ -115,7 +115,7 @@ def best_alpha(S):
 
 
 def comparisons(d, B):
-    out = ["", RULE, "MFF COMPARISONS, whole run, family mean: MFF - VFF, mean ± 2 SE (W/T/L)", RULE]
+    out = ["", "MFF - VFF (whole run, family mean ± 2 SE)"]
     for m, mlab, scale in MET:
         out.append(f"-- {mlab}")
         for e, el in EST:
@@ -134,7 +134,7 @@ def comparisons(d, B):
 
 
 def robustness(d):
-    out = ["", RULE, "ROBUSTNESS: MFF vs the hindsight-best alpha for that family, estimator, scenario and metric (whole run)", RULE]
+    out = ["", "MFF vs hindsight-best alpha per family (whole run)"]
     for m, mlab, scale in MET:
         v = {sc: [] for sc in C.SCENARIOS}
         for sc in C.SCENARIOS:
@@ -143,13 +143,13 @@ def robustness(d):
                     t = table(d, m, scale, sc, "whole", e, f)
                     ab = min(RATES, key=lambda a: t[a].mean())
                     v[sc].append(wtl(t["mff"] - t[ab]))
-        out.append(f"-- {mlab}: " + "  ".join(f"{sc} W/T/L {c.count('W')}/{c.count('T')}/{c.count('L')}" for sc, c in v.items())
-                   + "   (12 cells each: 3 estimators x 4 families)")
+        counts = "  ".join(f"{sc} {c.count('W')}/{c.count('T')}/{c.count('L')}" for sc, c in v.items())
+        out.append(f"{mlab} (W/T/L)  {counts}")
     return out
 
 
 def extremes(X):
-    out = ["", RULE, "EXCESS LOG LOSS EXTREMES (whole window, all 60 seeds x 4500 ticks per family; nothing clipped or dropped)", RULE,
+    out = ["", "Excess log loss extremes (60 seeds × 4500 ticks per family, untrimmed)",
            "seeds / seed-ticks with |rho_hat| > 0.98 summed over families; max per-tick loss; mean and median of per-tick excess",
            "(averaged over families); share of the summed excess from the worst 1% of seed-ticks (averaged over families)."]
     for e, el in EST:

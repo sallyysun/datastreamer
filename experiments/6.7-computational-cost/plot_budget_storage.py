@@ -3,12 +3,12 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import verbose_print  # noqa: E402
+from budget_plot_style import budget_estimators, log2_axis  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt = ce.plt
-EST = [("mpl_dskll", "RMPL", ce.COL["mle"]), ("xiao", "Counting Matrix", ce.COL["xiao"]), ("hermite", "Hermite Series", ce.COL["hermite"])]
+EST = budget_estimators()
 TICKS = [2, 4, 8, 16, 32, 64, 128, 256]
 
 
@@ -19,14 +19,12 @@ def figure(sel):
         for i, b in enumerate(C.BUDGETS):
             ax.hlines(b, i - 0.45, i + 0.45, color="#444444", lw=0.8, ls=(0, (3, 2)), zorder=2)
             ax.text(i - 0.45, b * 1.07, "budget", va="bottom", ha="left", fontsize=6, color="#444444")
-            for j, (e, lab, col) in enumerate(EST):
+            for j, (e, lab, col, _) in enumerate(EST):
                 top = sel[(sel.estimator == e) & (sel.budget_kib == b)].kib.max()
                 xp = i + (j - 1) * bw
                 ax.bar(xp, top, width=bw * 0.9, color=col, alpha=0.85, zorder=3, label=lab if i == 0 else None)
                 ax.text(xp, top * 0.9, f"{top:.1f}", ha="center", va="top", fontsize=5.6, color="white")
-        ax.set_yscale("log", base=2)
-        ax.set_yticks(TICKS)
-        ax.set_yticklabels([str(t) for t in TICKS])
+        log2_axis(ax.set_yscale, ax.set_yticks, ax.set_yticklabels, TICKS)
         ax.set_ylim(2, 400)
         ax.set_xlim(-0.55, 2.75)
         ax.set_xticks(range(3))
@@ -47,7 +45,6 @@ def main():
     sel = pd.read_csv("results/budget_selected.csv")
     sel["kib"] = sel.peak_val / 1024
     figure(sel)
-    verbose_print(sel.groupby(["estimator", "budget_kib"]).kib.agg(["min", "median", "max"]).round(2))
 
 
 if __name__ == "__main__":

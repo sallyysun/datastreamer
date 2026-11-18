@@ -1,7 +1,6 @@
 """Section 6.2 fixed forgetting: RMSE of each fixed N_eff per scenario window, and the drift-optimal N_eff against
 the approximation N* = (2 v / d^2)^(1/3). Writes results/fixed_ess_2026-11-12.txt and results/fixed_ess_optimum.csv
 (V_NMAX=350: v from N_eff <= 350 only, written as *_v350*)."""
-import math
 import os
 import sys
 import numpy as np
@@ -9,6 +8,7 @@ import pandas as pd
 
 sys.path.insert(0, "../common")
 from report_output import write_report  # noqa: E402
+from summary_stats import standard_error, win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -33,20 +33,21 @@ def window_tables(seeds):
     main = seeds[seeds.grid == "main"]
     out = ["Chapter 6.2 fixed forgetting. 60 seeds (42-101), matched paths, forecast held before each tick, Linux/libstdc++.",
            "RMPL margins: cumulative DataSketches KLL k = 256, one pseudo-observation sequence per stream shared by every arm.",
-           "RMSE x 10^-2, mean (SE). 'paired' = no forgetting - N_eff 1999, mean ± 2 SE; W/L/T at 2 SE."]
+           "RMSE x 10^-2, mean (SE). 'paired' = no forgetting - N_eff 1999, mean ± 2 SE; W/L/T at 2 SE.",
+           "", f"{'family':9s} {'estimator':16s} " + " ".join(f"{m:>11s}" for m in C.MEMORY_KEYS)
+           + f" {'best':>6s} {'paired nocum-1999':>20s}"]
     for sc, wins in WINDOWS:
         for w in wins:
-            out += ["", f"=== {sc}, window {w} ===",
-                    f"{'family':9s} {'estimator':16s} " + " ".join(f"{m:>11s}" for m in C.MEMORY_KEYS)
-                    + f" {'best':>6s} {'paired nocum-1999':>20s}"]
+            out += ["", f"{sc} / {w}"]
             for f, _ in FAMS:
                 for e in EST:
                     p = main[(main.scenario == sc) & (main.window == w) & (main.copula == f) & (main.estimator == e)]
                     p = p.pivot(index="seed", columns="k", values="rmse") * 100
-                    mu, se = p[C.MEMORY_KEYS].mean(), p[C.MEMORY_KEYS].std(ddof=1) / math.sqrt(len(p))
+                    scores = p[C.MEMORY_KEYS]
+                    mu, se = scores.mean(), standard_error(scores)
                     d = p["nocum"] - p["1999"]
-                    dm, ds = d.mean(), d.std(ddof=1) / math.sqrt(len(d))
-                    v = "W" if dm < -2 * ds else "L" if dm > 2 * ds else "T"
+                    dm, ds = d.mean(), standard_error(d)
+                    v = win_loss_tie(dm, ds)
                     out.append(f"{C.FAMILY_TEXT[f]:9s} {C.EST_LABEL[e]:16s} "
                                + " ".join(f"{mu[m]:6.2f}({se[m]:.2f})" for m in C.MEMORY_KEYS)
                                + f" {mu.idxmin():>6s} {dm:+8.2f} ± {2*ds:.2f} {v}")
@@ -55,7 +56,7 @@ def window_tables(seeds):
 
 def drift_optimum(dec, D):
     """Log-quadratic optimum through the grid minimum and its neighbours, and the (2v/d^2)^(1/3) approximation."""
-    out = ["", "=== drift: empirical MSE-optimal N_eff (fine + main + sweep grids) vs (2v/d^2)^(1/3) ===",
+    out = ["", "Optimal drift memory vs (2v/d^2)^(1/3)",
            f"d_rms = {D:.5e}. v from sweep-grid memories 50 <= N <= {VMAX:g} (median of var * N). optimum: log-quadratic through the",
            "grid minimum and its two neighbours; 'bracket' = those neighbours; 5-pt = the same through five points (sensitivity).",
            f"{'family':9s} {'estimator':16s} {'grid min':>8s} {'bracket':>11s} {'optimum':>8s} {'5-pt':>6s} {'approx':>8s} {'diff %':>7s} {'v':>6s} {'MSE min':>8s}"]

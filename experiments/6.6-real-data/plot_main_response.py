@@ -47,9 +47,8 @@ def checks(Bp, Pl):
             if k in g.index:
                 wm = max(wm, abs(round(g.loc[k, "pooled_median_ratio"], 2) - REF_MED[e][j]))
                 wd = max(wd, abs(round(100 * g.loc[k, "pooled_same_direction"]) - REF_DIR[e][j]))
-    verbose_print(f"CHECK pooled medians vs verified (2 dp): max |diff| = {wm:.2f}; direction agreement vs verified (whole %): max |diff| = {wd:.0f}")
+    verbose_print(f"Max reference differences  median ratio {wm:.2f}, direction agreement {wd:.0f} pp")
     zero = Bp[Bp.median_ratio == 0]
-    verbose_print("per-pair medians equal to 0:", zero[["estimator", "pair", "series"]].values.tolist())
     assert set(map(tuple, zero[["estimator", "pair"]].values)) <= {("Hermite series", "SPY_IVV")}
 
 
@@ -130,13 +129,12 @@ def main():
     O = summary(Bp, Pl)
     O.to_csv(result("dependence_response_main.csv"), index=False)
     direction_table(O)
-    verbose_print(O.round(3).to_string(index=False))
     counts = []
     for e, _ in EST:
         g = Bp[(Bp.estimator == e)].pivot(index="pair", columns="series", values="median_ratio")
         counts.append(int((g.mff > g.vff).sum()))
-        verbose_print(f"{e:16s} pairs with per-pair median MFF > VFF: {counts[-1]}/32 (ties {int((g.mff == g.vff).sum())}); "
-              f"pairs with MFF < fixed 99: {int((g.mff < g.fixed99).sum())}/32; pairs with MFF > fixed 199: {int((g.mff > g.fixed199).sum())}/32")
+        verbose_print(f"{e:16s} MFF > VFF {counts[-1]}/32, ties {int((g.mff == g.vff).sum())}, "
+                      f"MFF < fixed 99 {int((g.mff < g.fixed99).sum())}/32, MFF > fixed 199 {int((g.mff > g.fixed199).sum())}/32")
     assert counts == [29, 27, 23]
 
 

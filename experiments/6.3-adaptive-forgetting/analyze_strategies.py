@@ -8,6 +8,7 @@ import pandas as pd
 sys.path.insert(0, "../common")
 from report_output import write_report  # noqa: E402
 from summary_stats import standard_error as se  # noqa: E402
+from summary_stats import win_loss_tie  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -42,12 +43,13 @@ def header():
 
 def tables(d):
     out, rows = [], []
+    columns = (f"{'family':9s} {'estimator':16s} {'Fixed (N)':>14s} {'VFF slow':>12s} "
+               f"{'VFF fast':>12s} {'MFF':>12s} {'MFF-Fixed':>14s} {'MFF-VFFslow':>14s}")
     for m, mlab, scale in MET:
-        out += ["", "#" * 100, f"# {mlab}", "#" * 100]
+        out += ["", mlab, columns]
         for sc, wins in C.WINDOWS.items():
             for w in wins:
-                out += ["", f"=== {sc}, window {w} ===",
-                        f"{'family':9s} {'estimator':16s} {'Fixed (N)':>14s} {'VFF slow':>12s} {'VFF fast':>12s} {'MFF':>12s} {'MFF-Fixed':>14s} {'MFF-VFFslow':>14s}"]
+                out += ["", f"{sc} / {w}"]
                 for e in C.ESTIMATORS:
                     el, per = C.EST_LABEL[e], []
                     for f, _ in FAMS:
@@ -73,7 +75,7 @@ def tables(d):
 
 
 def agreement(d):
-    out = ["", "=== agreement across metrics: sign of MFF - hindsight Fixed at 2 SE (W = MFF lower), whole run ==="]
+    out = ["", "MFF vs hindsight fixed by metric (whole run, W = lower loss at 2 SE)"]
     for sc in C.WINDOWS:
         codes = []
         for e in C.ESTIMATORS:
@@ -82,7 +84,7 @@ def agreement(d):
                 for m, _, scale in MET:
                     t, _ = cell(d, f, sc, e, "whole", m, scale)
                     dd = t.mff - t.fixed
-                    v += "W" if dd.mean() < -2 * se(dd) else "L" if dd.mean() > 2 * se(dd) else "T"
+                    v += win_loss_tie(dd.mean(), se(dd))
                 codes.append(v)
         out.append(f"{sc:9s} (RMSE/excess/H2 per family x estimator): " + " ".join(codes))
     return out

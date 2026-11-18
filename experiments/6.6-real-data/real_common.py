@@ -13,19 +13,16 @@ from matplotlib.lines import Line2D  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-from config import MEMORIES as FIX  # noqa: E402
+from config import EST_COLOUR_KEY, ESTIMATORS, EST_LABEL, MEMORIES as FIX, STRATEGY_COLOUR  # noqa: E402
+from plot_theme import COL, GRID, INK, RC, W  # noqa: E402
 from report_output import verbose_print, write_report  # noqa: E402
-EST = [("RMPL", "practical_rmpl"), ("Counting matrix", "practical_xiao"), ("Hermite series", "practical_hermite")]
-ECOL = {"RMPL": "#1baf7a", "Counting matrix": "#2a78d6", "Hermite series": "#eb6834"}
+EST_LABELS = {e: EST_LABEL[e] if e == "rmpl" else EST_LABEL[e].capitalize() for e in ESTIMATORS}
+EST = [(EST_LABELS[e], f"practical_{e}") for e in ESTIMATORS]
+ECOL = {EST_LABELS[e]: COL[EST_COLOUR_KEY[e]] for e in ESTIMATORS}
 EVAL_ROW, EVAL_FROM = 560, "2008-01-01"
-INK, GRID, W = "#0b0b0b", "#e4e3df", 6.1
-RC = {"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans"], "mathtext.fontset": "dejavusans",
-      "font.size": 8, "axes.titlesize": 8.5, "axes.titleweight": "normal", "axes.labelsize": 8,
-      "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "axes.spines.top": False, "axes.spines.right": False,
-      "axes.edgecolor": "#8a8984", "axes.linewidth": 0.6, "xtick.color": "#52514e", "ytick.color": "#52514e",
-      "text.color": INK, "axes.labelcolor": INK, "axes.titlecolor": INK, "axes.titlelocation": "left",
-      "axes.titlepad": 6, "axes.facecolor": "white", "figure.facecolor": "white", "savefig.facecolor": "white",
-      "figure.dpi": 300, "savefig.dpi": 300}
+DOT_FIXED = (99, 199, 399)
+DOT_FIXED_STYLE = {39: ("#A6A6A6", "D", 5.0), 99: ("#8a8a8a", "D", 7.5),
+                   199: ("#6E6E6E", "s", 5.5), 399: ("#333333", "p", 6.5)}
 
 
 def result(name):
@@ -54,6 +51,14 @@ def eval_days(x):
 def change(x, w=99, lag=21):
     """|rho_roll_w[t] - rho_roll_w[t - lag]|, both held before the day, in the pair's own trading days."""
     return (x[f"rho_roll_{w}"] - x[f"rho_roll_{w}"].shift(lag)).abs()
+
+
+def dot_strategies(fixed=DOT_FIXED):
+    return [(f"fixed{k}", rf"Fixed, $N_{{\mathrm{{eff}}}}={k}$", f"lt_fixed_{k}", *DOT_FIXED_STYLE[k])
+            for k in fixed] + [
+        ("vff", r"VFF, $\alpha=0.02$", "lt_vff", STRATEGY_COLOUR["vff_slow"], "^", 8.0),
+        ("mff", "MFF", "lt_mffmix_t", STRATEGY_COLOUR["mff"], "o", 7.0),
+    ]
 
 
 def dot_strategy(ax, x, y, k, col, mk, ms):
@@ -89,6 +94,25 @@ def dot_legend(fig, ST):
     h = [Line2D([], [], marker=mk, ls="none", ms=ms, mfc="none", mec=c, mew=1.1) if k == "fixed99" else
          Line2D([], [], marker=mk, ls="none", ms=ms, color=c, mec="white") for k, _, _, c, mk, ms in ST]
     fig.legend(h, [l for _, l, *_ in ST], loc="upper center", ncol=len(ST), frameon=False, fontsize=7, bbox_to_anchor=(0.55, 1.0))
+
+
+def plot_loss_levels(conditions, strategies, loss, out, *, height, span_padding, label_y, top, bottom, hspace):
+    """Plot loss by estimator and strategy for each condition."""
+    ranges = []
+    for condition, _ in conditions:
+        values = [loss(e, k, condition) for e, _ in EST for k, *_ in strategies]
+        ranges.append(max(values) - min(values))
+    span = max(ranges) * span_padding
+
+    with plt.rc_context(RC):
+        fig, axes = plt.subplots(len(conditions), 1, figsize=(W, height), squeeze=False)
+        for ax, (condition, title) in zip(axes[:, 0], conditions):
+            dot_panel(ax, lambda e, k: loss(e, k, condition), strategies, span, title)
+        fig.supxlabel(r"Mean logarithmic prediction loss ($\times10^{-3}$ nats per day per pair)", fontsize=8, y=label_y)
+        dot_legend(fig, strategies)
+        fig.subplots_adjust(left=0.19, right=0.975, top=top, bottom=bottom, hspace=hspace)
+        fig.savefig(image(out))
+        plt.close(fig)
 
 
 def box_style(face, alpha, median_lw=2.0, flier_ms=3.2):

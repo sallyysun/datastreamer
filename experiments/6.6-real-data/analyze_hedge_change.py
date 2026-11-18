@@ -89,10 +89,11 @@ def losses(S, days):
 
 def comparisons(data, masks, rows):
     out = []
-    for n, (analysis, title, other) in enumerate([
-            ("mff-vff", "MFF - VFF, paired difference in mean log loss (x1e-3 nats/day/pair; negative = MFF lower); 95% CI; pairs where MFF lower", "vff"),
-            ("hedge-equal", "Hedge MFF - equal-weight mixture (same five copula densities; weights 1/5); negative = Hedge lower loss", "eq")], 1):
-        out.append(f"\n{n}. {title}")
+    out = ["", "Paired log-loss differences (×10⁻³ nats/day/pair, 95% CI, pairs with lower MFF loss)"]
+    for analysis, title, other in [
+            ("mff-vff", "MFF − VFF", "vff"),
+            ("hedge-equal", "Hedge MFF − equal weights (same five densities)", "eq")]:
+        out.append(f"\n{title}")
         for e in data:
             cells = []
             for lab, M in zip(GROUPS, masks):
@@ -111,7 +112,7 @@ def comparisons(data, masks, rows):
 
 
 def concentration(data, masks):
-    out = ["\n3. Hedge weight concentration (weights held before the day; pair-days pooled within each group)"]
+    out = ["\nHedge weight concentration (pooled pair-days, weights held before the day)"]
     for e in data:
         Wt = data[e]["W"]
         neff, wmax = 1.0 / np.sum(Wt ** 2, axis=0), np.max(Wt, axis=0)
@@ -142,8 +143,8 @@ def takeovers(Lk, Wt):
 
 
 def reallocation(data):
-    out = ["\n4. Delayed reallocation: after an arm becomes the trailing-63-day best (lowest mean loss over the last 63 days, losses known"
-           "\n   before the day), its Hedge weight at lags 0..120 days; episodes = takeovers that persist >= 21 days (median over episodes)"]
+    out = ["\nHedge weights after a change in the trailing-63-day leader",
+           "Episodes require the new leader to stay best for at least 21 days. Lags are in trading days."]
     for e in data:
         tw = takeovers(data[e]["Lk"], data[e]["W"])
         days_to_half = f"{np.median([np.argmax(w > 0.5) if (w > 0.5).any() else 121 for w in tw]):.0f}" if len(tw) else "-"
@@ -154,7 +155,7 @@ def reallocation(data):
 
 
 def sensitivity(data, days, D99, CHG, PRESENT):
-    out = ["\n5. Sensitivity of the change classification: MFF - VFF and Hedge - equal on change days / other days (RMPL; counting matrix in brackets)"]
+    out = ["\nChange-day sensitivity (RMPL, counting matrix in brackets)"]
     for lab, W, q in (("W=99, top 10% (primary)", 99, 0.90), ("W=99, top 5%", 99, 0.95), ("W=99, top 20%", 99, 0.80),
                       ("W=39, top 10%", 39, 0.90), ("W=199, top 10%", 199, 0.90)):
         C, Pm = classify(days.change(W), q)

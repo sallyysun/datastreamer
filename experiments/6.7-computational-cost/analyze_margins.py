@@ -5,7 +5,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
-from report_output import write_report  # noqa: E402
+from report_output import format_estimate, write_report  # noqa: E402
 
 ORDER = ["rmpl_oracle", "rmpl_full_emp", "rmpl_seq_emp", "rmpl_seq_mid", "rmpl_seq_emp_t0_500", "rmpl_seq_emp_t0_2000", "rmpl_kll_64",
          "rmpl_kll_256", "rmpl_kll_512", "rmpl_kll_1024", "rmpl_kll_4096", "rmpl_kll_16384", "rmpl_kll_512_t0_2000",
@@ -18,7 +18,7 @@ KINDS = ("rmpl", "rankmom", "cm", "hs20", "hs60")
 
 
 def paired(dd):
-    return f"{dd.mean():+.3f} ± {dd.std(ddof=1) / 10:.3f}"
+    return format_estimate(dd.mean(), dd.std(ddof=1) / 10, "+.3f", ".3f")
 
 
 def report(W):

@@ -171,7 +171,8 @@ int run_famswitch(const Run& run) {
             const double ex = dmetric::hellinger2(h2.g, tt, mt), tb = h2mix(wi, par, wis, rhs, wss, 3);
             worst = std::max(worst, std::fabs(tb - ex) / ex);
         }
-        std::printf("CHECK FAMSWITCH H2 mixture: max relative error vs exact %.2e\n", worst);
+        if (study_verbose())
+            std::printf("Family-switch mixture H2 max relative error %.2e\n", worst);
     }
     std::fprintf(fi, "gen,seed,kind,target,t50,t90,share_ge50_after,incorrect_majority,first_incorrect,pre_weight_target,n_guard\n");
     std::fprintf(fp, "gen,t,family,mean,sd\n");
@@ -337,7 +338,8 @@ int run_scoresfam(const Run& run) {
         double worst = 0;
         for (int wi = 1; wi < 4; ++wi)
             for (double r = -0.2; r < 0.995; r += 0.0137) { bool c; const double a = theta_of(wi, r, c), b = copula::param_from_spearman(WF[wi], r); worst = std::max(worst, std::fabs(a - b) / std::max(1e-3, std::fabs(b))); }
-        std::printf("CHECK inverse table: max relative theta error %.2e\n", worst);
+        if (study_verbose())
+            std::printf("Inverse table max relative error %.2e\n", worst);
     }
     // component density tables on a rho_S grid for H^2 (t / Clayton / Gumbel)
     const int nr = 799; const double rlo = -0.995, rst = 0.0025;
@@ -394,9 +396,9 @@ int run_scoresfam(const Run& run) {
                 const dmetric::Table mt(h2.g, [&](double a, double b) { double m = 0; for (int k = 0; k < 5; ++k) { const double l = copula::log_density(WF[wi], a, b, th[k]); m += ws[k] * (std::isfinite(l) ? std::exp(l) : 0.0); } return m; });
                 const double ex = dmetric::hellinger2(h2.g, truth, mt), tb = mixW(wi, par, rs.data(), ws, 5);
                 worst = std::max(worst, std::fabs(tb - ex) / ex);
-                std::printf("CHECK H2mix %s gen, W=%s: table %.6e exact %.6e\n", cop.c_str(), WN[wi], tb, ex);
             }
-        std::printf("CHECK H2mix max relative error %.2e\n", worst);
+        if (study_verbose())
+            std::printf("Mixture H2 max relative error %.2e\n", worst);
     }
     std::FILE* fo = std::fopen(("results/scoresfam_seeds" + sfx + ".csv").c_str(), "w");
     std::FILE* fd = std::fopen(("results/scoresfam_diag" + sfx + ".csv").c_str(), "w");

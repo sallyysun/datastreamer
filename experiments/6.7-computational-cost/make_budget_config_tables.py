@@ -1,5 +1,4 @@
 """Write the validation-selected budget configuration tables."""
-import os
 import sys
 import numpy as np
 import pandas as pd
@@ -73,27 +72,14 @@ def appendix_table(D):
     return A + [r"\end{longtable}"]
 
 
-def report(D):
-    verbose_print(D.groupby(["estimator", "budget_kib"]).agg(approx_min=("approx", "min"), approx_max=("approx", "max"), kib_max=("kib", "max"),
-                                                     util_max=("util_pct", "max"), util_med=("util_pct", "median"),
-                                                     larger=("larger_than_needed", "sum")).round(1).to_string())
-    verbose_print(D.groupby(["scenario"]).retention.agg(lambda s: sorted(set(s))).to_string())
-    for col, kcol, lab in [("larger_than_needed", "smallest_within_1se_kib", "within 1 validation SE"),
-                           ("larger_than_1pct", "smallest_within_1pct_kib", "within 1% RMSE")]:
-        verbose_print(f"selections larger than the smallest same-gain size {lab}: {int(D[col].sum())}/108")
-        for (e, b), g in D.groupby(["estimator", "budget_kib"]):
-            x = g[g[col]]
-            verbose_print(f"  {e:10s} {b:4d} KiB: {len(x)}/12, median excess {np.median(x.kib - x[kcol]) if len(x) else 0:.1f} KiB")
-
-
 def main():
     sw = pd.read_csv("results/budget_sweep_n15k.csv")
     D = configs(pd.read_csv("results/budget_selected.csv"), sw[sw.split == "val"])
     D.to_csv("results/budget_configs_n15k.csv", index=False)
     open("results/budget_configs_n15k_main.tex", "w").write("\n".join(main_table(D)) + "\n")
     open("results/budget_configs_n15k_appendix.tex", "w").write("\n".join(appendix_table(D)) + "\n")
-    if os.environ.get("VERBOSE") == "1":
-        report(D)
+    verbose_print(f"Larger than same-gain alternatives (1 SE / 1% RMSE)  "
+                  f"{D.larger_than_needed.sum()}/{len(D)} / {D.larger_than_1pct.sum()}/{len(D)}")
 
 
 if __name__ == "__main__":

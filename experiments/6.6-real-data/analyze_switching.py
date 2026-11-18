@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from real_common import FIX, eval_days, outputs, read, result, verbose_print, write_report
+from real_common import FIX, eval_days, outputs, read, result, write_report
 
 MS = [0, 1, 2, 5]
 EST = {"RMPL": "practical_rmpl", "Counting matrix": "practical_xiao", "Hermite": "practical_hermite"}
@@ -54,7 +54,6 @@ def brute_force_check():
                    if sum(s[t] != s[t - 1] for t in range(1, T)) <= m)
         c, p = best_seq(Lk, m)
         assert abs(c - best) < 1e-9 and abs(Lk[p, np.arange(T)].sum() - c) < 1e-9 and (np.diff(p) != 0).sum() <= m
-    verbose_print("CHECK brute force (200 random short series): DP optimum, traced path cost and switch budget all agree")
 
 
 def regrets(S):
@@ -78,20 +77,21 @@ def regrets(S):
                                           switch_dates=";".join(str(x.date.iloc[i].date()) for i in sw),
                                           segments="->".join(str(FIX[s[0]]) for s in np.split(path, sw)),
                                           gain_vs_static=1e3 * (static - cost) / T))
-    verbose_print("CHECK every pair/estimator/copula: m = 0 equals the static oracle; traced paths respect the budget and reproduce the cost")
     return pd.DataFrame(rows), pd.DataFrame(paths)
 
 
 def report(Rg, Pt):
-    out = ["Switching regret vs the best sequence of fixed-ESS arms with <= m switches, x1e-3 nats/day/pair (mean over 32 pairs; lower is better)"]
+    columns = f"{'Estimator':18s} {'Method':19s}" + "".join(f"{f'm={m}':>9s}" for m in MS) + "   Negative at m=1"
+    out = ["Switching regret vs the best sequence of fixed-ESS arms with <= m switches, x1e-3 nats/day/pair (mean over 32 pairs; lower is better)",
+           "", columns]
     for fam in ("t4", "Gaussian"):
-        out.append(f"\n=== {fam} copula      " + "".join(f"   m={m:<5d}" for m in MS) + "   pairs with regret < 0 at m=1")
+        out += ["", fam]
         for est in EST:
             for meth in ("MFF", "VFF", "MFF single density"):
                 g = Rg[(Rg.estimator == est) & (Rg.copula == fam) & (Rg.method == meth)]
                 neg = int((g[g.m == 1].regret < 0).sum())
                 out.append(f"  {est:16s} {meth:19s}" + "".join(f" {g[g.m == m].regret.mean():+8.2f}" for m in MS) + f"   {neg}/32")
-    out.append("\nOracle sequences (t4 copula): how much switching buys over the static oracle, and where the switches fall")
+    out.append("\nStudent t oracle sequences")
     for est in EST:
         for m in (1, 2):
             g = Pt[(Pt.estimator == est) & (Pt.copula == "t4") & (Pt.m == m)]

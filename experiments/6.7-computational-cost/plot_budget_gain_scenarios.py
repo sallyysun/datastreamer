@@ -4,17 +4,18 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import verbose_print  # noqa: E402
+from budget_plot_style import budget_estimators  # noqa: E402
+import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
 plt = ce.plt
-EST = [("mpl_dskll", "RMPL", ce.COL["mle"]), ("xiao", "Counting\nMatrix", ce.COL["xiao"]), ("hermite", "Hermite\nSeries", ce.COL["hermite"])]
+EST = budget_estimators(C.EST_LABEL2)
 SC = [("constant", "(a) Constant dependence"), ("drift", "(b) Gradual drift"), ("jump", "(c) Abrupt jump")]
 
 
 def panel(ax, P, s, lo, hi):
     pos, data, cols, alphas = [], [], [], []
-    for i, (e, _, c) in enumerate(EST):
+    for i, (e, _, c, _) in enumerate(EST):
         for j, b in enumerate((64, 256)):
             pos.append(i + (j - 0.5) * 0.36)
             cols.append(c)
@@ -30,7 +31,7 @@ def panel(ax, P, s, lo, hi):
         p.set_linewidth(0.7)
     ax.axhline(0, color="#222222", lw=0.6, zorder=1)
     ax.set_xticks(range(3))
-    ax.set_xticklabels([l for _, l, _ in EST], fontsize=6.6)
+    ax.set_xticklabels([label for _, label, *_ in EST], fontsize=6.6)
     ax.tick_params(axis="x", length=0)
     ax.set_xlim(-0.6, 2.6)
     ax.set_ylim(np.floor(lo) - 0.3, np.ceil(hi) + 0.3)
@@ -66,7 +67,6 @@ def main():
     figure(P, "images/ch6_budget_accuracy_gain_scenarios.png")
     R = summary(P)
     R.to_csv("results/budget_gain_scenarios.csv", index=False)
-    verbose_print(R.round(2).to_string(index=False))
 
 
 if __name__ == "__main__":

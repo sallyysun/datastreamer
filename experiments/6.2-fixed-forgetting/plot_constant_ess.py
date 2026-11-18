@@ -1,11 +1,11 @@
 """Plot Spearman RMSE across fixed memories under constant and drifting Gaussian dependence."""
-import math
 import sys
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
 from report_output import verbose_print  # noqa: E402
+from summary_stats import paired_mean_se, standard_error  # noqa: E402
 import config as C  # noqa: E402
 import plot_style as ce  # noqa: E402
 
@@ -35,7 +35,7 @@ def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=1
         x = np.array([0, 1, 2, 3, 4, 5.35])   # a gap before no forgetting: it is not a point on the N_eff scale
         for ax, (e, title) in zip(axs, est or EST):
             p = d[d.component == e].pivot(index="seed", columns="method", values="rmse") * SC
-            mu, se = p[ARMS].mean(), p[ARMS].std(ddof=1) / math.sqrt(len(p))
+            mu, se = p[ARMS].mean(), standard_error(p[ARMS])
             col = COL[e]
             ax.plot(x[:5], mu[ARMS[:5]], color=col, lw=1.4, zorder=3)
             ax.errorbar(x[:5], mu[ARMS[:5]], yerr=2 * se[ARMS[:5]], fmt="o", ms=3.8, color=col, lw=1, capsize=0, zorder=4)
@@ -52,7 +52,7 @@ def figure(scenario="constant", out=ce.OUT + "ch6_constant_ess_rmse.png", ylim=1
                 if label_nocum:
                     ax.text(x[5], mu["nocum"] + 0.75 * ylim / 13.5, f"{mu['nocum']:.2f}", ha="center", va="bottom",
                             fontsize=6.8, color=INK)
-            m, s = ce.paired(p.nocum, p.fixed_1999)
+            m, s = paired_mean_se(p.nocum, p.fixed_1999)
             if scenario == "constant":
                 verbose_print(f"  {title}: no forgetting - 1999 = {m:+.2f} ± {2*s:.2f} (x1e-2, paired 2 SE)")
             ax.set_title(title)

@@ -1,12 +1,12 @@
 """Compare squared and log loss across generating and working copulas."""
-import math
 import os
 import sys
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, "../common")
-from report_output import write_report  # noqa: E402
+from report_output import format_estimate, write_report  # noqa: E402
+from summary_stats import standard_error  # noqa: E402
 import config as C  # noqa: E402
 
 R = "results/"
@@ -34,7 +34,7 @@ def paired_cells(d):
         for m, _, s in MET:
             x, y = a[m] * s, b[m] * s
             dd = (x - y).dropna()
-            mu, se = dd.mean(), dd.std(ddof=1) / math.sqrt(len(dd))
+            mu, se = dd.mean(), standard_error(dd)
             rows.append(dict(gen=g, scenario=sc, estimator=e, working=w, window=win, metric=m, sq=x.mean(), log=y.mean(),
                              sq_med=x.median(), log_med=y.median(), diff=mu, se=se, diff_med=dd.median(),
                              verdict="log" if mu > 2 * se else "sq" if mu < -2 * se else "tie"))
@@ -42,12 +42,16 @@ def paired_cells(d):
 
 
 def fmt(r):
-    return f"{r['diff']:+7.3f}±{2*r['se']:.3f}{'*' if r['verdict'] != 'tie' else ' '}"
+    estimate = format_estimate(r["diff"], 2 * r["se"], "+7.3f", ".3f", separator="±")
+    return estimate + ("*" if r["verdict"] != "tie" else " ")
 
 
-def counts(x):
-    v = x.verdict.value_counts()
-    return "/".join(str(v.get(k, 0)) for k in VERDICTS)
+def tally_verdicts(rows):
+    return rows.verdict.value_counts().reindex(VERDICTS, fill_value=0)
+
+
+def counts(rows):
+    return "/".join(map(str, tally_verdicts(rows)))
 
 
 def cell(cells, g, sc, e, w, m):
@@ -56,7 +60,7 @@ def cell(cells, g, sc, e, w, m):
 
 
 def gaussian_table(cells):
-    out = ["", "=== Table 1: Gaussian working family, by generating family (Delta, whole run) ==="]
+    out = ["", "Gaussian working family by generating family (Δ)"]
     for e in EST:
         out += [f"-- {EL[e]}", f"{'gen':6s} {'scenario':9s} " + " ".join(f"{ml:>17s}" for _, ml, _ in MET)]
         for g in GEN:
@@ -80,10 +84,11 @@ def family_grid(cells, title, width, show):
 
 def verdict_counts(cells):
     W0 = cells[cells.window == "whole"]
-    out = ["", "=== Verdict counts (whole run): log wins / ties / squared wins, by metric ==="]
+    out = ["", "Whole-run verdicts (log / tie / squared)"]
     for m, ml, _ in MET:
-        v = W0[W0.metric == m].verdict.value_counts()
-        out.append(f"{ml:14s} log {v.get('log', 0):3d}  tie {v.get('tie', 0):3d}  sq {v.get('sq', 0):3d}   (of {len(W0[W0.metric == m])})")
+        rows = W0[W0.metric == m]
+        log, tie, sq = tally_verdicts(rows)
+        out.append(f"{ml:14s} log {log:3d}  tie {tie:3d}  sq {sq:3d}   (of {len(rows)})")
     out.append("by estimator:")
     for e in EST:
         out.append("  " + EL[e] + ": " + "; ".join(f"{ml} " + counts(W0[(W0.metric == m) & (W0.estimator == e)]) for m, ml, _ in MET))
@@ -94,18 +99,18 @@ def verdict_counts(cells):
     sw = cells[cells.verdict == "sq"]
     cols = ["gen", "scenario", "estimator", "working", "window", "metric", "sq", "log", "diff", "se", "diff_med"]
     out.append(sw[cols].round(3).to_string(index=False) if len(sw) else "none")
-    out += ["", "=== Jump recovery windows: verdict counts (log/tie/sq) ==="]
+    out += ["", "Jump-window verdicts (log / tie / squared)"]
     for win in ["pre", "rec_0_100", "rec_100_500", "post"]:
         x = cells[cells.window == win]
         out.append(f"{win:12s} " + "; ".join(f"{ml} " + counts(x[x.metric == m]) for m, ml, _ in MET))
-    out += ["", "=== RMSE vs density reversals (whole run): cells where the RMSE verdict differs from the H2 or excess verdict ==="]
+    out += ["", "RMSE vs density verdict reversals"]
     pv = W0.pivot_table(index=["gen", "scenario", "estimator", "working"], columns="metric", values="verdict", aggfunc="first")
     rev = pv[(pv.rmse != pv.h2_x1000) | (pv.rmse != pv.excess_x1000)]
     return out + [f"{len(rev)} of {len(pv)} cells", rev.to_string() if len(rev) else ""]
 
 
 def matching(d):
-    out = ["", "=== Does matching the family help? absolute log-loss MFF, matched minus Gaussian working family, whole run ==="]
+    out = ["", "Log-loss MFF (matched minus Gaussian working family)"]
     for e in EST:
         for m, ml, _ in MET:
             cells = []
@@ -113,22 +118,23 @@ def matching(d):
                 for sc in SC:
                     a = d[(d.gen == g) & (d.scenario == sc) & (d.estimator == e) & (d.window == "whole") & (d.score == "log")]
                     dd = (a[a.working == g].set_index("seed")[m] - a[a.working == "gaussian"].set_index("seed")[m]) * (100 if m == "rmse" else 1)
-                    cells.append(f"{GL[g]}/{sc[:5]} {dd.mean():+.3f}±{2*dd.std(ddof=1)/math.sqrt(len(dd)):.3f}")
+                    estimate = format_estimate(dd.mean(), standard_error(dd, scale=2), "+.3f", ".3f", separator="±")
+                    cells.append(f"{GL[g]}/{sc[:5]} {estimate}")
             out.append(f"{EL[e]:22s} {ml:12s} " + "  ".join(cells))
     return out
 
 
 def diagnostics(dg):
     cols = ["arm_clamp_ticks", "score_nonfinite", "eval_nonfinite"]
-    return ["", "=== Diagnostics (scored window t >= 500 for clamps) ===",
+    return ["", "Numerical diagnostics (clamps counted from t = 500)",
             dg.groupby(["estimator", "working"])[cols].agg(["sum", "max"]).to_string()]
 
 
 def eta_sensitivity(v):
     """Each score at its own dev-best eta, against the fixed eta = 1, on the dev seeds."""
     v = v[v.window == "whole"]
-    out = ["", "=== Learning-rate sensitivity (dev seeds 1-30; whole run; no H2). Each score at its own dev-best eta per cell and metric ===",
-           "Sign of squared(best eta) - log(best eta) vs the fixed eta = 1 sign on the same dev seeds; reversals listed."]
+    out = ["", "Learning-rate sensitivity (development seeds 1–30)",
+           "Compares the best eta for each score, cell and metric with eta = 1."]
     mv = v.groupby(["gen", "scenario", "estimator", "working", "score", "eta"])[["rmse", "excess_x1000"]].mean().reset_index()
     rows = []
     for (g, sc, e, w), x in mv.groupby(["gen", "scenario", "estimator", "working"]):
@@ -153,9 +159,9 @@ def main():
     lines = ["MFF scoring function across copula families. Delta = squared - log (paired, 60 seeds, mean ± 2 SE; * beyond 2 SE;",
              "positive = log loss better). Whole run unless stated. Linux/libstdc++. inv = parameter inversion of rho_S into W."]
     lines += gaussian_table(cells)
-    lines += family_grid(cells, "=== Table 2: generating (rows) x working (cols), Delta, whole run; [] = matched family ===", 17,
+    lines += family_grid(cells, "Generating × working family (Δ, brackets mark matched families)", 17,
                          lambda r, diag: f"[{fmt(r)}]" if diag else f" {fmt(r)} ")
-    lines += family_grid(cells, "=== Table 3: absolute accuracy, log / squared (means), whole run ===", 15,
+    lines += family_grid(cells, "Mean accuracy (log / squared, * marks matched families)", 15,
                          lambda r, diag: f"{r['log']:6.3f}/{r['sq']:6.3f}" + ("*" if diag else " "))
     lines += verdict_counts(cells) + matching(d) + diagnostics(load("diag_sfeval"))
     if os.path.exists(R + "scoresfam_seeds_sfdev.csv"):

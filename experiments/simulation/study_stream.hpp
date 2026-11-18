@@ -1,14 +1,21 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "study_config.hpp"
 #include "../../src/estimators/dependence/datasketches_kll.hpp"
 #include "../../src/special_functions.hpp"
 #include "../../src/streamgenerator/datasource/copula_source.hpp"
 #include "run_live_stream.hpp"
+
+inline bool study_verbose() {
+    const char* value = std::getenv("VERBOSE");
+    return value && std::string_view(value) == "1";
+}
 
 struct StudyObservation {
     double x, y, rho_s, target;

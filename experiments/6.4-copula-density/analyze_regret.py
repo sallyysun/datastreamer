@@ -9,7 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 import config as C  # noqa: E402
-from report_output import write_report  # noqa: E402
+from report_output import format_estimate, write_report  # noqa: E402
 from summary_stats import standard_error  # noqa: E402
 
 R = Path("results")
@@ -53,7 +53,8 @@ def switch_counts(runs):
 
 
 def gaussian_summary(x):
-    return f"{x.mean():7.2f} ± {2 * standard_error(x):5.2f} (med {x.median():6.2f})"
+    estimate = format_estimate(x.mean(), 2 * standard_error(x), "7.2f", "5.2f")
+    return f"{estimate} (med {x.median():6.2f})"
 
 
 def regret_lines(g):
@@ -85,7 +86,7 @@ def gaussian_report(r):
     out = ["MFF regret (nats, cumulative over the scored ticks). Log loss, eta = 1. Gaussian copula, KLL margins, 60 seeds, Linux/libstdc++.",
            "mean ± 2 SE (median). 'viol' = runs above the Chapter 5 bound (only defined for the mixture forecaster; delta = 0 has no switching bound)."]
     for e in C.ESTIMATORS:
-        out += ["", f"=== {C.EST_LABEL[e]} (T = {sorted(r[r.estimator == e]['T'].unique())}) ==="]
+        out += ["", f"{C.EST_LABEL[e]} (T = {sorted(r[r.estimator == e]['T'].unique())})"]
         for sc in C.SCENARIOS:
             g = r[(r.estimator == e) & (r.scenario == sc)]
             gain = g[g.delta == 0].best0 - g[g.delta == 0].best1
@@ -99,7 +100,7 @@ def gaussian_report(r):
 
 
 def family_summary(x):
-    return f"{x.mean():6.2f}±{2 * standard_error(x):4.2f}"
+    return format_estimate(x.mean(), 2 * standard_error(x), "6.2f", "4.2f", separator="±")
 
 
 def switch_desc(h):
@@ -115,7 +116,7 @@ def family_table(r):
            "FS = fixed share delta = 1e-4, H = Hedge delta = 0. stat FS = static regret of FS; sw1 = one-switch regret; FS-H = paired",
            "difference in cumulative mixture log loss; gain1 = best fixed - best one-switch comparator loss. [M] = correctly specified."]
     for sc in C.SCENARIOS:
-        out += ["", f"=== {sc} ===",
+        out += ["", sc,
                 f"{'gen':9s} {'working':13s} {'stat FS':>11s} {'stat H':>11s} {'sw1 H':>11s} {'sw1 FS':>11s} {'FS - H':>12s} {'gain1':>11s}  best fixed / one-switch"]
         for gfam in FAMILIES:
             for w in FAMILIES:
@@ -129,7 +130,7 @@ def family_table(r):
 
 
 def bound_check(r):
-    out = ["", "=== Chapter 5 bound check (every run): max regret / bound, violations ==="]
+    out = ["", "Chapter 5 regret bounds"]
     rows = []
     for (gfam, w, d), g in r.groupby(["gen", "working", "delta"]):
         for m, oracle in enumerate(ORACLES):
@@ -146,7 +147,7 @@ def bound_check(r):
 
 def numerics(r):
     c = r[r.n_clamp > 0].groupby(["gen", "working", "scenario"]).n_clamp.agg(["count", "max"])
-    return ["", "=== numerics ===", f"non-finite arm log densities (guard used): {int(r.n_nonfinite.sum())} over {len(r)} run-rows",
+    return ["", f"Non-finite arm log densities (guard used)  {int(r.n_nonfinite.sum())} over {len(r)} run-rows",
             "scored ticks with an arm at its parameter clamp (runs, max ticks per run):", c.to_string() if len(c) else "none"]
 
 

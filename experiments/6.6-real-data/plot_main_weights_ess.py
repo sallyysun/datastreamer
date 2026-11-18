@@ -109,16 +109,7 @@ def main():
     figure(res)
     values(res).to_csv(result("weights_ess_values.csv"), index=False)
     pd.DataFrame(full).to_csv(result("weights_ess_full_period.csv"), index=False)
-    lags = (-21, 0, 21, 63, 126)
-    at = {l: int(np.where(LAGS == l)[0][0]) for l in lags}
-    verbose_print(f"episode starts (all pairs): {sum(len(v) for v in starts.values())}; with full window: " + ", ".join(f"{e} {res[e]['n']}" for e, _ in EST))
-    verbose_print(f"CHECK VFF controller N_eff identical across the three estimators: max |diff| = {vff_same:.3g}")
-    for e, _ in EST:
-        r = res[e]
-        verbose_print(f"{e:16s} lag -21/0/+21/+63/+126 | ESS39+99 weight " + "/".join(f"{r['W'][at[l], :2].sum():.2f}" for l in lags)
-              + " | MFF wavg ESS median " + "/".join(f"{r['M'][at[l]]:.0f}" for l in lags)
-              + " | VFF " + "/".join(f"{r['V'][at[l]]:.0f}" for l in lags))
-    verbose_print(pd.DataFrame(full).round(0).to_string(index=False))
+    verbose_print(f"Episode starts {sum(len(v) for v in starts.values())}, max VFF ESS difference {vff_same:.3g}")
 
 
 if __name__ == "__main__":

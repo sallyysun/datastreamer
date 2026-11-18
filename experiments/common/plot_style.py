@@ -1,7 +1,5 @@
-"""Shared Chapter 6 figure style: matplotlib (plt), the estimator colours COL, the rc_context dictionary RC, the printed
-width W, the results/ and images/ folders of the experiment a script runs in, and the paired mean and SE.
-Scripts import it as `ce`."""
-import math
+"""Chapter 6 Matplotlib defaults and shared figure styles."""
+from plot_theme import COL as COL, GRID as GRID, INK as INK, RC as RC, W as W
 
 import matplotlib
 matplotlib.use("Agg")
@@ -9,16 +7,6 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib import font_manager  # noqa: E402
 
 R, OUT = "results/", "images/"
-W = 6.1
-COL = {"xiao": "#2a78d6", "hermite": "#eb6834", "mle": "#1baf7a"}
-INK, GRID = "#0b0b0b", "#e4e3df"
-RC = {"font.family": "sans-serif", "font.sans-serif": ["DejaVu Sans"], "mathtext.fontset": "dejavusans",
-      "font.size": 8, "axes.titlesize": 8.5, "axes.titleweight": "normal", "axes.labelsize": 8,
-      "xtick.labelsize": 7.5, "ytick.labelsize": 7.5, "axes.spines.top": False, "axes.spines.right": False,
-      "axes.edgecolor": "#8a8984", "axes.linewidth": 0.6, "xtick.color": "#52514e", "ytick.color": "#52514e",
-      "text.color": INK, "axes.labelcolor": INK, "axes.titlecolor": INK, "axes.titlelocation": "left",
-      "axes.titlepad": 6, "axes.facecolor": "white", "figure.facecolor": "white", "savefig.facecolor": "white",
-      "figure.dpi": 300, "savefig.dpi": 300}
 
 # Global defaults under RC: the settings RC does not override (tick widths, mathtext tick labels, legend and grid) still
 # shape the thesis figures.
@@ -35,8 +23,3 @@ plt.rcParams.update({
     "axes.grid": False, "grid.color": "#E5E5E5", "grid.linewidth": 0.6,
     "legend.frameon": False, "figure.dpi": 300, "savefig.dpi": 300,
 })
-
-
-def paired(a, b):
-    d = (a - b).dropna()
-    return d.mean(), d.std(ddof=1) / math.sqrt(len(d))
