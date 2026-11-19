@@ -1,0 +1,5 @@
+GLD_GDX 2018-03-01..2020-08-31 (631 days): MFF minus fixed (nats) 39 +3.62, 99 +1.83, 199 +1.79, 399 +2.26, 1999 +0.55 | VFF +1.50
+ABT_JNJ 2011-06-01..2014-01-31 (672 days): MFF minus fixed (nats) 39 +4.22, 99 +2.04, 199 +2.81, 399 +3.44, 1999 +4.18 | VFF +3.05
+PFE_MRK 2024-01-01..2026-11-11 (719 days): MFF minus fixed (nats) 39 +1.82, 99 -0.81, 199 +3.69, 399 +7.84, 1999 +10.79 | VFF +0.35
+GLD_GDX Calm: 1 Mar to 15 Apr 2019: n 32, sample Spearman of (U, V) 0.755
+GLD_GDX Break: 1 Mar to 15 Apr 2020: n 32, sample Spearman of (U, V) 0.574

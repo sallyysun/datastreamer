@@ -1,0 +1,46 @@
+estimator,regime,strategy,loss
+Counting matrix,calm,fixed199,-442.58628404729706
+Counting matrix,calm,fixed399,-440.01016091437435
+Counting matrix,calm,fixed99,-443.0098755242535
+Counting matrix,calm,mff,-443.7733729659427
+Counting matrix,calm,vff,-441.03487838403487
+Counting matrix,mid,fixed199,-565.9169491012766
+Counting matrix,mid,fixed399,-563.5945521306603
+Counting matrix,mid,fixed99,-566.1167742434474
+Counting matrix,mid,mff,-566.5473580674945
+Counting matrix,mid,vff,-564.8709709758308
+Counting matrix,stress,fixed199,-727.3035187104274
+Counting matrix,stress,fixed399,-719.9250726578845
+Counting matrix,stress,fixed99,-733.6113591138026
+Counting matrix,stress,mff,-732.8012639546325
+Counting matrix,stress,vff,-726.4885371511546
+Hermite series,calm,fixed199,-425.36456195155944
+Hermite series,calm,fixed399,-431.7694192099643
+Hermite series,calm,fixed99,-403.7113785210215
+Hermite series,calm,mff,-440.84956655252074
+Hermite series,calm,vff,-427.83072942673897
+Hermite series,mid,fixed199,-521.2060477866763
+Hermite series,mid,fixed399,-550.3247444406795
+Hermite series,mid,fixed99,-483.6096005867192
+Hermite series,mid,mff,-562.7586615429356
+Hermite series,mid,vff,-530.8991369806116
+Hermite series,stress,fixed199,-689.0089483925492
+Hermite series,stress,fixed399,-710.4152591338574
+Hermite series,stress,fixed99,-614.8350356151045
+Hermite series,stress,mff,-728.2471719371723
+Hermite series,stress,vff,-687.3162065169649
+RMPL,calm,fixed199,-445.65778595341396
+RMPL,calm,fixed399,-443.81252410784396
+RMPL,calm,fixed99,-445.8290666402607
+RMPL,calm,mff,-446.33676236115065
+RMPL,calm,vff,-444.578002961537
+RMPL,mid,fixed199,-568.8626335107521
+RMPL,mid,fixed399,-567.4928858034731
+RMPL,mid,fixed99,-568.9620895567334
+RMPL,mid,mff,-569.5895569422738
+RMPL,mid,vff,-567.8007874859815
+RMPL,stress,fixed199,-726.2310803784461
+RMPL,stress,fixed399,-719.1641187201919
+RMPL,stress,fixed99,-733.9739432386571
+RMPL,stress,mff,-733.4553226244285
+RMPL,stress,vff,-726.0209891136459

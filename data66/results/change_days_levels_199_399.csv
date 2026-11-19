@@ -1,0 +1,25 @@
+estimator,strategy,days,loss
+RMPL,fixed199,other,-490.9578240703453
+RMPL,fixed199,change,-448.69813467837446
+RMPL,fixed399,other,-488.722536324243
+RMPL,fixed399,change,-443.13661909430317
+RMPL,vff,other,-489.9741250110243
+RMPL,vff,change,-447.9829652388056
+RMPL,mff,other,-492.5664000470613
+RMPL,mff,change,-455.62618044164947
+Counting matrix,fixed199,other,-492.3625139849979
+Counting matrix,fixed199,change,-451.8591536976041
+Counting matrix,fixed399,other,-489.6009043690146
+Counting matrix,fixed399,change,-444.7109430541196
+Counting matrix,vff,other,-491.19294987643536
+Counting matrix,vff,change,-450.32397445755976
+Counting matrix,mff,other,-493.48883066414993
+Counting matrix,mff,change,-458.21945053553026
+Hermite series,fixed199,other,-485.91538794229706
+Hermite series,fixed199,change,-451.0195246112545
+Hermite series,fixed399,other,-486.0706505297924
+Hermite series,fixed399,change,-443.17366266160354
+Hermite series,vff,other,-485.99968896838163
+Hermite series,vff,change,-449.0506472316461
+Hermite series,mff,other,-489.59367895776904
+Hermite series,mff,change,-454.9425802779026

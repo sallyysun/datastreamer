@@ -1,0 +1,49 @@
+estimator,strategy,column,regime,loss_x1e3
+RMPL,"Rolling window, W = 99 (hindsight)",lt_roll_99,all,-486.1224331520927
+RMPL,"Rolling window, W = 99 (hindsight)",lt_roll_99,calm,-415.59967597445177
+RMPL,"Rolling window, W = 99 (hindsight)",lt_roll_99,mid,-537.511595633986
+RMPL,"Rolling window, W = 99 (hindsight)",lt_roll_99,stress,-705.4662847211285
+RMPL,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,all,-484.1596909972912
+RMPL,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,calm,-415.8450492852974
+RMPL,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,mid,-537.5439995839184
+RMPL,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,stress,-693.1463999949264
+RMPL,"VFF, $\alpha=0.02$",lt_vff,all,-485.771000087068
+RMPL,"VFF, $\alpha=0.02$",lt_vff,calm,-416.5537204248109
+RMPL,"VFF, $\alpha=0.02$",lt_vff,mid,-537.7909293014889
+RMPL,"VFF, $\alpha=0.02$",lt_vff,stress,-699.6297749635341
+RMPL,MFF,lt_mffmix_t,all,-488.86872173167995
+RMPL,MFF,lt_mffmix_t,calm,-418.3395221009637
+RMPL,MFF,lt_mffmix_t,mid,-540.4453206625583
+RMPL,MFF,lt_mffmix_t,stress,-708.2959762011944
+Counting matrix,"Rolling window, W = 99 (hindsight)",lt_roll_99,all,-486.1224331520927
+Counting matrix,"Rolling window, W = 99 (hindsight)",lt_roll_99,calm,-415.59967597445177
+Counting matrix,"Rolling window, W = 99 (hindsight)",lt_roll_99,mid,-537.511595633986
+Counting matrix,"Rolling window, W = 99 (hindsight)",lt_roll_99,stress,-705.4662847211285
+Counting matrix,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,all,-485.10767267289725
+Counting matrix,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,calm,-415.88657666589194
+Counting matrix,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,mid,-538.7133309808451
+Counting matrix,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,stress,-697.229262230708
+Counting matrix,"VFF, $\alpha=0.02$",lt_vff,all,-487.10207518980576
+Counting matrix,"VFF, $\alpha=0.02$",lt_vff,calm,-417.0212402961984
+Counting matrix,"VFF, $\alpha=0.02$",lt_vff,mid,-539.9439647942892
+Counting matrix,"VFF, $\alpha=0.02$",lt_vff,stress,-703.3222808878817
+Counting matrix,MFF,lt_mffmix_t,all,-489.9583186431592
+Counting matrix,MFF,lt_mffmix_t,calm,-419.4182955670437
+Counting matrix,MFF,lt_mffmix_t,mid,-541.5020036413623
+Counting matrix,MFF,lt_mffmix_t,stress,-709.2606471459384
+Hermite series,"Rolling window, W = 99 (hindsight)",lt_roll_99,all,-486.1224331520927
+Hermite series,"Rolling window, W = 99 (hindsight)",lt_roll_99,calm,-415.59967597445177
+Hermite series,"Rolling window, W = 99 (hindsight)",lt_roll_99,mid,-537.511595633986
+Hermite series,"Rolling window, W = 99 (hindsight)",lt_roll_99,stress,-705.4662847211285
+Hermite series,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,all,-481.7769123711079
+Hermite series,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,calm,-411.6490218309208
+Hermite series,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,mid,-535.7321117442871
+Hermite series,"Fixed, $N_{\mathrm{eff}}=399$",lt_fixed_399,stress,-697.2949390053129
+Hermite series,"VFF, $\alpha=0.02$",lt_vff,all,-482.3012076291796
+Hermite series,"VFF, $\alpha=0.02$",lt_vff,calm,-411.87393284420193
+Hermite series,"VFF, $\alpha=0.02$",lt_vff,mid,-534.4427257873737
+Hermite series,"VFF, $\alpha=0.02$",lt_vff,stress,-700.7967126806388
+Hermite series,MFF,lt_mffmix_t,all,-486.1251776746114
+Hermite series,MFF,lt_mffmix_t,calm,-415.512589266838
+Hermite series,MFF,lt_mffmix_t,mid,-536.8943817323213
+Hermite series,MFF,lt_mffmix_t,stress,-706.5466130815354
