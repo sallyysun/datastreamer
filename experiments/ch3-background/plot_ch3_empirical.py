@@ -88,6 +88,7 @@ def main():
     for ri, si in zip(r, s):
         ax_a.add_patch(Rectangle(((ri - 1) / N, (si - 1) / N), 1 / N, 1 / N, fc=SHADE, ec="none", zorder=1))
     ax_a.scatter(r / N, s / N, s=12, color=C_EMP, zorder=3, linewidths=0, clip_on=False)
+    note(ax_a, rf"$\hat\rho_S$ = {1 - 6 * np.sum((r - s) ** 2) / (N * (N**2 - 1)):.2f}")
 
     unit_square(ax_b, "B  Checkerboard\ndensity $n$ on occupied cells", ylabel=False)
     cells = np.zeros((N, N))
