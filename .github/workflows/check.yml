@@ -1,0 +1,32 @@
+name: check
+
+# On every push and pull request: build the server, the consumer and every simulation program, then run
+# experiments/check.sh (a short run of every mode compared with check_reference.txt, plus the device-vs-runner and
+# lab-vs-device consistency tests). Ubuntu 24.04 matches the machine the reference was made on (gcc 13, glibc 2.39);
+# the random draws and libm results that the checksums depend on differ on other platforms.
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libeigen3-dev nlohmann-json3-dev libssl-dev zlib1g-dev python3-numpy python3-pandas
+
+      - name: Build the server and the consumer
+        run: |
+          make -C external/uWebSockets/uSockets WITH_OPENSSL=1
+          make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr
+          make consumer CXX=g++ EIGEN=/usr JSON=/usr
+
+      - name: Run the reproducibility check
+        run: EIGEN=/usr JSON=/usr experiments/check.sh

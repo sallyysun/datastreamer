@@ -6,11 +6,11 @@ cd "$(dirname "$0")"
 P=../common/build/strategy_experiments
 if [ "${SIM:-0}" = 1 ]; then
     for f in gaussian clayton gumbel t; do
-        COPULA=$f SCORESFAM=1 TAG=sfeval $P     # scoresfam_seeds_sfeval (evaluation seeds 42-101)
-        COPULA=$f REGRETFAM=1 $P                # regretfam_seeds
-        COPULA=$f MIXDENS=1 TAG=mix $P          # strategies_seeds_mix (MFF density = mixture; density bars)
+        COPULA=$f TAG=sfeval $P score-family # scoresfam_seeds_sfeval (evaluation seeds 42-101)
+        COPULA=$f $P regret-family           # regretfam_seeds
+        COPULA=$f TAG=mix $P mixture         # strategies_seeds_mix (MFF density = mixture; density bars)
     done
-    REGRET=1 $P                                 # regret_seeds, regret_paths
+    $P regret                                # regret_seeds, regret_paths
 fi
 python3 analyse.py   # tables
 python3 plots.py     # figures

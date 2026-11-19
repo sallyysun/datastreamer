@@ -8,6 +8,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../../src/estimators/evaluation.hpp"
@@ -87,151 +88,172 @@ using thesis::kK;
 using thesis::kMem;
 using thesis::kN;
 
+namespace {
+
+constexpr std::array<double, 2> kShareRates{0.0, 1e-4};   // plain Hedge, then the study's fixed share
+
+struct MixtureLoss {
+    double mix = 0, point = 0;
+};
+
+// One seed's scored ticks: each arm's guarded log loss, and each share rate's mixture (and point-forecast) loss,
+// all taken before that tick's weight update.
+struct RegretSeed {
+    std::vector<std::vector<double>> arm_losses;                  // [scored tick][arm]
+    std::vector<std::array<MixtureLoss, kShareRates.size()>> mixture;   // [scored tick][share rate]
+    std::vector<std::size_t> ticks;                               // series tick of each scored row
+    long nonfinite = 0, clamped = 0;
+};
+
+// arm_loss(rho, u, v, clamped) is one arm's log loss at the estimated PIT and marks a clamped parameter.
+template <class ArmLoss>
+RegretSeed collect_regret_losses(const StudySeries& s, const std::string& estimator, copula::Family family, ArmLoss arm_loss,
+                                 bool point_losses) {
+    RegretSeed seed;
+    FixedMemoryArms arms(estimator);
+    std::array<thesis::Mff, kShareRates.size()> mixtures{thesis::Mff(family, kK, 1.0, kShareRates[0]),
+                                                         thesis::Mff(family, kK, 1.0, kShareRates[1])};
+    std::vector<double> rho(kK), losses(kK);
+    for (std::size_t t = 0; t < kN; ++t) {
+        if (t >= thesis::kMffWarmup && arms.ready()) {
+            const double u = s.estimated_pit_x[t], v = s.estimated_pit_y[t];
+            arms.forecasts(rho.data());
+            bool clamped = false;
+            for (std::size_t k = 0; k < kK; ++k) losses[k] = arm_loss(rho[k], u, v, clamped);
+            seed.clamped += clamped;
+            seed.nonfinite += thesis::guard_mff_losses(losses);
+            std::array<MixtureLoss, kShareRates.size()> row{};
+            for (std::size_t i = 0; i < mixtures.size(); ++i) {
+                row[i].mix = mixtures[i].mixture_loss(losses.data());
+                if (point_losses) {
+                    const double forecast = mixtures[i].forecast(rho.data());
+                    row[i].point = -copula::log_density(copula::Family::Gaussian, u, v,
+                                                        copula::param_from_spearman(copula::Family::Gaussian, forecast));
+                }
+                mixtures[i].update(losses);
+            }
+            seed.arm_losses.push_back(losses);
+            seed.mixture.push_back(row);
+            seed.ticks.push_back(t);
+        }
+        arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
+    }
+    return seed;
+}
+
+// Series tick of the one-switch comparator's switch, or 0 when its best path does not switch.
+std::size_t switch_tick(const RegretOracle& oracle, const RegretSeed& seed) {
+    if (oracle.before_arm == oracle.after_arm) return 0;
+    return seed.ticks[std::min(oracle.switch_index, seed.ticks.size() - 1)];
+}
+
+double cumulative_mixture_loss(const RegretSeed& seed, std::size_t rate) {
+    double total = 0;
+    for (const auto& row : seed.mixture) total += row[rate].mix;
+    return total;
+}
+
+// Sum and sum of squares across seeds at every tick.
+struct TickMoments {
+    std::vector<double> sum = std::vector<double>(kN, 0.0), sum_sq = std::vector<double>(kN, 0.0);
+    void add(std::size_t t, double x) { sum[t] += x; sum_sq[t] += x * x; }
+};
+
+// Cumulative regret paths by switch budget for one estimator and share rate.
+struct RegretPaths {
+    std::array<TickMoments, kSwitchBudgets> mixture, point;
+};
+
+}  // namespace
+
 // Compare family-specific mixture regret against the best arm and the best one- or two-switch paths.
 int run_regretfam(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = open_result("regretfam_seeds" + sfx);
-    if (!fr) return missing_results_folder();
-    std::fprintf(fr, "gen,scenario,working,delta,seed,T,t0,loss_mix,best0,arm0,best1,best2,sw_t,sw_from,sw_to,n_nonfinite,n_clamp\n");
+    std::FILE* seeds_file = open_result("regretfam_seeds" + run.sfx);
+    if (!seeds_file) return missing_results_folder();
+    std::fprintf(seeds_file, "gen,scenario,working,delta,seed,T,t0,loss_mix,best0,arm0,best1,best2,sw_t,sw_from,sw_to,n_nonfinite,n_clamp\n");
     const WorkingFamilies families;
-    for (const std::string sc : {"constant", "drift", "jump"}) {
-        for (int sd = 0; sd < seeds; ++sd) {
+    for (const std::string scenario : {"constant", "drift", "jump"}) {
+        for (int sd = 0; sd < run.seeds; ++sd) {
             const unsigned seed = first_seed() + sd;
-            const StudySeries s = load_study_series(cop, sc, seed, kN);
-            for (int wi = 0; wi < 4; ++wi) {
-                const auto& inv = families.inverse[wi];
-                const auto family = WorkingFamilies::family[wi];
-                FixedMemoryArms arms("rmpl");
-                thesis::Mff mix[2] = {thesis::Mff(family, kK, 1.0, deltas[0]), thesis::Mff(family, kK, 1.0, deltas[1])};
-                std::vector<std::vector<double>> L;
-                std::vector<std::array<double, 2>> mf;
-                std::vector<std::size_t> tt;
-                std::vector<double> l(kK);
-                long nonfin = 0, nclamp = 0;
-                for (std::size_t t = 0; t < kN; ++t) {
-                    if (t >= thesis::kMffWarmup && arms.ready()) {
-                        bool clamp = false;
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            const double rho = arms.estimate(k);
-                            l[k] = -copula::log_density(family, s.estimated_pit_x[t], s.estimated_pit_y[t], inv(rho));
-                            clamp = clamp || inv.clamped(rho);
-                        }
-                        nclamp += clamp;
-                        nonfin += thesis::guard_mff_losses(l);
-                        std::array<double, 2> row{};
-                        for (int di = 0; di < 2; ++di) {
-                            row[di] = mix[di].mixture_loss(l.data());
-                            mix[di].update(l);
-                        }
-                        L.push_back(l); mf.push_back(row); tt.push_back(t);
-                    }
-                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
-                }
-                const std::size_t T = L.size();
-                const auto oracle = regret_oracle(L);
-                for (int di = 0; di < 2; ++di) {
-                    double cm = 0;
-                    for (const auto& row : mf) cm += row[di];
-                    const auto switch_tick = oracle.before_arm == oracle.after_arm
-                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", cop.c_str(), sc.c_str(), WorkingFamilies::name[wi],
-                                 deltas[di], seed, T, tt.front(), cm, oracle.fixed_loss, kMem[oracle.fixed_arm],
-                                 oracle.one_switch_loss, oracle.prefix_loss.back()[2], switch_tick,
-                                 kMem[oracle.before_arm], kMem[oracle.after_arm], nonfin, nclamp);
-                }
+            const StudySeries s = load_study_series(run.cop, scenario, seed, kN);
+            for (std::size_t working = 0; working < WorkingFamilies::kCount; ++working) {
+                const auto& inverse = families.inverse[working];
+                const auto family = WorkingFamilies::family[working];
+                auto arm_loss = [&](double rho, double u, double v, bool& clamped) {
+                    clamped = clamped || inverse.clamped(rho);
+                    return -copula::log_density(family, u, v, inverse(rho));
+                };
+                const RegretSeed result = collect_regret_losses(s, "rmpl", family, arm_loss, false);
+                const auto oracle = regret_oracle(result.arm_losses);
+                for (std::size_t rate = 0; rate < kShareRates.size(); ++rate)
+                    std::fprintf(seeds_file, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g,%ld,%ld\n", run.cop.c_str(),
+                                 scenario.c_str(), WorkingFamilies::name[working], kShareRates[rate], seed, result.ticks.size(),
+                                 result.ticks.front(), cumulative_mixture_loss(result, rate), oracle.fixed_loss, kMem[oracle.fixed_arm],
+                                 oracle.one_switch_loss, oracle.prefix_loss.back()[2], switch_tick(oracle, result),
+                                 kMem[oracle.before_arm], kMem[oracle.after_arm], result.nonfinite, result.clamped);
             }
         }
     }
-    std::fclose(fr);
+    std::fclose(seeds_file);
     return 0;
 }
 
 // Compare Gaussian mixture and point-forecast regret against static and switching oracles.
 int run_regret(const Run& run) {
-    const int seeds = run.seeds;
-    const std::string& cop = run.cop;
-    const std::string& sfx = run.sfx;
-    constexpr int MS = kSwitchBudgets;
-    const double deltas[2] = {0.0, 1e-4};
-    std::FILE* fr = open_result("regret_seeds" + sfx);
-    std::FILE* fc = open_result("regret_paths" + sfx);
-    if (!fr || !fc) return missing_results_folder();
-    std::fprintf(fr, "copula,scenario,estimator,delta,seed,T,t0,loss_mix,loss_point,best0,arm0,best1,best2,sw_t,sw_from,sw_to\n");
-    std::fprintf(fc, "copula,scenario,estimator,delta,loss,m,t,mean,sd\n");
-    for (const std::string sc : {"constant", "drift", "jump"}) {
-        // path sums over seeds: [ei][di][loss 0 mix / 1 point][m][t]
-        const std::size_t P = 3 * 2 * 2 * MS * kN;
-        std::vector<double> s1(P, 0.0), s2(P, 0.0);
-        auto pi = [&](int ei, int di, int l, int m, std::size_t t) { return ((((std::size_t(ei) * 2 + di) * 2 + l) * MS + m) * kN) + t; };
-        std::vector<char> scored(kN, 0);
-        for (int sd = 0; sd < seeds; ++sd) {
+    std::FILE* seeds_file = open_result("regret_seeds" + run.sfx);
+    std::FILE* paths_file = open_result("regret_paths" + run.sfx);
+    if (!seeds_file || !paths_file) return missing_results_folder();
+    std::fprintf(seeds_file, "copula,scenario,estimator,delta,seed,T,t0,loss_mix,loss_point,best0,arm0,best1,best2,sw_t,sw_from,sw_to\n");
+    std::fprintf(paths_file, "copula,scenario,estimator,delta,loss,m,t,mean,sd\n");
+    const auto& estimators = thesis::estimators();
+    auto arm_loss = [](double rho, double u, double v, bool&) {
+        return -copula::log_density(copula::Family::Gaussian, u, v, copula::param_from_spearman(copula::Family::Gaussian, rho));
+    };
+    for (const std::string scenario : {"constant", "drift", "jump"}) {
+        std::vector<std::array<RegretPaths, kShareRates.size()>> paths(estimators.size());
+        std::vector<std::vector<char>> scored(estimators.size(), std::vector<char>(kN, 0));
+        for (int sd = 0; sd < run.seeds; ++sd) {
             const unsigned seed = first_seed() + sd;
-            const StudySeries s = load_study_series(cop, sc, seed, kN);
-            for (int ei = 0; ei < 3; ++ei) {
-                const std::string e = thesis::estimators()[ei];
-                FixedMemoryArms arms(e);
-                thesis::Mff mix[2] = {thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[0]),
-                                      thesis::Mff(copula::Family::Gaussian, kK, 1.0, deltas[1])};
-                std::vector<std::vector<double>> L;          // [scored tick][k] guarded arm loss
-                std::vector<std::array<double, 4>> mf;       // mix / point loss for delta 0, 1e-4
-                std::vector<std::size_t> tt;
-                std::vector<double> f(kK), l(kK);
-                for (std::size_t t = 0; t < kN; ++t) {
-                    arms.forecasts(f.data());
-                    if (t >= thesis::kMffWarmup && arms.ready()) {
-                        for (std::size_t k = 0; k < kK; ++k) {
-                            const double par = copula::param_from_spearman(copula::Family::Gaussian, f[k]);
-                            l[k] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t], par);
-                        }
-                        thesis::guard_mff_losses(l);
-                        std::array<double, 4> row{};
-                        for (int di = 0; di < 2; ++di) {
-                            row[2 * di] = mix[di].mixture_loss(l.data());
-                            const double r = mix[di].forecast(f.data());
-                            row[2 * di + 1] = -copula::log_density(copula::Family::Gaussian, s.estimated_pit_x[t], s.estimated_pit_y[t],
-                                                                   copula::param_from_spearman(copula::Family::Gaussian, r));
-                            mix[di].update(l);
-                        }
-                        L.push_back(l); mf.push_back(row); tt.push_back(t); scored[t] = 1;
-                    }
-                    arms.update(s.x[t], s.y[t], s.estimated_pit_x[t], s.estimated_pit_y[t]);
-                }
-                const std::size_t T = L.size();
-                const auto oracle = regret_oracle(L);
-                for (int di = 0; di < 2; ++di) {
-                    double cm = 0, cp = 0;
-                    for (std::size_t i = 0; i < T; ++i) {
-                        cm += mf[i][2 * di]; cp += mf[i][2 * di + 1];
-                        for (int m = 0; m < MS; ++m) {
-                            const double rm = cm - oracle.prefix_loss[i][m], rp = cp - oracle.prefix_loss[i][m];
-                            s1[pi(ei, di, 0, m, tt[i])] += rm; s2[pi(ei, di, 0, m, tt[i])] += rm * rm;
-                            s1[pi(ei, di, 1, m, tt[i])] += rp; s2[pi(ei, di, 1, m, tt[i])] += rp * rp;
+            const StudySeries s = load_study_series(run.cop, scenario, seed, kN);
+            for (std::size_t e = 0; e < estimators.size(); ++e) {
+                const RegretSeed result = collect_regret_losses(s, estimators[e], copula::Family::Gaussian, arm_loss, true);
+                for (std::size_t t : result.ticks) scored[e][t] = 1;
+                const auto oracle = regret_oracle(result.arm_losses);
+                for (std::size_t rate = 0; rate < kShareRates.size(); ++rate) {
+                    auto& rate_paths = paths[e][rate];
+                    double mix = 0, point = 0;
+                    for (std::size_t i = 0; i < result.ticks.size(); ++i) {
+                        mix += result.mixture[i][rate].mix;
+                        point += result.mixture[i][rate].point;
+                        for (int m = 0; m < kSwitchBudgets; ++m) {
+                            rate_paths.mixture[m].add(result.ticks[i], mix - oracle.prefix_loss[i][m]);
+                            rate_paths.point[m].add(result.ticks[i], point - oracle.prefix_loss[i][m]);
                         }
                     }
-                    const auto switch_tick = oracle.before_arm == oracle.after_arm
-                        ? 0 : tt[std::min(oracle.switch_index, T - 1)];
-                    std::fprintf(fr, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g\n",
-                                 cop.c_str(), sc.c_str(), e.c_str(), deltas[di], seed, T, tt.front(), cm, cp,
-                                 oracle.fixed_loss, kMem[oracle.fixed_arm], oracle.one_switch_loss,
-                                 oracle.prefix_loss.back()[2], switch_tick, kMem[oracle.before_arm], kMem[oracle.after_arm]);
+                    std::fprintf(seeds_file, "%s,%s,%s,%g,%u,%zu,%zu,%.8f,%.8f,%.8f,%g,%.8f,%.8f,%zu,%g,%g\n", run.cop.c_str(), scenario.c_str(),
+                                 estimators[e].c_str(), kShareRates[rate], seed, result.ticks.size(), result.ticks.front(), mix, point,
+                                 oracle.fixed_loss, kMem[oracle.fixed_arm], oracle.one_switch_loss, oracle.prefix_loss.back()[2],
+                                 switch_tick(oracle, result), kMem[oracle.before_arm], kMem[oracle.after_arm]);
                 }
             }
         }
-        for (int ei = 0; ei < 3; ++ei)
-            for (int di = 0; di < 2; ++di)
-                for (int lo = 0; lo < 2; ++lo)
-                    for (int m = 0; m < MS; ++m)
+        for (std::size_t e = 0; e < estimators.size(); ++e)
+            for (std::size_t rate = 0; rate < kShareRates.size(); ++rate) {
+                const auto& rate_paths = paths[e][rate];
+                for (const auto& [loss, by_budget] : {std::pair{"mix", &rate_paths.mixture}, std::pair{"point", &rate_paths.point}})
+                    for (int m = 0; m < kSwitchBudgets; ++m) {
+                        const TickMoments& path = (*by_budget)[m];
                         for (std::size_t t = 0; t < kN; ++t) {
-                            if (!scored[t] || (t % 10 != 9 && t != kN - 1)) continue;
-                            const auto [mean, sd] = seed_mean_sd(s1[pi(ei, di, lo, m, t)], s2[pi(ei, di, lo, m, t)], seeds);
-                            std::fprintf(fc, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", cop.c_str(), sc.c_str(), thesis::estimators()[ei].c_str(), deltas[di],
-                                         lo ? "point" : "mix", m, t, mean, sd);
+                            if (!scored[e][t] || (t % 10 != 9 && t != kN - 1)) continue;
+                            const auto [mean, sd] = seed_mean_sd(path.sum[t], path.sum_sq[t], run.seeds);
+                            std::fprintf(paths_file, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", run.cop.c_str(), scenario.c_str(),
+                                         estimators[e].c_str(), kShareRates[rate], loss, m, t, mean, sd);
                         }
+                    }
+            }
     }
-    std::fclose(fr); std::fclose(fc);
+    std::fclose(seeds_file);
+    std::fclose(paths_file);
     return 0;
 }
 

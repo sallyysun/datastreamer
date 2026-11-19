@@ -7,9 +7,9 @@ One folder per thesis section, with only scripts: its analysis and plotting code
 | --- | --- | --- | --- |
 | `ch3-background/` | Ch. 3 | — | `ch3_parametric`, `ch3_empirical` |
 | `6.2-fixed-forgetting/` | §6.2 | `fixed_ess_sweep` | constant/drift/jump ESS RMSE, drift bias–variance, jump recovery; tab:optimal-ess-*, tab:jump-recovery |
-| `6.3-adaptive-forgetting/` | §6.3 + app. | `strategy_experiments` | strategy RMSE bars, trajectories, MFF weights / fixed share, VFF rate sensitivity |
-| `6.4-copula-density/` | §6.4 + app. | `strategy_experiments` (`SCORESFAM`, `REGRET`, `REGRETFAM`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
-| `6.5-family-switching/` | §6.5 | `strategy_experiments` (`FAMSWITCH`) | family-switch accuracy, initial identification, RMPL weights, adaptation |
+| `6.3-adaptive-forgetting/` | §6.3 + app. | `strategy_experiments` (`strategies`, `weights`) | strategy RMSE bars, trajectories, MFF weights / fixed share, VFF rate sensitivity |
+| `6.4-copula-density/` | §6.4 + app. | `strategy_experiments` (`score-family`, `regret`, `regret-family`, `mixture`) | log- vs squared-loss heatmaps, density bars, MFF regret; tab:mff-regret-bounds, tab:app-mff-regret-families |
+| `6.5-family-switching/` | §6.5 | `strategy_experiments family-switching` | family-switch accuracy, initial identification, RMPL weights, adaptation |
 | `6.6-real-data/` | §6.6 + app. | `real_data_comparison` | three example pairs, final regret, change days, weights/ESS, response, VIX, hedge, strength vs advantage; rank scatter (app.) |
 | `live/` | 6.2–6.6 over TCP | the runners with `LIVE=1`; `../server` + `../consumer` | `run_all_live.sh` + `jobs.txt` (every 6.2–6.5 simulation), `compare_all_live.py`; `run_live.sh` (the consumer binary scoring §6.3–6.4) |
 | `6.7-computational-cost/` | §6.7 + app. | `budget_benchmark`, `margin_comparison` | storage, KLL comparison, processing time, memory curves, accuracy gain; tab:ch6-budget-configs, tab:budget-configurations-full |
