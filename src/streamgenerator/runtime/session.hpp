@@ -7,8 +7,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <condition_variable>
 #include <functional>
 #include <cstdio>
 #include <memory>
@@ -25,9 +28,11 @@
 #include "broker.hpp"
 
 struct LabConfig {
+    static constexpr double kDefaultRate = 2.0; // observations per second
     std::string copula = "gaussian";
     double rho = 0.5;                  // starting rho_S
-    double rate = 100.0;               // observations per second
+    double rate = kDefaultRate;
+    bool quick_start = false;
     std::string estimator = "rmpl";    // MFF arms: rmpl | xiao | hermite
     std::string memories = thesis::kMemoryCsv;
     std::string families = "gaussian"; // working families of the MFF models
@@ -44,12 +49,17 @@ public:
         auto dep = std::make_unique<ControlledDependence>(cfg_.rho);
         dep_ = dep.get();
         source_ = std::make_unique<SyntheticSource>(std::move(dep), dgp::make_copula(cfg_.copula), rng_(), cfg_.copula);
+        cfg_.rate = clamp_rate(cfg_.rate);
         rate_ = cfg_.rate;
         spawn(broker_port, consumer);
         thread_ = std::thread([this] { run(); });
     }
     ~LabSession() {
-        running_ = false;
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            running_ = false;
+        }
+        pacing_.notify_one();
         if (thread_.joinable()) thread_.join();
         if (pid_ > 0) { ::kill(pid_, SIGTERM); int st = 0; ::waitpid(pid_, &st, 0); }
     }
@@ -59,11 +69,28 @@ public:
     // Family switches only for a family MFF (several working families): a single-family MFF has no family weights to move.
     bool family_mff() const { return cfg_.families.find(',') != std::string::npos; }
     void family(const std::string& f) { if (!family_mff()) return; std::lock_guard<std::mutex> l(mu_); do_family(f); }
-    void set_rate(double r) { rate_ = std::clamp(r, 1.0, 2000.0); }
+    void set_rate(double r) {
+        std::lock_guard<std::mutex> lock(mu_);
+        rate_ = clamp_rate(r);
+        pacing_.notify_one();
+    }
     void set_auto(bool on) { auto_ = on; }
-    void set_paused(bool p) { paused_ = p; }
+    void set_paused(bool p) {
+        std::lock_guard<std::mutex> lock(mu_);
+        paused_ = p;
+        pacing_.notify_one();
+    }
 
 private:
+    static double clamp_rate(double rate) {
+        return std::isfinite(rate) ? std::clamp(rate, 0.5, 2000.0) : LabConfig::kDefaultRate;
+    }
+
+    double observation_rate() const {
+        // The opening price tick is followed by 31 observations to reach the first RMPL estimate.
+        return cfg_.quick_start && n_ <= 31 ? std::max(6.0, rate_) : rate_;
+    }
+
     // Under mu_. The event takes effect from the next observation, whose index (from 0) is n_ - 1: the opening tick
     // carries no observation.
     void event(const std::string& label) {
@@ -75,12 +102,10 @@ private:
     void do_family(const std::string& f) { source_->set_family(f); event(f); }
 
     void spawn(int broker_port, const std::string& consumer) {
-        const std::size_t every = std::max<std::size_t>(1, static_cast<std::size_t>(cfg_.rate / 25.0));
         std::vector<std::string> a = {consumer, "--port", std::to_string(broker_port), "--symbols", sx_ + "," + sy_,
                                       "--print", "0", "--live", std::to_string(id_), "--estimator", cfg_.estimator,
                                       "--memories", cfg_.memories, "--families", cfg_.families,
-                                      "--eta", std::to_string(cfg_.eta), "--delta", std::to_string(cfg_.delta),
-                                      "--publish-every", std::to_string(every)};
+                                      "--eta", std::to_string(cfg_.eta), "--delta", std::to_string(cfg_.delta)};
         pid_ = ::fork();
         if (pid_ == 0) {
             std::vector<char*> argv;
@@ -113,19 +138,26 @@ private:
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         auto next_time = std::chrono::steady_clock::now();
         while (running_) {
-            if (paused_) { std::this_thread::sleep_for(std::chrono::milliseconds(50)); next_time = std::chrono::steady_clock::now(); continue; }
             TickPair e;
+            double rate;
             {
-                std::lock_guard<std::mutex> l(mu_);
+                std::unique_lock<std::mutex> lock(mu_);
+                pacing_.wait(lock, [&] { return !paused_ || !running_; });
+                if (!running_) break;
                 if (auto_ && n_ >= next_auto_) auto_event();
                 e = source_->next();
                 ++n_;
+                rate = observation_rate();
             }
             e.x.symbol = sx_; e.y.symbol = sy_;
             broker_.publish(tx, Serializer::to_json(e.x));
             broker_.publish(ty, Serializer::to_json(e.y));
-            next_time += std::chrono::microseconds(static_cast<long>(1e6 / rate_.load()));
-            std::this_thread::sleep_until(next_time);
+            next_time += std::chrono::microseconds(static_cast<long>(1e6 / rate));
+            std::unique_lock<std::mutex> lock(mu_);
+            if (pacing_.wait_until(lock, next_time, [&] { return !running_ || paused_ || observation_rate() != rate; })) {
+                pacing_.wait(lock, [&] { return !paused_ || !running_; });
+                next_time = std::chrono::steady_clock::now();
+            }
         }
     }
 
@@ -136,10 +168,12 @@ private:
     std::string sx_, sy_;
     std::mt19937 rng_;
     std::mutex mu_;
+    std::condition_variable pacing_;
     ControlledDependence* dep_ = nullptr;
     std::unique_ptr<SyntheticSource> source_;
-    std::atomic<bool> running_{true}, auto_{false}, paused_{false};
-    std::atomic<double> rate_{100.0};
+    std::atomic<bool> running_{true}, auto_{false};
+    bool paused_ = false;
+    double rate_ = LabConfig::kDefaultRate;
     std::size_t n_ = 0, next_auto_ = 0;
     pid_t pid_ = -1;
     std::thread thread_;

@@ -1,5 +1,6 @@
 // See README.md for consumer usage. Keep --rate at 0 for estimation to avoid desynchronizing the tick pair.
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -40,7 +41,10 @@ int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     const auto fams = split(arg(argc, argv, "--families", "gaussian"));
     LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
                 std::atof(arg(argc, argv, "--delta", "1e-4")));
-    const std::size_t every = std::max<std::size_t>(1, std::strtoul(arg(argc, argv, "--publish-every", "4"), nullptr, 10));
+    const char* publish_every = arg(argc, argv, "--publish-every", nullptr);
+    const std::size_t every = publish_every ? std::max<std::size_t>(1, std::strtoul(publish_every, nullptr, 10)) : 0;
+    using Clock = std::chrono::steady_clock;
+    auto next_publish = Clock::now();
     const std::string topic = std::string("device.") + id;
     client.publish(topic, lab.config_json().dump());
     TickPair e;
@@ -49,7 +53,12 @@ int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     while (client.next(e)) {
         returns.on_tick(e, [&](double x, double y) {
             lab.update(x, y);
-            if (++n % every == 0) client.publish(topic, lab.state_json(e.x.true_rho_s, e.x.true_family).dump());
+            ++n;
+            const auto now = Clock::now();
+            if (every ? n % every == 0 : now >= next_publish) {
+                client.publish(topic, lab.state_json(e.x.true_rho_s, e.x.true_family).dump());
+                next_publish = now + std::chrono::milliseconds(40);
+            }
         });
     }
     return 0;

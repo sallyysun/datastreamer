@@ -1,394 +1,258 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer,
+  CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 
-import "./App.css";
+import { replayUrl, wsUrl } from "./server";
+import { correlationDomain } from "./charts";
+import StreamMetric from "./StreamMetric";
+import "./Market.css";
 
-// One single-symbol tick as published by the server (topic trades.equity.<SYM>).
-type Tick = {
-  symbol: string;
-  price: number;
-  volume?: number;
-  timestamp: number;
-  true_rho_s?: number;
+type Point = {
+  step: number;
+  x: number;
+  y: number;
+  mff: number | null;
+  weights?: number[];
+  truth?: number;
+  timestamp?: number;
+  date?: string;
 };
+type Replay = { id: string; name: string; labels: [string, string] };
+type Stock = { id: string; symbol: string };
+type Catalog = { type: "catalog"; symbols: [string, string]; replays?: Replay[]; stocks?: Stock[]; memories?: number[]; market?: boolean };
 
-// A merged row keyed by timestamp: { time, AAPL: price, MSFT: price, ... }. Both
-// legs of a step share the same timestamp, so they land in the same row.
-type Row = { time: number } & Record<string, number>;
+const WINDOW = 180;
+const LIVE = "live";
+const STOCKS = "stocks";
+const REPLAY_INTERVAL_MS = 500;
+const COLOURS = { x: "#60b5be", y: "#a0a5d6", mff: "#ff83a0", truth: "#a5b9cb" };
+const WEIGHT_COLOURS = ["#8d9ceb", "#6dbee5", "#79e1cb", "#f7c378", "#ff8fa9"];
+const TICK = { fill: "#a5b9cb", fontSize: 11 };
+const TOOLTIP = { background: "#0c1420", border: "1px solid #27394d", borderRadius: 6, fontSize: 12 };
+const format = (value?: number | null, digits = 2) => value == null ? "—" : value.toFixed(digits);
 
-const MAX_POINTS = 240; // rows retained in the price series
-const MAX_TAPE = 60;
-const TOPIC_PREFIX = "trades.equity.";
-const topicFor = (sym: string) => TOPIC_PREFIX + sym;
+export default function Market({ active }: { active: boolean }) {
+  const [connected, setConnected] = useState(false);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [live, setLive] = useState<Point[]>([]);
+  const [source, setSource] = useState(LIVE);
+  const [pair, setPair] = useState<[string, string]>(["", ""]);
+  const [recorded, setRecorded] = useState<Point[]>([]);
+  const [position, setPosition] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-// Deterministic per-symbol colour, stable across renders (index into catalog).
-const PALETTE = ["#f6c177", "#a0a5d6", "#74ccaa", "#60b5be", "#e294b9"];
-
-const fmt = (v: number | undefined, d = 2) =>
-  typeof v === "number" ? v.toFixed(d) : "--";
-const clock = (t: number) => new Date(t).toLocaleTimeString();
-
-function symbolsFromUrl(): string[] {
-  const raw = new URLSearchParams(window.location.search).get("symbols");
-  if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-export default function Market() {
-  const [status, setStatus] = useState<"connected" | "disconnected">("disconnected");
-  const [error, setError] = useState<string | null>(null);
-
-  const [catalog, setCatalog] = useState<string[]>([]);
-  const [selected, setSelected] = useState<string[]>(symbolsFromUrl);
-
-  const [series, setSeries] = useState<Row[]>([]);
-  const [tape, setTape] = useState<Tick[]>([]);
-  const [count, setCount] = useState(0);
-
-  // Display throttle: commit buffered ticks to the screen at most once per
-  // `intervalSec`. Capped at 1s (fastest); the user can dial it slower.
-  const [intervalSec, setIntervalSec] = useState(1);
-
-  const wsRef = useRef<WebSocket | null>(null);
-  const selectedRef = useRef(selected);
-  const bufferRef = useRef<Tick[]>([]);
-  const seriesMapRef = useRef<Map<number, Row>>(new Map());
-
-  const colorFor = (sym: string) => {
-    const i = catalog.indexOf(sym);
-    return PALETTE[(i < 0 ? sym.length : i) % PALETTE.length];
-  };
-
-  // Keep the ref in sync so the WS open handler (created once) reads the live
-  // selection when it resubscribes after a reconnect.
   useEffect(() => {
-    selectedRef.current = selected;
-  }, [selected]);
-
-  // Reflect the selection in the URL so a link reopens the same view.
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    if (selected.length) url.searchParams.set("symbols", selected.join(","));
-    else url.searchParams.delete("symbols");
-    window.history.replaceState(null, "", url);
-  }, [selected]);
-
-  // ---- WebSocket: connect once, resubscribe on (re)open ----
-  useEffect(() => {
-    const envUrl = import.meta.env.VITE_WS_URL;
-    const fallbackUrl =
-      window.location.hostname === "localhost"
-        ? "ws://localhost:9002"
-        : `wss://${window.location.host}`;
-    const wsUrl = envUrl && typeof envUrl === "string" ? envUrl : fallbackUrl;
-
     let ws: WebSocket;
-    try {
-      ws = new WebSocket(wsUrl);
-    } catch {
-      setError("WebSocket init failed");
-      return;
-    }
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setStatus("connected");
-      setError(null);
-      const topics = selectedRef.current.map(topicFor);
-      if (topics.length) ws.send(JSON.stringify({ action: "subscribe", topics }));
+    let retry: number | undefined;
+    const connect = () => {
+      ws = new WebSocket(wsUrl());
+      ws.onopen = () => {
+        setConnected(true);
+        setLive([]);
+        ws.send(JSON.stringify({ action: "subscribe", topics: ["market.pair"] }));
+      };
+      ws.onclose = () => {
+        setConnected(false);
+        retry = window.setTimeout(connect, 1500);
+      };
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === "catalog") setCatalog(message);
+        if (message.type === "market") setLive((points) => [...points.slice(1 - WINDOW), message]);
+      };
     };
-    ws.onclose = () => setStatus("disconnected");
-    ws.onerror = () => setError("connection error");
-    ws.onmessage = (event) => {
-      let m: unknown;
-      try {
-        m = JSON.parse(event.data);
-      } catch {
-        return;
-      }
-      const obj = m as Record<string, unknown>;
-      if (obj.type === "catalog") {
-        setCatalog(Array.isArray(obj.symbols) ? (obj.symbols as string[]) : []);
-        return;
-      }
-      if (typeof obj.symbol === "string") {
-        bufferRef.current.push(m as Tick); // flushed on the throttle interval
-      }
+    connect();
+    return () => {
+      window.clearTimeout(retry);
+      ws.onclose = null;
+      ws.close();
     };
-    return () => ws.close();
   }, []);
 
-  // ---- Display throttle: flush the buffer into state on a timer ----
   useEffect(() => {
-    const flush = () => {
-      const buf = bufferRef.current;
-      if (buf.length === 0) return;
-      bufferRef.current = [];
+    if (source === LIVE) return;
+    const abort = new AbortController();
+    fetch(replayUrl(source, source === STOCKS ? pair : undefined), { signal: abort.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Replay unavailable");
+        return response.json();
+      })
+      .then((points: Point[]) => {
+        if (abort.signal.aborted) return;
+        if (!points.length) setError("These stocks need at least two shared price dates.");
+        setRecorded(points);
+      })
+      .catch(() => { if (!abort.signal.aborted) setError("Couldn’t load this replay."); })
+      .finally(() => { if (!abort.signal.aborted) setLoading(false); });
+    return () => abort.abort();
+  }, [source, pair]);
 
-      const map = seriesMapRef.current;
-      for (const t of buf) {
-        let row = map.get(t.timestamp);
-        if (!row) {
-          row = { time: t.timestamp } as Row;
-          map.set(t.timestamp, row);
-        }
-        row[t.symbol] = t.price;
-      }
-      if (map.size > MAX_POINTS) {
-        const keys = Array.from(map.keys()).sort((a, b) => a - b);
-        for (let i = 0; i < keys.length - MAX_POINTS; i++) map.delete(keys[i]);
-      }
-      setSeries(Array.from(map.values()).sort((a, b) => a.time - b.time));
-      setTape((prev) => [...[...buf].reverse(), ...prev].slice(0, MAX_TAPE));
-      setCount((c) => c + buf.length);
-    };
+  const finished = recorded.length > 0 && position === recorded.length;
 
-    const id = window.setInterval(flush, Math.max(1, intervalSec) * 1000);
-    return () => window.clearInterval(id);
-  }, [intervalSec]);
+  useEffect(() => {
+    if (!playing || finished || !active || source === LIVE) return;
+    const timer = window.setInterval(() => {
+      setPosition((shown) => Math.min(shown + 1, recorded.length));
+    }, REPLAY_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [active, finished, playing, recorded.length, source]);
 
-  // ---- Subscription toggling ----
-  const toggle = (sym: string) => {
-    const ws = wsRef.current;
-    const isOn = selected.includes(sym);
-    const next = isOn ? selected.filter((s) => s !== sym) : [...selected, sym];
-    setSelected(next);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          action: isOn ? "unsubscribe" : "subscribe",
-          topics: [topicFor(sym)],
-        })
-      );
-    }
-    if (isOn) {
-      // stop drawing a line for a symbol we no longer receive
-      seriesMapRef.current.forEach((row) => delete row[sym]);
-    }
-  };
+  const isLive = source === LIVE;
+  const isStockPair = source === STOCKS;
+  const stocks = catalog?.stocks ?? [];
+  const replays = catalog?.replays ?? [];
 
-  const latestBySymbol = useMemo(() => {
-    const last: Record<string, Tick> = {};
-    for (const t of tape) if (!last[t.symbol]) last[t.symbol] = t; // tape is newest-first
-    return last;
-  }, [tape]);
+  function selectSource(value: string) {
+    setSource(value);
+    if (value === STOCKS && !pair[0] && stocks.length >= 2) setPair([stocks[0].id, stocks[1].id]);
+    resetReplay(value !== LIVE);
+  }
 
-  const intervalLabel =
-    intervalSec === 1 ? "1s (max)" : `${intervalSec}s`;
+  function resetReplay(load: boolean) {
+    setRecorded([]);
+    setPosition(0);
+    setPlaying(false);
+    setLoading(load);
+    setError("");
+  }
 
-  // Price ratio of the two legs, when exactly two are subscribed.
-  const ratio =
-    selected.length === 2
-      ? (() => {
-          const a = latestBySymbol[selected[0]]?.price;
-          const b = latestBySymbol[selected[1]]?.price;
-          return a && b ? (a / b).toFixed(3) : "--";
-        })()
-      : null;
+  const replay = replays.find(({ id }) => id === source);
+  const labels = isStockPair
+    ? pair.map((id) => stocks.find((stock) => stock.id === id)?.symbol ?? "")
+    : (isLive ? catalog?.symbols : replay?.labels) ?? ["X", "Y"];
+  const points = isLive ? live : recorded.slice(Math.max(0, position - WINDOW), position);
+  const last = points.at(-1);
+  const memories = catalog?.memories ?? [];
+  let waiting = error || (loading ? "Loading replay…" : "Press Play to start");
+  if (isLive) {
+    if (!connected) waiting = "Waiting for the server";
+    else if (catalog && catalog.market === undefined) waiting = "Restart the Datastreamer backend to enable Market MFF.";
+    else if (catalog?.market === false) waiting = "Market simulation is available when the server runs in interactive mode.";
+    else waiting = "Waiting for observations";
+  }
+  const rows = points.map((point) => ({
+    ...point,
+    when: point.date ?? (point.timestamp == null ? "" : new Date(point.timestamp).toLocaleTimeString()),
+  }));
+  const formatStep = (step: number) => rows.find((point) => point.step === Number(step))?.when ?? "";
+  const rhoDomain = correlationDomain(points.flatMap(({ mff, truth }) => [mff, truth]));
 
   return (
-    <div className="container">
-      <header className="header">
-        <div className="brand">
-          <span className="logo" />
-          <span className="brand-title">datastreamer</span>
-          <span className="brand-sub">subscription viewer</span>
-        </div>
-        <div className={`status ${status}`}>
-          <span className="dot" />
-          {status}
-          {error && <span className="err">· {error}</span>}
-        </div>
+    <main className="container market">
+      <header className="market-heading">
+        <h1>Market MFF</h1>
+        {isLive && <span className={`market-status ${connected && catalog?.market ? "on" : ""}`}>
+          {connected ? catalog?.market ? "Live simulation" : "Connected" : "Disconnected"}
+        </span>}
       </header>
 
-      {/* SUBSCRIPTION + THROTTLE BAR */}
-      <div className="subbar">
-        <span className="subbar-label">subscribe</span>
-        {catalog.length === 0 && <span className="muted small">waiting for catalog…</span>}
-        {catalog.map((sym) => {
-          const on = selected.includes(sym);
-          return (
-            <button
-              key={sym}
-              className={`chip ${on ? "on" : ""}`}
-              style={on ? { borderColor: colorFor(sym), color: "#e6edf3" } : undefined}
-              onClick={() => toggle(sym)}
-            >
-              <span className="chip-dot" style={{ background: on ? colorFor(sym) : "#39424f" }} />
-              {sym}
-            </button>
-          );
-        })}
-
-        <div className="throttle">
-          <span className="throttle-label">show every</span>
-          <input
-            type="range"
-            min={1}
-            max={30}
-            step={1}
-            value={intervalSec}
-            onChange={(e) => setIntervalSec(Number(e.target.value))}
-            aria-label="display update interval, seconds"
-          />
-          <input
-            type="number"
-            min={1}
-            value={intervalSec}
-            onChange={(e) => setIntervalSec(Math.max(1, Number(e.target.value) || 1))}
-            className="throttle-num"
-            aria-label="display update interval in seconds"
-          />
-          <span className="throttle-unit">{intervalLabel}</span>
-        </div>
+      <div className="market-toolbar">
+        <label className="market-source">
+          Data
+          <select value={source} onChange={(event) => selectSource(event.target.value)}>
+            <option value={LIVE}>Live · {catalog?.symbols?.join(" / ") ?? "market pair"}</option>
+            {stocks.length >= 2 && <option value={STOCKS}>Saved stocks</option>}
+            {replays.map(({ id, name, labels }) => (
+              <option key={id} value={id}>Replay · {labels[0] === "X" && labels[1] === "Y" ? name : labels.join(" / ")}</option>
+            ))}
+          </select>
+        </label>
+        {isStockPair && pair.map((id, index) => (
+          <select key={index} aria-label={index === 0 ? "First stock" : "Second stock"} value={id} onChange={(event) => {
+            const next: [string, string] = [...pair];
+            next[index] = event.target.value;
+            setPair(next);
+            resetReplay(true);
+          }}>
+            {stocks.filter((stock) => stock.id !== pair[1 - index]).map((stock) =>
+              <option key={stock.id} value={stock.id}>{stock.symbol}</option>
+            )}
+          </select>
+        ))}
+        {!isLive && (
+          <>
+            <button type="button" className="market-play" disabled={!recorded.length} onClick={() => {
+              if (finished || position === 0) setPosition(1);
+              setPlaying(finished || !playing);
+            }}>{playing && !finished ? "Pause" : "Play"}</button>
+            <button type="button" disabled={position === 0} onClick={() => {
+              setPosition(1);
+              setPlaying(true);
+            }}>Restart</button>
+            <span className="market-progress">{REPLAY_INTERVAL_MS / 1000} s per observation</span>
+          </>
+        )}
+        {isLive && catalog?.market && !replays.length && stocks.length < 2 && <small>No saved stock data configured</small>}
       </div>
 
-      {selected.length === 0 ? (
-        <section className="panel empty">
-          <div>
-            <div className="empty-title">Pick a symbol to start streaming</div>
-            <div className="muted">
-              Each choice subscribes this connection to <code>{TOPIC_PREFIX}&lt;SYMBOL&gt;</code>.
-              The browser only displays what it receives — no estimation runs here.
-            </div>
-          </div>
-        </section>
-      ) : (
+      {last ? (
         <>
-          {/* KPI TILES */}
-          <div className="tiles">
-            {selected.map((sym) => (
-              <div className="tile" key={sym} style={{ borderLeftColor: colorFor(sym) }}>
-                <div className="tile-k">{sym} · last</div>
-                <div className="tile-v" style={{ color: colorFor(sym) }}>
-                  {fmt(latestBySymbol[sym]?.price)}
-                </div>
-                <div className="tile-f">vol {fmt(latestBySymbol[sym]?.volume, 0)}</div>
+          <dl className="stream-summary" aria-label="Market summary">
+            <StreamMetric label="Observations" value={isLive ? last.step.toLocaleString() : `${position.toLocaleString()} / ${recorded.length.toLocaleString()}`} />
+            <StreamMetric label={labels[0]} value={format(last.x)} colour={COLOURS.x} />
+            <StreamMetric label={labels[1]} value={format(last.y)} colour={COLOURS.y} />
+            <StreamMetric label="MFF" value={last.mff == null ? "Warming up" : format(last.mff, 3)} colour={COLOURS.mff} />
+            {isLive && <StreamMetric label="True ρ" value={format(last.truth, 3)} colour={COLOURS.truth} />}
+          </dl>
+          <div className="market-charts">
+            <section className="market-panel">
+              <h2>{isLive ? "Simulated prices" : isStockPair ? "Log returns (%)" : "Recorded returns"}
+                <time dateTime={last.date ?? (last.timestamp == null ? undefined : new Date(last.timestamp).toISOString())}>{rows.at(-1)?.when}</time>
+              </h2>
+              <div className="market-chart">
+                {active && <ResponsiveContainer>
+                  <LineChart data={rows} margin={{ top: 9, right: 10, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="#27394d" vertical={false} />
+                    <XAxis dataKey="step" tickFormatter={formatStep} tick={TICK} minTickGap={36} />
+                    <YAxis domain={["auto", "auto"]} tick={TICK} width={48} tickFormatter={(n) => format(n, 1)} />
+                    <Tooltip contentStyle={TOOLTIP} labelFormatter={(label) => formatStep(Number(label))} formatter={(value) => format(Number(value))} />
+                    <Line name={labels[0]} dataKey="x" stroke={COLOURS.x} strokeWidth={1.8} dot={rows.length === 1} isAnimationActive={false} />
+                    <Line name={labels[1]} dataKey="y" stroke={COLOURS.y} strokeWidth={1.8} dot={rows.length === 1} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>}
               </div>
-            ))}
-            {ratio !== null && (
-              <div className="tile" style={{ borderLeftColor: "var(--up)" }}>
-                <div className="tile-k">ratio</div>
-                <div className="tile-v" style={{ color: "var(--up)" }}>{ratio}</div>
-                <div className="tile-f">{selected[0]} / {selected[1]}</div>
+            </section>
+
+            <section className="market-panel">
+              <h2>Spearman dependence</h2>
+              <div className="market-chart">
+                {active && <ResponsiveContainer>
+                  <LineChart data={rows} margin={{ top: 9, right: 10, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="#27394d" vertical={false} />
+                    <XAxis dataKey="step" tickFormatter={formatStep} tick={TICK} minTickGap={36} />
+                    <YAxis domain={rhoDomain} allowDataOverflow tickCount={5} tick={TICK} width={44} tickFormatter={(n) => format(n)} />
+                    <ReferenceLine y={0} stroke="#495d72" />
+                    <Tooltip contentStyle={TOOLTIP} labelFormatter={(label) => formatStep(Number(label))} formatter={(value) => format(Number(value), 3)} />
+                    {isLive && <Line name="Simulated truth" dataKey="truth" stroke={COLOURS.truth} strokeDasharray="4 3" dot={false} isAnimationActive={false} />}
+                    <Line name="MFF" dataKey="mff" stroke={COLOURS.mff} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>}
               </div>
-            )}
-            <div className="tile">
-              <div className="tile-k">ticks</div>
-              <div className="tile-v">{count}</div>
-              <div className="tile-f">
-                {selected.length} stream{selected.length !== 1 ? "s" : ""} · {intervalSec}s
-              </div>
-            </div>
+            </section>
           </div>
 
-          {/* PRICE CHART — one line per subscribed symbol */}
-          <section className="panel">
-            <div className="panel-head">
-              <span>PRICES</span>
-              <span className="legend">
-                {selected.map((sym) => (
-                  <span key={sym} className="legwrap">
-                    <i className="sw" style={{ background: colorFor(sym) }} /> {sym}
-                  </span>
-                ))}
-              </span>
-            </div>
-            <div className="chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={series} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke="#1b2430" vertical={false} />
-                  <XAxis
-                    dataKey="time"
-                    tickFormatter={clock}
-                    stroke="#4b5563"
-                    tick={{ fontSize: 11 }}
-                    minTickGap={60}
-                  />
-                  <YAxis
-                    domain={["auto", "auto"]}
-                    stroke="#4b5563"
-                    tick={{ fontSize: 11 }}
-                    width={54}
-                    tickFormatter={(v) => v.toFixed(0)}
-                  />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    labelFormatter={(label) => clock(Number(label))}
-                    formatter={(v) => (typeof v === "number" ? v.toFixed(2) : String(v))}
-                  />
-                  {selected.map((sym) => (
-                    <Line
-                      key={sym}
-                      type="monotone"
-                      dataKey={sym}
-                      stroke={colorFor(sym)}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                      connectNulls
-                    />
-                  ))}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          {/* No dependence panel: the browser is a strict price viewer. Online ρ̂
-              (Xiao / Hermite / Gaussian-MLE) is computed per-device inside each C++
-              consumer and stays there -- it is not sent back to the browser. */}
-
-          {/* TAPE */}
-          <section className="panel">
-            <div className="panel-head"><span>TAPE</span><span className="muted">{count} ticks</span></div>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>time</th><th>symbol</th><th>price</th><th>volume</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tape.map((t, i) => (
-                    <tr key={t.timestamp + t.symbol + i} className={i === 0 ? "flash" : ""}>
-                      <td className="muted">{clock(t.timestamp)}</td>
-                      <td style={{ color: colorFor(t.symbol) }}>{t.symbol}</td>
-                      <td>{fmt(t.price)}</td>
-                      <td className="muted">{fmt(t.volume, 0)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="lastrow">
-              {selected.map((sym) => {
-                const t = latestBySymbol[sym];
-                return (
-                  <span key={sym} className="lastcell">
-                    <i className="sw" style={{ background: colorFor(sym) }} /> {sym}{" "}
-                    <b>{fmt(t?.price)}</b>
-                  </span>
-                );
-              })}
+          <section className="market-panel market-weights">
+            <h2>MFF memory weights <small>Candidate effective sample sizes</small></h2>
+            <div className="market-weight-body">
+              {last.weights ? (
+                <>
+                  <div className="market-weight-bar" aria-hidden="true">
+                    {last.weights.map((weight, i) => <span key={memories[i]} style={{ flexBasis: `${weight * 100}%`, background: WEIGHT_COLOURS[i] }} />)}
+                  </div>
+                  <ul>
+                    {last.weights.map((weight, i) => (
+                      <li key={memories[i]}><i style={{ background: WEIGHT_COLOURS[i] }} />{memories[i]} <b>{format(weight * 100, 1)}%</b></li>
+                    ))}
+                  </ul>
+                </>
+              ) : <small>Weights appear once the estimator has enough observations.</small>}
             </div>
           </section>
         </>
-      )}
-    </div>
+      ) : <p className="market-empty" role="status">{waiting}</p>}
+    </main>
   );
 }
-
-const tooltipStyle = {
-  background: "#0d1117",
-  border: "1px solid #1f2937",
-  borderRadius: 8,
-  fontSize: 12,
-};

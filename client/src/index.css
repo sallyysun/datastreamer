@@ -51,16 +51,16 @@
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: min(100%, 1320px);
   margin: 0 auto;
   text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
+
+html { scrollbar-gutter: stable; }
 
 body {
   margin: 0;

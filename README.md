@@ -51,6 +51,27 @@ events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by 
 live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
 the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
 is the thesis MFF exactly (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
+The Lab runs the first 31 observations in about five seconds, then uses the selected playback speed
+(one observation every half-second by default).
+
+### Market stream and saved replay
+
+Market shows the shared simulated pair, its RMPL-based MFF and the weights over candidate memory lengths.
+The server estimates dependence from every paired observation and publishes a chart update about once a second.
+
+To offer recorded pairs, put the CSVs you want viewers to access in a dedicated directory, then start the app:
+
+```bash
+MARKET_REPLAY_DIR=/path/to/saved-pairs ./run.sh dev
+```
+
+Use the stock experiment format `date,x,y`, one pair of returns or standardised returns per row in chronological order.
+A filename such as `AAPL_MSFT.csv` supplies the pair labels. Select it in **Market stream**, then press **Play**.
+Replay advances at one observation every half-second and displays the original dates.
+
+Set `MARKET_PRICES_DIR` to a directory of per-ticker adjusted-close CSVs in the thesis download format
+(`TICKER.csv` with columns `unix,adj`). Choose **Saved stocks** and pick any two available tickers.
+The server aligns their prices on shared dates and runs MFF on the log returns between those dates.
 
 ## Experiments
 

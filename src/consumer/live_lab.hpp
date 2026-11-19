@@ -3,6 +3,7 @@
 // Run a viewer-configured MFF over working copulas and memory lengths, with VFF alongside it.
 // Score each candidate on shared pseudo-observations before updating the estimators.
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <string>
@@ -55,22 +56,31 @@ public:
     nlohmann::json state_json(double rho_true, const std::string& family_true) const {
         std::vector<double> arm_rho;
         for (const auto& a : arms_) arm_rho.push_back(a->estimate());
+        const auto w_mem = memory_weights();
         double nbar = 0;
-        std::vector<double> w_mem(mem_.size(), 0.0), w_fam(fam_.size(), 0.0);
+        for (std::size_t k = 0; k < mem_.size(); ++k) nbar += w_mem[k] * mem_[k];
+        std::vector<double> w_fam(fam_.size(), 0.0);
         for (std::size_t f = 0; f < fam_.size(); ++f)
-            for (std::size_t k = 0; k < mem_.size(); ++k) {
-                const double w = w_[f * mem_.size() + k];
-                nbar += w * mem_[k]; w_mem[k] += w; w_fam[f] += w;
-            }
+            for (std::size_t k = 0; k < mem_.size(); ++k) w_fam[f] += w_[f * mem_.size() + k];
         return {{"type", "state"}, {"t", t_}, {"rho", rho_true}, {"family", family_true}, {"mff", mff()}, {"vff", vff()},
+                {"mff_ready", mff_ready()}, {"vff_ready", vff_.inner->ready()},
                 {"vff_neff", vff_neff()}, {"mff_neff", nbar}, {"arms", arm_rho}, {"w", w_}, {"w_mem", w_mem}, {"w_fam", w_fam}};
+    }
+
+    std::vector<double> memory_weights() const {
+        std::vector<double> weights(mem_.size(), 0.0);
+        for (std::size_t f = 0; f < fam_.size(); ++f)
+            for (std::size_t k = 0; k < mem_.size(); ++k) weights[k] += w_[f * mem_.size() + k];
+        return weights;
+    }
+
+    bool mff_ready() const {
+        return t_ >= thesis::kMffWarmup && std::all_of(arms_.begin(), arms_.end(), [](const auto& arm) { return arm->ready(); });
     }
 
 private:
     void score(double u, double v) {
-        bool ok = t_ >= thesis::kMffWarmup;
-        for (const auto& a : arms_) ok = ok && a->ready();
-        if (!ok) return;
+        if (!mff_ready()) return;
         const std::size_t K = mem_.size();
         for (std::size_t f = 0; f < fam_.size(); ++f) {
             const auto family = fam_[f];
