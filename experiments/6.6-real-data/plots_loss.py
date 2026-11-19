@@ -125,8 +125,10 @@ def regret_panel(ax, R, m, title):
                     ax.plot([edge * 0.955, edge * 0.975], [y + bw * 0.3, y - bw * 0.3], color="white", lw=1.2, zorder=5)
                     ax.text(edge * 1.01, y, f"{v:.1f}", ha="left" if side > 0 else "right", va="center", fontsize=5.4,
                             color=ce.MUTED, clip_on=False)
-            if k == best:
+            if k == best and v <= REGRET_XMAX:
                 ax.text(max(v, 0) + 0.12, y, k[5:], ha="left", va="center", fontsize=5.4, color=C_BEST)
+            elif k == best:   # off-scale: the setting goes inside the break
+                ax.text(REGRET_XMAX * 0.94, y, k[5:], ha="right", va="center", fontsize=5.4, color="white", zorder=6)
     ax.axvline(0, color=ce.MUTED, lw=0.8, zorder=4)
     ax.set_xlim(REGRET_XMIN, REGRET_XMAX)
     ax.set_ylim(len(EST) - 0.5, -0.5)
@@ -145,9 +147,9 @@ def plot_final_regret(S):
             regret_panel(ax, R, m, title)
         fig.supxlabel(r"Average regret ($\times10^{-3}$ nats per day per pair)", fontsize=8, y=0.02)
         h = [ce.swatch(facecolor=c, edgecolor=ce.EDGE, lw=0.6) for c in (C_OTHER, C_BEST, C_VFF, C_MFF)]
-        ce.top_legend(fig, h, [r"Fixed $N_{\mathrm{eff}}$ = 99, 199, 399 (top to bottom)", "Fixed, lowest average regret (labelled)",
+        ce.top_legend(fig, h, [r"Fixed $N_{\mathrm{eff}}$ = 99, 199, 399 (top to bottom)", "Best displayed fixed setting (labelled)",
                        "VFF", "MFF"], ncol=2, handlelength=1.2, columnspacing=1.5, x=0.55)
-        fig.subplots_adjust(left=0.19, right=0.965, top=0.8, bottom=0.15, wspace=0.12)
+        fig.subplots_adjust(left=0.19, right=0.965, top=0.8, bottom=0.15, wspace=0.16)
         ce.save(fig, image("ch6_practical_final_regret.png"))
 
 
@@ -277,10 +279,7 @@ def strength_points(S):
 
 def strength_panel(ax, g, e):
     s = spearmanr(g.mean_rho, g.mff_minus_vff)
-    b1, b0 = np.polyfit(g.mean_rho, g.mff_minus_vff, 1)
-    xs = np.linspace(g.mean_rho.min(), g.mean_rho.max(), 50)
     ax.axhline(0, color=ce.MUTED, lw=0.8, zorder=1)
-    ax.plot(xs, b0 + b1 * xs, color=ECOL[e], lw=0.9, ls=(0, (4, 2)), alpha=0.6, zorder=2)
     ax.text(0.04, 0.05, rf"$r_s = {s.correlation:.2f}$", transform=ax.transAxes, fontsize=7, color=ce.MUTED, ha="left", va="bottom")
     below = g[g.mff_minus_vff < STRENGTH_YMIN]   # off the shared axis: an arrow at the bottom edge and a count
     g = g[g.mff_minus_vff >= STRENGTH_YMIN]
@@ -289,8 +288,8 @@ def strength_panel(ax, g, e):
     ax.scatter(sp.mean_rho, sp.mff_minus_vff, s=16, marker=EMK[e], facecolor="white", edgecolor=ECOL[e], lw=0.9, zorder=3)
     if len(below):
         ax.scatter(below.mean_rho, np.full(len(below), STRENGTH_YMIN + 0.9), s=18, marker="v", color=ECOL[e], edgecolor="white", lw=0.4, zorder=3)
-        ax.text(0.97, 0.52, f"{len(below)} below {STRENGTH_YMIN:.0f}\n(lowest {below.mff_minus_vff.min():.0f})", transform=ax.transAxes,
-                fontsize=6.5, color=ce.MUTED, ha="right", va="top")
+        ax.text(0.04, 0.55, f"\u25bc {len(below)} below \u2212{-STRENGTH_YMIN:.0f}\n   (lowest \u2212{-below.mff_minus_vff.min():.0f})", transform=ax.transAxes,
+                fontsize=6.5, color=ce.MUTED, ha="left", va="top")
     for _, r in g[g.pair.isin(PAIR_LABEL)].iterrows():
         spy = r.pair == "SPY_IVV"
         ax.annotate(PAIR_LABEL[r.pair], (r.mean_rho, r.mff_minus_vff), xytext=(-4, -4) if spy else (5, -3), textcoords="offset points",
