@@ -211,13 +211,13 @@ int run_regret(const Run& run) {
     };
     for (const std::string scenario : {"constant", "drift", "jump"}) {
         std::vector<std::array<RegretPaths, kShareRates.size()>> paths(estimators.size());
-        std::vector<char> scored(kN, 0);
+        std::vector<std::vector<char>> scored(estimators.size(), std::vector<char>(kN, 0));
         for (int sd = 0; sd < run.seeds; ++sd) {
             const unsigned seed = first_seed() + sd;
             const StudySeries s = load_study_series(run.cop, scenario, seed, kN);
             for (std::size_t e = 0; e < estimators.size(); ++e) {
                 const RegretSeed result = collect_regret_losses(s, estimators[e], copula::Family::Gaussian, arm_loss, true);
-                for (std::size_t t : result.ticks) scored[t] = 1;
+                for (std::size_t t : result.ticks) scored[e][t] = 1;
                 const auto oracle = regret_oracle(result.arm_losses);
                 for (std::size_t rate = 0; rate < kShareRates.size(); ++rate) {
                     auto& rate_paths = paths[e][rate];
@@ -244,7 +244,7 @@ int run_regret(const Run& run) {
                     for (int m = 0; m < kSwitchBudgets; ++m) {
                         const TickMoments& path = (*by_budget)[m];
                         for (std::size_t t = 0; t < kN; ++t) {
-                            if (!scored[t] || (t % 10 != 9 && t != kN - 1)) continue;
+                            if (!scored[e][t] || (t % 10 != 9 && t != kN - 1)) continue;
                             const auto [mean, sd] = seed_mean_sd(path.sum[t], path.sum_sq[t], run.seeds);
                             std::fprintf(paths_file, "%s,%s,%s,%g,%s,%d,%zu,%.6g,%.6g\n", run.cop.c_str(), scenario.c_str(),
                                          estimators[e].c_str(), kShareRates[rate], loss, m, t, mean, sd);
