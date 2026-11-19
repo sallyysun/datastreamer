@@ -3,7 +3,7 @@
 # Use compare_all_live.py to compare the resulting CSVs with in-process runs.
 set -euo pipefail
 cd "$(dirname "$0")"
-JOBS=${JOBS:-$(nproc)}
+JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN)}
 export LIVE=1 LIVE_SERVER=$(cd ../.. && pwd)/server
 job() {   # line
     IFS='|' read -r sec envs prog seeds <<< "$1"
