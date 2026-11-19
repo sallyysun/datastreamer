@@ -1,26 +1,52 @@
-"""Chapter 3: four parametric copula families at one Kendall tau: samples on the copula scale (top)
-and density contours on normal scores at common levels (bottom). Self-checks: each density integrates to 1 on the grid
-and each sample's tau matches the target. Writes images/ch3_parametric.png."""
+"""Chapter 3: four parametric copula families at one Spearman rho_S (Chapter 6's constant scenario): samples on the
+copula scale (top) and density contours on normal scores at common levels (bottom). Parameters come from inverting each
+family's rho_S by quadrature (closed form for the Gaussian); they match src/copula_family.hpp. Self-checks: each density
+integrates to 1 on the grid and each sample's rho_S matches the target. Writes images/ch3_parametric.png."""
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import stats
+from scipy import optimize, stats
 
 from ch3_style import INK, INK_2, MARK, note, save, scatter, tail_coefficients
 
-TAU = 0.5
+RHO_S = 0.6
 NU = 4.0
 N = 1000
 SEED = 42
 LEVELS = [0.01, 0.03, 0.06, 0.10, 0.15, 0.20]
 
 
-def params(tau):
-    rho = np.sin(np.pi * tau / 2)
+GL_U, GL_W = (lambda x, w: ((x + 1) / 2, w / 2))(*np.polynomial.legendre.leggauss(400))
+
+
+def rho_s_cdf(cdf):
+    """12 int int C - 3 on a Gauss-Legendre grid."""
+    uu, vv = np.meshgrid(GL_U, GL_U)
+    return 12 * GL_W @ cdf(uu, vv) @ GL_W - 3
+
+
+def rho_s_t(r):
+    """12 E[U F(Y)] - 3 with Y | X = x a scaled t_(nu+1): integrands bounded in u, so no corner mass is lost."""
+    x = stats.t.ppf(GL_U, NU)[:, None]
+    scale = np.sqrt((NU + x**2) * (1 - r**2) / (NU + 1))
+    inner = stats.t.cdf(r * x + scale * stats.t.ppf(GL_U, NU + 1)[None, :], NU) @ GL_W
+    return 12 * GL_W @ (GL_U * inner) - 3
+
+
+def clayton_cdf(th):
+    return lambda u, v: (u**-th + v**-th - 1) ** (-1 / th)
+
+
+def gumbel_cdf(th):
+    return lambda u, v: np.exp(-((-np.log(u)) ** th + (-np.log(v)) ** th) ** (1 / th))
+
+
+def params(rho_s):
+    solve = lambda f, lo, hi: optimize.brentq(lambda p: f(p) - rho_s, lo, hi, xtol=1e-12)
     return {
-        "gaussian": rho,
-        "student_t": rho,
-        "clayton": 2 * tau / (1 - tau),
-        "gumbel": 1 / (1 - tau),
+        "gaussian": 2 * np.sin(np.pi * rho_s / 6),
+        "student_t": solve(rho_s_t, 0.0, 0.999),
+        "clayton": solve(lambda th: rho_s_cdf(clayton_cdf(th)), 1e-3, 50),
+        "gumbel": solve(lambda th: rho_s_cdf(gumbel_cdf(th)), 1 + 1e-6, 30),
     }
 
 
@@ -70,18 +96,19 @@ def check(family, th, u, v):
     g = np.linspace(1e-4, 1 - 1e-4, 801)
     uu, vv = np.meshgrid(g, g)
     mass = np.trapezoid(np.trapezoid(np.exp(log_density(family, th, uu, vv)), g), g)
-    tau_hat = stats.kendalltau(u, v)[0]
-    se = np.sqrt(2 * (1 - TAU**2) / len(u))  # Daniels-Kendall bound on SD(tau_hat)
+    rho_hat = stats.spearmanr(u, v)[0]
+    se = (1 - RHO_S**2) * np.sqrt(1.06 / (len(u) - 3))  # Fieller-Hartley-Pearson approximation to SD(rho_hat)
     assert abs(mass - 1) < 0.02, f"{family}: density integrates to {mass:.4f}"
-    assert abs(tau_hat - TAU) < 4 * se, f"{family}: sample tau {tau_hat:.3f}, target {TAU}"
-    return tau_hat
+    assert abs(rho_hat - RHO_S) < 4 * se, f"{family}: sample rho_S {rho_hat:.3f}, target {RHO_S}"
+    return rho_hat
 
 
 def fig_parametric():
     rng = np.random.default_rng(SEED)
-    th = params(TAU)
-    order = [("gaussian", "Gaussian", rf"$\rho$ = {th['gaussian']:.2f}"),
-             ("student_t", rf"Student $t$ ($\nu$ = {NU:g})", rf"$\rho$ = {th['student_t']:.2f}"),
+    th = params(RHO_S)
+    print("parameters at rho_S = %g: " % RHO_S + ", ".join(f"{k} {v:.4f}" for k, v in th.items()))
+    order = [("gaussian", "Gaussian", rf"$r$ = {th['gaussian']:.2f}"),
+             ("student_t", rf"Student $t$ ($\nu$ = {NU:g})", rf"$r$ = {th['student_t']:.2f}"),
              ("clayton", "Clayton", rf"$\theta$ = {th['clayton']:.2f}"),
              ("gumbel", "Gumbel", rf"$\theta$ = {th['gumbel']:.2f}")]
 
@@ -95,7 +122,7 @@ def fig_parametric():
     fig, axes = plt.subplots(2, 4, figsize=(6.2, 3.6))
     for j, (key, title, ptxt) in enumerate(order):
         u, v = sample(key, th[key], N, rng)
-        tau_hat = check(key, th[key], u, v)
+        rho_hat = check(key, th[key], u, v)
         lam_l, lam_u = tail_coefficients(key, th[key], nu=NU)
 
         ax = axes[0, j]
@@ -108,7 +135,7 @@ def fig_parametric():
         ax.set_title(f"{title}\n{ptxt}")
         ax.set_xlabel("$U$", labelpad=-6)
         ax.set_ylabel("$V$" if j == 0 else "", labelpad=-6)
-        note(ax, rf"$\hat\tau$ = {tau_hat:.2f}")
+        note(ax, rf"$\hat\rho_S$ = {rho_hat:.2f}")
 
         ax = axes[1, j]
         dens = np.exp(log_density(key, th[key], stats.norm.cdf(zx), stats.norm.cdf(zy))) * phi
@@ -130,7 +157,7 @@ def fig_parametric():
     axes[1, 0].annotate("Density", xy=(-0.62, 0.5), xycoords="axes fraction", rotation=90,
                         ha="center", va="center", fontsize=8.5, color=INK)
     fig.tight_layout(h_pad=0.8, w_pad=0.4)
-    fig.text(0.5, 0.01, rf"Kendall $\tau$ = {TAU} in every panel; contour levels "
+    fig.text(0.5, 0.01, rf"Spearman $\rho_S$ = {RHO_S} in every panel; contour levels "
              + ", ".join(f"{l:g}" for l in LEVELS) + f"; n = {N} samples.", ha="center", va="top", fontsize=7, color=INK_2)
     save(fig, "ch3_parametric")
 
