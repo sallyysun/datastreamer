@@ -68,6 +68,7 @@ public:
         return rho_;
     }
     const char* name() const override { return "controlled"; }
+    double current() const { return rho_; }
     void jump(double rho_s) { rho_ = clamp(rho_s); left_ = 0; }
     void drift(double rho_s, std::size_t steps) { target_ = clamp(rho_s); left_ = std::max<std::size_t>(steps, 1); }
     static double clamp(double rho_s) { return std::clamp(rho_s, -0.95, 0.95); }

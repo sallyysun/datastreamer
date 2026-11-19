@@ -16,11 +16,13 @@
 
 class LiveLab {
 public:
+    static constexpr std::size_t kDemoWarmup = 12;
+
     LiveLab(const std::string& est, const std::vector<double>& memories, const std::vector<std::string>& families,
-            double eta, double delta)
+            double eta, double delta, std::size_t warmup = thesis::kMffWarmup)
         : est_(est), raw_(est != "rmpl"), mem_(memories), fam_names_(families), eta_(eta), delta_(delta),
-          vff_(est, thesis::vff_rates()[0]), margins_(thesis::kKll, thesis::kClip) {
-        for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m"));
+          warmup_(warmup), vff_(est, thesis::vff_rates()[0], warmup), margins_(thesis::kKll, thesis::kClip) {
+        for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m", warmup));
         for (const auto& f : fam_names_) fam_.push_back(copula::family_of(f));
         const std::size_t M = fam_.size() * mem_.size();
         w_.assign(M, 1.0 / double(M));
@@ -75,7 +77,7 @@ public:
     }
 
     bool mff_ready() const {
-        return t_ >= thesis::kMffWarmup && std::all_of(arms_.begin(), arms_.end(), [](const auto& arm) { return arm->ready(); });
+        return t_ >= warmup_ && std::all_of(arms_.begin(), arms_.end(), [](const auto& arm) { return arm->ready(); });
     }
 
 private:
@@ -101,6 +103,7 @@ private:
     std::vector<std::string> fam_names_;
     std::vector<copula::Family> fam_;
     double eta_, delta_;
+    std::size_t warmup_;
     std::vector<std::unique_ptr<DependenceEstimator>> arms_;
     thesis::Vff vff_;
     datasketches_kll::PairedKll margins_;

@@ -20,7 +20,6 @@
 #include "runtime/session.hpp"
 #include "runtime/broker.hpp"
 #include "runtime/market.hpp"
-#include "../consumer/paired_returns.hpp"
 #include "../protocol.hpp"
 
 using json = nlohmann::json;
@@ -128,34 +127,64 @@ int main() {
     if (wait_consumers > 0) broker.set_lossless(true);
 
     const bool market_enabled = n_run <= 0 && rate > 0 && wait_consumers <= 0 && !std::getenv("REPLAY");
-    const auto replays = market::load_replays(market_enabled ? std::getenv("MARKET_REPLAY_DIR") : nullptr, seed);
-    const auto stocks = market::load_stocks(market_enabled ? std::getenv("MARKET_PRICES_DIR") : nullptr);
-    app.get("/api/market/replays/:id", [&replays](auto* res, auto* req) {
-        const auto replay = replays.bodies.find(std::string(req->getParameter(0)));
-        if (replay == replays.bodies.end()) {
-            res->writeStatus("404 Not Found")->end();
-            return;
+    struct PerSocket { int session = 0; };
+    using WS = uWS::WebSocket<false, true, PerSocket>;
+    struct MarketFeed {
+        MarketFeed(unsigned seed, const char* prices, const char* tickers, const char* events)
+            : broadcast(seed, prices, tickers, events) {}
+        MarketFeed(const std::filesystem::path& file, std::vector<std::string> symbols)
+            : broadcast(file, std::move(symbols)) {}
+
+        market::Broadcast broadcast;
+        std::map<WS*, market::Subscription> subscriptions;
+    };
+    using MarketFeeds = std::map<std::string, MarketFeed, std::less<>>;
+    MarketFeeds feeds;
+    if (market_enabled) {
+        feeds.try_emplace("simulation", seed, nullptr, nullptr, std::getenv("MARKET_EVENTS"));
+        if (const char* prices = std::getenv("MARKET_PRICES_DIR"); prices && *prices) {
+            try {
+                feeds.try_emplace("replay", seed, prices, std::getenv("MARKET_TICKERS"), nullptr);
+            } catch (const std::exception& error) {
+                std::cerr << "Market replay unavailable: " << error.what() << '\n';
+            }
         }
-        res->writeHeader("Content-Type", "application/json")
-            ->writeHeader("Access-Control-Allow-Origin", "*")
-            ->end(replay->second);
-    });
-    app.get("/api/market/stocks/:x/:y", [&stocks, seed](auto* res, auto* req) {
-        const auto x = stocks.histories.find(req->getParameter(0));
-        const auto y = stocks.histories.find(req->getParameter(1));
-        if (x == stocks.histories.end() || y == stocks.histories.end() || x == y) {
-            res->writeStatus("404 Not Found")->writeHeader("Access-Control-Allow-Origin", "*")->end();
-            return;
+        if (const char* directory = std::getenv("MARKET_THESIS_DIR"); directory && *directory) {
+            namespace fs = std::filesystem;
+            std::error_code ec;
+            fs::directory_iterator file(directory, ec);
+            for (; !ec && file != fs::directory_iterator(); file.increment(ec)) {
+                std::error_code status_error;
+                if (!file->is_regular_file(status_error) || file->path().extension() != ".csv") continue;
+                const auto id = file->path().stem().string();
+                const auto split = id.find('_');
+                if (split == 0 || split == std::string::npos || split + 1 == id.size()) continue;
+                try {
+                    feeds.try_emplace("thesis/" + id, file->path(),
+                                      std::vector<std::string>{id.substr(0, split), id.substr(split + 1)});
+                } catch (const std::exception& error) {
+                    std::cerr << "Market thesis pair unavailable: " << error.what() << '\n';
+                }
+            }
+            if (ec) std::cerr << "Market thesis directory unavailable: " << ec.message() << '\n';
         }
-        res->writeHeader("Content-Type", "application/json")
-            ->writeHeader("Access-Control-Allow-Origin", "*")
-            ->end(market::replay_pair(x->second, y->second, seed).dump());
-    });
+    }
+    auto unsubscribe_market = [&](WS* ws) {
+        for (auto& [name, feed] : feeds) feed.subscriptions.erase(ws);
+    };
+    app.get("/api/market/*", [](auto* res, auto*) { res->writeStatus("404 Not Found")->end(); });
 
     app.get("/*", [](auto *res, auto *req) {
         std::string path = std::string(req->getUrl());
         if (path == "/") path = "/index.html";
-        std::string filePath = "client/dist" + path;
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        const auto root = fs::weakly_canonical(fs::absolute("client/dist"), ec);
+        const auto filePath = fs::weakly_canonical(root / path.substr(1), ec);
+        if (ec || !filePath.string().starts_with(root.string() + "/")) {
+            res->writeStatus("404 Not Found")->end();
+            return;
+        }
         std::ifstream file(filePath, std::ios::binary);
         if (!file.is_open()) {
             std::ifstream fallback("client/dist/index.html");
@@ -167,19 +196,11 @@ int main() {
         }
         std::stringstream buffer;
         buffer << file.rdbuf();
-        res->writeHeader("Content-Type", mime_type(filePath));
+        res->writeHeader("Content-Type", mime_type(filePath.extension().string()));
         res->end(buffer.str());
     });
 
     const std::vector<std::string> catalog_topics = {equity_topic(sym_x), equity_topic(sym_y)};
-    const std::string catalog_msg = json{
-        {"type", "catalog"}, {"symbols", {sym_x, sym_y}},
-        {"market", market_enabled}, {"replays", replays.names}, {"stocks", stocks.names}, {"memories", thesis::kMem}
-    }.dump();
-
-    // A WebSocket can subscribe to market ticks or steer a private lab session.
-    struct PerSocket { int session = 0; };
-    using WS = uWS::WebSocket<false, true, PerSocket>;
     uWS::Loop* loop = uWS::Loop::get();
     std::map<int, std::unique_ptr<LabSession>> sessions;   // loop thread only
     std::map<int, WS*> session_ws;                         // loop thread only
@@ -202,23 +223,76 @@ int main() {
         d->session = 0;
     };
 
+    auto sources = json::object();
+    for (const auto& [name, feed] : feeds) {
+        auto metadata = feed.broadcast.catalog();
+        if (name.starts_with("thesis/")) {
+            metadata["id"] = name.substr(7);
+            sources["thesis"]["pairs"].push_back(std::move(metadata));
+        } else {
+            sources[name] = std::move(metadata);
+        }
+    }
+    const auto catalog = json{{"type", "catalog"}, {"symbols", {sym_x, sym_y}}, {"market", std::move(sources)}}.dump();
     app.ws<PerSocket>("/*", {
-        .open = [&catalog_msg](auto *ws) {
-            ws->send(catalog_msg, uWS::OpCode::TEXT);  // announce available symbols
+        .open = [&catalog](auto* ws) {
+            ws->send(catalog, uWS::OpCode::TEXT);
         },
         .message = [&](auto *ws, std::string_view message, uWS::OpCode) {
             json j = json::parse(message, nullptr, /*allow_exceptions=*/false);
-            if (j.is_discarded() || !j.contains("action")) return;
+            if (!j.contains("action") || !j["action"].is_string()) return;
             const std::string action = j["action"].get<std::string>();
             PerSocket* d = ws->getUserData();
-            if (action == "subscribe" || action == "unsubscribe") {
-                if (!j.contains("topics")) return;
-                for (const auto &t : j["topics"]) {
-                    const std::string req = t.get<std::string>();
-                    if (req == market::kTopic && market_enabled) {
-                        if (action == "subscribe") ws->subscribe(market::kTopic);
-                        else ws->unsubscribe(market::kTopic);
+            if (action == "market_unsubscribe") {
+                unsubscribe_market(ws);
+                return;
+            }
+            if (action == "market_subscribe") {
+                const auto source = j.find("source");
+                const auto request = j.find("requestId");
+                if (source == j.end() || !source->is_string() || request == j.end() || !request->is_number_unsigned()) return;
+                auto fail = [&](const char* message) {
+                    ws->send(json{{"type", "market_error"}, {"requestId", *request}, {"message", message}}.dump(), uWS::OpCode::TEXT);
+                };
+                auto key = source->get<std::string>();
+                if (key == "thesis") {
+                    const auto id = j.find("pairId");
+                    if (id == j.end() || !id->is_string()) {
+                        fail("Choose a thesis pair.");
+                        return;
                     }
+                    key += "/" + id->get_ref<const std::string&>();
+                } else if (key != "simulation" && key != "replay") {
+                    fail("The selected source is unavailable.");
+                    return;
+                }
+                const auto selected = feeds.find(key);
+                if (selected == feeds.end()) {
+                    fail("The selected source is unavailable.");
+                    return;
+                }
+                const auto pair = j.find("pair");
+                if (pair == j.end() || !pair->is_array() || pair->size() != 2
+                    || !(*pair)[0].is_number_unsigned() || !(*pair)[1].is_number_unsigned()) {
+                    fail("Choose two distinct assets.");
+                    return;
+                }
+                const auto x = (*pair)[0].get<std::size_t>(), y = (*pair)[1].get<std::size_t>();
+                auto& feed = selected->second;
+                if (x == y || x >= feed.broadcast.symbol_count() || y >= feed.broadcast.symbol_count()) {
+                    fail("Choose two distinct assets.");
+                    return;
+                }
+                unsubscribe_market(ws);
+                feed.subscriptions.try_emplace(ws, x, y, feed.broadcast.memories(), feed.broadcast.warmup());
+                ws->send(json{{"type", "market_subscribed"}, {"requestId", *request}, {"pair", {x, y}}}.dump(), uWS::OpCode::TEXT);
+                return;
+            }
+            if (action == "subscribe" || action == "unsubscribe") {
+                if (!j.contains("topics") || !j["topics"].is_array()) return;
+                for (const auto &t : j["topics"]) {
+                    if (!t.is_string()) continue;
+                    const std::string req = t.get<std::string>();
                     for (const auto &concrete : catalog_topics) {
                         if (!topic_matches(req, concrete)) continue;
                         if (action == "subscribe") ws->subscribe(concrete);
@@ -236,6 +310,7 @@ int main() {
                 LabConfig c;
                 c.copula = j.value("copula", c.copula); c.rho = j.value("rho", c.rho); c.rate = j.value("rate", c.rate);
                 c.quick_start = j.value("quick_start", c.quick_start);
+                c.auto_events = j.value("auto", c.auto_events);
                 c.estimator = j.value("estimator", c.estimator); c.memories = j.value("memories", c.memories);
                 c.families = j.value("families", c.families); c.eta = j.value("eta", c.eta); c.delta = j.value("delta", c.delta);
                 const int id = next_session++;
@@ -258,24 +333,28 @@ int main() {
             else if (action == "drift") s.drift(j.value("rho", 0.5), std::size_t(j.value("steps", 1000)));
             else if (action == "family") s.family(j.value("family", std::string("gaussian")));
             else if (action == "auto") s.set_auto(j.value("on", false));
-            else if (action == "rate") s.set_rate(j.value("rate", 100.0));
+            else if (action == "rate") s.set_rate(j.value("rate", LabConfig::kDefaultRate));
             else if (action == "pause") s.set_paused(j.value("on", false));
             else if (action == "stop") end_session(d);
         },
-        .close = [&](auto *ws, int, std::string_view) { end_session(ws->getUserData()); }
+        .close = [&](auto* ws, int, std::string_view) {
+            unsubscribe_market(ws);
+            end_session(ws->getUserData());
+        }
     });
+
+    bool listening = false;
+    app.listen(cfg.port, [&](auto *token) {
+        listening = token != nullptr;
+        std::cout << (listening ? "server running on port " : "failed to bind port ")
+                  << cfg.port << "\n";
+    });
+    if (!listening) return 1;
 
     std::thread producer_thread([&]() {
         while (wait_consumers > 0 && broker.ready_count(2) < std::size_t(wait_consumers))
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         std::size_t n = 0;
-        std::optional<LiveLab> market_model;
-        PairedReturns market_returns;
-        if (market_enabled) {
-            datasketches_kll::seed(seed);
-            market_model.emplace(market::estimator());
-        }
-        auto next_market_frame = std::chrono::steady_clock::now();
         auto sink = [&](const TickPair &event) {
             SymbolTick tick_x = event.x; tick_x.symbol = sym_x;
             SymbolTick tick_y = event.y; tick_y.symbol = sym_y;
@@ -283,21 +362,9 @@ int main() {
             const std::string msg_y = serializer.to_json(tick_y);
             broker.publish(equity_topic(sym_x), msg_x);
             broker.publish(equity_topic(sym_y), msg_y);
-            std::string market_frame;
-            if (market_model) {
-                market_returns.on_tick(event, [&](double x, double y) { market_model->update(x, y); });
-                const auto now = std::chrono::steady_clock::now();
-                if (n > 0 && now >= next_market_frame) {
-                    auto point = market::reading(*market_model, tick_x.price, tick_y.price);
-                    point.update(json{{"type", "market"}, {"step", n}, {"timestamp", tick_x.timestamp}, {"truth", tick_x.true_rho_s}});
-                    market_frame = point.dump();
-                    next_market_frame = now + std::chrono::seconds(1);
-                }
-            }
-            loop->defer([&app, tx = equity_topic(sym_x), ty = equity_topic(sym_y), msg_x, msg_y, market_frame = std::move(market_frame)] {
+            loop->defer([&app, tx = equity_topic(sym_x), ty = equity_topic(sym_y), msg_x, msg_y] {
                 app.publish(tx, msg_x, uWS::OpCode::TEXT);
                 app.publish(ty, msg_y, uWS::OpCode::TEXT);
-                if (!market_frame.empty()) app.publish(market::kTopic, market_frame, uWS::OpCode::TEXT);
             });
             if (++n % 1000 == 0) {
                 std::cout << "events=" << n
@@ -313,11 +380,23 @@ int main() {
         produce(sink, -1);
     });
 
-    app.listen(cfg.port, [&](auto *token) {
-        std::cout << (token ? "server running on port " : "failed to bind port ")
-                  << cfg.port << "\n";
-    });
-
+    if (!feeds.empty()) {
+        const double market_rate = env_double("MARKET_RATE", market::kDefaultRate);
+        const int interval = int(1000 / (std::isfinite(market_rate) ? std::clamp(market_rate, 0.5, kMaxBrowserRate) : market::kDefaultRate));
+        auto* timer = us_create_timer(reinterpret_cast<us_loop_t*>(loop), 0, sizeof(MarketFeeds*));
+        if (!timer) throw std::runtime_error("could not create market timer");
+        *static_cast<MarketFeeds**>(us_timer_ext(timer)) = &feeds;
+        us_timer_set(timer, [](us_timer_t* t) {
+            auto& feeds = **static_cast<MarketFeeds**>(us_timer_ext(t));
+            for (auto& [name, feed] : feeds) {
+                const auto frame = feed.broadcast.next();
+                for (auto it = feed.subscriptions.begin(); it != feed.subscriptions.end();) {
+                    auto& [ws, subscription] = *it++;
+                    ws->send(subscription.observe(frame).dump(), uWS::OpCode::TEXT);
+                }
+            }
+        }, interval, interval);
+    }
     app.run();
     producer_thread.join();
     broker.stop();

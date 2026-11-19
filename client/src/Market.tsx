@@ -1,67 +1,96 @@
-import { useEffect, useState } from "react";
-import {
-  CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
+import { useEffect, useRef, useState } from "react";
 
-import { replayUrl, wsUrl } from "./server";
-import { correlationDomain } from "./charts";
+import { wsUrl } from "./server";
+import { COLOURS, formatNumber, type StreamPoint } from "./charts";
+import { MemoryCharts, PairCharts } from "./StreamCharts";
 import StreamMetric from "./StreamMetric";
 import "./Market.css";
 
-type Point = {
-  step: number;
-  x: number;
-  y: number;
-  mff: number | null;
-  weights?: number[];
-  truth?: number;
+type Frame = StreamPoint & {
+  observations: number;
   timestamp?: number;
   date?: string;
+  event?: string;
 };
-type Replay = { id: string; name: string; labels: [string, string] };
-type Stock = { id: string; symbol: string };
-type Catalog = { type: "catalog"; symbols: [string, string]; replays?: Replay[]; stocks?: Stock[]; memories?: number[]; market?: boolean };
+type MarketSource = {
+  symbols: string[];
+  memories: number[];
+  readyAt: number;
+};
+type Source = "simulation" | "replay" | "thesis";
+type Sources = {
+  simulation?: MarketSource;
+  replay?: MarketSource;
+  thesis?: { pairs: (MarketSource & { id: string })[] };
+};
+type Pair = [number, number];
+type Subscription = { mode: Source; pair: Pair; pairId?: string };
+
+const SOURCE_LABEL: Record<Source, string> = {
+  simulation: "Live simulation",
+  replay: "Saved-price replay",
+  thesis: "Thesis return replay",
+};
 
 const WINDOW = 180;
-const LIVE = "live";
-const STOCKS = "stocks";
-const REPLAY_INTERVAL_MS = 500;
-const COLOURS = { x: "#60b5be", y: "#a0a5d6", mff: "#ff83a0", truth: "#a5b9cb" };
-const WEIGHT_COLOURS = ["#8d9ceb", "#6dbee5", "#79e1cb", "#f7c378", "#ff8fa9"];
-const TICK = { fill: "#a5b9cb", fontSize: 11 };
-const TOOLTIP = { background: "#0c1420", border: "1px solid #27394d", borderRadius: 6, fontSize: 12 };
-const format = (value?: number | null, digits = 2) => value == null ? "—" : value.toFixed(digits);
 
 export default function Market({ active }: { active: boolean }) {
   const [connected, setConnected] = useState(false);
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [live, setLive] = useState<Point[]>([]);
-  const [source, setSource] = useState(LIVE);
-  const [pair, setPair] = useState<[string, string]>(["", ""]);
-  const [recorded, setRecorded] = useState<Point[]>([]);
-  const [position, setPosition] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [sources, setSources] = useState<Sources>({});
+  const [mode, setMode] = useState<Source>("simulation");
+  const [frames, setFrames] = useState<Frame[]>([]);
+  const [selection, setSelection] = useState<number[]>([]);
+  const [thesisPair, setThesisPair] = useState("");
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const socket = useRef<WebSocket | null>(null);
+  const nextRequest = useRef(0);
+  const requested = useRef<{ id: number; subscription: Subscription } | null>(null);
+  const receiving = useRef(false);
 
   useEffect(() => {
     let ws: WebSocket;
     let retry: number | undefined;
     const connect = () => {
       ws = new WebSocket(wsUrl());
+      socket.current = ws;
       ws.onopen = () => {
         setConnected(true);
-        setLive([]);
-        ws.send(JSON.stringify({ action: "subscribe", topics: ["market.pair"] }));
+        setSources({});
+        setFrames([]);
+        setSelection([]);
+        setThesisPair("");
+        setSubscription(null);
+        setPending(false);
+        setError("");
+        requested.current = null;
+        receiving.current = false;
       };
       ws.onclose = () => {
         setConnected(false);
+        setPending(false);
         retry = window.setTimeout(connect, 1500);
       };
       ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        if (message.type === "catalog") setCatalog(message);
-        if (message.type === "market") setLive((points) => [...points.slice(1 - WINDOW), message]);
+        if (message.type === "catalog" && message.market) {
+          const catalogue = message.market as Sources;
+          setSources(catalogue);
+          setMode((current) => catalogue[current] ? current : "simulation");
+        } else if (message.type === "market_subscribed" && message.requestId === requested.current?.id && requested.current) {
+          setSubscription(requested.current.subscription);
+          requested.current = null;
+          receiving.current = true;
+          setFrames([]);
+          setPending(false);
+        } else if (message.type === "market_error" && message.requestId === requested.current?.id) {
+          requested.current = null;
+          setError(message.message);
+          setPending(false);
+        } else if (message.type === "market" && receiving.current) {
+          setFrames((previous) => message.step === 1 ? [message] : [...previous.slice(1 - WINDOW), message]);
+        }
       };
     };
     connect();
@@ -72,187 +101,134 @@ export default function Market({ active }: { active: boolean }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (source === LIVE) return;
-    const abort = new AbortController();
-    fetch(replayUrl(source, source === STOCKS ? pair : undefined), { signal: abort.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("Replay unavailable");
-        return response.json();
-      })
-      .then((points: Point[]) => {
-        if (abort.signal.aborted) return;
-        if (!points.length) setError("These stocks need at least two shared price dates.");
-        setRecorded(points);
-      })
-      .catch(() => { if (!abort.signal.aborted) setError("Couldn’t load this replay."); })
-      .finally(() => { if (!abort.signal.aborted) setLoading(false); });
-    return () => abort.abort();
-  }, [source, pair]);
-
-  const finished = recorded.length > 0 && position === recorded.length;
-
-  useEffect(() => {
-    if (!playing || finished || !active || source === LIVE) return;
-    const timer = window.setInterval(() => {
-      setPosition((shown) => Math.min(shown + 1, recorded.length));
-    }, REPLAY_INTERVAL_MS);
-    return () => window.clearInterval(timer);
-  }, [active, finished, playing, recorded.length, source]);
-
-  const isLive = source === LIVE;
-  const isStockPair = source === STOCKS;
-  const stocks = catalog?.stocks ?? [];
-  const replays = catalog?.replays ?? [];
-
-  function selectSource(value: string) {
-    setSource(value);
-    if (value === STOCKS && !pair[0] && stocks.length >= 2) setPair([stocks[0].id, stocks[1].id]);
-    resetReplay(value !== LIVE);
-  }
-
-  function resetReplay(load: boolean) {
-    setRecorded([]);
-    setPosition(0);
-    setPlaying(false);
-    setLoading(load);
+  function chooseSource(next: Source) {
+    if (next === mode) return;
+    setMode(next);
+    setSelection([]);
+    setThesisPair("");
     setError("");
   }
 
-  const replay = replays.find(({ id }) => id === source);
-  const labels = isStockPair
-    ? pair.map((id) => stocks.find((stock) => stock.id === id)?.symbol ?? "")
-    : (isLive ? catalog?.symbols : replay?.labels) ?? ["X", "Y"];
-  const points = isLive ? live : recorded.slice(Math.max(0, position - WINDOW), position);
-  const last = points.at(-1);
-  const memories = catalog?.memories ?? [];
-  let waiting = error || (loading ? "Loading replay…" : "Press Play to start");
-  if (isLive) {
-    if (!connected) waiting = "Waiting for the server";
-    else if (catalog && catalog.market === undefined) waiting = "Restart the Datastreamer backend to enable Market MFF.";
-    else if (catalog?.market === false) waiting = "Market simulation is available when the server runs in interactive mode.";
-    else waiting = "Waiting for observations";
+  function select(index: number) {
+    setSelection((current) => current.includes(index)
+      ? current.filter((item) => item !== index)
+      : [...current.slice(-1), index]);
   }
-  const rows = points.map((point) => ({
-    ...point,
-    when: point.date ?? (point.timestamp == null ? "" : new Date(point.timestamp).toLocaleTimeString()),
-  }));
-  const formatStep = (step: number) => rows.find((point) => point.step === Number(step))?.when ?? "";
-  const rhoDomain = correlationDomain(points.flatMap(({ mff, truth }) => [mff, truth]));
+
+  const selected = mode === "thesis" ? (thesisPair ? [0, 1] : []) : [...selection].sort((a, b) => a - b);
+  const pairs = sources.thesis?.pairs ?? [];
+  const chosenSource = mode === "thesis" ? pairs.find(({ id }) => id === thesisPair) : sources[mode];
+  const pairId = mode === "thesis" ? thesisPair : undefined;
+  const unchanged = selected.length === 2 && subscription?.mode === mode && subscription.pairId === pairId
+    && subscription.pair[0] === selected[0] && subscription.pair[1] === selected[1];
+  const canSubscribe = connected && Boolean(chosenSource) && !pending && selected.length === 2 && !unchanged;
+
+  function subscribe() {
+    const ws = socket.current;
+    if (!canSubscribe || ws?.readyState !== WebSocket.OPEN) return;
+    const requestId = ++nextRequest.current;
+    requested.current = { id: requestId, subscription: { mode, pair: [selected[0], selected[1]], pairId } };
+    setPending(true);
+    setError("");
+    ws.send(JSON.stringify({ action: "market_subscribe", source: mode, pair: selected, pairId, requestId }));
+  }
+
+  function unsubscribe() {
+    const ws = socket.current;
+    if (!subscription || pending || ws?.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ action: "market_unsubscribe" }));
+    receiving.current = false;
+    setSubscription(null);
+    setFrames([]);
+    setError("");
+  }
+
+  const showing = subscription?.mode ?? mode;
+  const source = showing === "thesis"
+    ? pairs.find(({ id }) => id === subscription?.pairId)
+    : sources[showing];
+  const labels: [string, string] = subscription && source
+    ? [source.symbols[subscription.pair[0]], source.symbols[subscription.pair[1]]] : ["", ""];
+  const last = frames.at(-1);
+  const latestEvent = frames.findLast((item) => item.event);
+  const when = (item?: Frame) => item?.date ??
+    (item?.timestamp === undefined ? "" : new Date(item.timestamp).toLocaleTimeString());
+  const timeline = {
+    active,
+    formatStep: (step: number) => when(frames.find((item) => item.step === Number(step))),
+    marks: frames.flatMap((item) => item.event ? [{ step: item.step, label: item.event }] : []),
+  };
+
+  const available = Boolean(sources.simulation);
+  const status = !connected ? "Disconnected" : available ? SOURCE_LABEL[showing] : "Connected";
+  const waiting = !connected ? "Waiting for the server" : !available ? "Waiting for a Market broadcast" :
+    subscription ? "Waiting for the next observation." :
+    mode === "thesis" ? "Choose a thesis pair and select Subscribe." : "Choose two assets and select Subscribe.";
 
   return (
     <main className="container market">
       <header className="market-heading">
         <h1>Market MFF</h1>
-        {isLive && <span className={`market-status ${connected && catalog?.market ? "on" : ""}`}>
-          {connected ? catalog?.market ? "Live simulation" : "Connected" : "Disconnected"}
-        </span>}
+        <span className={`market-status ${connected && available ? "on" : ""}`}>{status}</span>
       </header>
-
-      <div className="market-toolbar">
-        <label className="market-source">
-          Data
-          <select value={source} onChange={(event) => selectSource(event.target.value)}>
-            <option value={LIVE}>Live · {catalog?.symbols?.join(" / ") ?? "market pair"}</option>
-            {stocks.length >= 2 && <option value={STOCKS}>Saved stocks</option>}
-            {replays.map(({ id, name, labels }) => (
-              <option key={id} value={id}>Replay · {labels[0] === "X" && labels[1] === "Y" ? name : labels.join(" / ")}</option>
-            ))}
-          </select>
-        </label>
-        {isStockPair && pair.map((id, index) => (
-          <select key={index} aria-label={index === 0 ? "First stock" : "Second stock"} value={id} onChange={(event) => {
-            const next: [string, string] = [...pair];
-            next[index] = event.target.value;
-            setPair(next);
-            resetReplay(true);
-          }}>
-            {stocks.filter((stock) => stock.id !== pair[1 - index]).map((stock) =>
-              <option key={stock.id} value={stock.id}>{stock.symbol}</option>
-            )}
-          </select>
-        ))}
-        {!isLive && (
-          <>
-            <button type="button" className="market-play" disabled={!recorded.length} onClick={() => {
-              if (finished || position === 0) setPosition(1);
-              setPlaying(finished || !playing);
-            }}>{playing && !finished ? "Pause" : "Play"}</button>
-            <button type="button" disabled={position === 0} onClick={() => {
-              setPosition(1);
-              setPlaying(true);
-            }}>Restart</button>
-            <span className="market-progress">{REPLAY_INTERVAL_MS / 1000} s per observation</span>
-          </>
-        )}
-        {isLive && catalog?.market && !replays.length && stocks.length < 2 && <small>No saved stock data configured</small>}
-      </div>
-
-      {last ? (
+      {available && (
+        <div className="market-toolbar">
+          <label className="market-source">
+            Source
+            <select value={mode} disabled={pending} onChange={(event) => chooseSource(event.target.value as Source)}>
+              <option value="simulation">Simulation (A–E)</option>
+              <option value="thesis" disabled={!pairs.length}>Thesis return replay</option>
+              <option value="replay" disabled={!sources.replay}>Saved-price replay</option>
+            </select>
+          </label>
+          {mode === "thesis" ? (
+            <label className="market-source">
+              Pair
+              <select value={thesisPair} disabled={pending} onChange={(event) => setThesisPair(event.target.value)}>
+                <option value="">Choose a pair</option>
+                {pairs.map(({ id, symbols }) => <option key={id} value={id}>{symbols.join(" / ")}</option>)}
+              </select>
+            </label>
+          ) : (
+            <div className="market-assets" role="group" aria-label="Select two assets">
+              {chosenSource?.symbols.map((symbol, index) => (
+                <button type="button" key={symbol} disabled={pending} aria-pressed={selection.includes(index)} onClick={() => select(index)}>
+                  {symbol}
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className="market-subscribe" disabled={!canSubscribe} onClick={subscribe}>
+            {pending ? "Subscribing…" : unchanged ? "Subscribed" : "Subscribe"}
+          </button>
+          {subscription && (
+            <button type="button" disabled={!connected || pending} onClick={unsubscribe}>Unsubscribe</button>
+          )}
+          {latestEvent && <small className="market-event">{latestEvent.event} · observation {latestEvent.step.toLocaleString()}</small>}
+        </div>
+      )}
+      {error && <p className="market-error" role="alert">{error}</p>}
+      {source && last ? (
         <>
           <dl className="stream-summary" aria-label="Market summary">
-            <StreamMetric label="Observations" value={isLive ? last.step.toLocaleString() : `${position.toLocaleString()} / ${recorded.length.toLocaleString()}`} />
-            <StreamMetric label={labels[0]} value={format(last.x)} colour={COLOURS.x} />
-            <StreamMetric label={labels[1]} value={format(last.y)} colour={COLOURS.y} />
-            <StreamMetric label="MFF" value={last.mff == null ? "Warming up" : format(last.mff, 3)} colour={COLOURS.mff} />
-            {isLive && <StreamMetric label="True ρ" value={format(last.truth, 3)} colour={COLOURS.truth} />}
+            <StreamMetric label="Observations" value={last.observations.toLocaleString()} />
+            <StreamMetric label={labels[0]} value={formatNumber(last.x)} colour={COLOURS.x} />
+            <StreamMetric label={labels[1]} value={formatNumber(last.y)} colour={COLOURS.y} />
+            <StreamMetric label="MFF estimate" value={last.mff != null ? formatNumber(last.mff, 3) :
+              `Warm-up ${last.observations}/${source.readyAt}`} colour={COLOURS.mff} />
+            {showing === "simulation" && <StreamMetric label="True ρ" value={formatNumber(last.truth, 3)} colour={COLOURS.truth} />}
           </dl>
-          <div className="market-charts">
-            <section className="market-panel">
-              <h2>{isLive ? "Simulated prices" : isStockPair ? "Log returns (%)" : "Recorded returns"}
-                <time dateTime={last.date ?? (last.timestamp == null ? undefined : new Date(last.timestamp).toISOString())}>{rows.at(-1)?.when}</time>
-              </h2>
-              <div className="market-chart">
-                {active && <ResponsiveContainer>
-                  <LineChart data={rows} margin={{ top: 9, right: 10, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="#27394d" vertical={false} />
-                    <XAxis dataKey="step" tickFormatter={formatStep} tick={TICK} minTickGap={36} />
-                    <YAxis domain={["auto", "auto"]} tick={TICK} width={48} tickFormatter={(n) => format(n, 1)} />
-                    <Tooltip contentStyle={TOOLTIP} labelFormatter={(label) => formatStep(Number(label))} formatter={(value) => format(Number(value))} />
-                    <Line name={labels[0]} dataKey="x" stroke={COLOURS.x} strokeWidth={1.8} dot={rows.length === 1} isAnimationActive={false} />
-                    <Line name={labels[1]} dataKey="y" stroke={COLOURS.y} strokeWidth={1.8} dot={rows.length === 1} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>}
-              </div>
-            </section>
-
-            <section className="market-panel">
-              <h2>Spearman dependence</h2>
-              <div className="market-chart">
-                {active && <ResponsiveContainer>
-                  <LineChart data={rows} margin={{ top: 9, right: 10, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="#27394d" vertical={false} />
-                    <XAxis dataKey="step" tickFormatter={formatStep} tick={TICK} minTickGap={36} />
-                    <YAxis domain={rhoDomain} allowDataOverflow tickCount={5} tick={TICK} width={44} tickFormatter={(n) => format(n)} />
-                    <ReferenceLine y={0} stroke="#495d72" />
-                    <Tooltip contentStyle={TOOLTIP} labelFormatter={(label) => formatStep(Number(label))} formatter={(value) => format(Number(value), 3)} />
-                    {isLive && <Line name="Simulated truth" dataKey="truth" stroke={COLOURS.truth} strokeDasharray="4 3" dot={false} isAnimationActive={false} />}
-                    <Line name="MFF" dataKey="mff" stroke={COLOURS.mff} strokeWidth={2} dot={false} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>}
-              </div>
-            </section>
-          </div>
-
-          <section className="market-panel market-weights">
-            <h2>MFF memory weights <small>Candidate effective sample sizes</small></h2>
-            <div className="market-weight-body">
-              {last.weights ? (
-                <>
-                  <div className="market-weight-bar" aria-hidden="true">
-                    {last.weights.map((weight, i) => <span key={memories[i]} style={{ flexBasis: `${weight * 100}%`, background: WEIGHT_COLOURS[i] }} />)}
-                  </div>
-                  <ul>
-                    {last.weights.map((weight, i) => (
-                      <li key={memories[i]}><i style={{ background: WEIGHT_COLOURS[i] }} />{memories[i]} <b>{format(weight * 100, 1)}%</b></li>
-                    ))}
-                  </ul>
-                </>
-              ) : <small>Weights appear once the estimator has enough observations.</small>}
-            </div>
-          </section>
+          <PairCharts rows={frames} timeline={timeline} labels={labels} showTruth={showing === "simulation"}
+            title={showing === "thesis" ? "Volatility-standardised log returns" : showing === "replay" ? "Recorded adjusted prices" : "Simulated prices"}
+            detail={<time dateTime={last.date ?? (last.timestamp === undefined ? undefined : new Date(last.timestamp).toISOString())}>
+              {when(last)}
+            </time>}
+          />
+          <MemoryCharts rows={frames} timeline={timeline} memories={source.memories} />
         </>
-      ) : <p className="market-empty" role="status">{waiting}</p>}
+      ) : <div className="market-empty" role="status">
+        <p>{waiting}</p>
+      </div>}
     </main>
   );
 }

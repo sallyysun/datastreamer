@@ -25,6 +25,34 @@ make consumer   # -> ./consumer  (Eigen, nlohmann-json, datasketches)
 ./run.sh dev    # server + vite client
 ```
 
+## Start the website
+
+Run these commands from the repository root.
+
+### On your computer
+
+```bash
+./run.sh dev
+```
+
+Open <http://localhost:5173>. This starts the C++ server and the Vite development site together. Press `Ctrl+C` in the terminal to stop them.
+
+### Make it public with ngrok
+
+Open two terminals in the repository root. In the first terminal, build and start the production site:
+
+```bash
+./run.sh prod
+```
+
+In the second terminal, forward the web server port:
+
+```bash
+ngrok http 9002
+```
+
+Open <https://thesaurus-process-jazz.ngrok-free.dev>. The public address must match `ws.prod` in `config.json`, and your ngrok account must route that address to port `9002`. Keep both terminals running while people use the site. Press `Ctrl+C` in both terminals to take it offline. The site is running from your computer, so it will also go offline if that computer sleeps or shuts down.
+
 On Linux pass the paths: `make CXX=g++ EIGEN=/usr JSON=/usr OPENSSL=/usr` (first build uSockets with
 `make -C external/uWebSockets/uSockets WITH_OPENSSL=1`).
 
@@ -46,32 +74,57 @@ The build uses Python 3 to generate C++ defaults from `study_config.json`. The e
 
 `./run.sh dev` (or `make && make consumer && ./server`, then open http://localhost:9002) opens the **MFF lab**:
 each viewer gets a private stream from a steerable generator and a consumer process running an MFF they build
-(estimator, memories N_eff, working families, η, δ). Jump, drift, switch the copula family or turn on automatic
-events, and watch ρ_S, the MFF and VFF estimates, the weights by memory and by family, and the effective memory
+(estimator, memories N_eff, working families, η, δ). The guided demo uses a fixed seed, starts with a steady
+period, jumps at observation 60, and drifts from observation 155. Compare MFF with the shortest and longest
+fixed memories or switch the chart to VFF. Viewers can also apply their own events.
+The charts show ρ_S, the estimates, the weights by memory and by family, and the effective memory
 live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
-the browser only draws the state the consumer publishes. With the Gaussian family and memories 39–1999 the lab's MFF
-is the thesis MFF exactly (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
-The Lab runs the first 31 observations in about five seconds, then uses the selected playback speed
-(one observation every half-second by default).
+the browser only draws the state the consumer publishes. The standard warm-up, Gaussian family and thesis memories
+match the Chapter 6 device (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
+The Lab tapers its startup speed over the first 31 observations, then uses the selected playback speed
+(1.5 observations per second by default). The browser's RMPL demo shows its first estimates after 13 observations.
+Lab and Market playback are capped at 10 observations per second.
 
-### Market stream and saved replay
+### Shared Market broadcast
 
-Market shows the shared simulated pair, its RMPL-based MFF and the weights over candidate memory lengths.
-The server estimates dependence from every paired observation and publishes a chart update about once a second.
+Market offers the server's simulation and configured replays in the **Source** picker.
+The simulation generates five assets, A–E, at 1.5 observations per second. Visitors pick any two and press **Subscribe** to begin tracking their prices and MFF
+from the next observation. Each subscription starts with fresh weights. Lab sessions are private.
 
-To offer recorded pairs, put the CSVs you want viewers to access in a dedicated directory, then start the app:
+Start a simulation with `./run.sh dev` for local development or `./run.sh prod` for the Vite production build
+served by C++. The production script reads the configured WebSocket URL from `config.json`. Point ngrok at
+the server port to make the app available publicly.
 
-```bash
-MARKET_REPLAY_DIR=/path/to/saved-pairs ./run.sh dev
+The simulation alternates jumps and drifts automatically, with 110 observations between events after the first.
+Its MFF uses candidate memories of 11, 39, 99 and 399 to make adaptation visible on a short run.
+The simulated broadcast starts estimating after 13 observations per subscription. Saved-price replay
+uses the standard 31-observation start.
+Set `MARKET_EVENTS` to a server-side CSV to use
+your own schedule. Use one-based observation numbers and a duration of zero for a jump.
+The running server picks up edits for future observations. A CSV containing only the header holds dependence fixed.
+
+```csv
+observation,target_rho,duration
+40,0.80,0
+100,0.25,30
 ```
 
-Use the stock experiment format `date,x,y`, one pair of returns or standardised returns per row in chronological order.
-A filename such as `AAPL_MSFT.csv` supplies the pair labels. Select it in **Market stream**, then press **Play**.
-Replay advances at one observation every half-second and displays the original dates.
+To broadcast recorded prices, put the saved per-ticker `unix,adj` CSVs on the server and choose two to five
+tickers by filename. The server streams their adjusted prices on shared dates and uses paired log returns
+for MFF. The recording loops independently of the simulation. Each loop starts fresh charts and weights so
+the last and first prices never form a return. Browse sources and pairs while your existing subscription
+continues. Click **Subscribe** to switch to the new selection.
 
-Set `MARKET_PRICES_DIR` to a directory of per-ticker adjusted-close CSVs in the thesis download format
-(`TICKER.csv` with columns `unix,adj`). Choose **Saved stocks** and pick any two available tickers.
-The server aligns their prices on shared dates and runs MFF on the log returns between those dates.
+```bash
+MARKET_PRICES_DIR=/path/to/saved-prices MARKET_TICKERS=AAPL,MSFT ./run.sh prod
+```
+
+To replay the exact Section 6.6 inputs, extract `data66/rerun/in/` from `origin/data-66-thesis`
+(commit `b811b4e`) and set `MARKET_THESIS_DIR` to the extracted `in` directory. Choose **Thesis return replay**
+and one of the recorded pairs. Its chart displays the committed volatility-standardised log returns,
+and MFF receives the `x,y` values directly. The Market subscription begins at the current replay date.
+
+`MARKET_RATE` controls broadcast speed. Saved files and the event schedule are read by the server.
 
 ## Experiments
 

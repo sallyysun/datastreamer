@@ -54,19 +54,22 @@ private:
 
 namespace thesis {
 
-// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once 30 margin observations
+// VFF: one estimator whose N_eff follows VffController, fed p_n = 12 (U - 1/2)(V - 1/2) once the warm-up observations
 // are held; Counting Matrix / Hermite read the raw observations, RMPL reads probit(U).
 struct Vff {
     std::unique_ptr<DependenceEstimator> inner;
     VffController ctl;
-    Vff(const std::string& e, double rate) : inner(arm(e, 199, "m")),
-                                             ctl(VffController::Config{.rate = rate}) {}
+    Vff(const std::string& e, double rate, std::size_t warmup = RecursiveMPL::kDefaultWarmup)
+        : inner(arm(e, 199, "m", warmup)), ctl(VffController::Config{.rate = rate}), warmup_(warmup) {}
     // n_after: margin observations held after absorbing this tick
     void update(double x, double y, double u, double v, std::size_t n_after, bool raw) {
-        if (n_after > 30) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
+        if (n_after > warmup_) ctl.observe(12.0 * (u - 0.5) * (v - 0.5));
         inner->set_neff(ctl.neff());
         if (raw) inner->update(x, y); else inner->update(special::probit(u), special::probit(v));
     }
+
+private:
+    std::size_t warmup_;
 };
 
 }  // namespace thesis
