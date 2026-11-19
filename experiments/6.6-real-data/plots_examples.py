@@ -16,8 +16,8 @@ MEMORY = memory_colours(FIX)
 FIXED_LINES = [(39, "#C8C8C8", "-", 0.7), (99, "#A8A8A8", (0, (5, 2)), 0.8), (199, "#888888", (0, (2, 1.5)), 0.8),
                (399, "#666666", (0, (6, 2, 1, 2)), 0.8), (1999, "#3A3A3A", "-", 0.8)]   # light = short memory
 EXAMPLES = [("GLD_GDX", "2018-03-01", "2020-08-31", "Gold / gold miners (GLD/GDX)", "Stable, then an abrupt break"),
-            ("ABT_JNJ", "2011-06-01", "2014-01-31", "Abbott / Johnson & Johnson", "Repeated swings"),
-            ("PFE_MRK", "2024-01-01", "2026-11-11", "Pfizer / Merck", "Gradual rise and fall")]
+            ("ABT_JNJ", "2011-06-01", "2014-01-31", "Abbott / J&J (ABT/JNJ)", "Repeated swings"),
+            ("PFE_MRK", "2024-01-01", "2026-11-11", "Pfizer / Merck (PFE/MRK)", "Gradual rise and fall")]
 SCATTER_PAIR = "GLD_GDX"
 SCATTER_WINDOWS = [("2019-03-01", "2019-04-15", "Calm: 1 Mar to 15 Apr 2019"), ("2020-03-01", "2020-04-15", "Break: 1 Mar to 15 Apr 2020")]
 
@@ -34,7 +34,8 @@ def example_column(a, b, x, title, subtitle):
     a.plot(d, x.rho_mff_t, color=STRATEGY["mff"], lw=1.1, zorder=9)
     a.set_ylim(-0.1, 1.0)
     a.grid(True, axis="y", color=GRID, lw=0.5, zorder=0)
-    a.set_title(f"{title}\n{subtitle}", fontsize=7.4, linespacing=1.25)
+    a.set_title(title, fontsize=7.4, pad=13)
+    a.text(0, 1.03, subtitle, transform=a.transAxes, fontsize=7.0, style="italic", color="#6b6b6b", ha="left", va="bottom")
     b.stackplot(d, *[x[f"wt_{k}"] for k in FIX], colors=[MEMORY[k] for k in FIX], lw=0)
     b.set_ylim(0, 1)
     b.set_yticks([0, 0.5, 1])
