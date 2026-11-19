@@ -13,7 +13,7 @@ if [ "${SIM:-0}" = 1 ]; then
     done; done
     for r in 1 2 3 4 5; do
         BUDGET_N=15000 BUDGET_EST=xiao,hermite,mpl_dskll BUDGET_KLL=$KLL TAG=n15k_rep$r build/budget_benchmark time
-        BUDGET_N=15000 BUDGET_EST=mpl_kll BUDGET_KLL=$KLL TAG=n15k_kll_rep$r build/budget_benchmark time
+        BUDGET_N=15000 BUDGET_EST=mpl_kll,mpl_dskll BUDGET_KLL=$KLL TAG=n15k_kll_rep$r build/budget_benchmark time
     done
     build/margin_comparison                                               # margins_seeds (marginal-estimation diagnostic)
 fi
