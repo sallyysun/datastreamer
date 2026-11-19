@@ -3,7 +3,7 @@
 # Usage: SEEDS=60 JOBS=8 ./run_live.sh
 set -euo pipefail
 cd "$(dirname "$0")"
-SEEDS=${SEEDS:-5}; JOBS=${JOBS:-$(nproc)}
+SEEDS=${SEEDS:-5}; JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN)}
 FAMS=${FAMS:-"gaussian clayton gumbel t"}; SCENS=${SCENS:-"constant drift jump"}
 SERVER=${SERVER:-../../server}; CONSUMER=${CONSUMER:-../../consumer}
 study_defaults=$(python3 -c 'import json; c = json.load(open("../../study_config.json")); print(c["first_seed"], c["observations"])')
