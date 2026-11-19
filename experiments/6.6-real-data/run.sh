@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Build inputs with inputs.py download <prices> and inputs.py build <prices> <workdir>/rerun.
-# SIM=1 ./run.sh <workdir> compares strategies before regenerating figures.
-# The thesis uses adjusted prices downloaded on 2026-11-15; later downloads may differ.
+# Section 6.6 on the thesis inputs in data/ (Yahoo adjusted closes downloaded 2026-11-15, last day 2026-11-11).
+#   SIM=1 ./run.sh [workdir]   run the estimators on every pair, then the tables and figures
+#   ./run.sh <workdir>         tables and figures from outputs already in <workdir> (e.g. the data-66-thesis archives)
+# workdir defaults to results/work; it gets rerun/ (a copy of data/) if it has none.
+# New inputs: inputs.py download <prices> and inputs.py build <prices> <workdir>/rerun (later downloads differ).
 set -euo pipefail
 cd "$(dirname "$0")"
-S=$1
+S=${1:-results/work}
+if [ ! -d "$S/rerun" ]; then
+    mkdir -p "$S/rerun"
+    cp -R data/in data/vix.csv "$S/rerun/"
+fi
 if [ "${SIM:-0}" = 1 ]; then
     for e in rmpl xiao hermite; do
         mkdir -p "$S/practical_$e/out"
