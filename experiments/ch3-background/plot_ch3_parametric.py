@@ -1,4 +1,4 @@
-"""Chapter 3: four parametric copula families at one Spearman rho_S (Chapter 6's constant scenario): samples on the
+"""Chapter 3: four parametric copula families at one Spearman rho_S: samples on the
 copula scale (top) and density contours on normal scores at common levels (bottom). Parameters come from inverting each
 family's rho_S by quadrature (closed form for the Gaussian); they match src/copula_family.hpp. Self-checks: each density
 integrates to 1 on the grid and each sample's rho_S matches the target. Writes images/ch3_parametric.png."""
@@ -8,7 +8,7 @@ from scipy import optimize, stats
 
 from ch3_style import INK, INK_2, MARK, note, save, scatter, tail_coefficients
 
-RHO_S = 0.6
+RHO_S = 0.75
 NU = 4.0
 N = 1000
 SEED = 42
