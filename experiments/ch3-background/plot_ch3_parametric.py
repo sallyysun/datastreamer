@@ -1,9 +1,9 @@
-"""Chapter 3: the five parametric families of tab:copula-families at one Kendall tau: samples on the copula scale (top)
+"""Chapter 3: four parametric copula families at one Kendall tau: samples on the copula scale (top)
 and density contours on normal scores at common levels (bottom). Self-checks: each density integrates to 1 on the grid
 and each sample's tau matches the target. Writes images/ch3_parametric.png."""
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import integrate, optimize, stats
+from scipy import stats
 
 from ch3_style import INK, INK_2, MARK, note, save, scatter, tail_coefficients
 
@@ -14,11 +14,6 @@ SEED = 42
 LEVELS = [0.01, 0.03, 0.06, 0.10, 0.15, 0.20]
 
 
-def frank_tau(theta):
-    debye1 = integrate.quad(lambda t: t / np.expm1(t), 0, theta)[0] / theta
-    return 1 - 4 / theta * (1 - debye1)
-
-
 def params(tau):
     rho = np.sin(np.pi * tau / 2)
     return {
@@ -26,7 +21,6 @@ def params(tau):
         "student_t": rho,
         "clayton": 2 * tau / (1 - tau),
         "gumbel": 1 / (1 - tau),
-        "frank": optimize.brentq(lambda th: frank_tau(th) - tau, 1e-6, 100),
     }
 
 
@@ -47,10 +41,6 @@ def log_density(family, th, u, v):
         a = (x**th + y**th) ** (1 / th)
         return (-a - np.log(u) - np.log(v) + (th - 1) * np.log(x * y)
                 + (1 - 2 * th) * np.log(a) + np.log(a + th - 1))
-    if family == "frank":
-        e = -np.expm1(-th)
-        den = e - (-np.expm1(-th * u)) * (-np.expm1(-th * v))
-        return np.log(th * e) - th * (u + v) - 2 * np.log(den)
     raise ValueError(family)
 
 
@@ -73,10 +63,6 @@ def sample(family, th, n, rng):
         s = (np.sin(a * ang) / np.sin(ang) ** (1 / a)) * (np.sin((1 - a) * ang) / w) ** ((1 - a) / a)
         uv = np.exp(-((e / s) ** a))
         return uv[:, 0], uv[:, 1]
-    if family == "frank":  # conditional inversion
-        u, w = rng.uniform(size=n), rng.uniform(size=n)
-        v = -np.log1p(w * np.expm1(-th) / (w + (1 - w) * np.exp(-th * u))) / th
-        return u, v
     raise ValueError(family)
 
 
@@ -97,8 +83,7 @@ def fig_parametric():
     order = [("gaussian", "Gaussian", rf"$\rho$ = {th['gaussian']:.2f}"),
              ("student_t", rf"Student $t$ ($\nu$ = {NU:g})", rf"$\rho$ = {th['student_t']:.2f}"),
              ("clayton", "Clayton", rf"$\theta$ = {th['clayton']:.2f}"),
-             ("gumbel", "Gumbel", rf"$\theta$ = {th['gumbel']:.2f}"),
-             ("frank", "Frank", rf"$\theta$ = {th['frank']:.2f}")]
+             ("gumbel", "Gumbel", rf"$\theta$ = {th['gumbel']:.2f}")]
 
     lim = 3.2
     z = np.linspace(-lim, lim, 321)
@@ -107,7 +92,7 @@ def fig_parametric():
     ramp = plt.matplotlib.colors.LinearSegmentedColormap.from_list("seq", ["#cde2fb", MARK, "#0d3a6e"])
     shades = [ramp(i / (len(LEVELS) - 1)) for i in range(len(LEVELS))]
 
-    fig, axes = plt.subplots(2, 5, figsize=(7.4, 3.5))
+    fig, axes = plt.subplots(2, 4, figsize=(6.2, 3.6))
     for j, (key, title, ptxt) in enumerate(order):
         u, v = sample(key, th[key], N, rng)
         tau_hat = check(key, th[key], u, v)
