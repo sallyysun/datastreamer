@@ -19,7 +19,8 @@ C_OTHER, C_BEST, C_VFF, C_MFF = (ce.STRATEGY[k] for k in ("fixed_other", "fixed"
 SWITCH_LABEL = {"RMPL": "RMPL", "Counting matrix": "Counting matrix", "Hermite series": "Hermite"}
 REGRET_FIX = [99, 199, 399]
 REGRET_BARS = [f"fixed{k}" for k in REGRET_FIX] + ["VFF", "MFF"]
-REGRET_XMAX = 7.5
+REGRET_XMIN, REGRET_XMAX = -4.5, 7.5
+STRENGTH_YMIN = -28
 CHANGE_FIXED = tuple(map(int, os.environ.get("FIXED", ",".join(map(str, DOT_FIXED))).split(",")))
 CHANGE_TAG = "" if CHANGE_FIXED == DOT_FIXED else "_" + "_".join(map(str, CHANGE_FIXED))
 CHANGE_REF = {"RMPL": (-6.93, -1.61), "Counting matrix": (-6.36, -1.13), "Hermite series": (-3.92, -3.68)}
@@ -118,14 +119,16 @@ def regret_panel(ax, R, m, title):
             v = R[(e, m, k)]
             y = ei + (i - (len(REGRET_BARS) - 1) / 2) * bw
             col = C_VFF if k == "VFF" else C_MFF if k == "MFF" else C_BEST if k == best else C_OTHER
-            ax.barh(y, min(v, REGRET_XMAX), height=bw * 0.62, color=col, edgecolor=ce.EDGE, lw=0.6, zorder=3)
-            if v > REGRET_XMAX:
-                ax.plot([REGRET_XMAX * 0.955, REGRET_XMAX * 0.975], [y + bw * 0.3, y - bw * 0.3], color="white", lw=1.2, zorder=5)
-                ax.text(REGRET_XMAX * 1.01, y, f"{v:.1f}", ha="left", va="center", fontsize=5.4, color=ce.MUTED, clip_on=False)
+            ax.barh(y, min(max(v, REGRET_XMIN), REGRET_XMAX), height=bw * 0.62, color=col, edgecolor=ce.EDGE, lw=0.6, zorder=3)
+            for edge, side in ((REGRET_XMAX, 1), (REGRET_XMIN, -1)):   # bars past an edge: a break mark and the value
+                if v * side > edge * side:
+                    ax.plot([edge * 0.955, edge * 0.975], [y + bw * 0.3, y - bw * 0.3], color="white", lw=1.2, zorder=5)
+                    ax.text(edge * 1.01, y, f"{v:.1f}", ha="left" if side > 0 else "right", va="center", fontsize=5.4,
+                            color=ce.MUTED, clip_on=False)
             if k == best:
                 ax.text(max(v, 0) + 0.12, y, k[5:], ha="left", va="center", fontsize=5.4, color=C_BEST)
     ax.axvline(0, color=ce.MUTED, lw=0.8, zorder=4)
-    ax.set_xlim(-3.0, REGRET_XMAX)
+    ax.set_xlim(REGRET_XMIN, REGRET_XMAX)
     ax.set_ylim(len(EST) - 0.5, -0.5)
     ax.set_title(title)
     estimator_rows(ax)
@@ -279,16 +282,22 @@ def strength_panel(ax, g, e):
     ax.axhline(0, color=ce.MUTED, lw=0.8, zorder=1)
     ax.plot(xs, b0 + b1 * xs, color=ECOL[e], lw=0.9, ls=(0, (4, 2)), alpha=0.6, zorder=2)
     ax.text(0.04, 0.05, rf"$r_s = {s.correlation:.2f}$", transform=ax.transAxes, fontsize=7, color=ce.MUTED, ha="left", va="bottom")
+    below = g[g.mff_minus_vff < STRENGTH_YMIN]   # off the shared axis: an arrow at the bottom edge and a count
+    g = g[g.mff_minus_vff >= STRENGTH_YMIN]
     gf, sp = g[g.pair != "SPY_IVV"], g[g.pair == "SPY_IVV"]
     ax.scatter(gf.mean_rho, gf.mff_minus_vff, s=16, marker=EMK[e], color=ECOL[e], edgecolor="white", lw=0.4, alpha=0.9, zorder=3)
     ax.scatter(sp.mean_rho, sp.mff_minus_vff, s=16, marker=EMK[e], facecolor="white", edgecolor=ECOL[e], lw=0.9, zorder=3)
+    if len(below):
+        ax.scatter(below.mean_rho, np.full(len(below), STRENGTH_YMIN + 0.9), s=18, marker="v", color=ECOL[e], edgecolor="white", lw=0.4, zorder=3)
+        ax.text(0.97, 0.52, f"{len(below)} below {STRENGTH_YMIN:.0f}\n(lowest {below.mff_minus_vff.min():.0f})", transform=ax.transAxes,
+                fontsize=6.5, color=ce.MUTED, ha="right", va="top")
     for _, r in g[g.pair.isin(PAIR_LABEL)].iterrows():
         spy = r.pair == "SPY_IVV"
         ax.annotate(PAIR_LABEL[r.pair], (r.mean_rho, r.mff_minus_vff), xytext=(-4, -4) if spy else (5, -3), textcoords="offset points",
                     fontsize=6.5, color=ce.MUTED, ha="right" if spy else "left", va="top" if spy else "baseline")
     ax.set_title(e)
     ce.grid(ax)
-    ax.set_ylim(-28, 3)
+    ax.set_ylim(STRENGTH_YMIN, 3)
     ax.set_xlim(0.42, 1.02)
     ax.set_xticks([0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
     ax.set_xticklabels(["0.5", "0.6", "0.7", "0.8", "0.9", "1.0"])
