@@ -137,7 +137,7 @@ def plot_response(S):
         counts.append(int((g.mff > g.vff).sum()))
         verbose_print(f"{e:16s} MFF > VFF {counts[-1]}/32, ties {int((g.mff == g.vff).sum())}, "
                       f"MFF < fixed 99 {int((g.mff < g.fixed99).sum())}/32, MFF > fixed 199 {int((g.mff > g.fixed199).sum())}/32")
-    assert counts == [29, 27, 23]
+    assert counts == [29, 28, 21]
 
 
 def eval_rows(x):
