@@ -54,4 +54,8 @@ Conventions:
   unchanged, but the KLL margins store floats, so a near-tie can resolve differently. Full run (60 seeds x 4 families x 3 scenarios, 720 streams):
   707 streams byte-identical to the runner; in the other 13, per-seed RMSE differs by at most 1.2e-5 and 60-seed means
   by at most 1e-5 relative. `experiments/simulation/test/device_vs_probe.cpp` reproduces both (draws and returns) in-process.
-- 6.6 needs the real-data inputs, which are not in the repository (see `6.6-real-data/run.sh`).
+- 6.6: the thesis inputs are in `6.6-real-data/data/` (32 pairs of EWMA(0.94)-standardised log returns and VIX, from the
+  Yahoo adjusted closes downloaded 2026-11-15, last day 2026-11-11; Yahoo revises adjusted history, so a fresh
+  download differs). `SIM=1 6.6-real-data/run.sh` reruns everything from them (Linux, a few minutes). The daily
+  estimator outputs (137 MB) are on branch `data-66-thesis` (`data66/outputs/*.tar.xz`): unpack them into a workdir
+  and run `6.6-real-data/run.sh <workdir>` to rebuild the figures without rerunning.
