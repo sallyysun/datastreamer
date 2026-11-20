@@ -1,4 +1,4 @@
-// The browser lab's MFF with the Gaussian working family and the thesis memories must equal the Chapter 6 device's
+// LiveLab with the standard warm-up, Gaussian working family and thesis memories must equal the Chapter 6 device's
 // MFF (and its VFF at rate 0.02) tick by tick. Usage: lab_vs_device <copula> <scenario> <seed>
 #include <cstdio>
 #include <cstdlib>

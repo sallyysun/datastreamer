@@ -23,9 +23,12 @@ public:
             std::string date, a, b;
             std::getline(ss, date, ','); std::getline(ss, a, ','); std::getline(ss, b, ',');
             x_.push_back(std::stod(a)); y_.push_back(std::stod(b));
+            dates_.push_back(std::move(date));
         }
     }
     std::size_t size() const { return x_.size(); }
+    const std::string& date(std::size_t i) const { return dates_[i]; }
+    std::pair<double, double> returns(std::size_t i) const { return {x_[i], y_[i]}; }
 
     TickPair next() override {
         if (t_ > 0 && t_ <= x_.size()) {
@@ -39,6 +42,7 @@ public:
 private:
     double scale_;
     std::vector<double> x_, y_;
+    std::vector<std::string> dates_;
     std::size_t t_ = 0;
     double px_ = 100.0, py_ = 100.0;
 };

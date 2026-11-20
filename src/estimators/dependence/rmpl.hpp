@@ -22,6 +22,7 @@
 //   Exact        arg max of sum_k (1 - g)^k log c_r(a_k, b_k): the root in [-1, 1] of -W r^3 + P r^2 + (W - S) r + P
 class RecursiveMPL : public DependenceEstimator {
 public:
+    static constexpr std::size_t kDefaultWarmup = 30;
     enum class Margin { Kll, DsKll, ExactNormal };
     enum class Update { ConstantGain, Exact };
 
@@ -32,7 +33,7 @@ public:
         std::size_t kll_k = 200;
         double delta = 1e-3;            // pseudo-observations clipped to [delta, 1 - delta]
         double r_max = 0.999;
-        std::size_t warmup = 30;        // margin observations before the copula updates
+        std::size_t warmup = kDefaultWarmup; // margin observations before the copula updates
         unsigned seed = 1;
     };
 

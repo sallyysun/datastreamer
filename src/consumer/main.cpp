@@ -1,11 +1,13 @@
 // See README.md for consumer usage. Keep --rate at 0 for estimation to avoid desynchronizing the tick pair.
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
 #include <vector>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "broker_client.hpp"
@@ -35,12 +37,20 @@ std::vector<std::string> split(const std::string& s) {
 }
 
 int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
+    if (const char* seed = arg(argc, argv, "--seed", nullptr))
+        datasketches_kll::seed(std::strtoul(seed, nullptr, 10));
     std::vector<double> mem;
     for (const auto& m : split(arg(argc, argv, "--memories", thesis::kMemoryCsv))) mem.push_back(std::atof(m.c_str()));
     const auto fams = split(arg(argc, argv, "--families", "gaussian"));
-    LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
-                std::atof(arg(argc, argv, "--delta", "1e-4")));
-    const std::size_t every = std::max<std::size_t>(1, std::strtoul(arg(argc, argv, "--publish-every", "4"), nullptr, 10));
+    const bool fast_warmup = std::string_view(arg(argc, argv, "--fast-warmup", "0")) == "1";
+    const char* eta = arg(argc, argv, "--eta", nullptr);
+    const char* delta = arg(argc, argv, "--delta", nullptr);
+    LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, eta ? std::atof(eta) : thesis::Mff{}.eta,
+                delta ? std::atof(delta) : thesis::Mff{}.delta, fast_warmup ? LiveLab::kDemoWarmup : thesis::kMffWarmup);
+    const char* publish_every = arg(argc, argv, "--publish-every", nullptr);
+    const std::size_t every = publish_every ? std::max<std::size_t>(1, std::strtoul(publish_every, nullptr, 10)) : 0;
+    using Clock = std::chrono::steady_clock;
+    auto next_publish = Clock::now();
     const std::string topic = std::string("device.") + id;
     client.publish(topic, lab.config_json().dump());
     TickPair e;
@@ -49,7 +59,14 @@ int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     while (client.next(e)) {
         returns.on_tick(e, [&](double x, double y) {
             lab.update(x, y);
-            if (++n % every == 0) client.publish(topic, lab.state_json(e.x.true_rho_s, e.x.true_family).dump());
+            ++n;
+            const auto now = Clock::now();
+            if (every ? n % every == 0 : now >= next_publish) {
+                auto state = lab.state_json(e.x.true_rho_s, e.x.true_family);
+                state["prices"] = {e.x.price, e.y.price};
+                client.publish(topic, state.dump());
+                next_publish = now + std::chrono::milliseconds(40);
+            }
         });
     }
     return 0;

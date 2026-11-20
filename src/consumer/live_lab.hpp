@@ -3,6 +3,7 @@
 // Run a viewer-configured MFF over working copulas and memory lengths, with VFF alongside it.
 // Score each candidate on shared pseudo-observations before updating the estimators.
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <string>
@@ -15,11 +16,13 @@
 
 class LiveLab {
 public:
+    static constexpr std::size_t kDemoWarmup = 12;
+
     LiveLab(const std::string& est, const std::vector<double>& memories, const std::vector<std::string>& families,
-            double eta, double delta)
+            double eta, double delta, std::size_t warmup = thesis::kMffWarmup)
         : est_(est), raw_(est != "rmpl"), mem_(memories), fam_names_(families), eta_(eta), delta_(delta),
-          vff_(est, thesis::vff_rates()[0]), margins_(thesis::kKll, thesis::kClip) {
-        for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m"));
+          warmup_(warmup), vff_(est, thesis::vff_rates()[0], warmup), margins_(thesis::kKll, thesis::kClip) {
+        for (double n : mem_) arms_.push_back(thesis::arm(est, n, "m", warmup));
         for (const auto& f : fam_names_) fam_.push_back(copula::family_of(f));
         const std::size_t M = fam_.size() * mem_.size();
         w_.assign(M, 1.0 / double(M));
@@ -55,22 +58,31 @@ public:
     nlohmann::json state_json(double rho_true, const std::string& family_true) const {
         std::vector<double> arm_rho;
         for (const auto& a : arms_) arm_rho.push_back(a->estimate());
+        const auto w_mem = memory_weights();
         double nbar = 0;
-        std::vector<double> w_mem(mem_.size(), 0.0), w_fam(fam_.size(), 0.0);
+        for (std::size_t k = 0; k < mem_.size(); ++k) nbar += w_mem[k] * mem_[k];
+        std::vector<double> w_fam(fam_.size(), 0.0);
         for (std::size_t f = 0; f < fam_.size(); ++f)
-            for (std::size_t k = 0; k < mem_.size(); ++k) {
-                const double w = w_[f * mem_.size() + k];
-                nbar += w * mem_[k]; w_mem[k] += w; w_fam[f] += w;
-            }
+            for (std::size_t k = 0; k < mem_.size(); ++k) w_fam[f] += w_[f * mem_.size() + k];
         return {{"type", "state"}, {"t", t_}, {"rho", rho_true}, {"family", family_true}, {"mff", mff()}, {"vff", vff()},
+                {"mff_ready", mff_ready()}, {"vff_ready", vff_.inner->ready()},
                 {"vff_neff", vff_neff()}, {"mff_neff", nbar}, {"arms", arm_rho}, {"w", w_}, {"w_mem", w_mem}, {"w_fam", w_fam}};
+    }
+
+    std::vector<double> memory_weights() const {
+        std::vector<double> weights(mem_.size(), 0.0);
+        for (std::size_t f = 0; f < fam_.size(); ++f)
+            for (std::size_t k = 0; k < mem_.size(); ++k) weights[k] += w_[f * mem_.size() + k];
+        return weights;
+    }
+
+    bool mff_ready() const {
+        return t_ >= warmup_ && std::all_of(arms_.begin(), arms_.end(), [](const auto& arm) { return arm->ready(); });
     }
 
 private:
     void score(double u, double v) {
-        bool ok = t_ >= thesis::kMffWarmup;
-        for (const auto& a : arms_) ok = ok && a->ready();
-        if (!ok) return;
+        if (!mff_ready()) return;
         const std::size_t K = mem_.size();
         for (std::size_t f = 0; f < fam_.size(); ++f) {
             const auto family = fam_[f];
@@ -91,6 +103,7 @@ private:
     std::vector<std::string> fam_names_;
     std::vector<copula::Family> fam_;
     double eta_, delta_;
+    std::size_t warmup_;
     std::vector<std::unique_ptr<DependenceEstimator>> arms_;
     thesis::Vff vff_;
     datasketches_kll::PairedKll margins_;

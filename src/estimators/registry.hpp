@@ -34,19 +34,21 @@ inline HermiteEstimator::Config hermite(double lambda, bool shared = false) {
     return HermiteEstimator::Config{.order = 10, .lambda = lambda, .normal_score_inputs = shared};
 }
 // Input is z = probit(u) of the shared pseudo-observations.
-inline RecursiveMPL::Config rmpl(double gain) {
+inline RecursiveMPL::Config rmpl(double gain, std::size_t warmup = RecursiveMPL::kDefaultWarmup) {
     RecursiveMPL::Config c{};
     c.margin = RecursiveMPL::Margin::ExactNormal;
     c.gain = gain;
+    c.warmup = warmup;
     return c;
 }
 
 // One estimator at fixed memory N_eff (0 = no forgetting).
-inline std::unique_ptr<DependenceEstimator> arm(const std::string& est, double neff, const char* name = "arm") {
+inline std::unique_ptr<DependenceEstimator> arm(const std::string& est, double neff, const char* name = "arm",
+                                                std::size_t rmpl_warmup = RecursiveMPL::kDefaultWarmup) {
     const bool nf = neff == 0;
     if (est == "xiao") return std::make_unique<CountingMatrixEstimator>(counting_matrix_config(nf ? 0.0 : (neff - 1) / (neff + 1)), name);
     if (est == "hermite") return std::make_unique<HermiteEstimator>(hermite(nf ? 0.0 : 2 / (neff + 1)), name);
-    if (est == "rmpl") return std::make_unique<RecursiveMPL>(rmpl(nf ? 1e-12 : 2 / (neff + 1)), name);
+    if (est == "rmpl") return std::make_unique<RecursiveMPL>(rmpl(nf ? 1e-12 : 2 / (neff + 1), rmpl_warmup), name);
     return nullptr;
 }
 

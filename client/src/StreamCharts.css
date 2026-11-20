@@ -1,0 +1,47 @@
+.stream-chart-grid, .stream-weight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.stream-chart-grid { gap: 8px; }
+.stream-panel {
+  min-width: 0;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid #27394d;
+  border-radius: 9px;
+  background: #101b29;
+}
+.stream-panel h2, .stream-panel h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+  margin: 0;
+  color: #ebf4fc;
+  font: inherit;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+.stream-panel h2 { padding: 7px 10px; border-bottom: 1px solid #27394d; }
+.stream-panel h3 { font-size: 11px; }
+.stream-panel :is(small, time) { color: #a5b9cb; font-size: 11px; font-weight: 400; }
+.stream-fixed-legend { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.stream-panel time { font-variant-numeric: tabular-nums; }
+.stream-plot { height: 225px; padding: 3px 6px 0 0; }
+.stream-plot.short { height: 150px; }
+.stream-chart-message { padding: 10px; color: #a5b9cb; }
+.stream-allocation { padding: 8px 10px; border-bottom: 1px solid #27394d; }
+.stream-allocation-bar { display: flex; height: 6px; margin-top: 5px; overflow: hidden; border-radius: 4px; background: #0c1420; }
+.stream-allocation ul { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; padding: 0; list-style: none; }
+.stream-allocation li { display: flex; gap: 5px; align-items: center; color: #a5b9cb; font-size: 11px; }
+.stream-allocation i { width: 7px; height: 7px; border-radius: 2px; }
+.stream-allocation b { color: #ebf4fc; font-variant-numeric: tabular-nums; }
+.stream-weight-grid > div, .stream-family-history { min-width: 0; padding-top: 8px; }
+.stream-weight-grid h3, .stream-family-history h3 { padding: 0 10px; }
+.stream-weight-grid > div + div { border-left: 1px solid #27394d; }
+@media (max-width: 950px) {
+  .lab .stream-chart-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .stream-chart-grid, .stream-weight-grid { grid-template-columns: minmax(0, 1fr); }
+  .stream-plot { height: 190px; }
+  .stream-weight-grid > div + div { border-left: 0; border-top: 1px solid #27394d; }
+}
