@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { Playback } from "./playback";
 import { wsUrl } from "./server";
 import { COLOURS, formatNumber, type StreamPoint } from "./charts";
 import { MemoryCharts, PairCharts } from "./StreamCharts";
@@ -32,7 +33,7 @@ const SOURCE_LABEL: Record<Source, string> = {
   thesis: "Thesis return replay",
 };
 
-const WINDOW = 180;
+const WINDOW = 400;
 
 export default function Market({ active }: { active: boolean }) {
   const [connected, setConnected] = useState(false);
@@ -43,11 +44,14 @@ export default function Market({ active }: { active: boolean }) {
   const [thesisPair, setThesisPair] = useState("");
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [pending, setPending] = useState(false);
+  const [rate, setRate] = useState<number | null>(null);
+  const [playback, setPlayback] = useState<Playback | null>(null);
   const [error, setError] = useState("");
   const socket = useRef<WebSocket | null>(null);
   const nextRequest = useRef(0);
   const requested = useRef<{ id: number; subscription: Subscription } | null>(null);
   const receiving = useRef(false);
+  const buffer = useRef<Frame[]>([]);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -66,6 +70,7 @@ export default function Market({ active }: { active: boolean }) {
         setError("");
         requested.current = null;
         receiving.current = false;
+        buffer.current = [];
       };
       ws.onclose = () => {
         setConnected(false);
@@ -77,11 +82,13 @@ export default function Market({ active }: { active: boolean }) {
         if (message.type === "catalog" && message.market) {
           const catalogue = message.market as Sources;
           setSources(catalogue);
+          setPlayback(message.playback);
           setMode((current) => catalogue[current] ? current : "simulation");
         } else if (message.type === "market_subscribed" && message.requestId === requested.current?.id && requested.current) {
           setSubscription(requested.current.subscription);
           requested.current = null;
           receiving.current = true;
+          buffer.current = [];
           setFrames([]);
           setPending(false);
         } else if (message.type === "market_error" && message.requestId === requested.current?.id) {
@@ -89,12 +96,20 @@ export default function Market({ active }: { active: boolean }) {
           setError(message.message);
           setPending(false);
         } else if (message.type === "market" && receiving.current) {
-          setFrames((previous) => message.step === 1 ? [message] : [...previous.slice(1 - WINDOW), message]);
+          buffer.current.push(message);
         }
       };
     };
     connect();
+    const timer = window.setInterval(() => {
+      const added = buffer.current;
+      if (!added.length) return;
+      buffer.current = [];
+      const restart = added.findLastIndex((item) => item.step === 1);
+      setFrames((previous) => [...(restart < 0 ? previous : []), ...added.slice(Math.max(restart, 0))].slice(-WINDOW));
+    }, 100);
     return () => {
+      window.clearInterval(timer);
       window.clearTimeout(retry);
       ws.onclose = null;
       ws.close();
@@ -130,7 +145,7 @@ export default function Market({ active }: { active: boolean }) {
     requested.current = { id: requestId, subscription: { mode, pair: [selected[0], selected[1]], pairId } };
     setPending(true);
     setError("");
-    ws.send(JSON.stringify({ action: "market_subscribe", source: mode, pair: selected, pairId, requestId }));
+    ws.send(JSON.stringify({ action: "market_subscribe", source: mode, pair: selected, pairId, requestId, rate: speed }));
   }
 
   function unsubscribe() {
@@ -138,11 +153,19 @@ export default function Market({ active }: { active: boolean }) {
     if (!subscription || pending || ws?.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ action: "market_unsubscribe" }));
     receiving.current = false;
+    buffer.current = [];
     setSubscription(null);
     setFrames([]);
     setError("");
   }
 
+  function changeRate(next: number) {
+    setRate(next);
+    const ws = socket.current;
+    if (subscription && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: "market_rate", rate: next }));
+  }
+
+  const speed = rate ?? playback?.default ?? 0;
   const showing = subscription?.mode ?? mode;
   const source = showing === "thesis"
     ? pairs.find(({ id }) => id === subscription?.pairId)
@@ -198,6 +221,12 @@ export default function Market({ active }: { active: boolean }) {
               ))}
             </div>
           )}
+          <label className="market-source">
+            Playback
+            <select value={speed} disabled={!playback} onChange={(event) => changeRate(Number(event.target.value))}>
+              {playback?.rates.map((value) => <option key={value} value={value}>{value} obs / sec</option>)}
+            </select>
+          </label>
           <button type="button" className="market-subscribe" disabled={!canSubscribe} onClick={subscribe}>
             {pending ? "Subscribing…" : unchanged ? "Subscribed" : "Subscribe"}
           </button>

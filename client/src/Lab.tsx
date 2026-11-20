@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import "./Lab.css";
 import { COLOURS, formatNumber, type StreamPoint } from "./charts";
 import { FamilyWeights, MemoryCharts, PairCharts } from "./StreamCharts";
+import type { Guided, Playback } from "./playback";
 import { wsUrl } from "./server";
 import StreamMetric from "./StreamMetric";
 
@@ -20,11 +21,7 @@ type State = {
 type EventKind = "jump" | "drift" | "family";
 type Mark = { t: number; label: string };
 
-const MAX_ROWS = 180;
-const PLAYBACK_RATES = [
-  [0.5, "1 obs / 2 sec"], [1, "1 obs / sec"], [1.5, "1.5 obs / sec"], [2, "2 obs / sec"], [5, "5 obs / sec"],
-  [10, "10 obs / sec"],
-] as const;
+const MAX_ROWS = 400;
 const FAMILIES = ["gaussian", "t", "clayton", "gumbel"];
 const FAMILY_LABEL: Record<string, string> = { gaussian: "Gaussian", t: "Student t₄", clayton: "Clayton", gumbel: "Gumbel" };
 const MEMORIES = [11, 39, 99, 199, 399, 999, 1999];
@@ -34,14 +31,15 @@ const FAM_COLOURS: Record<string, string> = { gaussian: "#9a9a9a", t: "#C2185B",
 export default function Lab() {
   // generator
   const [copula, setCopula] = useState("gaussian");
-  const [rho0, setRho0] = useState(0.3);
-  const [rate, setRate] = useState(1.5);
+  const [rho0, setRho0] = useState(0.5);
+  const [rate, setRate] = useState<number | null>(null);
+  const [playback, setPlayback] = useState<Playback | null>(null);
   // MFF construction
   const [estimator, setEstimator] = useState("rmpl");
-  const [mems, setMems] = useState<number[]>([11, 39, 99, 399]);
-  const [fams, setFams] = useState<string[]>(["gaussian", "t", "clayton", "gumbel"]);
-  const [eta, setEta] = useState(1);
-  const [delta, setDelta] = useState(1e-4);
+  const [mems, setMems] = useState<number[]>([]);
+  const [fams, setFams] = useState<string[]>([]);
+  const [eta, setEta] = useState<number | null>(null);
+  const [delta, setDelta] = useState<number | null>(null);
   // events
   const [eventKind, setEventKind] = useState<EventKind>("jump");
   const [jumpTo, setJumpTo] = useState(0.8);
@@ -49,6 +47,7 @@ export default function Lab() {
   const [driftSteps, setDriftSteps] = useState(1000);
   const [switchTo, setSwitchTo] = useState("clayton");
   const [auto, setAuto] = useState(true);
+  const [guidedEdit, setGuidedEdit] = useState<Partial<Guided>>({});
   const [compareFixed, setCompareFixed] = useState(true);
   const [paused, setPaused] = useState(false);
 
@@ -63,6 +62,7 @@ export default function Lab() {
   const wsRef = useRef<WebSocket | null>(null);
   const bufRef = useRef<StreamPoint[]>([]);
   const lastRef = useRef<State | null>(null);
+  const seeded = useRef(false);
 
   useEffect(() => {
     let ws: WebSocket;
@@ -77,6 +77,15 @@ export default function Lab() {
         const j = JSON.parse(m.data);
         if (j.type === "error") setError(j.message);
         else if (j.type === "started") { setRunning(true); setError(null); }
+        else if (j.type === "catalog") {
+          setPlayback(j.playback);
+          if (!seeded.current) {
+            seeded.current = true;
+            setRho0(j.playback.lab.rho);
+            setMems(j.playback.lab.memories);
+            setFams(j.playback.lab.families);
+          }
+        }
         else if (j.type === "config") setConfig(j);
         else if (j.type === "event") setMarks((m) => [...m, { t: j.t, label: j.label }].slice(-20));
         else if (j.type === "state") {
@@ -116,11 +125,19 @@ export default function Lab() {
     if (!mems.length || !fams.length) { setError("pick at least one memory and one family"); return; }
     setRows([]); setMarks([]); setLast(null); setConfig(null); bufRef.current = []; lastRef.current = null;
     setPaused(false);
-    send({ action: "start", copula, rho: rho0, rate, auto, quick_start: true, estimator, memories: mems.join(","), families: fams.join(","), eta, delta });
+    send({ action: "start", copula, rho: rho0, rate: speed, auto, quick_start: true, estimator, memories: mems.join(","), families: fams.join(","), eta: etaValue, delta: deltaValue, guided });
   };
   const toggle = <T,>(list: T[], v: T, set: (x: T[]) => void, order: T[]) =>
     set(list.includes(v) ? list.filter((x) => x !== v) : order.filter((x) => x === v || list.includes(x)));
 
+  const speed = rate ?? playback?.default ?? 0;
+  const etaValue = eta ?? playback?.eta ?? 1;
+  const deltaValue = delta ?? playback?.delta ?? 0;
+  const guided = { ...playback?.guided, ...guidedEdit } as Guided;
+  const guidedField = (key: keyof Guided, label: string, min: number, max: number, step: number) => (
+    <label>{label} <input type="number" min={min} max={max} step={step} value={guided[key]}
+      onChange={(e) => setGuidedEdit((old) => ({ ...old, [key]: +e.target.value }))} /></label>
+  );
   const familyMff = (config?.families.length ?? 0) > 1;
   const fixedMemories: [number, number] | undefined = compareFixed && config && config.memories.length > 1
     ? [Math.min(...config.memories), Math.max(...config.memories)] : undefined;
@@ -173,12 +190,12 @@ export default function Lab() {
               <input type="range" min={0.05} max={0.9} step={0.05} value={rho0} onChange={(e) => setRho0(+e.target.value)} />
             </label>
             <label>Playback
-              <select value={rate} onChange={(e) => {
+              <select value={speed} disabled={!playback} onChange={(e) => {
                 const speed = Number(e.target.value);
                 setRate(speed);
                 if (running) send({ action: "rate", rate: speed });
               }}>
-                {PLAYBACK_RATES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                {playback?.rates.map((value) => <option key={value} value={value}>{value} obs / sec</option>)}
               </select>
             </label>
           </section>
@@ -218,7 +235,20 @@ export default function Lab() {
                 setAuto(on);
               }} /> Guided events</label>
             </div>
-            {auto && <p className="hint">Jump at observation 60. Drift at 155.</p>}
+            {auto && playback && <>
+              <p className="hint">The first {playback.preroll} observations play over about {playback.warmupSeconds} seconds, then the guided events run.</p>
+              <details className="model-options">
+                <summary>Guided events <span>jump {guided.jumpAt}, drift {guided.driftAt}</span></summary>
+                <div className="row2">
+                  {guidedField("jumpAt", "Jump at obs", 1, 100000, 50)}
+                  {guidedField("jumpTo", "Jump to ρ", 0.05, 0.9, 0.05)}
+                  {guidedField("driftAt", "Drift at obs", 1, 100000, 50)}
+                  {guidedField("driftTo", "Drift to ρ", 0.05, 0.9, 0.05)}
+                  {guidedField("driftSteps", "Drift length", 1, 5000, 50)}
+                </div>
+                <p className="hint">Applies when you press Start or Restart.</p>
+              </details>
+            </>}
             {latestEvent && <p className="lab-event" role="status">
               <strong>{latestEvent.label}</strong>
               <span>Observation {latestEvent.t.toLocaleString()}</span>
@@ -244,8 +274,8 @@ export default function Lab() {
               </div>
             </fieldset>
             <div className="row2">
-              <label>Learning rate η <input type="number" step={0.25} min={0} value={eta} onChange={(e) => setEta(+e.target.value)} /></label>
-              <label>Fixed share δ <input type="number" step={0.0001} min={0} max={0.5} value={delta} onChange={(e) => setDelta(+e.target.value)} /></label>
+              <label>Learning rate η <input type="number" step={0.25} min={0} value={etaValue} onChange={(e) => setEta(+e.target.value)} /></label>
+              <label>Fixed share δ <input type="number" step={0.0001} min={0} max={0.5} value={deltaValue} onChange={(e) => setDelta(+e.target.value)} /></label>
             </div>
             <label className="check-label"><input type="checkbox" checked={compareFixed} onChange={(e) => setCompareFixed(e.target.checked)} /> Compare fixed memories</label>
           </details>

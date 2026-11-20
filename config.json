@@ -5,5 +5,22 @@
   "ws": {
     "dev": "ws://localhost:9002",
     "prod": "wss://thesaurus-process-jazz.ngrok-free.dev"
+  },
+  "demo": {
+    "startRho": 0.1,
+    "memories": [39, 99, 199, 399, 1999],
+    "warmup": { "observations": 500, "seconds": 30 },
+    "playback": { "rates": [50, 70, 100, 150, 300, 500], "default": 150 },
+    "mff": { "eta": 1, "delta": 0.0001 },
+    "lab": {
+      "families": ["gaussian", "t", "clayton", "gumbel"],
+      "guided": { "jumpAt": 800, "jumpTo": 0.85, "driftAt": 1600, "driftTo": 0.3, "driftSteps": 100 }
+    },
+    "market": {
+      "firstEvent": 600,
+      "interval": 2000,
+      "loop": true,
+      "events": [[0.9, 0], [0.1, 200]]
+    }
   }
 }

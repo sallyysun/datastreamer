@@ -77,6 +77,13 @@ static std::unique_ptr<dgp::Copula> make_live_copula() {
 
 int main() {
     Config cfg = load_config();
+    DemoConfig startup;
+    try {
+        startup = DemoConfig::load();
+    } catch (const std::exception& error) {
+        std::cerr << "config: " << error.what() << "\n";
+        return 1;
+    }
     cfg.port = int(env_long("PORT", cfg.port));
     cfg.broker_port = int(env_long("BROKER_PORT", cfg.broker_port));
     const long n_obs = env_long("N", 0), wait_consumers = env_long("WAIT_CONSUMERS", 0);
@@ -223,20 +230,27 @@ int main() {
         d->session = 0;
     };
 
-    auto sources = json::object();
+    auto market_sources = json::object();
     for (const auto& [name, feed] : feeds) {
-        auto metadata = feed.broadcast.catalog();
+        auto metadata = feed.broadcast.catalog(startup);
         if (name.starts_with("thesis/")) {
             metadata["id"] = name.substr(7);
-            sources["thesis"]["pairs"].push_back(std::move(metadata));
+            market_sources["thesis"]["pairs"].push_back(std::move(metadata));
         } else {
-            sources[name] = std::move(metadata);
+            market_sources[name] = std::move(metadata);
         }
     }
-    const auto catalog = json{{"type", "catalog"}, {"symbols", {sym_x, sym_y}}, {"market", std::move(sources)}}.dump();
     app.ws<PerSocket>("/*", {
-        .open = [&catalog](auto* ws) {
-            ws->send(catalog, uWS::OpCode::TEXT);
+        .open = [&](auto* ws) {
+            try {
+                const auto demo = DemoConfig::load();
+                auto market = market_sources;
+                if (market.contains("simulation")) market["simulation"]["memories"] = demo.market_memories;
+                ws->send(json{{"type", "catalog"}, {"symbols", {sym_x, sym_y}}, {"market", market},
+                              {"playback", demo.to_json()}}.dump(), uWS::OpCode::TEXT);
+            } catch (const std::exception& error) {
+                ws->send(json{{"type", "error"}, {"message", error.what()}}.dump(), uWS::OpCode::TEXT);
+            }
         },
         .message = [&](auto *ws, std::string_view message, uWS::OpCode) {
             json j = json::parse(message, nullptr, /*allow_exceptions=*/false);
@@ -245,6 +259,14 @@ int main() {
             PerSocket* d = ws->getUserData();
             if (action == "market_unsubscribe") {
                 unsubscribe_market(ws);
+                return;
+            }
+            if (action == "market_rate") {
+                if (!j.contains("rate") || !j["rate"].is_number()) return;
+                for (auto& [name, feed] : feeds) {
+                    const auto found = feed.subscriptions.find(ws);
+                    if (found != feed.subscriptions.end()) found->second.set_rate(j["rate"].get<double>());
+                }
                 return;
             }
             if (action == "market_subscribe") {
@@ -283,8 +305,16 @@ int main() {
                     fail("Choose two distinct assets.");
                     return;
                 }
+                DemoConfig demo;
+                try {
+                    demo = DemoConfig::load();
+                } catch (const std::exception& error) {
+                    fail(error.what());
+                    return;
+                }
                 unsubscribe_market(ws);
-                feed.subscriptions.try_emplace(ws, x, y, feed.broadcast.memories(), feed.broadcast.warmup());
+                feed.subscriptions.try_emplace(ws, feed.broadcast, x, y, std::random_device{}(),
+                                               j.value("rate", demo.default_rate), demo);
                 ws->send(json{{"type", "market_subscribed"}, {"requestId", *request}, {"pair", {x, y}}}.dump(), uWS::OpCode::TEXT);
                 return;
             }
@@ -308,8 +338,22 @@ int main() {
                     return;
                 }
                 LabConfig c;
+                try {
+                    c.demo = DemoConfig::load();
+                } catch (const std::exception& error) {
+                    ws->send(json{{"type", "error"}, {"message", error.what()}}.dump(), uWS::OpCode::TEXT);
+                    return;
+                }
+                c.rate = c.demo.default_rate; c.eta = c.demo.eta; c.delta = c.demo.delta; c.guided = c.demo.guided;
                 c.copula = j.value("copula", c.copula); c.rho = j.value("rho", c.rho); c.rate = j.value("rate", c.rate);
                 c.quick_start = j.value("quick_start", c.quick_start);
+                if (const auto g = j.find("guided"); g != j.end() && g->is_object()) {
+                    c.guided.jump_at = g->value("jumpAt", c.guided.jump_at);
+                    c.guided.jump_to = g->value("jumpTo", c.guided.jump_to);
+                    c.guided.drift_at = g->value("driftAt", c.guided.drift_at);
+                    c.guided.drift_to = g->value("driftTo", c.guided.drift_to);
+                    c.guided.drift_steps = g->value("driftSteps", c.guided.drift_steps);
+                }
                 c.auto_events = j.value("auto", c.auto_events);
                 c.estimator = j.value("estimator", c.estimator); c.memories = j.value("memories", c.memories);
                 c.families = j.value("families", c.families); c.eta = j.value("eta", c.eta); c.delta = j.value("delta", c.delta);
@@ -333,7 +377,7 @@ int main() {
             else if (action == "drift") s.drift(j.value("rho", 0.5), std::size_t(j.value("steps", 1000)));
             else if (action == "family") s.family(j.value("family", std::string("gaussian")));
             else if (action == "auto") s.set_auto(j.value("on", false));
-            else if (action == "rate") s.set_rate(j.value("rate", LabConfig::kDefaultRate));
+            else if (action == "rate" && j.contains("rate") && j["rate"].is_number()) s.set_rate(j["rate"].get<double>());
             else if (action == "pause") s.set_paused(j.value("on", false));
             else if (action == "stop") end_session(d);
         },
@@ -381,20 +425,19 @@ int main() {
     });
 
     if (!feeds.empty()) {
-        const double market_rate = env_double("MARKET_RATE", market::kDefaultRate);
-        const int interval = int(1000 / (std::isfinite(market_rate) ? std::clamp(market_rate, 0.5, kMaxBrowserRate) : market::kDefaultRate));
+        constexpr int interval = 20;
         auto* timer = us_create_timer(reinterpret_cast<us_loop_t*>(loop), 0, sizeof(MarketFeeds*));
         if (!timer) throw std::runtime_error("could not create market timer");
         *static_cast<MarketFeeds**>(us_timer_ext(timer)) = &feeds;
         us_timer_set(timer, [](us_timer_t* t) {
+            static auto previous = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            const double seconds = std::chrono::duration<double>(now - previous).count();
+            previous = now;
             auto& feeds = **static_cast<MarketFeeds**>(us_timer_ext(t));
-            for (auto& [name, feed] : feeds) {
-                const auto frame = feed.broadcast.next();
-                for (auto it = feed.subscriptions.begin(); it != feed.subscriptions.end();) {
-                    auto& [ws, subscription] = *it++;
-                    ws->send(subscription.observe(frame).dump(), uWS::OpCode::TEXT);
-                }
-            }
+            for (auto& [name, feed] : feeds)
+                for (auto& [ws, subscription] : feed.subscriptions)
+                    for (const auto& point : subscription.advance(seconds)) ws->send(point.dump(), uWS::OpCode::TEXT);
         }, interval, interval);
     }
     app.run();

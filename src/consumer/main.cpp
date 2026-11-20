@@ -43,8 +43,10 @@ int run_lab(BrokerClient& client, int argc, char** argv, const char* id) {
     for (const auto& m : split(arg(argc, argv, "--memories", thesis::kMemoryCsv))) mem.push_back(std::atof(m.c_str()));
     const auto fams = split(arg(argc, argv, "--families", "gaussian"));
     const bool fast_warmup = std::string_view(arg(argc, argv, "--fast-warmup", "0")) == "1";
-    LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, std::atof(arg(argc, argv, "--eta", "1")),
-                std::atof(arg(argc, argv, "--delta", "1e-4")), fast_warmup ? LiveLab::kDemoWarmup : thesis::kMffWarmup);
+    const char* eta = arg(argc, argv, "--eta", nullptr);
+    const char* delta = arg(argc, argv, "--delta", nullptr);
+    LiveLab lab(arg(argc, argv, "--estimator", "rmpl"), mem, fams, eta ? std::atof(eta) : thesis::Mff{}.eta,
+                delta ? std::atof(delta) : thesis::Mff{}.delta, fast_warmup ? LiveLab::kDemoWarmup : thesis::kMffWarmup);
     const char* publish_every = arg(argc, argv, "--publish-every", nullptr);
     const std::size_t every = publish_every ? std::max<std::size_t>(1, std::strtoul(publish_every, nullptr, 10)) : 0;
     using Clock = std::chrono::steady_clock;

@@ -28,20 +28,20 @@
 #include "../datasource/dependence.hpp"
 #include "../datasource/synthetic_source.hpp"
 #include "broker.hpp"
-
-inline constexpr double kMaxBrowserRate = 10.0;
+#include "demo_config.hpp"
 
 struct LabConfig {
-    static constexpr double kDefaultRate = 1.5; // observations per second
     std::string copula = "gaussian";
     double rho = 0.5;                  // starting rho_S
-    double rate = kDefaultRate;
+    double rate = 0;
     bool quick_start = false;
     bool auto_events = false;
     std::string estimator = "rmpl";    // MFF arms: rmpl | xiao | hermite
     std::string memories = thesis::kMemoryCsv;
     std::string families = "gaussian"; // working families of the MFF models
-    double eta = 1.0, delta = 1e-4;
+    double eta = 0, delta = 0;
+    GuidedEvents guided;
+    DemoConfig demo;
 };
 
 class LabSession {
@@ -90,21 +90,15 @@ public:
 private:
     static constexpr unsigned kGuidedSeed = 42;
 
-    static double clamp_rate(double rate) {
-        return std::isfinite(rate) ? std::clamp(rate, 0.5, kMaxBrowserRate) : LabConfig::kDefaultRate;
-    }
+    double clamp_rate(double rate) const { return cfg_.demo.clamp_rate(rate); }
 
-    double observation_rate() const {
-        if (!cfg_.quick_start || n_ > 31) return rate_;
-        // Ease from the warm-up rate to the selected display rate across the first 31 returns.
-        const double remaining = (32.0 - n_) / 31.0;
-        return rate_ + remaining * std::max(4.5 - rate_, 0.0);
-    }
+    bool bursting() const { return cfg_.quick_start && n_ <= cfg_.demo.warmup_observations; }
 
     // n_ includes the opening tick, so it is also the one-based index of the next return.
     void event(const std::string& label) {
         if (notify_) notify_(nlohmann::json{{"type", "event"}, {"t", std::max<std::size_t>(n_, 1)}, {"label", label}}.dump());
     }
+    static std::string number(double x) { char b[32]; std::snprintf(b, sizeof b, "%.10g", x); return b; }
     static std::string fmt(double x) { char b[16]; std::snprintf(b, sizeof b, "%.2f", x); return b; }
     void do_jump(double rho) {
         const double from = dep_->current();
@@ -126,7 +120,7 @@ private:
         std::vector<std::string> a = {consumer, "--port", std::to_string(broker_port), "--symbols", sx_ + "," + sy_,
                                       "--print", "0", "--live", std::to_string(id_), "--estimator", cfg_.estimator,
                                       "--memories", cfg_.memories, "--families", cfg_.families,
-                                      "--eta", std::to_string(cfg_.eta), "--delta", std::to_string(cfg_.delta)};
+                                      "--eta", number(cfg_.eta), "--delta", number(cfg_.delta)};
         if (cfg_.quick_start && cfg_.estimator == "rmpl") a.insert(a.end(), {"--fast-warmup", "1"});
         if (cfg_.auto_events) a.insert(a.end(), {"--seed", std::to_string(kGuidedSeed)});
         pid_ = ::fork();
@@ -141,8 +135,8 @@ private:
     }
 
     void guided_event() {
-        if (n_ == 60) do_jump(0.85);
-        if (n_ == 155) do_drift(0.30, 40);
+        if (n_ == cfg_.guided.jump_at) do_jump(cfg_.guided.jump_to);
+        if (n_ == cfg_.guided.drift_at) do_drift(cfg_.guided.drift_to, cfg_.guided.drift_steps);
     }
 
     void run() {
@@ -159,17 +153,16 @@ private:
                 if (auto_) guided_event();
                 e = source_->next();
                 ++n_;
-                rate = observation_rate();
+                rate = rate_;
             }
             e.x.symbol = sx_; e.y.symbol = sy_;
             broker_.publish(tx, Serializer::to_json(e.x));
             broker_.publish(ty, Serializer::to_json(e.y));
             std::unique_lock<std::mutex> lock(mu_);
             const auto sent = std::chrono::steady_clock::now();
-            pacing_.wait_until(lock, sent + std::chrono::microseconds(static_cast<long>(1e6 / rate)),
-                               [&] { return !running_ || paused_ || observation_rate() != rate; });
-            pacing_.wait_until(lock, sent + std::chrono::microseconds(static_cast<long>(1e6 / kMaxBrowserRate)),
-                               [&] { return !running_; });
+            const auto gap = bursting() ? std::chrono::microseconds(static_cast<long>(1e6 / cfg_.demo.warmup_rate()))
+                                        : std::chrono::microseconds(static_cast<long>(1e6 / rate));
+            pacing_.wait_until(lock, sent + gap, [&] { return !running_ || paused_ || (!bursting() && rate_ != rate); });
         }
     }
 
@@ -184,7 +177,7 @@ private:
     std::unique_ptr<SyntheticSource> source_;
     std::atomic<bool> running_{true}, auto_{false};
     bool paused_ = false;
-    double rate_ = LabConfig::kDefaultRate;
+    double rate_ = 0;
     std::size_t n_ = 0;
     pid_t pid_ = -1;
     std::thread thread_;

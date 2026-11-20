@@ -18,6 +18,8 @@
 #include <vector>
 
 #include "../../consumer/live_lab.hpp"
+#include "../../protocol.hpp"
+#include "demo_config.hpp"
 #include "../datasource/dependence.hpp"
 #include "../datasource/file_source.hpp"
 
@@ -25,9 +27,6 @@ namespace market {
 
 using nlohmann::json;
 namespace fs = std::filesystem;
-
-inline constexpr double kDefaultRate = 1.5;
-inline constexpr std::array<double, 4> kDemoMemories{11, 39, 99, 399};
 
 struct ScheduledEvent {
     double target;
@@ -38,12 +37,20 @@ class EventSchedule {
 public:
     explicit EventSchedule(std::string path) : path_(std::move(path)) {}
 
+    void configure(const DemoConfig& demo) {
+        first_ = demo.market_first_event;
+        interval_ = demo.market_event_interval;
+        loop_ = demo.market_loop;
+        builtin_ = demo.market_events;
+    }
+
     std::optional<ScheduledEvent> at(std::size_t step) {
         if (path_.empty()) {
-            static constexpr std::size_t first = 48, interval = 110;
-            static constexpr std::array<ScheduledEvent, 4> sequence{{{0.85, 24}, {0.15, 0}, {0.80, 28}, {0.25, 0}}};
-            if (step < first || (step - first) % interval != 0) return std::nullopt;
-            return sequence[((step - first) / interval) % sequence.size()];
+            if (builtin_.empty() || step < first_ || (step - first_) % interval_ != 0) return std::nullopt;
+            const auto index = (step - first_) / interval_;
+            if (!loop_ && index >= builtin_.size()) return std::nullopt;
+            const auto& event = builtin_[index % builtin_.size()];
+            return ScheduledEvent{event[0], std::size_t(event[1])};
         }
         std::error_code ec;
         const auto mtime = fs::last_write_time(path_, ec);
@@ -74,6 +81,9 @@ private:
     }
 
     std::string path_;
+    std::size_t first_ = 0, interval_ = 1;
+    bool loop_ = true;
+    std::vector<std::array<double, 2>> builtin_;
     std::optional<fs::file_time_type> mtime_;
     std::map<std::size_t, ScheduledEvent> events_;
 };
@@ -92,6 +102,12 @@ class Simulation {
 public:
     explicit Simulation(unsigned seed, std::string events) : events_(std::move(events)), rng_(seed) {}
 
+    void reseed(unsigned seed) { rng_.seed(seed); }
+    void configure(const DemoConfig& demo) {
+        events_.configure(demo);
+        dependence_ = ControlledDependence(demo.market_start_rho);
+    }
+
     MarketFrame next(std::size_t step) {
         MarketFrame frame;
         if (auto event = events_.at(step)) {
@@ -106,10 +122,11 @@ public:
         }
         const double factor = normal_(rng_);
         const double rho = copula::param_from_spearman(copula::Family::Gaussian, dependence_.next());
-        const double scale = std::sqrt(rho);
+        const double scale = std::sqrt(std::abs(rho));
         // A joint Gaussian return model with a shared shock and an independent shock per asset.
         for (std::size_t i = 0; i < prices_.size(); ++i) {
-            const double loading = scale * exposure_[i];
+            const double sign = rho < 0 && i % 2 == 1 ? -1.0 : 1.0;
+            const double loading = sign * scale * exposure_[i];
             const double shock = loading * factor + std::sqrt(1 - loading * loading) * normal_(rng_);
             prices_[i] *= std::exp(0.0001 + 0.01 * shock);
             frame.loadings.push_back(loading);
@@ -123,7 +140,7 @@ public:
 private:
     static constexpr std::array<double, 5> exposure_{1, .95, .80, .67, .52};
     std::array<double, 5> prices_ = opening_prices;
-    ControlledDependence dependence_{0.5};
+    ControlledDependence dependence_{0.0};
     EventSchedule events_;
     std::mt19937 rng_;
     std::normal_distribution<double> normal_;
@@ -181,6 +198,7 @@ public:
         if (frames_.size() < 2) throw std::runtime_error("replay needs at least two dates shared by all tickers");
     }
 
+    std::size_t size() const { return frames_.size(); }
     bool at_end() const { return cursor_ == frames_.size(); }
     void rewind() { cursor_ = 0; }
     MarketFrame next() { return frames_[cursor_++]; }
@@ -222,10 +240,9 @@ public:
         }
     }
 
-    json catalog() const {
-        const auto candidates = memories();
+    json catalog(const DemoConfig& demo) const {
         return {{"symbols", symbols_},
-                {"memories", std::vector<double>(candidates.begin(), candidates.end())},
+                {"memories", memories(demo)},
                 {"readyAt", warmup() + 1}};
     }
 
@@ -251,10 +268,17 @@ public:
         return frame;
     }
 
+    void reseed(unsigned seed, const DemoConfig& demo) {
+        if (!simulation_) return;
+        simulation_->reseed(seed);
+        simulation_->configure(demo);
+    }
+    std::size_t length() const { return returns_ ? returns_->size() : replay_ ? replay_->size() : 0; }
+    std::size_t preroll(std::size_t wanted) const { const auto n = length(); return n ? std::min(wanted, n / 2) : wanted; }
     std::size_t symbol_count() const { return symbols_.size(); }
     std::size_t warmup() const { return simulation_ ? LiveLab::kDemoWarmup : thesis::kMffWarmup; }
-    std::span<const double> memories() const {
-        return simulation_ ? std::span<const double>(kDemoMemories) : std::span<const double>(thesis::kMem);
+    std::vector<double> memories(const DemoConfig& demo) const {
+        return simulation_ ? demo.market_memories : std::vector<double>(std::begin(thesis::kMem), std::end(thesis::kMem));
     }
 
 private:
@@ -268,9 +292,23 @@ private:
 
 class Subscription {
 public:
-    Subscription(std::size_t x, std::size_t y, std::span<const double> memories, std::size_t warmup)
-        : x_(x), y_(y), memories_(memories), warmup_(warmup), model_(make_model()) {}
+    Subscription(Broadcast stream, std::size_t x, std::size_t y, unsigned seed, double rate, DemoConfig demo)
+        : stream_(std::move(stream)), demo_(std::move(demo)), x_(x), y_(y), memories_(stream_.memories(demo_)),
+          warmup_(stream_.warmup()), rate_(demo_.clamp_rate(rate)), model_(make_model()) {
+        stream_.reseed(seed, demo_);
+    }
 
+    void set_rate(double rate) { rate_ = demo_.clamp_rate(rate); }
+
+    std::vector<json> advance(double seconds) {
+        std::vector<json> points;
+        const double rate = emitted_ < stream_.preroll(demo_.warmup_observations) ? demo_.warmup_rate() : rate_;
+        credit_ = std::min(credit_ + rate * seconds, 5.0);
+        for (; credit_ >= 1.0; credit_ -= 1.0, ++emitted_) points.push_back(observe(stream_.next()));
+        return points;
+    }
+
+private:
     json observe(const MarketFrame& frame) {
         if (frame.step == 1 && observations_ > 0) {
             model_ = make_model();
@@ -292,14 +330,18 @@ public:
         return point;
     }
 
-private:
     LiveLab make_model() const {
-        return LiveLab("rmpl", {memories_.begin(), memories_.end()}, {"gaussian"}, 1.0, 1e-4, warmup_);
+        return LiveLab("rmpl", {memories_.begin(), memories_.end()}, {"gaussian"}, demo_.eta, demo_.delta, warmup_);
     }
 
+    Broadcast stream_;
+    DemoConfig demo_;
     std::size_t x_, y_;
-    std::span<const double> memories_;
+    std::vector<double> memories_;
     std::size_t warmup_;
+    double rate_;
+    double credit_ = 0;
+    std::size_t emitted_ = 0;
     std::size_t observations_ = 0;
     LiveLab model_;
 };

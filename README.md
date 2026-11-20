@@ -75,27 +75,28 @@ The build uses Python 3 to generate C++ defaults from `study_config.json`. The e
 `./run.sh dev` (or `make && make consumer && ./server`, then open http://localhost:9002) opens the **MFF lab**:
 each viewer gets a private stream from a steerable generator and a consumer process running an MFF they build
 (estimator, memories N_eff, working families, η, δ). The guided demo uses a fixed seed, starts with a steady
-period, jumps at observation 60, and drifts from observation 155. Compare MFF with the shortest and longest
+period, then jumps and drifts at the observations set under `demo.lab.guided` in `config.json`. Compare MFF with the shortest and longest
 fixed memories or switch the chart to VFF. Viewers can also apply their own events.
 The charts show ρ_S, the estimates, the weights by memory and by family, and the effective memory
 live. The server starts and stops each session's consumer (`./consumer --live`, `src/consumer/live_lab.hpp`);
 the browser only draws the state the consumer publishes. The standard warm-up, Gaussian family and thesis memories
 match the Chapter 6 device (`experiments/simulation/test/lab_vs_device.cpp`). `MAX_SESSIONS` (default 8) caps sessions.
-The Lab tapers its startup speed over the first 31 observations, then uses the selected playback speed
-(1.5 observations per second by default). The browser's RMPL demo shows its first estimates after 13 observations.
-Lab and Market playback are capped at 10 observations per second.
+Every demo number lives in the `demo` section of `config.json`: the warm-up (observations and seconds), the
+playback speeds and default, η and δ, the Lab's form defaults and guided events, and the Market's event schedule.
+The server rereads it when a page loads, when a Lab session starts and when a Market subscription starts, so
+edit it and reload the page; no rebuild or restart is needed. The Lab form can override its own defaults.
 
 ### Shared Market broadcast
 
 Market offers the server's simulation and configured replays in the **Source** picker.
-The simulation generates five assets, A–E, at 1.5 observations per second. Visitors pick any two and press **Subscribe** to begin tracking their prices and MFF
+The simulation generates five assets, A–E. Visitors pick any two and press **Subscribe** to begin tracking their prices and MFF
 from the next observation. Each subscription starts with fresh weights. Lab sessions are private.
 
 Start a simulation with `./run.sh dev` for local development or `./run.sh prod` for the Vite production build
 served by C++. The production script reads the configured WebSocket URL from `config.json`. Point ngrok at
 the server port to make the app available publicly.
 
-The simulation alternates jumps and drifts automatically, with 110 observations between events after the first.
+The simulation alternates jumps and drifts automatically, on the schedule under `demo.market` in `config.json` (set `loop` to false to run the list once). `demo.startRho` and `demo.memories` are shared by the Lab and the Market; give `lab` or `market` its own `rho`/`startRho` or `memories` to override one tab.
 Its MFF uses candidate memories of 11, 39, 99 and 399 to make adaptation visible on a short run.
 The simulated broadcast starts estimating after 13 observations per subscription. Saved-price replay
 uses the standard 31-observation start.
@@ -124,7 +125,7 @@ To replay the exact Section 6.6 inputs, extract `data66/rerun/in/` from `origin/
 and one of the recorded pairs. Its chart displays the committed volatility-standardised log returns,
 and MFF receives the `x,y` values directly. The Market subscription begins at the current replay date.
 
-`MARKET_RATE` controls broadcast speed. Saved files and the event schedule are read by the server.
+Playback speed is chosen per viewer from `demo.playback`. Saved files and the event schedule are read by the server.
 
 ## Experiments
 

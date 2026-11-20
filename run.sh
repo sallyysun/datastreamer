@@ -12,6 +12,11 @@ echo "PORT=$CONFIG_PORT"
 echo "WS_DEV=$WS_DEV"
 echo "WS_PROD=$WS_PROD"
 
+if lsof -iTCP:"$CONFIG_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "❌ port $CONFIG_PORT is already in use: stop the old server first (lsof -iTCP:$CONFIG_PORT -sTCP:LISTEN)"
+    exit 1
+fi
+
 # =====================================================
 # DEV MODE
 # =====================================================
@@ -21,7 +26,7 @@ if [ "$MODE" = "dev" ]; then
     # -------------------------
     # backend (C++)
     # -------------------------
-    make clean && make && make consumer   # the server spawns ./consumer for each MFF-lab session
+    make server consumer   # the server spawns ./consumer for each MFF-lab session
     ./server &
     SERVER_PID=$!
 
@@ -67,7 +72,7 @@ elif [ "$MODE" = "prod" ]; then
     # -------------------------
     # build backend
     # -------------------------
-    make clean && make && make consumer   # the server spawns ./consumer for each MFF-lab session
+    make server consumer   # the server spawns ./consumer for each MFF-lab session
     ./server &
     SERVER_PID=$!
 

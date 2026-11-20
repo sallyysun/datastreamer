@@ -13,6 +13,7 @@ DS = external/datasketches-cpp
 DS_INC = -I$(DS)/common/include -I$(DS)/kll/include -I$(DS)/req/include
 
 SERVER_SRC = src/streamgenerator/main.cpp
+SOURCES := $(shell find src -name "*.hpp" -o -name "*.cpp")
 
 SERVER_OUT = server
 
@@ -35,7 +36,7 @@ all: server
 $(STUDY_HEADER): study_config.json experiments/common/write_study_config.py
 	@$(PYTHON) experiments/common/write_study_config.py $< $@
 
-server: $(STUDY_HEADER)
+server: $(STUDY_HEADER) $(SOURCES)
 	$(CXX) $(SERVER_SRC) -std=c++20 \
 	$(INCLUDES) \
 	$(LIBS) \
@@ -46,7 +47,7 @@ server: $(STUDY_HEADER)
 # datasketches submodule (RMPL's KLL margin); no uWebSockets.
 CONSUMER_OUT = consumer
 
-consumer: $(STUDY_HEADER)
+consumer: $(STUDY_HEADER) $(SOURCES)
 	$(CXX) src/consumer/main.cpp -std=c++20 -O2 \
 	-I$(EIGEN)/include/eigen3 -I$(JSON)/include $(DS_INC) $(STUDY_INC) -pthread \
 	-o $(CONSUMER_OUT)
@@ -56,4 +57,4 @@ consumer: $(STUDY_HEADER)
 clean:
 	rm -f server consumer
 
-.PHONY: all server consumer clean
+.PHONY: all clean
